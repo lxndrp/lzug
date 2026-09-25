@@ -172,13 +172,17 @@ describe('CandidatesComponent', () => {
     expect(element.querySelector('#candidateFirstNameError')?.textContent).toContain(
       'Vorname eingeben.',
     );
+    expect(element.querySelector('#candidateLastNameError')?.textContent).toContain(
+      'Nachname eingeben.',
+    );
+    expect(element.querySelector('#candidateExamNumberError')?.textContent).toContain(
+      'Prüfungsnummer eingeben.',
+    );
     expect(summary).toBe(document.activeElement);
     expect(component.createCandidate.emit).not.toHaveBeenCalled();
 
     setInput('#candidateFirstName', 'Hermia');
-    expect(
-      element.querySelector('#candidateFirstName')?.getAttribute('aria-describedby'),
-    ).toBeNull();
+    expect(element.querySelector('#candidateFirstName')?.getAttribute('aria-describedby')).toBe('');
     expect(element.querySelector('.app-form-error-summary')?.textContent).not.toContain(
       'Vorname eingeben.',
     );

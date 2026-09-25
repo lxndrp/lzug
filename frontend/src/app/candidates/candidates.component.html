@@ -89,18 +89,14 @@
                   id="candidateFirstName"
                   name="firstName"
                   formControlName="first_name"
-                  [attr.aria-describedby]="
-                    candidateCreateFieldInvalid('candidateFirstName')
-                      ? 'candidateFirstNameError'
-                      : null
-                  "
-                  [attr.aria-invalid]="candidateCreateFieldInvalid('candidateFirstName')"
                   required
                 />
               </tui-textfield>
-              @if (candidateCreateFieldInvalid('candidateFirstName')) {
-                <span id="candidateFirstNameError" class="app-field-error">Vorname eingeben.</span>
-              }
+              <tui-error
+                formControlName="first_name"
+                id="candidateFirstNameError"
+                [order]="['candidateFirstNameRequired']"
+              />
             </div>
             <div class="app-field-half">
               <tui-textfield>
@@ -112,18 +108,14 @@
                   id="candidateLastName"
                   name="lastName"
                   formControlName="last_name"
-                  [attr.aria-describedby]="
-                    candidateCreateFieldInvalid('candidateLastName')
-                      ? 'candidateLastNameError'
-                      : null
-                  "
-                  [attr.aria-invalid]="candidateCreateFieldInvalid('candidateLastName')"
                   required
                 />
               </tui-textfield>
-              @if (candidateCreateFieldInvalid('candidateLastName')) {
-                <span id="candidateLastNameError" class="app-field-error">Nachname eingeben.</span>
-              }
+              <tui-error
+                formControlName="last_name"
+                id="candidateLastNameError"
+                [order]="['candidateLastNameRequired']"
+              />
             </div>
             <div class="app-field-third">
               <tui-textfield>
@@ -135,20 +127,14 @@
                   id="candidateExamNumber"
                   name="examNumber"
                   formControlName="ihk_exam_number"
-                  [attr.aria-describedby]="
-                    candidateCreateFieldInvalid('candidateExamNumber')
-                      ? 'candidateExamNumberError'
-                      : null
-                  "
-                  [attr.aria-invalid]="candidateCreateFieldInvalid('candidateExamNumber')"
                   required
                 />
               </tui-textfield>
-              @if (candidateCreateFieldInvalid('candidateExamNumber')) {
-                <span id="candidateExamNumberError" class="app-field-error"
-                  >Prüfungsnummer eingeben.</span
-                >
-              }
+              <tui-error
+                formControlName="ihk_exam_number"
+                id="candidateExamNumberError"
+                [order]="['candidateExamNumberRequired']"
+              />
             </div>
             <div class="app-field-third">
               <label for="candidateSpecialization"

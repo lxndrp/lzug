@@ -18,7 +18,14 @@ import {
   ValidationErrors,
   Validators,
 } from '@angular/forms';
-import { TuiButton, TuiCheckbox, TuiInput, TuiTextfield } from '@taiga-ui/core';
+import {
+  TuiButton,
+  TuiCheckbox,
+  TuiError,
+  TuiInput,
+  TuiTextfield,
+  tuiValidationErrorsProvider,
+} from '@taiga-ui/core';
 import { TuiBadge, TuiSelect } from '@taiga-ui/kit';
 import { TuiTable } from '@taiga-ui/addon-table';
 import { TuiForm, TuiHeader } from '@taiga-ui/layout';
@@ -68,12 +75,20 @@ type CandidateFormModel = {
     TuiButton,
     TuiBadge,
     TuiCheckbox,
+    TuiError,
     TuiForm,
     TuiHeader,
     TuiInput,
     TuiSelect,
     TuiTable,
     TuiTextfield,
+  ],
+  providers: [
+    tuiValidationErrorsProvider({
+      candidateExamNumberRequired: 'Prüfungsnummer eingeben.',
+      candidateFirstNameRequired: 'Vorname eingeben.',
+      candidateLastNameRequired: 'Nachname eingeben.',
+    }),
   ],
   templateUrl: './candidates.component.html',
   styleUrl: './candidates.component.css',
@@ -359,19 +374,19 @@ export class CandidatesComponent {
     return new FormGroup({
       first_name: new FormControl(String(value.first_name ?? initial.first_name), {
         nonNullable: true,
-        validators: [this.requiredText],
+        validators: [this.requiredText('candidateFirstNameRequired')],
       }),
       last_name: new FormControl(String(value.last_name ?? initial.last_name), {
         nonNullable: true,
-        validators: [this.requiredText],
+        validators: [this.requiredText('candidateLastNameRequired')],
       }),
       ihk_exam_number: new FormControl(String(value.ihk_exam_number ?? initial.ihk_exam_number), {
         nonNullable: true,
-        validators: [this.requiredText],
+        validators: [this.requiredText('candidateExamNumberRequired')],
       }),
       specialization: new FormControl(String(value.specialization ?? initial.specialization), {
         nonNullable: true,
-        validators: [this.requiredText],
+        validators: [this.requiredTextValidator],
       }),
       training_company: new FormControl(
         String(value.training_company ?? initial.training_company),
@@ -394,7 +409,11 @@ export class CandidatesComponent {
     });
   }
 
-  private requiredText(control: AbstractControl) {
+  private requiredText(error: string) {
+    return (control: AbstractControl) => (String(control.value).trim() ? null : { [error]: true });
+  }
+
+  private requiredTextValidator(control: AbstractControl) {
     return String(control.value).trim() ? null : { required: true };
   }
 
