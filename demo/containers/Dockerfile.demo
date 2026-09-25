@@ -1,6 +1,12 @@
 # syntax=docker/dockerfile:1
 
-FROM mcr.microsoft.com/powershell:7.5.3 AS powershell
+FROM scratch AS powershell-amd64
+ADD --checksum=sha256:5c74e0bbafd8be59e72267f05700fd6615344d9cf4d30460d9b6d12cd4a88a8c https://github.com/PowerShell/PowerShell/releases/download/v7.5.3/powershell-7.5.3-linux-x64.tar.gz /powershell.tar.gz
+
+FROM scratch AS powershell-arm64
+ADD --checksum=sha256:4a6b656dd0e751e82c5df9b9a4245bd1ec7d21de5334afbbd802dfd009595599 https://github.com/PowerShell/PowerShell/releases/download/v7.5.3/powershell-7.5.3-linux-arm64.tar.gz /powershell.tar.gz
+
+FROM powershell-${TARGETARCH} AS powershell
 
 FROM python:3.14.6-slim-bookworm AS backend-build
 
@@ -37,7 +43,14 @@ RUN set -eu; \
 
 FROM node:26.5.0-bookworm-slim AS frontend-build
 
-COPY --from=powershell /opt/microsoft/powershell/7 /opt/microsoft/powershell/7
+COPY --from=powershell /powershell.tar.gz /tmp/powershell.tar.gz
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y libicu72 \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /opt/microsoft/powershell/7 \
+    && tar -xzf /tmp/powershell.tar.gz -C /opt/microsoft/powershell/7 \
+    && chmod +x /opt/microsoft/powershell/7/pwsh \
+    && rm /tmp/powershell.tar.gz
 ENV PATH="/opt/microsoft/powershell/7:$PATH"
 
 WORKDIR /src/frontend
@@ -49,6 +62,7 @@ COPY brand/derived/favicon.ico brand/derived/favicon.svg brand/derived/logo-mark
 COPY frontend/public ./public
 COPY --from=build-metadata /build-metadata.json ./public/build-metadata.json
 COPY frontend/src ./src
+COPY fixtures/synthetic-fixtures.json /src/fixtures/synthetic-fixtures.json
 COPY frontend/demo-overlays/app/auth/auth-flow.component.ts ./src/app/auth/auth-flow.component.ts
 COPY frontend/demo-overlays/app/runtime/runtime-notice.component.ts ./src/app/runtime/runtime-notice.component.ts
 COPY scripts/build-frontend.ps1 /src/scripts/build-frontend.ps1
