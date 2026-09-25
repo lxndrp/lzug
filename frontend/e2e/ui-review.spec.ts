@@ -3,6 +3,12 @@ import type { Page } from '@playwright/test';
 
 import { expect, test } from './fixtures';
 import { expectFinalStyleState } from './style-stability';
+import {
+  demoCapabilities,
+  demoRoles,
+  demoScenarioOverview,
+  demoWorkspaceExpiry,
+} from './quality-support';
 
 const routes = [
   '/dashboard',
@@ -250,32 +256,47 @@ test.describe('@ui-review cross-browser UI review', () => {
     await expect(error).toContainText(/versuchen Sie es erneut/i);
 
     await page.unroute('**/api/round-summary*');
-    await page.route('**/api/session', (route) =>
-      route.fulfill({
+    const demoPage = await page.context().newPage();
+    await demoPage.route('**/api/session', async (route) => {
+      await route.fulfill({
         contentType: 'application/json',
         body: JSON.stringify({
           authenticated: true,
-          account_id: 1,
-          person_id: 1,
-          committee_member_id: 1,
+          account_id: demoRoles.chair.account_id,
+          person_id: demoRoles.chair.person_id,
+          committee_member_id: demoRoles.chair.committee_member_id,
           is_operator: false,
           demo_role: 'chair',
-          display_name: 'Theseus von Athen',
-          capabilities: ['absence:coordinate', 'confirmed-plan:revise'],
+          display_name: demoRoles.chair.display_name,
+          capabilities: demoCapabilities('chair'),
           demo_matrix_version: 'demo-paths-v8',
-          demo_workspace_expires_at: '2027-01-01T00:00:00Z',
+          demo_workspace_expires_at: demoWorkspaceExpiry(),
         }),
+      });
+    });
+    await demoPage.route('**/api/demo/scenarios', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify(demoScenarioOverview('chair')),
       }),
     );
-    await page.goto('/demo-scenarios');
-    await page.getByRole('button', { name: 'Demo-Tour starten' }).first().click();
-    const tour = page.getByRole('dialog', { name: 'Synthetische Demo' });
+    await demoPage.goto('/demo-scenarios');
+    await expectStableLayout(demoPage);
+    await expect(
+      demoPage.getByRole('heading', { name: 'Zwei unabhängige Fachabläufe' }),
+    ).toBeVisible();
+    await demoPage
+      .locator('.demo-tour-offer')
+      .getByRole('button', { name: 'Demo-Tour starten' })
+      .click();
+    const tour = demoPage.getByRole('dialog', { name: 'Synthetische Demo' });
     await expect(tour).toBeVisible();
     await expect(tour).toBeFocused();
-    await expectFinalStyleState(page);
+    await expectFinalStyleState(demoPage);
     expect(
-      (await new AxeBuilder({ page }).include('.demo-tour-dialog').analyze()).violations,
+      (await new AxeBuilder({ page: demoPage }).include('.demo-tour-dialog').analyze()).violations,
     ).toEqual([]);
+    await demoPage.close();
   });
 
   test('keeps final color-contrast violations visible to axe', async ({ page }) => {
