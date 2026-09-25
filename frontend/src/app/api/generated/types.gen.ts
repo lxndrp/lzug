@@ -1002,10 +1002,6 @@ export type ExamRoundCreate = {
      */
     committee_id: number;
     /**
-     * Created By Member Id
-     */
-    created_by_member_id: number;
-    /**
      * Exam Half Year Id
      */
     exam_half_year_id?: number | null;
