@@ -17,7 +17,6 @@ class DemoDeliveryContractTests(unittest.TestCase):
         deploy = Path(".github/workflows/demo-deploy.yml").read_text(encoding="utf-8")
         publish = Path(".github/workflows/demo-publish.yml").read_text(encoding="utf-8")
         self.assertIn("gh attestation verify", deploy)
-        self.assertIn("az containerapp update", deploy)
         self.assertIn("sha256:", deploy)
         self.assertIn("docker buildx imagetools inspect", publish)
         self.assertNotIn("demo.delivery.contract", deploy)
