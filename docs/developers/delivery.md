@@ -112,15 +112,43 @@ Wiederverwendung setzt die exakte `master`-SHA, den unveränderten
 Quality-Vertrag, passende Tool-/Lock-/Buildinputs, den Marker
 `quality-evidence-v2`, alle erforderlichen Artefakte und höchstens 24 Stunden
 Alter voraus.
+Für diesen Vergleich bedeutet passend dieselbe deklarierte Versionsauswahl
+und dieselben Lockfiles im identischen Commit.
+Wartungsstände innerhalb der gewählten Versionslinie, neu gebaute Images unter
+demselben Versionstag und übliche Aktualisierungen der unterstützten Runner-
+Umgebung sind innerhalb dieser Frist akzeptierte Abweichungen.
+Es wird keine Bytegleichheit sämtlicher externer Buildinputs behauptet.
+Die Werkzeugkette wird nicht als zusätzlicher Fingerprint oder
+Vergleichsvertrag in die Provenance des Produktbuilds aufgenommen.
+Unbegrenzte Versionsauswahl ist davon nicht gedeckt;
+der Python-Buildbackend und das CI-Werkzeug uv bleiben auf ihre jeweilige
+Minorlinie begrenzt.
+Die SHA-Bindung von GitHub Actions und die Digest-Bindung freigegebener
+Deploymentartefakte erfüllen weiterhin ihre Risikogrenzen aus
+[ADR-0034](decisions/0034-versionsbindung-und-unveraenderliche-referenzen.md).
 Der Ursprungs-Run und die Auswahlentscheidung werden in der Zusammenfassung
 ausgewiesen.
+Das gilt auch für Release, Snapshot sowie Produkt- und Demo-Publikation.
+Das Alter wird konservativ ab dem ältesten erforderlichen Artefakt berechnet.
+Workflow-Runs liefern kein `completed_at`; ihr veränderliches `updated_at`
+ist kein Altersnachweis.
+Artefakte vor dem Start des aktuellen Run-Versuchs, fehlende Zeitangaben,
+abgelaufene oder leere Artefakte werden nicht akzeptiert.
 
 Ein laufender passender Run blockiert einen parallelen vollständigen Lauf;
 fehlgeschlagene, abgebrochene, alte oder unvollständige Runs werden verworfen.
 Ein wiederverwendeter Workflow erzeugt selbst keinen neuen vollständigen
 Nachweis und verlängert dessen Frist nicht.
+Bei konkurrierenden Anlässen berücksichtigt ein Quality-Lauf nur ältere
+aktive Runs, damit ein wartender Nachfolger seinen Vorgänger nicht blockiert.
 Zeitabhängige Sicherheitsprüfungen laufen auch bei wiederverwendeter
 deterministischer Evidenz weiter.
+Der Container-Scan verwendet dazu das ursprüngliche getestete Image aus
+`quality-container-image`, ohne den Produktbuild zu wiederholen.
+Fehlt dieses Artefakt, ist der vollständige Nachweis nicht wiederverwendbar.
+Ein neuerer fehlgeschlagener Quality-Versuch sperrt die Veröffentlichung auch
+dann, wenn ältere vollständige Evidenz noch vorhanden ist.
+Quality selbst kann die frischen Audits mit den alten Artefakten wiederholen.
 
 ## Release und Artefakte
 

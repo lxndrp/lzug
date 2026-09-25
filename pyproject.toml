@@ -52,7 +52,7 @@ directory = "htmlcov"
 output = "coverage.xml"
 
 [build-system]
-requires = ["setuptools>=84.0.0"]
+requires = ["setuptools~=84.0.0"]
 build-backend = "setuptools.build_meta"
 
 [dependency-groups]
@@ -75,6 +75,10 @@ exclude = [".venv", "dist", "build", ".git", "__pycache__"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B"]
+
+[tool.ruff.per-file-target-version]
+# Quality/release preflights run before setup-python on Ubuntu 24.04.
+"scripts/quality_evidence.py" = "py312"
 
 [tool.ruff.lint.isort]
 known-first-party = ["backend", "demo", "fixtures", "scripts", "tests"]

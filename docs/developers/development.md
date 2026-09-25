@@ -65,10 +65,18 @@ Seiteneffekt des normalen Servers.
 | Demo-Liefervertrag | `task quality:demo-deployment` und je nach Änderung `quality:demo` oder `quality:infra` |
 | Dokumentation | `task docs:check`, danach `task docs` |
 | Erzeugte öffentliche Site und Portal-Links | `task docs:publication:linkcheck` |
-| Workflow-/Quality-Evidenzvertrag | betroffener `unittest` unter `tests/delivery/`; API-Auswahl an exakter SHA |
+| Workflow-/Quality-Evidenzvertrag | `task delivery:test` und `task quality:workflows`; der Vorlauf-Regressionstest startet die echten Selektoraufrufe zusätzlich unter dem Runner-Python vor `setup-python` |
 | GitHub-Workflow-Syntax und Expressions | `actionlint` über `task quality:workflows` |
 | Zeitabhängige Vulnerability-, Secret- oder externe Linkprüfung | jeweiliger Security-/Linkcheck nach eigener Frequenz; nicht durch Build-Evidenz ersetzen |
 | querschnittliche Änderung | `task quality` |
+
+Lokal werden die betroffenen Prüfungen und erforderlichen Integrationsgrenzen
+begründet ausgewählt.
+Ein Issueabschluss allein verlangt keine zusätzliche vollständige lokale Suite.
+Die vollständige finale Abnahme erfolgt in CI am exakten Kandidaten;
+vorhandene vollständige Evidenz darf nur nach dem
+[Wiederverwendungsvertrag](delivery.md#wiederverwendung-vollständiger-quality-evidenz)
+übernommen werden.
 
 Vor Browserprüfungen laufen `mise exec -- task doctor` und
 `mise exec -- task doctor:playwright`.

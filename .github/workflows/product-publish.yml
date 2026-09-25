@@ -84,7 +84,9 @@ jobs:
             --required-artifact backend-coverage \
             --required-artifact frontend-coverage \
             --required-artifact lzug-documentation \
-            --required-artifact lzug-sboms > "$RUNNER_TEMP/quality-decision.json"
+            --required-artifact lzug-sboms \
+            --required-artifact quality-container-image > "$RUNNER_TEMP/quality-decision.json"
+          tee -a "$GITHUB_STEP_SUMMARY" < "$RUNNER_TEMP/quality-decision.json"
           jq -e '.decision == "reused"' "$RUNNER_TEMP/quality-decision.json" >/dev/null || {
             echo "Run Quality on master with expected_sha before continuing. No successful complete Quality workflow exists for master SHA $TARGET_SHA." >&2
             exit 1
