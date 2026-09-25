@@ -52,6 +52,9 @@ print(public)
         }
         $private = $null
         Invoke-LzugNative docker @('cp', "${legacyContainer}:/data/backups/$artifact", "$($fixture.Directory)/legacy.lzug") | Out-Null
+        # docker cp assigns the host owner. Only this encrypted artifact may be
+        # read by the non-root image UID across a Linux bind mount, never its key.
+        [System.IO.File]::SetUnixFileMode("$($fixture.Directory)/legacy.lzug", [System.IO.UnixFileMode]420)
         Invoke-LzugNative docker @('rm', '--force', $legacyContainer) | Out-Null
         # Convert only the test identity encoding; the migration itself uses the shipped CLI.
         Invoke-LzugNative docker @('run', '--rm', '--network', 'none', '--user', '10002:10001', '--mount', "type=volume,source=$($fixture.Work),target=/work,volume-nocopy", '--entrypoint', 'python', $fixture.Image, '-c', @'

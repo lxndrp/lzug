@@ -200,7 +200,15 @@ print(json.dumps(result))
         $prepare = @('run', '--rm', '--no-deps', '--user', '0:0', '--cap-add', 'FOWNER', '--entrypoint', 'chmod', 'lzug')
         try {
             Invoke-LzugCompose $fixture ($prepare + @('0777', '/run/lzug-admin')) | Out-Null
-            Invoke-LzugNative docker @('run', '--rm', '--read-only', '--tmpfs', '/tmp', '--mount', "type=volume,source=$($fixture.Socket),target=/run/lzug-admin,volume-nocopy", '--entrypoint', 'timeout', $fixture.Image, '5s', 'python', '-m', 'backend.server', '--admin-socket-dir', '/run/lzug-admin', '--admin-socket-gid', '10001') -ExpectedExit 1 | Out-Null
+            Invoke-LzugNative docker @('run', '--rm', '--read-only', '--tmpfs', '/tmp', '--mount', "type=volume,source=$($fixture.Socket),target=/run/lzug-admin,volume-nocopy", '--entrypoint', 'python', $fixture.Image, '-c', @'
+import subprocess, sys
+result = subprocess.run(
+    [sys.executable, '-m', 'backend.server', '--admin-socket-dir', '/run/lzug-admin', '--admin-socket-gid', '10001'],
+    capture_output=True, timeout=5,
+)
+assert result.returncode == 1
+assert b'SocketSecurityError' in result.stderr
+'@) | Out-Null
         } finally {
             Invoke-LzugCompose $fixture ($prepare + @('0750', '/run/lzug-admin')) | Out-Null
             Invoke-LzugCompose $fixture @('start', 'lzug') | Out-Null

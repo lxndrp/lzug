@@ -440,7 +440,7 @@ class QualityWorkflowContractTests(unittest.TestCase):
             self.assertIn(job, evidence)
         self.assertIn("quality-evidence-v2", evidence)
 
-    def test_pr_runs_container_contracts_and_defers_browser_and_demo_checks_to_quality(self) -> None:
+    def test_pr_runs_container_contracts_and_defers_browser_and_demo(self) -> None:
         self.assertNotIn("\n  fixtures:\n", self.pull_request)
         self.assertNotIn("\n  e2e:\n", self.pull_request)
         self.assertNotIn("\n  a11y:\n", self.pull_request)
