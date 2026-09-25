@@ -210,10 +210,16 @@ test.describe('@ui-review cross-browser UI review', () => {
       )
       .toBe(true);
     await expect(summary.getByRole('link')).toHaveCount(3);
-    await expect(page.locator('#candidateFirstName')).toHaveAttribute(
-      'aria-describedby',
-      'candidateFirstNameError',
-    );
+    for (const [fieldId, errorId, message] of [
+      ['candidateFirstName', 'candidateFirstNameError', 'Vorname eingeben.'],
+      ['candidateLastName', 'candidateLastNameError', 'Nachname eingeben.'],
+      ['candidateExamNumber', 'candidateExamNumberError', 'Prüfungsnummer eingeben.'],
+    ]) {
+      const error = page.locator(`#${errorId}`);
+      await expect(error).toBeVisible();
+      await expect(error).toContainText(message);
+      await expect(page.locator(`#${fieldId}`)).toHaveAttribute('aria-describedby', errorId);
+    }
     await summary.getByRole('link', { name: 'Vorname eingeben.' }).click();
     await expect(page.locator('#candidateFirstName')).toBeFocused();
   });
