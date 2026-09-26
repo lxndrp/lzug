@@ -189,6 +189,19 @@ tasks:
         --revision "$(git rev-parse HEAD)" --base-url "{{.BASE_URL}}"
         --demo-url "{{.DEMO_URL}}" --source-date-epoch "$(git show -s --format=%ct HEAD)"
 
+  docs:publication:identity:
+    desc: Record the complete identity of the publication inputs in a directory
+    vars:
+      OUTPUT: '{{default "build/publication-identity" .OUTPUT}}'
+      DEMO_URL: '{{default "https://demo.example.invalid" .DEMO_URL}}'
+      BASE_URL: '{{default "https://lzug.repertoire.papaspyrou.name" .BASE_URL}}'
+    cmds:
+      - >-
+        output="{{.OUTPUT}}"; case "$output" in /*) ;; *) output="$PWD/$output";; esac;
+        {{.UV}} python scripts/publication_metadata.py "$output"
+        --revision "$(git rev-parse HEAD)" --base-url "{{.BASE_URL}}"
+        --demo-url "{{.DEMO_URL}}" --source-date-epoch "$(git show -s --format=%ct HEAD)"
+
   docs:publication:check:
     desc: Build two identical publication artifacts and retain the first one
     deps:

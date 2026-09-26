@@ -157,11 +157,11 @@ class PublicationDeliveryContractTests(unittest.TestCase):
         self.assertIn("BASE_URL: https://lzug.repertoire.papaspyrou.name", workflow)
         self.assertIn("DEMO_URL: ${{ vars.DEMO_URL || 'https://demo.example.invalid' }}", workflow)
         self.assertIn("permissions:\n  contents: read", workflow)
-        self.assertNotIn("actions: read", workflow)
+        self.assertIn("actions: read", workflow)
         self.assertIn("python3 scripts/validate_demo_url_contract.py", build)
         self.assertIn("--canonical", build)
-        self.assertNotIn("GH_TOKEN", workflow)
-        self.assertNotIn("github.token", workflow)
+        self.assertNotIn("GH_TOKEN", deploy)
+        self.assertNotIn("github.token", deploy)
         self.assertNotIn("--repository", workflow)
         self.assertIn("pull_request:", triggers)
         self.assertIn("push:", triggers)
@@ -177,6 +177,35 @@ class PublicationDeliveryContractTests(unittest.TestCase):
         self.assertIn("task docs:publication:check OUTPUT=build/publication DEMO_URL=", build)
         self.assertIn("task docs:publication:linkcheck OUTPUT=build/publication", build)
         self.assertNotIn("--no-sandbox", build)
+
+    def test_schedule_reuses_only_a_verified_artifact_and_builds_once_on_fallback(self) -> None:
+        workflow = workflow_text(".github/workflows/publication.yml")
+        build = job_block(workflow, "build")
+        self.assertIn("actions: read", workflow)
+        self.assertIn("actions/artifacts?per_page=100", build)
+        self.assertIn("publication_artifact.py", build)
+        self.assertIn("gh run download", build)
+        self.assertIn(
+            "cmp -s build/publication-identity/publication-metadata.json "
+            "build/publication/publication-metadata.json",
+            build,
+        )
+        self.assertIn("steps.validate_artifact.outputs.reusable != 'true'", build)
+        self.assertIn("Refresh the checked scheduled artifact", build)
+        self.assertEqual(2, build.count("task docs:publication DEMO_URL="))
+        self.assertIn("task docs:publication:check OUTPUT=build/publication", build)
+
+    def test_reproducibility_task_is_targeted_to_pr_generator_inputs(self) -> None:
+        workflow = workflow_text(".github/workflows/publication.yml")
+        build = job_block(workflow, "build")
+        self.assertIn("Select targeted reproducibility verification", build)
+        self.assertIn("steps.reproducibility.outputs.required == 'true'", build)
+        taskfile = (ROOT / "Taskfile.yml").read_text()
+        reproducibility = taskfile.split("  docs:publication:check:\n", 1)[1].split(
+            "  docs:publication:linkcheck:\n", 1
+        )[0]
+        self.assertEqual(1, reproducibility.count('task docs:publication OUTPUT="$first"'))
+        self.assertEqual(1, reproducibility.count('task docs:publication OUTPUT="$second"'))
 
     def test_browser_checks_run_only_before_manual_publication(self) -> None:
         workflow = workflow_text(".github/workflows/publication.yml")

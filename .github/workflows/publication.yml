@@ -30,6 +30,8 @@ on:
       - "docs/publication/go.mod"
       - "docs/publication/go.sum"
       - "scripts/generate-frontend-transport.ps1"
+      - "scripts/publication_artifact.py"
+      - "scripts/publication_metadata.py"
       - "scripts/validate_demo_url_contract.py"
       - "uv.lock"
   push:
@@ -47,6 +49,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: public-site-${{ github.ref }}
@@ -65,7 +68,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-          fetch-depth: ${{ github.event_name == 'workflow_dispatch' && 0 || 1 }}
+          fetch-depth: ${{ github.event_name == 'workflow_dispatch' && '0' || github.event_name == 'pull_request' && '0' || '1' }}
 
       - name: Bind an optional rollback build to an immutable master revision
         if: github.event_name == 'workflow_dispatch'
@@ -132,8 +135,62 @@ jobs:
           uv sync --locked --extra dev
           npm ci --prefix frontend
 
+      - name: Record the expected publication identity
+        run: task docs:publication:identity OUTPUT=build/publication-identity DEMO_URL="$DEMO_URL" BASE_URL="$BASE_URL"
+
+      - name: Select targeted reproducibility verification
+        id: reproducibility
+        if: github.event_name == 'pull_request'
+        run: |
+          git diff --name-only HEAD^1 HEAD > "$RUNNER_TEMP/publication-changed-files.txt"
+          selected=$(python3 scripts/publication_artifact.py --check-reproducibility --changed-files "$RUNNER_TEMP/publication-changed-files.txt")
+          echo "required=$selected" >> "$GITHUB_OUTPUT"
+
+      - name: Find a current publication artifact for the scheduled link check
+        id: previous_artifact
+        if: github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh api --paginate --slurp "repos/$GH_REPO/actions/workflows/publication.yml/runs?branch=master&status=success&per_page=100" > "$RUNNER_TEMP/publication-runs.json"
+          gh api --paginate --slurp "repos/$GH_REPO/actions/artifacts?per_page=100" > "$RUNNER_TEMP/publication-artifacts.json"
+          run_id=$(python3 scripts/publication_artifact.py \
+            --runs "$RUNNER_TEMP/publication-runs.json" \
+            --artifacts "$RUNNER_TEMP/publication-artifacts.json" \
+            --revision "$GITHUB_SHA" --now "$(date -u +%Y-%m-%dT%H:%M:%SZ)")
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+
+      - name: Download the matching publication artifact
+        id: download_artifact
+        if: github.event_name == 'schedule' && steps.previous_artifact.outputs.run_id != ''
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download "${{ steps.previous_artifact.outputs.run_id }}" --name lzug-public-site --dir build/publication
+
+      - name: Validate the downloaded artifact identity
+        id: validate_artifact
+        if: github.event_name == 'schedule'
+        run: |
+          reusable=false
+          if [[ "${{ steps.download_artifact.outcome }}" == success ]] && cmp -s build/publication-identity/publication-metadata.json build/publication/publication-metadata.json; then
+            reusable=true
+          else
+            rm -rf build/publication
+          fi
+          echo "reusable=$reusable" >> "$GITHUB_OUTPUT"
+
+      - name: Build and compare the publication for generator or dependency changes
+        if: github.event_name == 'pull_request' && steps.reproducibility.outputs.required == 'true'
+        run: task docs:publication:check OUTPUT=build/publication DEMO_URL="$DEMO_URL" BASE_URL="$BASE_URL"
+
       - name: Build the Pages publication once
-        if: github.event_name != 'schedule'
+        if: github.event_name != 'schedule' && !(github.event_name == 'pull_request' && steps.reproducibility.outputs.required == 'true')
+        run: task docs:publication DEMO_URL="$DEMO_URL" BASE_URL="$BASE_URL"
+
+      - name: Build the scheduled publication only when no matching artifact is available
+        if: github.event_name == 'schedule' && steps.validate_artifact.outputs.reusable != 'true'
         run: task docs:publication DEMO_URL="$DEMO_URL" BASE_URL="$BASE_URL"
 
       - name: Check the public site in Chromium
@@ -157,10 +214,6 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-      - name: Build and verify the reproducible public artifact
-        if: github.event_name == 'schedule'
-        run: task docs:publication:check OUTPUT=build/publication DEMO_URL="$DEMO_URL" BASE_URL="$BASE_URL"
-
       - name: Check generated public-site links
         if: github.event_name == 'schedule'
         run: task docs:publication:linkcheck OUTPUT=build/publication
@@ -183,6 +236,16 @@ jobs:
 
       - name: Upload checked artifact
         if: github.event_name != 'schedule'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: lzug-public-site
+          path: build/publication
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Refresh the checked scheduled artifact
+        if: github.event_name == 'schedule'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: lzug-public-site

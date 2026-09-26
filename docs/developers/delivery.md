@@ -259,7 +259,8 @@ aus dem Hauptrepository:
   `backend/db/schema.sql`.
 
 Der Build schreibt Repository- und Theme-Revision in `quellen.json` sowie
-Revision, URLs, Buildparameter und Toolversionen in `publication-metadata.json`.
+Revision, URLs, Buildparameter, Werkzeugversionen und Hashes der Dependency-
+Manifeste in `publication-metadata.json`.
 `task docs:publication:check` erzeugt das Artefakt zweimal, verlangt
 Byte-Identität und übernimmt einen der verglichenen Builds als Ausgabe.
 `task docs:publication:linkcheck` prüft ein bereits erzeugtes vollständiges Artefakt
@@ -275,7 +276,15 @@ nach manuellem Dispatch auf `master` und dem geschützten Environment
 `github-pages`.
 Master-Pushes erzeugen nur das Folgeartefakt; Browser- und A11y-Nachweise werden
 vor manueller Veröffentlichung erbracht.
-Der geplante Site-Lauf prüft die Byte-Reproduzierbarkeit.
+Der geplante Site-Lauf verwendet für den externen Linkcheck ein vorhandenes,
+erfolgreiches Artefakt derselben Revision, solange Identität und Ablaufzeit passen.
+Fehlt es, ist es abgelaufen oder weicht seine Identität ab, wird genau ein Ersatz-
+Build erzeugt.
+Erfolgreiche Schedule-Läufe laden das geprüfte Artefakt erneut hoch und halten es
+für den nächsten Linkcheck verfügbar.
+Gezielte PR-Änderungen an Generatoren, Konfiguration oder Dependency-Locks wählen
+`task docs:publication:check` mit genau zwei verglichenen Builds; gewöhnliche
+Portal- und Produktänderungen bauen einmal.
 
 Nach der öffentlichen Wiki-Abnahme erzeugt `task docs:publication:check`
 ausschließlich die Produktseite und technischen Referenzen.
