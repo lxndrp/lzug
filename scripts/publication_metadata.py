@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import subprocess
 from pathlib import Path
@@ -24,17 +25,34 @@ def main() -> None:
     parser.add_argument("--demo-url", required=True)
     parser.add_argument("--source-date-epoch", required=True)
     args = parser.parse_args()
+    root = Path(__file__).resolve().parents[1]
+    lockfiles = (
+        ".mise.toml",
+        ".python-version",
+        "frontend/.node-version",
+        "pyproject.toml",
+        "uv.lock",
+        "frontend/package.json",
+        "frontend/package-lock.json",
+        "docs/publication/go.mod",
+        "docs/publication/go.sum",
+    )
     metadata = {
         "repository_revision": args.revision,
         "base_url": args.base_url,
         "demo_url": args.demo_url,
         "source_date_epoch": int(args.source_date_epoch),
         "build_parameters": ["hugo --minify --gc", "OpenAPI export", "TypeDoc expand"],
+        "dependency_manifests": {
+            name: hashlib.sha256((root / name).read_bytes()).hexdigest() for name in lockfiles
+        },
         "tools": {
+            "go": version(["go", "version"]),
             "hugo": version(["hugo", "version"]),
             "lychee": version(["lychee", "--version"]),
             "node": version(["node", "--version"]),
             "npm": version(["npm", "--version"]),
+            "python": version(["python3", "--version"]),
             "task": version(["task", "--version"]),
             "typedoc": version(
                 ["node", "-p", "require('./frontend/node_modules/typedoc/package.json').version"]
