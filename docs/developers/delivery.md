@@ -261,8 +261,7 @@ aus dem Hauptrepository:
 Der Build schreibt Repository- und Theme-Revision in `quellen.json` sowie
 Revision, URLs, Buildparameter, Werkzeugversionen und Hashes der Dependency-
 Manifeste in `publication-metadata.json`.
-`task docs:publication:check` erzeugt das Artefakt zweimal, verlangt
-Byte-Identität und übernimmt einen der verglichenen Builds als Ausgabe.
+Jeder Public-Site-Lauf erzeugt das Artefakt genau einmal.
 `task docs:publication:linkcheck` prüft ein bereits erzeugtes vollständiges Artefakt
 auf HTML-Routen, Assets und Fragmente mit Lychee.
 Die Sitemap-XML bleibt ausgenommen, weil ihre von Hugo erzeugten
@@ -274,23 +273,13 @@ Browser- und Accessibility-Prüfung laufen getrennt.
 Artefakt; ein Pages-Deployment erfolgt ausschließlich
 nach manuellem Dispatch auf `master` und dem geschützten Environment
 `github-pages`.
-Master-Pushes erzeugen nur das Folgeartefakt; Browser- und A11y-Nachweise werden
-vor manueller Veröffentlichung erbracht.
-Der geplante Site-Lauf verwendet für den externen Linkcheck ein vorhandenes,
-erfolgreiches Artefakt derselben Revision, solange Identität und Ablaufzeit passen.
-Fehlt es, ist es abgelaufen oder weicht seine Identität ab, wird genau ein Ersatz-
-Build erzeugt.
-Erfolgreiche Schedule-Läufe laden das geprüfte Artefakt erneut hoch und halten es
-für den nächsten Linkcheck verfügbar.
-Task ruft für die verbleibende Auswahl den PowerShell-Adapter
-`docs/publication/publication-artifact.ps1` auf.
-GitHub Actions und `gh` besitzen Run-Abfrage und Artefakttransport;
-der Adapter prüft die passende erfolgreiche Revision und die Ablaufzeit.
-Gezielte PR-Änderungen an Generatoren, Konfiguration oder Dependency-Locks wählen
-`task docs:publication:check` mit genau zwei verglichenen Builds; gewöhnliche
-Portal- und Produktänderungen bauen einmal.
+Alle Laufarten prüfen und laden dasselbe Build-Artefakt hoch.
+PR-Läufe prüfen zusätzlich Browserverhalten und Accessibility;
+Schedule-Läufe bauen die aktuelle Revision neu und prüfen ihre Links.
+Ein manueller Dispatch baut ebenfalls einmal und übergibt nach der bestehenden
+Freigabe genau dieses geprüfte Artefakt an Pages.
 
-Nach der öffentlichen Wiki-Abnahme erzeugt `task docs:publication:check`
+Nach der öffentlichen Wiki-Abnahme erzeugt `task docs:publication`
 ausschließlich die Produktseite und technischen Referenzen.
 Das vollständige Quelle-/Ziel-/Entscheidung-Inventar wurde einmalig im Issue und Pull Request geprüft
 und wird nicht als generiertes Datenformat fortgeführt.
