@@ -30,6 +30,9 @@ Werkzeuge, und Python, Angular, Docker, GoReleaser sowie Azure CLI bleiben
 Eigentümer ihrer jeweiligen Verträge.
 Native Exit-Codes, URL-/JSON-Grenzen und temporäres Staging werden am Adapter
 fail-closed behandelt.
+Die übergreifende Reihenfolge aus nativer Konfiguration, Standardmechanismen
+und Zuordnung verbleibender Logik ist in
+[ADR-0039](0039-deklarative-toolchain-zustaendigkeiten.md) festgelegt.
 
 ## Konsequenzen
 

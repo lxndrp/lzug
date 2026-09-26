@@ -34,6 +34,9 @@ Ergebnisse als Standardtestreport weiterverarbeiten kann.
 PowerShell ersetzt weder Task als öffentliche Workflow-Schnittstelle noch
 Docker/Compose als Runtime und auch nicht fachliche Backend- oder CLI-Tests.
 InSpec bleibt bewusst ausgeschlossen.
+Die allgemeine Reihenfolge für native Werkzeugkonfiguration, Standardmechanismen
+und erforderliche Adapter ist in
+[ADR-0039](0039-deklarative-toolchain-zustaendigkeiten.md) festgelegt.
 
 ## Supersession
 

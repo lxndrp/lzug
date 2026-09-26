@@ -29,3 +29,5 @@ Die lokale Einrichtung erfolgt über `mise install` und `task setup`.
 CI verwendet dieselben Versionen und Lockfiles.
 Versionspins in `.mise.toml`, `.python-version` und `frontend/.node-version` werden bewusst manuell bewertet.
 Die konkrete Bedienung steht in [Entwicklung](../development.md) und in [ADR-0009](0009-toolchain-und-entwicklungs-tasks.md).
+Die übergreifende Zuständigkeits- und Vorrangregel steht in
+[ADR-0039](0039-deklarative-toolchain-zustaendigkeiten.md).
