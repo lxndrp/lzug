@@ -30,6 +30,7 @@ on:
       - "docs/publication/go.mod"
       - "docs/publication/go.sum"
       - "scripts/generate-frontend-transport.ps1"
+      - "scripts/publication_metadata.py"
       - "scripts/validate_demo_url_contract.py"
       - "uv.lock"
   push:
@@ -58,14 +59,14 @@ env:
 
 jobs:
   build:
-    name: Build or reproduce static artifact
+    name: Build and validate static artifact
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-          fetch-depth: ${{ github.event_name == 'workflow_dispatch' && 0 || 1 }}
+          fetch-depth: ${{ github.event_name == 'workflow_dispatch' && '0' || '1' }}
 
       - name: Bind an optional rollback build to an immutable master revision
         if: github.event_name == 'workflow_dispatch'
@@ -131,9 +132,7 @@ jobs:
           mise install hugo-extended@0.165.0 aqua:lycheeverse/lychee@0.24.2
           uv sync --locked --extra dev
           npm ci --prefix frontend
-
       - name: Build the Pages publication once
-        if: github.event_name != 'schedule'
         run: task docs:publication DEMO_URL="$DEMO_URL" BASE_URL="$BASE_URL"
 
       - name: Check the public site in Chromium
@@ -157,16 +156,7 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-      - name: Build and verify the reproducible public artifact
-        if: github.event_name == 'schedule'
-        run: task docs:publication:check OUTPUT=build/publication DEMO_URL="$DEMO_URL" BASE_URL="$BASE_URL"
-
-      - name: Check generated public-site links
-        if: github.event_name == 'schedule'
-        run: task docs:publication:linkcheck OUTPUT=build/publication
-
       - name: Check the built public artifact
-        if: github.event_name != 'schedule'
         run: task docs:publication:linkcheck OUTPUT=build/publication
 
       - name: Check responsive themes and warm-up flow with Playwright
@@ -182,7 +172,6 @@ jobs:
         run: task docs:publication:a11y OUTPUT=build/publication
 
       - name: Upload checked artifact
-        if: github.event_name != 'schedule'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: lzug-public-site

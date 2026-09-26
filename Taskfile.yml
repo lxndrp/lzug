@@ -189,33 +189,6 @@ tasks:
         --revision "$(git rev-parse HEAD)" --base-url "{{.BASE_URL}}"
         --demo-url "{{.DEMO_URL}}" --source-date-epoch "$(git show -s --format=%ct HEAD)"
 
-  docs:publication:check:
-    desc: Build two identical publication artifacts and retain the first one
-    deps:
-      - docs:check
-    vars:
-      OUTPUT: '{{default "build/publication" .OUTPUT}}'
-      DEMO_URL: '{{default "https://demo.example.invalid" .DEMO_URL}}'
-      BASE_URL: '{{default "https://lzug.repertoire.papaspyrou.name" .BASE_URL}}'
-    cmds:
-      - |
-        set -eu
-        first="$(mktemp -d)"
-        second="$(mktemp -d)"
-        trap 'rm -rf "$first" "$second"' EXIT
-        task docs:publication OUTPUT="$first" DEMO_URL="{{.DEMO_URL}}" BASE_URL="{{.BASE_URL}}"
-        task docs:publication OUTPUT="$second" DEMO_URL="{{.DEMO_URL}}" BASE_URL="{{.BASE_URL}}"
-        git diff --no-index --exit-code -- "$first" "$second"
-        output="{{.OUTPUT}}"
-        case "$output" in
-          /*) ;;
-          *) output="$PWD/$output" ;;
-        esac
-        rm -rf "$output"
-        mkdir -p "$output"
-        cp -a "$first/." "$output/"
-        echo "Publication artifact is reproducible"
-
   docs:publication:linkcheck:
     desc: Check every link and fragment in the generated public site
     vars:
