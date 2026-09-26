@@ -54,3 +54,4 @@ die Formatentscheidung steht im Registereintrag für ADR-0029.
 | [0036](0036-powershell-adapter-fuer-werkzeuggrenzen.md) | PowerShell-Adapter für portable Werkzeuggrenzen | Akzeptiert |
 | [0037](0037-powershell-pester-testharness.md) | PowerShell/Pester-Testharness | Akzeptiert |
 | [0038](0038-syft-standardaufrufe-fuer-sbom-erzeugung.md) | SBOM-Erzeugung als direkte Syft-Standardaufrufe | Akzeptiert |
+| [0039](0039-deklarative-toolchain-zustaendigkeiten.md) | Deklarative Toolchain-Zuständigkeiten | Akzeptiert |

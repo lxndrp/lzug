@@ -59,6 +59,8 @@ Wiederanlauf bleiben vollständig im Umfang von #347.
 Der eigene Builder und seine Implementierungstests entfallen.
 Die verbleibende projektspezifische Logik prüft nur Produktmetadaten und beobachtbare Artefaktinvarianten.
 Ein Upgrade von Go oder GoReleaser muss die Reproduzierbarkeitsprüfung aus dem einmaligen Packaging-Build und einem weiteren Clean-Build erneut bestehen; ohne Bytegleichheit oder bei zusätzlichen Artefakten ist es nicht zulässig.
+Die allgemeine Zuordnung verbleibender Logik und die Vorrangregel für native
+Werkzeugkonfiguration folgen [ADR-0039](0039-deklarative-toolchain-zustaendigkeiten.md).
 
 ## Alternativen
 

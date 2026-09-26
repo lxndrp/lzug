@@ -62,6 +62,8 @@ Trivy Config oder Conftest werden mangels zusätzlichem Nachweis gegenüber Comp
 Gehostete Trivy-Image- und CodeQL-Scans bleiben bewusst CI-spezifisch.
 
 ADR-0003 bleibt als historische Toolchain-Entscheidung bestehen; dieser ADR ersetzt dessen frühere Zuordnung lokaler Abläufe zu `mise`.
+Die übergreifende Vorrangregel für native Konfiguration, Komponentenlogik und
+notwendige Adapter ergänzt [ADR-0039](0039-deklarative-toolchain-zustaendigkeiten.md).
 
 ## Alternativen
 
