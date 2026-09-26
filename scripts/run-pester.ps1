@@ -3,7 +3,7 @@
 [CmdletBinding()]
 param(
     [string]$OutputDirectory = 'build/quality/pester',
-    [ValidateSet('Container.Tests.ps1', 'Operator.Tests.ps1', 'Compatibility.Tests.ps1')]
+    [ValidateSet('Container.Tests.ps1', 'Operator.Tests.ps1', 'Compatibility.Tests.ps1', 'PublicationArtifact.Tests.ps1')]
     [string]$TestFile
 )
 

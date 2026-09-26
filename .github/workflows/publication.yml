@@ -30,9 +30,11 @@ on:
       - "docs/publication/go.mod"
       - "docs/publication/go.sum"
       - "scripts/generate-frontend-transport.ps1"
-      - "scripts/publication_artifact.py"
+      - "docs/publication/publication-artifact.ps1"
       - "scripts/publication_metadata.py"
+      - "scripts/run-pester.ps1"
       - "scripts/validate_demo_url_contract.py"
+      - "tests/pester/PublicationArtifact.Tests.ps1"
       - "uv.lock"
   push:
     branches:
@@ -131,9 +133,11 @@ jobs:
 
       - name: Install locked build dependencies
         run: |
-          mise install hugo-extended@0.165.0 aqua:lycheeverse/lychee@0.24.2
+          mise install hugo-extended@0.165.0 aqua:lycheeverse/lychee@0.24.2 aqua:PowerShell/PowerShell@7.5.3
           uv sync --locked --extra dev
           npm ci --prefix frontend
+      - name: Test publication artifact selection
+        run: task docs:publication:artifact:test
 
       - name: Record the expected publication identity
         run: task docs:publication:identity OUTPUT=build/publication-identity DEMO_URL="$DEMO_URL" BASE_URL="$BASE_URL"
@@ -143,7 +147,7 @@ jobs:
         if: github.event_name == 'pull_request'
         run: |
           git diff --name-only HEAD^1 HEAD > "$RUNNER_TEMP/publication-changed-files.txt"
-          selected=$(python3 scripts/publication_artifact.py --check-reproducibility --changed-files "$RUNNER_TEMP/publication-changed-files.txt")
+          selected=$(task docs:publication:artifact:reproducibility CHANGED_FILES="$RUNNER_TEMP/publication-changed-files.txt")
           echo "required=$selected" >> "$GITHUB_OUTPUT"
 
       - name: Find a current publication artifact for the scheduled link check
@@ -155,10 +159,10 @@ jobs:
         run: |
           gh api --paginate --slurp "repos/$GH_REPO/actions/workflows/publication.yml/runs?branch=master&status=success&per_page=100" > "$RUNNER_TEMP/publication-runs.json"
           gh api --paginate --slurp "repos/$GH_REPO/actions/artifacts?per_page=100" > "$RUNNER_TEMP/publication-artifacts.json"
-          run_id=$(python3 scripts/publication_artifact.py \
-            --runs "$RUNNER_TEMP/publication-runs.json" \
-            --artifacts "$RUNNER_TEMP/publication-artifacts.json" \
-            --revision "$GITHUB_SHA" --now "$(date -u +%Y-%m-%dT%H:%M:%SZ)")
+          run_id=$(task docs:publication:artifact:select \
+            RUNS="$RUNNER_TEMP/publication-runs.json" \
+            ARTIFACTS="$RUNNER_TEMP/publication-artifacts.json" \
+            REVISION="$GITHUB_SHA" NOW="$(date -u +%Y-%m-%dT%H:%M:%SZ)")
           echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
 
       - name: Download the matching publication artifact

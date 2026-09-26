@@ -183,7 +183,9 @@ class PublicationDeliveryContractTests(unittest.TestCase):
         build = job_block(workflow, "build")
         self.assertIn("actions: read", workflow)
         self.assertIn("actions/artifacts?per_page=100", build)
-        self.assertIn("publication_artifact.py", build)
+        self.assertIn("docs:publication:artifact:select", build)
+        self.assertIn("docs:publication:artifact:reproducibility", build)
+        self.assertIn("docs:publication:artifact:test", build)
         self.assertIn("gh run download", build)
         self.assertIn(
             "cmp -s build/publication-identity/publication-metadata.json "

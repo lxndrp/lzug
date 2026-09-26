@@ -282,6 +282,10 @@ Fehlt es, ist es abgelaufen oder weicht seine Identität ab, wird genau ein Ersa
 Build erzeugt.
 Erfolgreiche Schedule-Läufe laden das geprüfte Artefakt erneut hoch und halten es
 für den nächsten Linkcheck verfügbar.
+Task ruft für die verbleibende Auswahl den PowerShell-Adapter
+`docs/publication/publication-artifact.ps1` auf.
+GitHub Actions und `gh` besitzen Run-Abfrage und Artefakttransport;
+der Adapter prüft die passende erfolgreiche Revision und die Ablaufzeit.
 Gezielte PR-Änderungen an Generatoren, Konfiguration oder Dependency-Locks wählen
 `task docs:publication:check` mit genau zwei verglichenen Builds; gewöhnliche
 Portal- und Produktänderungen bauen einmal.

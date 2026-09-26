@@ -202,6 +202,25 @@ tasks:
         --revision "$(git rev-parse HEAD)" --base-url "{{.BASE_URL}}"
         --demo-url "{{.DEMO_URL}}" --source-date-epoch "$(git show -s --format=%ct HEAD)"
 
+  docs:publication:artifact:reproducibility:
+    desc: Select whether changed publication inputs need reproducibility checks
+    requires:
+      vars: [CHANGED_FILES]
+    cmds:
+      - pwsh -NoProfile -File docs/publication/publication-artifact.ps1 -CheckReproducibility -ChangedFiles "{{.CHANGED_FILES}}"
+
+  docs:publication:artifact:select:
+    desc: Select a reusable successful publication artifact run
+    requires:
+      vars: [RUNS, ARTIFACTS, REVISION, NOW]
+    cmds:
+      - pwsh -NoProfile -File docs/publication/publication-artifact.ps1 -Runs "{{.RUNS}}" -Artifacts "{{.ARTIFACTS}}" -Revision "{{.REVISION}}" -Now "{{.NOW}}"
+
+  docs:publication:artifact:test:
+    desc: Test publication artifact selection contracts
+    cmds:
+      - pwsh -NoProfile -File scripts/run-pester.ps1 -TestFile PublicationArtifact.Tests.ps1 -OutputDirectory build/publication-pester
+
   docs:publication:check:
     desc: Build two identical publication artifacts and retain the first one
     deps:
