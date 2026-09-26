@@ -44,8 +44,7 @@ def main() -> None:
         "source_date_epoch": int(args.source_date_epoch),
         "build_parameters": ["hugo --minify --gc", "OpenAPI export", "TypeDoc expand"],
         "dependency_manifests": {
-            name: hashlib.sha256((root / name).read_bytes()).hexdigest()
-            for name in lockfiles
+            name: hashlib.sha256((root / name).read_bytes()).hexdigest() for name in lockfiles
         },
         "tools": {
             "go": version(["go", "version"]),
