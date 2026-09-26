@@ -14,6 +14,24 @@ die Abhängigkeiten bleiben in den jeweiligen Ökosystem-Lockdateien gebunden.
 Die Aufgaben und ihre Befehle stehen in `Taskfile.yml`.
 Die Zuständigkeit dieser Quellen erläutert [ADR-0034](decisions/0034-versionsbindung-und-unveraenderliche-referenzen.md).
 
+Die allgemeine Zuständigkeitsregel und Entscheidungsreihenfolge beschreibt
+[ADR-0039](decisions/0039-deklarative-toolchain-zustaendigkeiten.md): zuerst
+native deklarative Konfiguration und Standardmechanismen nutzen, danach
+verbleibende Logik nach Verantwortung, Sprache und Ablageort zuordnen.
+`mise` besitzt Werkzeugversionen und Umgebung, Paketmanager ihre Abhängigkeiten,
+Task den gemeinsamen Ablaufgraph und GitHub Actions die Plattformaufgaben.
+Komponentenlogik bleibt in der Codebase und Sprache der Komponente;
+notwendiges komponentenübergreifendes oder allgemeines Repository-Skripting
+liegt in PowerShell.
+Eine pauschale Python-Ausschlussregel oder eine Pflicht zur Umschreibung
+bestehender Komponentenlogik gilt nicht.
+
+Stabile Policy gehört in die native Werkzeugkonfiguration; konkrete Ziele,
+Ausgaben und laufbezogene Parameter bleiben am jeweiligen Aufruf sichtbar.
+`.syft.yaml` und der native Backend-OpenAPI-Export zeigen diese Trennung.
+Eine Sprachüberführung oder das Verschieben generischer Orchestrierung allein
+belegt keine Vereinfachung.
+
 ```sh
 mise install
 mise exec -- task setup

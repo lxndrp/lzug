@@ -20,6 +20,8 @@ Issue [#811](https://github.com/lxndrp/lzug/issues/811) und der zugehörige Revi
 Image-SBOMs werden als direkte, gepinnte Syft-Aufrufe in `Taskfile.yml` sowie in den Quality- und Publish-Workflows erzeugt.
 `scripts/sbom.py` entfällt vollständig.
 Die stabile scannerweite Policy liegt deklarativ in `.syft.yaml` und wird bei jedem Aufruf explizit über `--config .syft.yaml` geladen.
+Die allgemeine Trennung aus nativer Werkzeug-Policy und dynamischen
+Aufrufdaten folgt [ADR-0039](0039-deklarative-toolchain-zustaendigkeiten.md).
 
 Der direkte Syft-Aufruf:
 

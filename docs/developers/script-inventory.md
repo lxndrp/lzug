@@ -5,20 +5,32 @@ die direkten Aufrufer und den eigenständigen Vertrag fest.
 Generische Format-, Link-, Build- und Testaufgaben bleiben bei den jeweiligen
 Standardwerkzeugen.
 Die Liste ist keine zweite Test- oder API-Dokumentation.
+Die Vorrang- und Zuständigkeitsregel steht in
+[ADR-0039](decisions/0039-deklarative-toolchain-zustaendigkeiten.md).
+Stabile Werkzeug-Policy liegt in nativer Konfiguration; konkrete Ziele und
+laufbezogene Parameter bleiben beim Aufruf.
+Verbleibende komponenteneigene Logik gehört in die jeweilige Komponente,
+notwendiges Querschnitts- und Repository-Skripting in PowerShell.
+
+Die Einträge beschreiben den aktuellen Tree.
+Offene Änderungen und Konsolidierungen aus #945, #946, #947 und #812 werden
+nicht als umgesetzt vorweggenommen.
+Eine Sprachänderung oder ein Verschieben von generischer Orchestrierung gilt
+allein nicht als Vereinfachungsnachweis.
 
 ## Verbleibende repositoryweite Einstiegspunkte
 
 | Einstieg | Eigentümer und direkte Aufrufer | Eigenständiger Vertrag und Entscheidung |
 | --- | --- | --- |
 | `scripts/build-frontend.ps1` | Frontend; `frontend/package.json`, Dockerfiles | Staged die exakt benötigten Brand- und Build-Metadaten und ruft Angular mit der gewählten Konfiguration auf. Der PowerShell-Adapter bleibt plattformübergreifend und enthält keine Frontendfachlogik. |
-| `scripts/build_metadata.py` | Repository-/Buildgrenze; Dockerfiles, Taskfile, Demo- und Releaseabläufe | Liefert die fail-closed Identität aus Tag, Revision und Version für Backend, Frontend, OCI und CLI. Behalten als gemeinsam genutzten Produktmetadatenvertrag. |
+| `scripts/build_metadata.py` | Build-Metadaten; Dockerfiles, Taskfile, Demo- und Releaseabläufe | Liefert aktuell die fail-closed Identität aus Tag, Revision und Version für Backend, Frontend, OCI und CLI. Die Prüfung eines komponentennativen Exports und seiner tatsächlichen Verbraucher bleibt in #812 offen. |
 | `scripts/check_documentation.py` | Dokumentation; `task docs:check` | Prüft nur den aktuellen Dokumentationsbaum, MkDocs-Navigation, ADR-Status, den entfernten Repository-Handbuchbestand und Root-Grenzen. Link-, Markdown- und Buildprüfung verbleiben bei MkDocs/Hugo. |
 | `tests/pester/Container.Tests.ps1` | OCI/Self-Hosting; `task quality:container`, `quality:compose`, vollständige Quality-Suite | Prüft Imageidentität, Runtime-Rechte, Frontend-/Health-Auslieferung, CLI-Socketanbindung und einen Daten-Roundtrip über Container-Neuerstellung. |
 | `tests/pester/Operator.Tests.ps1` | Betreiber-CLI; `task quality:operator-container`, vollständige Quality-Suite | Prüft den interaktiven CLI-Einstieg des gebauten Produkt-Binaries über ein echtes Pseudoterminal. |
 | `scripts/demo-container-smoke.sh` | Öffentliche Demo; `task quality:demo` | Beweist den separaten App-/Seed-Containervertrag einschließlich Seed-Revision, Runtime-Policy und Wiederanlaufgrenzen. Behalten, weil der allgemeine Produktimage-Smoke diese Demo-Paarung nicht abdeckt. |
 | `tests/pester/Compatibility.Tests.ps1` | Kompatibilitätstests; `task quality:pester` | Führt Legacy-Restore, explizite Socketmigration und Wiederanlauf mit der digestgebundenen v0.6.0-Fixture aus. |
 | `.syft.yaml` | Delivery/OCI; Quality- sowie Produkt- und Demo-Publish-Workflows | Hält die portable scannerweite Policy deklarativ. Syft erzeugt direkt die SBOMs der veröffentlichten OCI-Images; Scan-Ziele, Ausgabe und der flüchtige Cache bleiben sichtbar bei den Aufrufen. |
-| `scripts/validate_demo_url_contract.py` | Öffentliche Publikation; Publication-Workflow und Vertragstests | Erzwingt die erlaubte kanonische HTTPS-Origin ohne Credentials, Pfad oder fremde Demo-/Stage-Hosts. Behalten als Sicherheitsgrenze der konfigurierten Publikation. |
+| `scripts/validate_demo_url_contract.py` | Öffentliche Publikation; Publication-Workflow und Vertragstests | Erzwingt aktuell die erlaubte kanonische HTTPS-Origin ohne Credentials, Pfad oder fremde Demo-/Stage-Hosts. Die Zuordnung zu nativen Standardfunktionen und nötiger Adapterlogik bleibt in #812 offen. |
 
 ## Komponentenbezogene Werkzeuge außerhalb von `scripts/`
 
