@@ -86,7 +86,6 @@ jobs:
               - 'scripts/generate_frontend_transport.py'
             cli:
               - 'tests/pester/**'
-              - 'scripts/operator-smoke-diagnostics.py'
               - 'operator-cli/**'
               - 'operator-cli/.goreleaser.yml'
               - 'operator-cli/go.mod'
