@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import os
 import subprocess
+import tomllib
 import unittest
 from pathlib import Path
 
 from tests.delivery.workflow_contract import (
+    action_blocks,
     job_block,
     mapping_block,
     trigger_block,
@@ -79,6 +81,23 @@ class QualityWorkflowContractTests(unittest.TestCase):
                     f'go-version: "{expected_version}"',
                     workflow_text(path),
                 )
+
+    def test_ci_uv_version_matches_mise(self) -> None:
+        expected_version = tomllib.loads(Path(".mise.toml").read_text(encoding="utf-8"))["tools"][
+            "uv"
+        ]
+        for path in (
+            ".github/workflows/pull-request.yml",
+            ".github/workflows/quality.yml",
+            ".github/workflows/publication.yml",
+        ):
+            with self.subTest(path=path):
+                workflow = workflow_text(path)
+                blocks = action_blocks(workflow, "astral-sh/setup-uv")
+                self.assertTrue(blocks)
+                for block in blocks:
+                    with self.subTest(action=block.splitlines()[0]):
+                        self.assertIn(f'version: "{expected_version}"', block)
 
     def test_quality_validates_all_workflows_with_actionlint(self) -> None:
         workflow_job = job_block(self.quality, "workflows")

@@ -19,11 +19,16 @@ vars:
 
 tasks:
   setup:
-    desc: Recreate the virtual environment and install locked dependencies
+    desc: Install locked Python and frontend dependencies
     cmds:
-      - uv venv --python "$(mise which python)" --clear --seed
       - uv sync --locked --extra dev
       - task: setup:frontend
+
+  setup:reset:
+    desc: Recreate the project-local Python and frontend dependency environments
+    cmds:
+      - uv venv --clear
+      - task: setup
 
   doctor:
     desc: Check the local toolchain and virtual environment
