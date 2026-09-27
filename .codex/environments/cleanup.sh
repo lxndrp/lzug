@@ -14,9 +14,6 @@ case "$scope" in
   ''|*[!a-z0-9-]*) echo "Invalid worktree name: $scope" >&2; exit 1 ;;
 esac
 
-resource_label="lzug-codex-$scope"
-prefix="${resource_label}-"
-
 # Only resources with this label and the expected name may be removed.
 # Persistent volumes intentionally lack the worktree label.
 if ! command -v docker >/dev/null 2>&1; then
@@ -27,40 +24,40 @@ if ! docker info >/dev/null 2>&1; then
   exit 1
 fi
 
-container_ids=$(docker ps -aq --filter "label=$resource_label")
+container_ids=$(docker ps -aq --filter "label=lzug-codex-$scope")
 for id in $container_ids; do
   name=$(docker inspect --format '{{.Name}}' "$id")
   name=${name#/}
   case "$name" in
-    "$prefix"*)
+    "lzug-codex-$scope"-*)
       docker rm -f "$id"
     ;;
   esac
 done
 
-image_tags=$(docker image ls --format '{{.Repository}}:{{.Tag}}' --filter "label=$resource_label")
+image_tags=$(docker image ls --format '{{.Repository}}:{{.Tag}}' --filter "label=lzug-codex-$scope")
 for tag in $image_tags; do
   case "$tag" in
-    "$prefix"*)
+    "lzug-codex-$scope"-*)
       docker image rm "$tag"
     ;;
   esac
 done
 
-network_ids=$(docker network ls -q --filter "label=$resource_label")
+network_ids=$(docker network ls -q --filter "label=lzug-codex-$scope")
 for id in $network_ids; do
   name=$(docker network inspect --format '{{.Name}}' "$id")
   case "$name" in
-    "$prefix"*)
+    "lzug-codex-$scope"-*)
       docker network rm "$id"
     ;;
   esac
 done
 
-volume_names=$(docker volume ls -q --filter "label=$resource_label")
+volume_names=$(docker volume ls -q --filter "label=lzug-codex-$scope")
 for name in $volume_names; do
   case "$name" in
-    "$prefix"*)
+    "lzug-codex-$scope"-*)
       docker volume rm "$name"
     ;;
   esac
