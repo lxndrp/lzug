@@ -1,9 +1,9 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/bin/sh
+set -eu
 
 : "${CODEX_WORKTREE_PATH:?}"
-if [[ "$(basename "$CODEX_WORKTREE_PATH")" != lzug ||
-      "$(dirname "$(dirname "$CODEX_WORKTREE_PATH")")" != "$HOME/.codex/worktrees" ]]; then
+if [ "$(basename "$CODEX_WORKTREE_PATH")" != lzug ] ||
+   [ "$(dirname "$(dirname "$CODEX_WORKTREE_PATH")")" != "$HOME/.codex/worktrees" ]; then
   echo "Not a managed lzug worktree: $CODEX_WORKTREE_PATH" >&2
   exit 1
 fi
