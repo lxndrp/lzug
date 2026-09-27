@@ -38,7 +38,13 @@ mise exec -- task setup
 mise exec -- task doctor
 ```
 
-`task setup` richtet Backend- und Frontend-Abhängigkeiten ein.
+`task setup` synchronisiert die gelockten Python-Abhängigkeiten mit `uv` und
+installiert die Frontend-Abhängigkeiten mit `npm ci`.
+Ein wiederholter Aufruf behält die vorhandene Python-Umgebung; für einen
+bewussten Neuaufbau beider projektlokaler Paketumgebungen dient
+`mise exec -- task setup:reset`.
+mise aktiviert eine vorhandene uv-Umgebung, legt sie aber nicht selbst an;
+der erste `uv sync` erstellt `.venv` mit dem von mise bereitgestellten Python.
 Für Browserprüfungen werden die Playwright-Browser separat installiert und geprüft:
 
 ```sh

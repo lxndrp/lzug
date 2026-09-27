@@ -7,5 +7,5 @@ script = '''
 cd "$CODEX_WORKTREE_PATH"
 
 mise install
-mise exec -- env -u UV_NO_CACHE UV_CACHE_DIR="$HOME/.cache/uv" task setup
-mise exec -- env -u UV_NO_CACHE UV_CACHE_DIR="$HOME/.cache/uv" task doctor'''
+mise exec -- task setup
+mise exec -- task doctor'''
