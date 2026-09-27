@@ -18,6 +18,7 @@ on:
       - "frontend/e2e/serve-publication.mjs"
       - "frontend/package.json"
       - "frontend/package-lock.json"
+      - "frontend/typedoc.json"
       - "frontend/playwright.publication.config.ts"
       - "frontend/publication-e2e/**"
       - "frontend/public/**"

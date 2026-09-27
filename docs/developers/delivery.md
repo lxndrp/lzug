@@ -245,7 +245,9 @@ Betriebsnachweis.
 ## Technische Referenz und öffentliche Site
 
 `task docs` führt zuerst den projektspezifischen Strukturcheck aus, baut MkDocs
-mit `--strict` und erzeugt die TypeDoc-Referenz.
+mit der in `docs/mkdocs.yml` aktivierten Strict-Prüfung und erzeugt die TypeDoc-Referenz.
+Die gemeinsame TypeDoc-Policy steht in `frontend/typedoc.json`;
+lokale und öffentliche Referenzen übergeben dort jeweils nur ihr Ausgabeziel.
 Der Pull-Request- und der vollständige Quality-Workflow laden `site/` als
 geschütztes Artefakt `lzug-documentation` hoch.
 Das ist eine revisionsgebundene technische Referenz und Teil der
