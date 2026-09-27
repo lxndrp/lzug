@@ -3,6 +3,7 @@
 
 # Codex
 /.codex/**
+!/.codex/config.toml
 !/.codex/environments/
 !/.codex/environments/environment.toml
 !/.codex/environments/setup.sh
