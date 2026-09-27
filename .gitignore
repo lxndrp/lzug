@@ -5,6 +5,9 @@
 /.codex/**
 !/.codex/environments/
 !/.codex/environments/environment.toml
+!/.codex/environments/setup.sh
+!/.codex/environments/cleanup.sh
+/.mise/conf.d/codex-resource-scope.toml
 
 # Frontend
 /.angular/
