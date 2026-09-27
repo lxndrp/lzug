@@ -3,9 +3,17 @@ version = 1
 name = "lzug"
 
 [setup]
-script = '''
-cd "$CODEX_WORKTREE_PATH"
+script = 'sh "$CODEX_WORKTREE_PATH/.codex/environments/setup.sh"'
 
-mise install
-mise exec -- task setup
-mise exec -- task doctor'''
+[cleanup]
+script = 'sh "$CODEX_WORKTREE_PATH/.codex/environments/cleanup.sh"'
+
+[[actions]]
+name = "Setup"
+icon = "run"
+command = 'root="${CODEX_WORKTREE_PATH:-$(git rev-parse --show-toplevel)}"; CODEX_WORKTREE_PATH="$root" sh "$root/.codex/environments/setup.sh"'
+
+[[actions]]
+name = "Cleanup"
+icon = "run"
+command = 'root="${CODEX_WORKTREE_PATH:-$(git rev-parse --show-toplevel)}"; CODEX_WORKTREE_PATH="$root" sh "$root/.codex/environments/cleanup.sh"'
