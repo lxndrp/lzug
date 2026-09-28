@@ -8,7 +8,6 @@ from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 
-from backend.build_metadata import BuildMetadata
 from backend.operations.artifact_packages import ClearArtifactService
 from backend.operations.backup_recipients import BackupRecipientRepository
 from backend.operations.backup_restore import MIN_SUPPORTED_SCHEMA
@@ -20,7 +19,7 @@ from backend.persistence.database import (
 )
 from backend.runtime import Operation, RuntimeCoordinator, runtime_for
 from backend.settings import RuntimeSettings
-from backend.version import build_metadata
+from backend.version import BuildMetadata, build_metadata
 
 ROLLBACK_BOUNDARY = (
     "No reverse migration is supported. Image replacement belongs to the container platform. "

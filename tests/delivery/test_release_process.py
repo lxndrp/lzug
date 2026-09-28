@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 import os
-import re
 import subprocess
 import sys
-import textwrap
 import unittest
 from pathlib import Path
 
@@ -31,7 +29,7 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertIn("required: true", dispatch)
         self.assertIn('test "$GITHUB_REF" = refs/heads/master', self.preflight)
         self.assertIn("git/ref/heads/master", self.preflight)
-        self.assertIn("BuildMetadata.create", self.preflight)
+        self.assertIn("python3 -m backend.version", self.preflight)
         self.assertNotIn("issues:", self.preflight)
         self.assertNotIn("milestone", self.workflow.lower())
         self.assertNotIn("type: release", self.workflow)
@@ -43,27 +41,27 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertIn("actions: read", job_block(self.product_workflow, "preflight"))
 
     def test_preflight_loads_build_metadata_from_checkout_src_layout(self) -> None:
-        python_path = re.search(r"^\s+PYTHONPATH:\s+(\S+)\s*$", self.preflight, re.MULTILINE)
-        self.assertIsNotNone(python_path)
-
-        _, heredoc, remainder = self.preflight.partition("python3 - <<'PY'\n")
-        self.assertTrue(heredoc)
-        python_source, terminator, _ = remainder.partition("\n          PY\n")
-        self.assertTrue(terminator)
-
         environment = os.environ.copy()
         environment.update(
             {
-                "PYTHONPATH": python_path.group(1),
-                "RELEASE_TAG": "v0.8.0",
-                "TARGET_SHA": "a" * 40,
+                "PYTHONPATH": "backend/src",
             }
         )
         result = subprocess.run(
-            [sys.executable, "-S", "-"],
+            [
+                sys.executable,
+                "-S",
+                "-m",
+                "backend.version",
+                "--revision",
+                "a" * 40,
+                "--tag",
+                "v0.8.0",
+                "--field",
+                "identity",
+            ],
             cwd=Path(__file__).resolve().parents[2],
             env=environment,
-            input=textwrap.dedent(python_source),
             check=True,
             capture_output=True,
             text=True,

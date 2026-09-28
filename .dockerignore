@@ -46,6 +46,7 @@
 !frontend/angular.json
 !frontend/tsconfig.json
 !frontend/tsconfig.app.json
+!frontend/openapi-ts.config.mjs
 !frontend/public/
 !frontend/public/**
 !frontend/src/

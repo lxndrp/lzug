@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 import re
+import sys
 from dataclasses import dataclass
 from typing import Any, Literal
 from urllib.parse import urlsplit
 
-from backend.build_metadata import DEMO_SNAPSHOT_TAG, SEMVER_TAG, BuildMetadata
+from backend.version import DEMO_SNAPSHOT_TAG, SEMVER_TAG, BuildMetadata
 
 MANIFEST_VERSION = 1
 RUNTIME_CONTRACT = "lzug-demo-health-ready-v1"
@@ -132,6 +134,24 @@ def validate_public_demo_url(value: str, *, require_canonical: bool = False) -> 
     if require_canonical and value != CANONICAL_DEMO_URL:
         raise DemoContractError("DEMO_URL must be the confirmed repository demo origin")
     return value.rstrip("/") + "/"
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Run component-owned demo contract commands."""
+
+    parser = argparse.ArgumentParser(description=main.__doc__)
+    commands = parser.add_subparsers(dest="command", required=True)
+    validate = commands.add_parser("validate-url", help="validate the public demo origin")
+    validate.add_argument("--value", required=True)
+    validate.add_argument("--canonical", action="store_true")
+    args = parser.parse_args(argv)
+    try:
+        validate_public_demo_url(args.value, require_canonical=args.canonical)
+    except DemoContractError as error:
+        print(f"DEMO_URL contract failed: {error}", file=sys.stderr)
+        return 1
+    print("The effective DEMO_URL contract is valid.")
+    return 0
 
 
 def _canonical_product(manifest: dict[str, Any], label: str) -> DemoIdentity:
@@ -296,3 +316,7 @@ def validate_deployment_source(
             )
         return identity
     raise DemoContractError("unsupported demo deployment operation or source channel")
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

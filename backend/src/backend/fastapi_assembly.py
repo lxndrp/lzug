@@ -142,11 +142,20 @@ def create_app(
     return app
 
 
-def export_openapi_document(output: Path) -> None:
-    """Write the canonical publication OpenAPI document to ``output``."""
+def export_openapi_document(output: Path, *, profile: str = "publication") -> None:
+    """Write the canonical publication or transport OpenAPI document to ``output``."""
+
+    if profile not in {"publication", "transport"}:
+        raise ValueError(f"unsupported OpenAPI profile: {profile}")
+    transport = profile == "transport"
 
     document = create_app(
-        FastAPIConfig(db_path=Path(":memory:"), session_cookie_name="__Host-lzug_session")
+        FastAPIConfig(
+            db_path=Path(":memory:"),
+            session_cookie_name="lzug_session" if transport else "__Host-lzug_session",
+            cookie_secure=not transport,
+            https_only=not transport,
+        )
     ).openapi()
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(
@@ -160,8 +169,9 @@ def main() -> int:
 
     parser = argparse.ArgumentParser(description=main.__doc__)
     parser.add_argument("output", type=Path, help="destination OpenAPI JSON file")
+    parser.add_argument("--profile", choices=("publication", "transport"), default="publication")
     args = parser.parse_args()
-    export_openapi_document(args.output)
+    export_openapi_document(args.output, profile=args.profile)
     return 0
 
 

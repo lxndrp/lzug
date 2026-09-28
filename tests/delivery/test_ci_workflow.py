@@ -159,7 +159,7 @@ class QualityWorkflowContractTests(unittest.TestCase):
             "operator-cli/.goreleaser.yml",
             "operator-cli/go.mod",
             "operator-cli/go.sum",
-            "scripts/build_metadata.py",
+            "backend/src/backend/version.py",
             "THIRD_PARTY_NOTICES.md",
             ".mise.toml",
             "Taskfile.yml",
@@ -315,8 +315,8 @@ class QualityWorkflowContractTests(unittest.TestCase):
             "scripts/check_documentation.py": "docs",
             "scripts/build-frontend.ps1": "frontend",
             "tests/pester/Container.Tests.ps1": "container",
-            "scripts/generate-frontend-transport.ps1": "transport",
-            "scripts/build_metadata.py": "full",
+            "frontend/Taskfile.yml": "transport",
+            "backend/src/backend/version.py": "full",
         }.items():
             with self.subTest(path=path):
                 self.assertIn(f"'{path}'", mapping_block(changes, owner, indent=12))
@@ -485,6 +485,13 @@ class QualityWorkflowContractTests(unittest.TestCase):
         self.assertIn("npm --prefix frontend run test:a11y", self.quality)
         self.assertIn("npm --prefix frontend run test:ui-review", self.quality)
 
+    def test_browser_quality_jobs_install_task_for_the_frontend_adapter(self) -> None:
+        for job_name in ("e2e", "a11y"):
+            job = job_block(self.quality, job_name)
+            with self.subTest(job=job_name):
+                self.assertIn("go-task/setup-task@", job)
+                self.assertIn("version: 3.52.0", job)
+
     def test_backend_pr_quality_omits_coverage_but_complete_quality_retains_it(self) -> None:
         pull_request_backend = job_block(self.pull_request, "backend")
         quality_backend = job_block(self.quality, "backend")
@@ -495,7 +502,7 @@ class QualityWorkflowContractTests(unittest.TestCase):
         self.assertNotIn("coverage xml", quality_backend)
         self.assertIn("name: backend-coverage", quality_backend)
 
-    def test_openapi_transport_drift_is_checked_for_backend_and_frontend_changes(self) -> None:
+    def test_openapi_transport_types_are_generated_for_backend_and_frontend_changes(self) -> None:
         changes = job_block(self.pull_request, "changes")
         transport_paths = mapping_block(changes, "transport", indent=12)
         self.assertIn("'backend/**'", transport_paths)
@@ -507,6 +514,15 @@ class QualityWorkflowContractTests(unittest.TestCase):
             self.assertIn("uv sync --locked --extra dev", job)
             self.assertIn("npm ci --prefix frontend", job)
             self.assertIn("task frontend:transport", job)
+        frontend_tasks = Path("frontend/Taskfile.yml").read_text(encoding="utf-8")
+        transport_task = frontend_tasks.split("  transport:\n", 1)[1].split(
+            "  transport:generate:\n", 1
+        )[0]
+        self.assertIn(
+            "git status --short --untracked-files=all -- frontend/src/app/api/generated",
+            transport_task,
+        )
+        self.assertIn("task frontend:transport:generate and commit the result", transport_task)
 
         frontend_gate = job_block(self.pull_request, "frontend-gate")
         self.assertIn("transport", frontend_gate)

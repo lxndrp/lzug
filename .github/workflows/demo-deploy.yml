@@ -11,32 +11,16 @@ on:
         description: Automatic caller identity (stable or snapshot)
         required: true
         type: string
+      product_tag:
+        description: Release or snapshot tag used to validate the deployment source
+        required: true
+        type: string
       app_image:
         description: Immutable ghcr.io/lxndrp/lzug-demo-app@sha256 digest
         required: true
         type: string
       seed_image:
         description: Immutable ghcr.io/lxndrp/lzug-demo-seed@sha256 digest
-        required: true
-        type: string
-      product_tag:
-        description: Release or snapshot source tag shared by the verified pair
-        required: true
-        type: string
-      product_commit:
-        description: Full 40-character product commit shared by the pair
-        required: true
-        type: string
-      runtime_contract:
-        description: Versioned runtime contract from both attested image manifests
-        required: true
-        type: string
-      schema_fingerprint:
-        description: Full schema fingerprint from the verified seed manifest
-        required: true
-        type: string
-      seed_revision:
-        description: Full seed revision from the verified pair manifests
         required: true
         type: string
   workflow_dispatch:
@@ -54,26 +38,6 @@ on:
         type: string
       seed_image:
         description: Immutable ghcr.io/lxndrp/lzug-demo-seed@sha256 digest
-        required: true
-        type: string
-      product_tag:
-        description: Release or snapshot source tag shared by the verified pair
-        required: true
-        type: string
-      product_commit:
-        description: Full 40-character product commit shared by the pair
-        required: true
-        type: string
-      runtime_contract:
-        description: Versioned runtime contract from both attested image manifests
-        required: true
-        type: string
-      schema_fingerprint:
-        description: Full schema fingerprint from the verified seed manifest
-        required: true
-        type: string
-      seed_revision:
-        description: Full seed revision from the verified seed manifest
         required: true
         type: string
 
@@ -101,10 +65,6 @@ jobs:
       APP_IMAGE: ${{ inputs.app_image }}
       SEED_IMAGE: ${{ inputs.seed_image }}
       PRODUCT_TAG: ${{ inputs.product_tag }}
-      PRODUCT_COMMIT: ${{ inputs.product_commit }}
-      RUNTIME_CONTRACT: ${{ inputs.runtime_contract }}
-      SCHEMA_FINGERPRINT: ${{ inputs.schema_fingerprint }}
-      SEED_REVISION: ${{ inputs.seed_revision }}
       DEMO_URL: ${{ vars.DEMO_URL }}
       AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
@@ -125,14 +85,13 @@ jobs:
           done
           [[ "$APP_IMAGE" =~ ^ghcr\.io/lxndrp/lzug-demo-app@sha256:[0-9a-f]{64}$ ]]
           [[ "$SEED_IMAGE" =~ ^ghcr\.io/lxndrp/lzug-demo-seed@sha256:[0-9a-f]{64}$ ]]
-          [[ "$PRODUCT_COMMIT" =~ ^[0-9a-f]{40}$ ]]
-          [[ "$SCHEMA_FINGERPRINT" =~ ^[0-9a-f]{64}$ ]]
-          [[ "$SEED_REVISION" =~ ^[0-9a-f]{64}$ ]]
-          [[ "$RUNTIME_CONTRACT" = lzug-demo-health-ready-v1 ]]
           [[ "$DEMO_URL" = https://demo.lzug.repertoire.papaspyrou.name ]]
           case "${{ inputs.promotion_channel }}:${{ inputs.operation }}" in
             stable:deploy) test "$GITHUB_REF" = refs/heads/master; [[ "$PRODUCT_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] ;;
-            snapshot:deploy) test "$GITHUB_REF" = "refs/tags/$PRODUCT_TAG"; [[ "$PRODUCT_TAG" =~ ^snapshot/v[0-9]+\.[0-9]+\.[0-9]+-SNAPSHOT\.[0-9a-f]{7}$ ]] ;;
+            snapshot:deploy)
+              [[ "$GITHUB_REF" =~ ^refs/tags/snapshot/v[0-9]+\.[0-9]+\.[0-9]+-SNAPSHOT\.([0-9a-f]{7})$ ]]
+              [[ "$GITHUB_SHA" == "${BASH_REMATCH[1]}"* ]]
+              ;;
             :rollback) test "$GITHUB_REF" = refs/heads/master ;;
             *) echo "Unsupported demo source or operation." >&2; exit 1 ;;
           esac
@@ -163,14 +122,14 @@ jobs:
           subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
 
       - name: Promote and verify the immutable pair
-        run: pwsh -NoProfile -File scripts/demo-deploy.ps1 -Operation "${{ inputs.operation }}" -PromotionChannel "${{ inputs.promotion_channel }}"
+        run: pwsh -NoProfile -File scripts/demo-deploy.ps1 -Operation "${{ inputs.operation }}"
 
       - name: Explain failure and collect non-sensitive diagnostics
         if: failure()
         run: |
           {
             echo "### Demo ${{ inputs.operation }} failed"
-            echo "The run is not deployment evidence. Inspect the first failed readiness, health, or smoke step."
+            echo "The run is not deployment evidence. Inspect the first failed input, provenance, revision, or readiness check."
             echo "Do not change one digest independently. Re-run only after correcting the platform fault, or dispatch an explicit \`rollback\` with a previously verified complete pair."
           } >> "$GITHUB_STEP_SUMMARY"
           if test -f "$RUNNER_TEMP/demo-previous.json"; then

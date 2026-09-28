@@ -14,7 +14,6 @@ from uuid import uuid4
 from fastapi.testclient import TestClient
 
 from backend.application.admin import AdminActorContext
-from backend.build_metadata import BuildMetadata
 from backend.fastapi_assembly import FastAPIConfig, create_admin_application, create_app
 from backend.identity.local_auth import authentication_key
 from backend.operations.artifact_packages import ClearArtifactService
@@ -24,6 +23,7 @@ from backend.operations.lifecycle import LifecycleError, LifecycleService
 from backend.persistence.database import database_readiness, initialize, persistence_paths
 from backend.runtime import RuntimeConflictError, RuntimeCoordinator
 from backend.tests.test_backup_recipients import RECIPIENT
+from backend.version import BuildMetadata
 
 LAST = "028_add_exam_venue_change_notifications.sql"
 

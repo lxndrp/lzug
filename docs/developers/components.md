@@ -436,6 +436,15 @@ Google-Style-Docstrings erzeugt.
 OpenAPI entsteht ausschließlich über die unveränderte FastAPI-Erzeugung aus
 Anwendung, Dependencies, Response-Modellen und den an den Operationen
 hinterlegten Pydantic-Schemata.
+`backend.fastapi_assembly` exportiert getrennte Publikations- und
+Transportprofile; lokale Builds, CI und OCI-Builds exportieren das
+Transportprofil aus demselben Checkout und generieren daraus vor Angular mit
+`openapi-ts` die versionierten Frontend-Typen.
+`backend.version` vereint Runtime-Zugriff, Modell und CLI-Export der
+kanonischen Build-Identität für CLI- und Containerverbraucher.
+Der CLI-Export verlangt Revision und optionalen Tag ausdrücklich.
+Git-Revisionen und annotierte Tagziele werden vor diesem Komponentenaufruf
+durch Git oder den jeweiligen Aufrufer geprüft.
 Beides ergänzt die Komponentenorientierung, ersetzt aber nicht Service- und
 Vertragstests.
 

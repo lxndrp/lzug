@@ -360,13 +360,13 @@ class SocketMigrationTests(unittest.TestCase):
         import sqlite3
         from contextlib import closing
 
-        from backend.build_metadata import BuildMetadata
         from backend.operations.backup_recipients import (
             BackupRecipientRepository,
             recipient_fingerprint,
         )
         from backend.persistence.database import database_readiness
         from backend.tests.test_backup_recipients import RECIPIENT
+        from backend.version import BuildMetadata
 
         self.runtime.stop()
         initialize(self.paths.database)

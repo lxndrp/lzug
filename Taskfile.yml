@@ -243,7 +243,6 @@ tasks:
     deps:
       - brand:check
       - quality:backend
-      - quality:frontend-transport
       - quality:frontend
       - quality:security
       - quality:operator
@@ -318,11 +317,6 @@ tasks:
     cmds:
       - task: frontend:quality
 
-  quality:frontend-transport:
-    desc: Verify TypeScript transport types against the canonical FastAPI OpenAPI document
-    cmds:
-      - task: frontend:transport
-
   quality:security:
     desc: Run Python and production npm dependency security audits
     cmds:
@@ -347,7 +341,7 @@ tasks:
         mkdir -p "$(dirname "$baseline")"
         trap 'rm -rf dist; rm -f .goreleaser-build-metadata.json .goreleaser-license .goreleaser-third-party-notices.md' EXIT
         revision="$(git rev-parse HEAD)"
-        application_version="$(python3 ../scripts/build_metadata.py --revision "$revision" --field identity)"
+        application_version="$(PYTHONPATH=../backend/src python3 -m backend.version --revision "$revision" --field identity)"
         goreleaser release --snapshot --clean
         mv dist "$baseline"
 
@@ -369,7 +363,7 @@ tasks:
         temporary_directory="$(mktemp -d)"
         trap 'rm -rf dist "$baseline" "$temporary_directory"; rm -f .goreleaser-build-metadata.json .goreleaser-license .goreleaser-third-party-notices.md' EXIT
         revision="$(git rev-parse HEAD)"
-        application_version="$(python3 ../scripts/build_metadata.py --revision "$revision" --field identity)"
+        application_version="$(PYTHONPATH=../backend/src python3 -m backend.version --revision "$revision" --field identity)"
         if test ! -d "$baseline"; then
           goreleaser release --snapshot --clean
           mv dist "$baseline"
@@ -481,7 +475,7 @@ tasks:
         set -eu
         docker info >/dev/null
         revision="$(git rev-parse HEAD)"
-        build_identity="$(python3 scripts/build_metadata.py --revision "$revision" --field identity)"
+        build_identity="$(PYTHONPATH=backend/src python3 -m backend.version --revision "$revision" --field identity)"
         docker build \
           --build-arg "BUILD_IDENTITY=$build_identity" \
           --build-arg "VCS_REF=$revision" \

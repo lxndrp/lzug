@@ -27,11 +27,11 @@ from backend.admin_socket import AdminSocket, SocketConfig, peer_actor
 from backend.admin_socket_path import SocketPath, SocketSecurityError
 from backend.admin_socket_protocol import read_frame, write_frame
 from backend.application.admin import AdminActorContext, AdminApplicationResult
-from backend.build_metadata import BuildMetadata
 from backend.fastapi_assembly import FastAPIConfig, create_admin_application, create_app
 from backend.persistence.database import initialize, persistence_paths, session_scope
 from backend.runtime import RuntimeConflictError, RuntimeCoordinator
 from backend.server import initialization_lifespan, main
+from backend.version import BuildMetadata
 
 HELLO = {"type": "hello", "protocol": 1, "schema": 1}
 CONFIG = {"version": 1, "command": "config", "arguments": {}}

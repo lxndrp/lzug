@@ -195,22 +195,22 @@ mit gemeinsamem Produkt-Tag, Commit, Runtimevertrag, Schemafingerprint und
 Seed-Revision.
 Die Manifestfelder werden direkt aus dem OCI-Artefakt gelesen; Provenance wird
 mit GitHub Attestations geprüft.
-`demo-deploy.yml` übergibt die beiden Digest-Referenzen nach der
-Inputprüfung per Azure CLI als eine Container-Apps-Revision.
+`demo-deploy.yml` übergibt nach Digest- und Herkunftsprüfung nur die beiden
+unveränderlichen Digest-Referenzen per Azure CLI als eine Container-Apps-
+Revision.
 
 Die echte Mutation läuft ausschließlich im geschützten Environment `demo` mit
 GitHub OIDC.
-Azure-Readiness bindet die aktive Plattformrevision an beide erwarteten Digests.
-Der anschließende Smoke wartet einmal auf die öffentliche, commitgebundene
-Application-Readiness und prüft dann Demo-Status, die geschützte OpenAPI-Grenze
-und die zentrale Frontendroute.
-Ein zusätzlicher Liveness-Aufruf und eine erneute Readiness-Abfrage entfallen;
-Azure-Revision-Readiness und öffentliche Runtime-Readiness bleiben getrennte,
-jeweils einmalige Grenzen.
+Die Deployment-Steuerung wartet auf die neu erzeugte Azure-Revision und einen
+erfolgreichen öffentlichen `/api/ready`-Aufruf.
+Die Azure-Probe prüft TCP, damit die Wartungsoberfläche erreichbar bleibt; sie
+belegt keine fachliche App-Readiness.
+Öffentliche OpenAPI-Autorisierung, Frontend-Auslieferung und der Abgleich des
+Demo-Status mit den App-/Seed-Manifests werden im regelmäßigen Security-Review
+und Vulnerability-/Penetrationstest geprüft, nicht als zusätzliche
+Deployment-Erfolgskriterien.
 Provenance bleibt eine eigenständige Sicherheitsgrenze vor der Azure-Anmeldung,
 auch beim manuellen Retry.
-Die anonyme OpenAPI-Anfrage muss HTTP 401 mit
-`{"error": "Authentication required."}` liefern.
 
 Vor der ersten öffentlichen Auslieferung der Athener Ortsreferenzen und bei
 jeder späteren Änderung ihrer Quellen oder des Kartenproviders muss die

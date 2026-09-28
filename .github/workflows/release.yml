@@ -43,12 +43,7 @@ jobs:
           test "$GITHUB_REF" = refs/heads/master
           master_sha=$(gh api "repos/$GH_REPO/git/ref/heads/master" --jq '.object.sha')
           test "$TARGET_SHA" = "$master_sha"
-          version=$(RELEASE_TAG="$RELEASE_TAG" TARGET_SHA="$TARGET_SHA" python3 - <<'PY'
-          import os
-          from backend.build_metadata import BuildMetadata
-          print(BuildMetadata.create(os.environ["TARGET_SHA"], os.environ["RELEASE_TAG"]).identity)
-          PY
-          )
+          version=$(python3 -m backend.version --revision "$TARGET_SHA" --tag "$RELEASE_TAG" --field identity)
           escaped_version=${version//./\\.}
           test "$(grep -Ec "^## \\[$escaped_version\\] - [0-9]{4}-[0-9]{2}-[0-9]{2}$" CHANGELOG.md)" = 1
           gh api --paginate --slurp "repos/$GH_REPO/actions/workflows/quality.yml/runs?branch=master&per_page=100" > "$RUNNER_TEMP/quality-runs.json"
@@ -111,10 +106,6 @@ jobs:
     with:
       operation: deploy
       promotion_channel: stable
+      product_tag: ${{ needs.preflight.outputs.release_tag }}
       app_image: ${{ needs.demo-publish.outputs.app_image }}
       seed_image: ${{ needs.demo-publish.outputs.seed_image }}
-      product_tag: ${{ needs.preflight.outputs.release_tag }}
-      product_commit: ${{ needs.preflight.outputs.target_sha }}
-      runtime_contract: ${{ needs.demo-publish.outputs.runtime_contract }}
-      schema_fingerprint: ${{ needs.demo-publish.outputs.schema_fingerprint }}
-      seed_revision: ${{ needs.demo-publish.outputs.seed_revision }}

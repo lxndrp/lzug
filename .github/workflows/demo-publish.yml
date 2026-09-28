@@ -22,21 +22,6 @@ on:
       seed_image:
         description: Resolved immutable demo seed digest
         value: ${{ jobs.resolve.outputs.seed_image }}
-      product_tag:
-        description: Stable product tag shared by the pair
-        value: ${{ jobs.resolve.outputs.product_tag }}
-      product_commit:
-        description: Product commit shared by the pair
-        value: ${{ jobs.resolve.outputs.product_commit }}
-      runtime_contract:
-        description: Runtime contract shared by the pair
-        value: ${{ jobs.resolve.outputs.runtime_contract }}
-      schema_fingerprint:
-        description: Schema fingerprint shared by the pair
-        value: ${{ jobs.resolve.outputs.schema_fingerprint }}
-      seed_revision:
-        description: Seed revision bound into the app package
-        value: ${{ jobs.resolve.outputs.seed_revision }}
 
 permissions:
   contents: read
@@ -88,10 +73,11 @@ jobs:
             snapshot_version="${BASH_REMATCH[1]}"
             snapshot_revision="${BASH_REMATCH[2]}"
             [[ "$target_sha" == "$snapshot_revision"* ]] || exit 1
-            product_identity="${snapshot_version}-SNAPSHOT@${snapshot_revision}"
+            product_identity=$(PYTHONPATH=backend/src python3 -m backend.version \
+              --tag "$PRODUCT_TAG" --revision "$target_sha" --allow-demo-snapshot --field identity)
             product_version="${snapshot_version}-SNAPSHOT-${snapshot_revision}"
           else
-            product_identity=$(python3 scripts/build_metadata.py \
+            product_identity=$(PYTHONPATH=backend/src python3 -m backend.version \
               --tag "$PRODUCT_TAG" --revision "$target_sha" --field identity)
             product_version="$product_identity"
           fi
@@ -368,11 +354,6 @@ jobs:
     outputs:
       app_image: ${{ steps.pair.outputs.app_image }}
       seed_image: ${{ steps.pair.outputs.seed_image }}
-      product_tag: ${{ needs.preflight.outputs.product_tag }}
-      product_commit: ${{ needs.preflight.outputs.target_sha }}
-      runtime_contract: ${{ steps.pair.outputs.runtime_contract }}
-      schema_fingerprint: ${{ steps.pair.outputs.schema_fingerprint }}
-      seed_revision: ${{ steps.pair.outputs.seed_revision }}
     env:
       GH_REPO: ${{ github.repository }}
       PRODUCT_TAG: ${{ needs.preflight.outputs.product_tag }}
@@ -417,8 +398,6 @@ jobs:
           container=""
 
           seed_revision=$(jq -er '.seed_revision' "$temporary_directory/app.json")
-          runtime_contract=$(jq -er '.runtime_contract' "$temporary_directory/app.json")
-          schema_fingerprint=$(jq -er '.schema.fingerprint' "$temporary_directory/app.json")
           test "$(jq -er '.product.tag' "$temporary_directory/app.json")" = "$PRODUCT_TAG"
           test "$(jq -er '.product.commit' "$temporary_directory/app.json")" = "$TARGET_SHA"
 
@@ -437,7 +416,4 @@ jobs:
           {
             echo "app_image=$app_image"
             echo "seed_image=$seed_image"
-            echo "runtime_contract=$runtime_contract"
-            echo "schema_fingerprint=$schema_fingerprint"
-            echo "seed_revision=$seed_revision"
           } >> "$GITHUB_OUTPUT"
