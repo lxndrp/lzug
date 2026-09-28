@@ -31,31 +31,63 @@ await writeFile(
   )}\n`,
 );
 
-const angularCli = resolve(frontendDirectory, 'node_modules/@angular/cli/bin/ng.js');
-const angularServer = spawn(
-  process.execPath,
+const frontendAdapter = resolve(frontendDirectory, '../scripts/build-frontend.ps1');
+const frontendServer = spawn(
+  'pwsh',
   [
-    angularCli,
-    'serve',
-    '--host',
-    '127.0.0.1',
-    '--port',
+    '-NoProfile',
+    '-File',
+    frontendAdapter,
+    '-Serve',
+    '-Port',
     frontendPort,
-    '--proxy-config',
+    '-ProxyConfig',
     proxyConfigPath,
-    '--watch=false',
   ],
-  { cwd: frontendDirectory, stdio: 'inherit' },
+  {
+    cwd: frontendDirectory,
+    detached: process.platform !== 'win32',
+    stdio: 'inherit',
+  },
 );
 
+let stopping = false;
 const stop = async () => {
-  angularServer.kill('SIGTERM');
+  if (frontendServer.pid) {
+    try {
+      if (process.platform === 'win32') {
+        frontendServer.kill('SIGTERM');
+      } else {
+        process.kill(-frontendServer.pid, 'SIGINT');
+      }
+    } catch (error) {
+      if (error.code !== 'ESRCH') throw error;
+    }
+  }
+  if (frontendServer.pid && frontendServer.exitCode === null) {
+    await Promise.race([
+      new Promise((resolve) => frontendServer.once('exit', resolve)),
+      new Promise((resolve) => globalThis.setTimeout(resolve, 5000)),
+    ]);
+    if (frontendServer.exitCode === null && process.platform !== 'win32') {
+      try {
+        process.kill(-frontendServer.pid, 'SIGKILL');
+      } catch (error) {
+        if (error.code !== 'ESRCH') throw error;
+      }
+    }
+  }
   await unlink(proxyConfigPath).catch(() => undefined);
 };
 
-process.on('SIGTERM', () => void stop());
-process.on('SIGINT', () => void stop());
-angularServer.on('exit', async (code) => {
+for (const signal of ['SIGTERM', 'SIGINT']) {
+  process.once(signal, async () => {
+    stopping = true;
+    await stop();
+    process.exit(0);
+  });
+}
+frontendServer.on('exit', async (code) => {
   await unlink(proxyConfigPath).catch(() => undefined);
-  process.exit(code ?? 1);
+  process.exit(stopping ? 0 : (code ?? 1));
 });

@@ -8,10 +8,24 @@ before:
     - cp ../LICENSE .goreleaser-license
     - cp ../THIRD_PARTY_NOTICES.md .goreleaser-third-party-notices.md
     - >-
-      python3 ../scripts/build_metadata.py
+      sh -c 'if [ "{{ .IsSnapshot }}" != "true" ]; then
+      test "$(git cat-file -t {{ .Tag }})" = tag &&
+      test "$(git rev-list -n 1 {{ .Tag }})" = "{{ .FullCommit }}";
+      fi'
+    - >-
+      sh -c 'if [ "{{ .IsSnapshot }}" = "true" ]; then
+      identity=$(PYTHONPATH=../backend/src python3 -m backend.version
+      --revision {{ .FullCommit }} --field identity);
+      else
+      identity=$(PYTHONPATH=../backend/src python3 -m backend.version
+      --revision {{ .FullCommit }} --tag {{ .Tag }} --field identity);
+      fi;
+      test "$identity" = "{{ .Version }}"'
+    - >-
+      sh -c 'PYTHONPATH=../backend/src python3 -m backend.version
       --revision {{ .FullCommit }}
       {{ if not .IsSnapshot }}--tag {{ .Tag }}{{ end }}
-      --output .goreleaser-build-metadata.json
+      --output .goreleaser-build-metadata.json'
 
 builds:
   - id: lzug-admin

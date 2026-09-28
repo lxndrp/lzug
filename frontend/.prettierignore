@@ -5,3 +5,6 @@ playwright-report/
 test-results/
 src/app/testing/synthetic-fixtures.generated.ts
 src/app/api/generated/
+src/brand/
+public/brand/
+public/favicon.ico

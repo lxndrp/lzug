@@ -16,5 +16,5 @@ const playwright = spawn(process.execPath, [playwrightCli, 'test', ...process.ar
 });
 
 playwright.on('exit', (code) => {
-  process.exitCode = code ?? 1;
+  process.exit(code ?? 1);
 });

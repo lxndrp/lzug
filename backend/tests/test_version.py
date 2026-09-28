@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from backend import version
-from backend.build_metadata import BuildMetadata
+from backend.version import BuildMetadata
 
 
 class VersionTests(unittest.TestCase):

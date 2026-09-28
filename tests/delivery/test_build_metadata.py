@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
+from io import StringIO
 from pathlib import Path
-from unittest import mock
 
-from backend.build_metadata import BuildMetadata
-from scripts.build_metadata import verify_tag_target
+from backend.version import BuildMetadata
 
 
 class BuildMetadataTests(unittest.TestCase):
@@ -66,20 +66,25 @@ class BuildMetadataTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             BuildMetadata.from_json(tampered)
 
-    def test_release_tag_must_resolve_to_the_built_commit(self) -> None:
-        revision = "d" * 40
-        with mock.patch("scripts.build_metadata.git_output", side_effect=("tag", revision)):
-            verify_tag_target("v1.2.3", revision)
-        with (
-            mock.patch("scripts.build_metadata.git_output", side_effect=("tag", "e" * 40)),
-            self.assertRaises(ValueError),
-        ):
-            verify_tag_target("v1.2.3", revision)
-        with (
-            mock.patch("scripts.build_metadata.git_output", return_value="commit"),
-            self.assertRaises(ValueError),
-        ):
-            verify_tag_target("v1.2.3", revision)
+    def test_component_cli_exports_explicit_identity_and_file(self) -> None:
+        from backend.version import main
+
+        output = StringIO()
+        with tempfile.TemporaryDirectory() as directory, redirect_stdout(output):
+            path = Path(directory) / "metadata.json"
+            result = main(["--revision", "d" * 40, "--output", str(path), "--field", "identity"])
+            exported = BuildMetadata.read(path)
+
+        self.assertEqual(0, result)
+        self.assertEqual(f"0.0.0-dev+sha.{'d' * 40}\n", output.getvalue())
+        self.assertEqual(BuildMetadata.create("d" * 40), exported)
+
+    def test_component_cli_requires_explicit_revision(self) -> None:
+        from backend.version import main
+
+        with redirect_stderr(StringIO()), self.assertRaises(SystemExit) as error:
+            main([])
+        self.assertEqual(2, error.exception.code)
 
 
 if __name__ == "__main__":

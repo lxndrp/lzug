@@ -73,7 +73,7 @@ wird dort an eine feste Revision und vollständige Artefakte gebunden.
 | Änderung | Lokaler Einstieg |
 | --- | --- |
 | Backend | Betroffener Test unter `backend/tests/`, danach `task quality:backend:pr` bei breiterer Änderung |
-| Frontend oder API-Transport | Betroffener Vitest-Test, `task quality:frontend` und bei Vertragsänderung `task quality:frontend-transport` |
+| Frontend oder API-Transport | Betroffener Vitest-Test, `task quality:frontend` und bei Vertragsänderung `task frontend:transport` |
 | Betreiber-CLI | `task test:operator`, bei Packaging-Änderung `task quality:operator-packaging-and-reproducibility` |
 | Demo oder synthetische Fixtures | Betroffene Tests unter `demo/tests/` oder `backend/tests/`, danach `task quality:demo` bei Runtime-Änderung |
 | Delivery, OCI oder Compose | Betroffener Test unter `tests/delivery/` oder `tests/pester/`; passende `quality:*`-Task für die reale Integrationsgrenze |

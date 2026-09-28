@@ -53,6 +53,11 @@ Unberechtigte Schreibzugriffe liefern 403; lesende Zugriffe auf fremde Ausschuss
 Health ist Liveness; Ready prüft die Anwendungs- und Datenbankbereitschaft.
 - Security-Header, same-origin CORS, sichere Cookies, Request-/Upload-Limits,
 Auth-Rate-Limits und secret-freie Access-Logs sind produktive Defaults.
+- Der regelmäßige Security-Review und Vulnerability-/Penetrationstest prüfen
+  die öffentlichen Demo-Flächen außerhalb des Deployment-Gates: anonyme
+  OpenAPI-Aufrufe werden mit HTTP 401 abgewiesen, `/` liefert die Angular-App
+  und `/api/demo/status` stimmt Runtimevertrag und Seed-Revision mit den
+  unveränderlichen App- und Seed-Manifests ab.
 
 Aktuelle Durchsetzung liegt in den Workflows, Dockerfiles, Compose-Datei und den Runtime-Konfigurationsmodellen.
 Ihre Grenzen erläutern [Architektur und Entscheidungen](docs/developers/architecture.md)

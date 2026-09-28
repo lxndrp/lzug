@@ -110,10 +110,6 @@ jobs:
     with:
       operation: deploy
       promotion_channel: snapshot
+      product_tag: ${{ needs.preflight.outputs.snapshot_tag }}
       app_image: ${{ needs.demo-publish.outputs.app_image }}
       seed_image: ${{ needs.demo-publish.outputs.seed_image }}
-      product_tag: ${{ needs.preflight.outputs.snapshot_tag }}
-      product_commit: ${{ needs.preflight.outputs.target_sha }}
-      runtime_contract: ${{ needs.demo-publish.outputs.runtime_contract }}
-      schema_fingerprint: ${{ needs.demo-publish.outputs.schema_fingerprint }}
-      seed_revision: ${{ needs.demo-publish.outputs.seed_revision }}

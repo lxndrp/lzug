@@ -15,14 +15,21 @@ tasks:
       - cd frontend && npm run test:coverage
 
   transport:
-    desc: Verify TypeScript transport types against the canonical FastAPI OpenAPI document
+    desc: Verify generated TypeScript transport types match the canonical FastAPI OpenAPI document
     cmds:
-      - 'pwsh -NoProfile -File scripts/generate-frontend-transport.ps1 -Check'
+      - task: transport:generate
+      - |
+        if test -n "$(git status --short --untracked-files=all -- frontend/src/app/api/generated)"; then
+          echo "Generated frontend transport types are stale; run task frontend:transport:generate and commit the result." >&2
+          git status --short --untracked-files=all -- frontend/src/app/api/generated >&2
+          exit 1
+        fi
 
   transport:generate:
     desc: Generate the low-level TypeScript transport types from FastAPI OpenAPI
     cmds:
-      - 'pwsh -NoProfile -File scripts/generate-frontend-transport.ps1'
+      - 'uv run --locked --extra dev python -m backend.fastapi_assembly --profile transport build/frontend-openapi.json'
+      - 'cd frontend && LZUG_OPENAPI_INPUT=../build/frontend-openapi.json LZUG_TRANSPORT_OUTPUT=src/app/api/generated ./node_modules/.bin/openapi-ts --file openapi-ts.config.mjs --no-log-file --silent'
 
   security:
     desc: Run the production npm critical security gate

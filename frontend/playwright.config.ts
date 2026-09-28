@@ -70,6 +70,7 @@ export default defineConfig({
           cwd: '.',
           url: frontendUrl,
           reuseExistingServer: false,
+          gracefulShutdown: { signal: 'SIGTERM', timeout: 10_000 },
           timeout: 120_000,
         },
       ],

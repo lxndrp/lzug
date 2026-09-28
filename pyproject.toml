@@ -108,7 +108,7 @@ files = [
   "backend/src/backend/persistence/models.py",
   "backend/src/backend/server.py",
   "backend/src/backend/healthcheck.py",
-  "backend/src/backend/build_metadata.py",
+  "backend/src/backend/version.py",
   "backend/src/backend/security.py",
   "backend/src/backend/runtime.py",
   "backend/src/backend/admin_socket.py",
