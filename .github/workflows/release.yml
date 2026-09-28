@@ -80,6 +80,7 @@ jobs:
 
   demo-publish:
     name: Publish stable demo pair
+    if: ${{ !contains(needs.preflight.outputs.release_tag, '-') }}
     needs: [preflight, product]
     uses: ./.github/workflows/demo-publish.yml
     permissions:

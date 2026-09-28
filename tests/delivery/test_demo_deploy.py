@@ -29,9 +29,12 @@ class DemoDeployWorkflowTests(unittest.TestCase):
                 self.assertNotIn(f"{field}:", self.workflow)
                 self.assertNotIn(field.upper(), self.script)
 
-    def test_release_candidates_do_not_promote_the_stable_demo(self) -> None:
+    def test_release_candidates_skip_demo_publishing_and_deployment(self) -> None:
+        release_publish = job_block(self.release, "demo-publish")
         release_deploy = job_block(self.release, "demo-deploy")
-        self.assertIn("!contains(needs.preflight.outputs.release_tag, '-')", release_deploy)
+        guard = "!contains(needs.preflight.outputs.release_tag, '-')"
+        self.assertIn(guard, release_publish)
+        self.assertIn(guard, release_deploy)
 
     def test_source_and_provenance_gates_remain_before_azure_login(self) -> None:
         validation = self.workflow.index("name: Validate immutable platform inputs")
