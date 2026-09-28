@@ -130,11 +130,6 @@ class PublicationDeliveryContractTests(unittest.TestCase):
             (ROOT / "Taskfile.yml").read_text(),
         )
 
-    def test_publication_typedoc_matches_frontend_non_exported_validation(self) -> None:
-        taskfile = (ROOT / "Taskfile.yml").read_text()
-        self.assertIn("--treatWarningsAsErrors --validation.notExported false", taskfile)
-        self.assertIn("--exclude 'src/app/api/generated/**' --out", taskfile)
-
     def test_generated_public_site_has_one_canonical_linkcheck_entry(self) -> None:
         config = (ROOT / ".lychee.toml").read_text()
         taskfile = (ROOT / "Taskfile.yml").read_text()

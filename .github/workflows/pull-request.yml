@@ -51,6 +51,7 @@ jobs:
               - 'THIRD_PARTY_NOTICES.md'
               - 'frontend/**/*.md'
               - 'frontend/THIRD_PARTY_NOTICES.md'
+              - 'frontend/typedoc.json'
               - 'scripts/check_documentation.py'
               - 'scripts/validate_demo_url_contract.py'
               - 'tests/docs/**'

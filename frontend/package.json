@@ -17,7 +17,7 @@
     "test:ui-review": "node e2e/run-playwright.mjs ui-review.spec.ts",
     "test:publication": "LZUG_PUBLICATION_SUITE=browser node e2e/run-playwright.mjs --config playwright.publication.config.ts",
     "test:publication:a11y": "LZUG_PUBLICATION_SUITE=a11y node e2e/run-playwright.mjs --config playwright.publication.config.ts",
-    "docs": "typedoc --treatWarningsAsErrors --validation.notExported false --entryPointStrategy expand --entryPoints src/app --exclude 'src/app/api/generated/**' --out ../site/developers/reference/frontend",
+    "docs": "typedoc --out ../site/developers/reference/frontend",
     "security:check": "npm audit --omit=dev --audit-level=critical",
     "lint": "eslint . --max-warnings=0",
     "format:check": "prettier --check ."

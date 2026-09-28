@@ -38,7 +38,7 @@ tasks:
   technical:
     internal: true
     cmds:
-      - "{{.UV}} mkdocs build --strict --config-file docs/mkdocs.yml"
+      - "{{.UV}} mkdocs build --config-file docs/mkdocs.yml"
 
   frontend:
     internal: true

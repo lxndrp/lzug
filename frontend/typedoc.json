@@ -1,0 +1,9 @@
+{
+  "treatWarningsAsErrors": true,
+  "validation": {
+    "notExported": false
+  },
+  "entryPointStrategy": "expand",
+  "entryPoints": ["src/app"],
+  "exclude": ["src/app/api/generated/**"]
+}
