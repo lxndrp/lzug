@@ -13,14 +13,12 @@ class DemoDeployWorkflowTests(unittest.TestCase):
         cls.snapshot = workflow_text(".github/workflows/snapshot.yml")
         cls.script = workflow_text("scripts/demo-deploy.ps1")
 
-    def test_deployment_receives_the_image_pair_and_source_tag(self) -> None:
+    def test_deployment_receives_only_the_immutable_image_pair(self) -> None:
         deploy = job_block(self.release, "demo-deploy") + job_block(self.snapshot, "demo-deploy")
         self.assertIn("app_image: ${{ needs.demo-publish.outputs.app_image }}", deploy)
         self.assertIn("seed_image: ${{ needs.demo-publish.outputs.seed_image }}", deploy)
-        self.assertIn("product_tag: ${{ needs.preflight.outputs.release_tag }}", deploy)
-        self.assertIn("product_tag: ${{ needs.preflight.outputs.snapshot_tag }}", deploy)
-        self.assertIn("PRODUCT_TAG: ${{ inputs.product_tag }}", self.workflow)
         for field in (
+            "product_tag",
             "product_commit",
             "runtime_contract",
             "schema_fingerprint",
@@ -31,6 +29,13 @@ class DemoDeployWorkflowTests(unittest.TestCase):
                 self.assertNotIn(f"{field}:", self.workflow)
                 self.assertNotIn(field.upper(), self.script)
 
+    def test_release_candidates_skip_demo_publishing_and_deployment(self) -> None:
+        release_publish = job_block(self.release, "demo-publish")
+        release_deploy = job_block(self.release, "demo-deploy")
+        guard = "!contains(needs.preflight.outputs.release_tag, '-')"
+        self.assertIn(guard, release_publish)
+        self.assertIn(guard, release_deploy)
+
     def test_source_and_provenance_gates_remain_before_azure_login(self) -> None:
         validation = self.workflow.index("name: Validate immutable platform inputs")
         provenance = self.workflow.index(
@@ -39,8 +44,7 @@ class DemoDeployWorkflowTests(unittest.TestCase):
         azure_login = self.workflow.index("name: Log in to Azure using GitHub OIDC")
         self.assertLess(validation, provenance)
         self.assertLess(provenance, azure_login)
-        self.assertIn('stable:deploy) test "$GITHUB_REF" = refs/heads/master;', self.workflow)
-        self.assertIn('[[ "$PRODUCT_TAG" =~ ^v[0-9]+\\.[0-9]+\\.[0-9]+$ ]]', self.workflow)
+        self.assertIn('stable:deploy) test "$GITHUB_REF" = refs/heads/master ;;', self.workflow)
         self.assertIn("snapshot:deploy)", self.workflow)
         self.assertIn("refs/tags/snapshot/v", self.workflow)
         self.assertIn(':rollback) test "$GITHUB_REF" = refs/heads/master', self.workflow)

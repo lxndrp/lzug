@@ -110,6 +110,5 @@ jobs:
     with:
       operation: deploy
       promotion_channel: snapshot
-      product_tag: ${{ needs.preflight.outputs.snapshot_tag }}
       app_image: ${{ needs.demo-publish.outputs.app_image }}
       seed_image: ${{ needs.demo-publish.outputs.seed_image }}

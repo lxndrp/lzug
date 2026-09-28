@@ -80,6 +80,7 @@ jobs:
 
   demo-publish:
     name: Publish stable demo pair
+    if: ${{ !contains(needs.preflight.outputs.release_tag, '-') }}
     needs: [preflight, product]
     uses: ./.github/workflows/demo-publish.yml
     permissions:
@@ -95,6 +96,7 @@ jobs:
 
   demo-deploy:
     name: Deploy stable demo pair
+    if: ${{ !contains(needs.preflight.outputs.release_tag, '-') }}
     needs: [preflight, demo-publish]
     uses: ./.github/workflows/demo-deploy.yml
     permissions:
@@ -106,6 +108,5 @@ jobs:
     with:
       operation: deploy
       promotion_channel: stable
-      product_tag: ${{ needs.preflight.outputs.release_tag }}
       app_image: ${{ needs.demo-publish.outputs.app_image }}
       seed_image: ${{ needs.demo-publish.outputs.seed_image }}

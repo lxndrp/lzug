@@ -15,15 +15,9 @@ tasks:
       - cd frontend && npm run test:coverage
 
   transport:
-    desc: Verify generated TypeScript transport types match the canonical FastAPI OpenAPI document
+    desc: Generate transport types from FastAPI and compile the frontend against them
     cmds:
-      - task: transport:generate
-      - |
-        if test -n "$(git status --short --untracked-files=all -- frontend/src/app/api/generated)"; then
-          echo "Generated frontend transport types are stale; run task frontend:transport:generate and commit the result." >&2
-          git status --short --untracked-files=all -- frontend/src/app/api/generated >&2
-          exit 1
-        fi
+      - cd frontend && npm run build:ci
 
   transport:generate:
     desc: Generate the low-level TypeScript transport types from FastAPI OpenAPI

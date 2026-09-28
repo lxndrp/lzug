@@ -513,16 +513,18 @@ class QualityWorkflowContractTests(unittest.TestCase):
         for job in (pull_request_transport, quality_transport):
             self.assertIn("uv sync --locked --extra dev", job)
             self.assertIn("npm ci --prefix frontend", job)
+            self.assertIn("mise install aqua:PowerShell/PowerShell@7.5.3", job)
             self.assertIn("task frontend:transport", job)
         frontend_tasks = Path("frontend/Taskfile.yml").read_text(encoding="utf-8")
         transport_task = frontend_tasks.split("  transport:\n", 1)[1].split(
             "  transport:generate:\n", 1
         )[0]
+        self.assertIn("npm run build:ci", transport_task)
+        self.assertNotIn("git status --short", transport_task)
         self.assertIn(
-            "git status --short --untracked-files=all -- frontend/src/app/api/generated",
-            transport_task,
+            "Generate and compile TypeScript transport types from FastAPI",
+            pull_request_transport,
         )
-        self.assertIn("task frontend:transport:generate and commit the result", transport_task)
 
         frontend_gate = job_block(self.pull_request, "frontend-gate")
         self.assertIn("transport", frontend_gate)

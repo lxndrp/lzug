@@ -11,10 +11,6 @@ on:
         description: Automatic caller identity (stable or snapshot)
         required: true
         type: string
-      product_tag:
-        description: Release or snapshot tag used to validate the deployment source
-        required: true
-        type: string
       app_image:
         description: Immutable ghcr.io/lxndrp/lzug-demo-app@sha256 digest
         required: true
@@ -64,7 +60,6 @@ jobs:
     env:
       APP_IMAGE: ${{ inputs.app_image }}
       SEED_IMAGE: ${{ inputs.seed_image }}
-      PRODUCT_TAG: ${{ inputs.product_tag }}
       DEMO_URL: ${{ vars.DEMO_URL }}
       AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
@@ -87,7 +82,7 @@ jobs:
           [[ "$SEED_IMAGE" =~ ^ghcr\.io/lxndrp/lzug-demo-seed@sha256:[0-9a-f]{64}$ ]]
           [[ "$DEMO_URL" = https://demo.lzug.repertoire.papaspyrou.name ]]
           case "${{ inputs.promotion_channel }}:${{ inputs.operation }}" in
-            stable:deploy) test "$GITHUB_REF" = refs/heads/master; [[ "$PRODUCT_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] ;;
+            stable:deploy) test "$GITHUB_REF" = refs/heads/master ;;
             snapshot:deploy)
               [[ "$GITHUB_REF" =~ ^refs/tags/snapshot/v[0-9]+\.[0-9]+\.[0-9]+-SNAPSHOT\.([0-9a-f]{7})$ ]]
               [[ "$GITHUB_SHA" == "${BASH_REMATCH[1]}"* ]]
