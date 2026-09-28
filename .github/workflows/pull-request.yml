@@ -355,7 +355,7 @@ jobs:
           retention-days: 7
 
   transport:
-    name: Generate OpenAPI transport types
+    name: Generate and compile OpenAPI transport types
     needs: changes
     if: needs.changes.outputs.transport == 'true'
     runs-on: ubuntu-24.04
@@ -379,9 +379,10 @@ jobs:
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
           install: false
+      - run: mise install aqua:PowerShell/PowerShell@7.5.3
       - name: Install locked contract dependencies
         run: uv sync --locked --extra dev && npm ci --prefix frontend
-      - name: Generate TypeScript transport types from FastAPI
+      - name: Generate and compile TypeScript transport types from FastAPI
         run: task frontend:transport
 
   cli:
