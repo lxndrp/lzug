@@ -199,6 +199,57 @@ class ExamResultRuleTests(unittest.TestCase):
         self.assertEqual("0", normalized["components"][0]["criteria"][0]["raw_min"])
         self.assertIsNone(normalized["rounding"]["intermediate"]["digits"])
 
+    def test_declarative_field_constraints_preserve_numeric_and_shape_boundaries(self) -> None:
+        for value in (Decimal("NaN"), Decimal("Infinity"), Decimal("-Infinity"), True):
+            invalid = assessment_rules()
+            invalid["components"][0]["weight"] = value
+            with self.subTest(weight=value), self.assertRaises(ValueError):
+                self.service._validate_rules(invalid)
+
+        for field_value in (None, "", "   "):
+            invalid = assessment_rules()
+            invalid["components"][0]["label"] = field_value
+            with self.subTest(label=field_value), self.assertRaises(ValueError):
+                self.service._validate_rules(invalid)
+
+        invalid = assessment_rules()
+        del invalid["components"][0]["weight"]
+        with self.assertRaisesRegex(ValueError, "weight"):
+            self.service._validate_rules(invalid)
+
+        invalid = assessment_rules()
+        invalid["components"][0]["criteria"].append(invalid["components"][0]["criteria"][0].copy())
+        with self.assertRaisesRegex(ValueError, "eindeutig"):
+            self.service._validate_rules(invalid)
+
+        invalid = assessment_rules()
+        invalid["components"][0]["criteria"][0]["weight"] = "49.99"
+        with self.assertRaisesRegex(ValueError, "100 Prozent"):
+            self.service._validate_rules(invalid)
+
+    def test_weight_minimum_is_inclusive_for_components_and_criteria(self) -> None:
+        rules = assessment_rules()
+        rules["components"][0]["weight"] = "0.0000001"
+        rules["components"][1]["weight"] = "34.9999999"
+        criteria = rules["components"][0]["criteria"]
+        criteria[0]["weight"] = "99.9999999"
+        criteria.append(
+            {
+                **criteria[0],
+                "key": "clarity",
+                "label": "Klarheit",
+                "weight": "0.0000001",
+            }
+        )
+
+        normalized = self.service._validate_rules(rules)
+
+        self.assertEqual(Decimal("0.0000001"), Decimal(normalized["components"][0]["weight"]))
+        self.assertEqual(
+            Decimal("0.0000001"),
+            Decimal(normalized["components"][0]["criteria"][1]["weight"]),
+        )
+
 
 class ExamResultTests(unittest.TestCase):
     def setUp(self) -> None:
