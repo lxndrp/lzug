@@ -66,7 +66,7 @@ class QualityWorkflowContractTests(unittest.TestCase):
         )
         self.assertIn(
             f"golang:{expected_version}-bookworm AS operator-cli-build",
-            Path("Dockerfile").read_text(encoding="utf-8"),
+            Path("packaging/product/Dockerfile").read_text(encoding="utf-8"),
         )
         for path in (
             ".github/workflows/ci.yml",
@@ -166,7 +166,7 @@ class QualityWorkflowContractTests(unittest.TestCase):
 
         taskfile = "\n".join(
             Path(path).read_text(encoding="utf-8")
-            for path in ("Taskfile.yml", "delivery/Taskfile.yml")
+            for path in ("Taskfile.yml", "packaging/Taskfile.yml", "packaging/product/Taskfile.yml")
         )
         operator_taskfile = Path("operator-cli/Taskfile.yml").read_text(encoding="utf-8")
         adapter = Path("scripts/operator-reproducibility.ps1").read_text(encoding="utf-8")
@@ -196,7 +196,7 @@ class QualityWorkflowContractTests(unittest.TestCase):
 
         taskfile = "\n".join(
             Path(path).read_text(encoding="utf-8")
-            for path in ("Taskfile.yml", "delivery/Taskfile.yml")
+            for path in ("Taskfile.yml", "packaging/Taskfile.yml", "packaging/product/Taskfile.yml")
         )
         product_publish = workflow_text(".github/workflows/product-publish.yml")
         demo_publish = workflow_text(".github/workflows/demo-publish.yml")
@@ -455,7 +455,7 @@ class QualityWorkflowContractTests(unittest.TestCase):
         self.assertNotIn("quality:oci", job_block(self.pull_request, "container"))
         self.assertNotIn("quality:container", job_block(self.pull_request, "container"))
         self.assertNotIn("task test:demo", job_block(self.pull_request, "delivery"))
-        self.assertIn("task delivery:oci", job_block(self.pull_request, "container"))
+        self.assertIn("task packaging:oci", job_block(self.pull_request, "container"))
         self.assertIn("quality:oci quality:pester quality:demo", self.quality)
         self.assertIn("task frontend:e2e", self.quality)
         self.assertIn("task frontend:a11y", self.quality)

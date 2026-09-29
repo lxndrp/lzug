@@ -20,8 +20,8 @@ ARG SEED_REVISION
 ENV PYTHONPATH="/src/backend/src"
 WORKDIR /src
 COPY backend/src ./backend/src
-COPY demo/__init__.py demo/contract.py ./demo/
-COPY demo/delivery ./demo/delivery
+COPY packaging/demo/__init__.py packaging/demo/contract.py ./demo/
+COPY packaging/demo/artifacts.py ./demo/artifacts.py
 COPY backend/db ./backend/db
 RUN set -eu; \
     test -n "$BUILD_IDENTITY"; \
@@ -30,7 +30,7 @@ RUN set -eu; \
     test -n "$SEED_REVISION"; \
     python -m backend.version --revision "$VCS_REF" --tag "$PRODUCT_TAG" --allow-demo-snapshot --output /build-metadata.json >/dev/null; \
     test "$(python -m backend.version --revision "$VCS_REF" --tag "$PRODUCT_TAG" --allow-demo-snapshot --field identity)" = "$BUILD_IDENTITY"; \
-    python -m demo.delivery.artifacts build-app-manifest --source-root /src \
+    python -m demo.artifacts build-app-manifest --source-root /src \
       --output /demo-app-manifest.json --product-tag "$PRODUCT_TAG" \
       --product-commit "$VCS_REF" --seed-revision "$SEED_REVISION"
 
@@ -103,8 +103,8 @@ COPY --from=build-metadata --chown=10001:10001 /build-metadata.json ./backend/sr
 COPY --from=build-metadata --chown=10001:10001 /demo-app-manifest.json ./demo-app-manifest.json
 COPY --from=python-dependencies --chown=10001:10001 /src/backend/src ./backend/src
 COPY --chown=10001:10001 backend/db ./backend/db
-COPY --chown=10001:10001 demo/__init__.py demo/contract.py ./demo/
-COPY --chown=10001:10001 demo/runtime ./demo/runtime
+COPY --chown=10001:10001 packaging/demo/__init__.py packaging/demo/contract.py ./demo/
+COPY --chown=10001:10001 packaging/demo/runtime ./demo/runtime
 COPY --from=frontend-build --chown=10001:10001 /src/frontend/dist/frontend/browser ./frontend
 
 USER 10001:10001

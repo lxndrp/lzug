@@ -7,7 +7,7 @@ tasks:
   test:
     desc: Run public demo component tests
     cmds:
-      - "{{.UV}} python -m unittest discover -s demo/tests"
+      - "{{.UV}} python -m unittest discover -s packaging/demo/tests -t packaging"
 
   matrix:
     desc: Verify demo roles, capabilities, mutation allowlist, and default-deny paths
@@ -26,7 +26,7 @@ tasks:
   quality:
     desc: Build the demo seed, extract its manifest, build the app, and run smoke checks
     deps:
-      - :delivery:quality:image
+      - :product:quality:image
     cmds:
       - |
         set -eu
@@ -46,7 +46,7 @@ tasks:
         build_identity="v0.2.0-SNAPSHOT@$short_revision"
         seed_image="lzug-demo-seed:local"
         app_image="lzug-demo-app:local"
-        docker build -f demo/containers/Dockerfile.demo-seed \
+        docker build -f packaging/demo/Dockerfile.seed \
           --build-arg "PRODUCT_TAG=$product_tag" \
           --build-arg "VCS_REF=$revision" \
           -t "$seed_image" .
@@ -56,10 +56,10 @@ tasks:
         docker rm "$seed_container" >/dev/null
         seed_container=""
         seed_revision=$(jq -er '.seed_revision' "$temporary_directory/manifest.json")
-        docker build -f demo/containers/Dockerfile.demo \
+        docker build -f packaging/demo/Dockerfile \
           --build-arg "BUILD_IDENTITY=$build_identity" \
           --build-arg "PRODUCT_TAG=$product_tag" \
           --build-arg "VCS_REF=$revision" \
           --build-arg "SEED_REVISION=$seed_revision" \
           -t "$app_image" .
-        scripts/demo-container-smoke.sh "$app_image" "$seed_image" lzug-app:0.0.0-dev.local "$seed_revision"
+        packaging/demo/container-smoke.sh "$app_image" "$seed_image" lzug-app:0.0.0-dev.local "$seed_revision"

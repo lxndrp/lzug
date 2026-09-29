@@ -1,0 +1,32 @@
+version: "3.52"
+
+includes:
+  product:
+    taskfile: product/Taskfile.yml
+    dir: ..
+  demo:
+    taskfile: demo/Taskfile.yml
+    dir: ..
+
+vars:
+  UV: uv run --locked --extra dev
+
+tasks:
+  test:
+    desc: Run delivery and workflow contract tests
+    cmds:
+      - "{{.UV}} python -m unittest discover -s tests/delivery"
+
+  tooling:
+    desc: Run repository tooling tests
+    cmds:
+      - "{{.UV}} python -m unittest discover -s tests/tooling"
+
+  oci:
+    desc: Run OCI and Compose Pester contracts
+    cmds:
+      - task: :quality:pester
+
+  quality:image:
+    cmds:
+      - task: :packaging:product:quality:image

@@ -15,9 +15,9 @@ class BuildIdentityContractTests(unittest.TestCase):
         )
         taskfile = "\n".join(
             Path(path).read_text(encoding="utf-8")
-            for path in ("Taskfile.yml", "delivery/Taskfile.yml")
+            for path in ("Taskfile.yml", "packaging/Taskfile.yml", "packaging/product/Taskfile.yml")
         )
-        delivery_taskfile = Path("delivery/Taskfile.yml").read_text(encoding="utf-8")
+        delivery_taskfile = Path("packaging/product/Taskfile.yml").read_text(encoding="utf-8")
         release = Path(".github/workflows/release.yml").read_text(encoding="utf-8")
         product = Path(".github/workflows/product-publish.yml").read_text(encoding="utf-8")
 

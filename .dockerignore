@@ -1,10 +1,11 @@
 **
 
-!Dockerfile
-!demo/containers/
-!demo/containers/Dockerfile.demo
-!demo/containers/Dockerfile.demo-seed
-!.dockerignore
+!packaging/
+!packaging/product/
+!packaging/product/Dockerfile
+!packaging/demo/
+!packaging/demo/Dockerfile
+!packaging/demo/Dockerfile.seed
 !pyproject.toml
 !uv.lock
 !LICENSE
@@ -18,16 +19,11 @@
 !operator-cli/
 !operator-cli/**
 
-!scripts/
-!scripts/**
-
-!demo/
-!demo/contract.py
-!demo/__init__.py
-!demo/runtime/
-!demo/runtime/**
-!demo/delivery/
-!demo/delivery/**
+!packaging/demo/__init__.py
+!packaging/demo/contract.py
+!packaging/demo/artifacts.py
+!packaging/demo/runtime/
+!packaging/demo/runtime/**
 
 !fixtures/
 !fixtures/synthetic-fixtures.json

@@ -31,7 +31,7 @@ on:
       - "docs/publication/go.mod"
       - "docs/publication/go.sum"
       - "scripts/publication_metadata.py"
-      - "demo/contract.py"
+      - "packaging/demo/contract.py"
       - "uv.lock"
   push:
     branches:
@@ -104,7 +104,7 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         env:
           EFFECTIVE_DEMO_URL: ${{ env.DEMO_URL }}
-          PYTHONPATH: backend/src
+          PYTHONPATH: backend/src:packaging
         run: >-
           python3 -m demo.contract validate-url
           --canonical --value "$EFFECTIVE_DEMO_URL"

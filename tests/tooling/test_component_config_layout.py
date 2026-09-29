@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import subprocess
 import tomllib
 import unittest
 from pathlib import Path
@@ -11,8 +12,7 @@ class ComponentConfigLayoutTests(unittest.TestCase):
 
         for path in (
             "backend/Taskfile.yml",
-            "delivery/Taskfile.yml",
-            "demo/Taskfile.yml",
+            "packaging/Taskfile.yml",
             "docs/Taskfile.yml",
             "frontend/Taskfile.yml",
             "operator-cli/Taskfile.yml",
@@ -22,14 +22,24 @@ class ComponentConfigLayoutTests(unittest.TestCase):
 
         for task in (
             "backend:test",
-            "delivery:test",
-            "demo:test",
+            "packaging:test",
+            "packaging:product:quality:image",
+            "packaging:demo:test",
             "docs:build",
             "frontend:test",
             "operator:test",
         ):
             with self.subTest(task=task):
                 self.assertIn(task, taskfile)
+
+    def test_packaging_dependency_graph_resolves_without_running_builds(self) -> None:
+        result = subprocess.run(
+            ["task", "--dry", "quality:demo", "quality:pester"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_shared_tool_versions_are_explicit(self) -> None:
         config = tomllib.loads(Path(".mise.toml").read_text(encoding="utf-8"))

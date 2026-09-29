@@ -1,8 +1,9 @@
 # Komponenten
 
-Die Anwendung bleibt ein modularer Monolith mit vier klaren technischen
-Verantwortungsbereichen: Backend, Frontend, lokale Betreiber-CLI und
-Auslieferungsinfrastruktur.
+Die Anwendung bleibt ein modularer Monolith mit Backend, Frontend und
+lokaler Betreiber-CLI als Produktkomponenten.
+Packaging stellt daraus auslieferbare Varianten zusammen.
+Deployment beschreibt ihre Bereitstellung und ihren Betrieb.
 Gemeinsame Verträge werden an den Grenzen genutzt, nicht in mehreren
 Komponenten nachimplementiert.
 Die gemeinsame AIO-, Admintransport- und Lifecyclegrenze legt
@@ -15,8 +16,15 @@ Die gemeinsame AIO-, Admintransport- und Lifecyclegrenze legt
 | Backend | ein autoritativer Prozess für HTTP, Admin-Socket, Lifecycle, Fachservices, Persistenz, Dokumente und Integrationsadapter | OpenAPI/JSON, versionierter Unix-Socket-Vertrag, SQLite und kontrollierte Provideradapter | `backend/src/backend/`, `backend/db/` |
 | Frontend | aufgabenorientierte Ausschussoberfläche, Routing, Formulare und sichtbare Zustände | same-origin API über zentrale Modelle und Services | `frontend/src/app/` |
 | Betreiber-CLI | portable Orchestrierung von Administration, Diagnose und Lifecycle | bereitgestellter lokaler Socket mit versioniertem Adminvertrag | `operator-cli/cmd/lzug-admin/`, `operator-cli/internal/admincli/`, `operator-cli/internal/tools/cli-reference/`, `operator-cli/.goreleaser.yml` |
-| OCI und Self-Hosting | Produktimage `lzug-app`, gehärtete Docker-Referenz und persistentes `/data` | `Dockerfile`, optionaler Docker-Compose-Weg und Containerverträge | Dockerfile, Compose und `tests/pester/` |
-| Öffentliche Demo | getrenntes Image `lzug-demo`, flüchtige App-/Seed-Assembly, Reset, Promotion und Azure-Deployment | digestgebundene Manifeste, OIDC und Demo-Runtime-Policy | `demo/contract.py`, `demo/runtime/`, `demo/delivery/`, `demo/containers/`, `demo/infra/`, `demo/tests/`, Demo-Workflows |
+| OCI und Self-Hosting | Produktimage `lzug-app`, gehärtete Docker-Referenz und persistentes `/data` | `packaging/product/Dockerfile`, `deployment/self-hosted/compose.yaml` und Containerverträge | `packaging/product/`, `deployment/self-hosted/` und `tests/pester/` |
+| Öffentliche Demo | getrenntes Image `lzug-demo`, flüchtige App-/Seed-Assembly, Reset, Promotion und Azure-Deployment | digestgebundene Manifeste, OIDC und Demo-Runtime-Policy | `packaging/demo/contract.py`, `packaging/demo/runtime/`, `packaging/demo/artifacts.py`, `packaging/demo/`, `deployment/demo/infra/`, `packaging/demo/tests/`, Demo-Workflows |
+
+`packaging/product/` und `packaging/demo/` erzeugen die Produkt- und Demo-Artefakte.
+Komponenteneigene Paketierung bleibt bei ihrer Komponente, etwa GoReleaser
+unter `operator-cli/`.
+`deployment/self-hosted/` beschreibt den selbst betriebenen Produktcontainer;
+`deployment/demo/` besitzt Azure-Infrastruktur, Deployment und Reset der öffentlichen Demo.
+Der Repository-Root bleibt der gemeinsame Docker-Buildkontext.
 
 Das Frontend greift nicht direkt auf Persistenz zu.
 Die Go-CLI kennt weder Datenbankpfad noch SQL und enthält keine Fach-,
@@ -26,9 +34,9 @@ Schlüssel verlassen den Bedienrechner nicht.
 Demo-Policy und Deploymentautomation dürfen Produktregeln nur einschränken oder
 synthetische Erweiterungen aktivieren, aber keinen zweiten Produktkern bilden.
 
-## Eigentümermatrix der Root-Konfiguration
+## Eigentümermatrix der Konfiguration
 
-Die Matrix hält die Entscheidung für den Root-Bestand fest.
+Die Matrix ordnet gemeinsame Konfiguration und variantenspezifische Dateien ihren Eigentümern zu.
 Ein Pfad bleibt nur dann am Root, wenn er mehrere Komponenten versorgt,
 als kanonischer Standard-Einstieg erwartet wird oder den unveränderten
 Buildkontext voraussetzt.
@@ -42,11 +50,13 @@ Buildkontext voraussetzt.
 | `.python-version` | Python-/Dokumentations-Toolchain | Am Root behalten: alle Python-Verbraucher verwenden dieselbe Version. |
 | `.node-version` | Frontend | Nach `frontend/.node-version` verschoben: die Versionsdatei gehört ausschließlich zum npm-/Angular-Verbraucher. |
 | `mkdocs.yml` | Dokumentation | Nach `docs/mkdocs.yml` verschoben: MkDocs-Konfiguration und Dokumentationsquellen liegen zusammen. |
-| `.env.example` | OCI-/Self-Hosting | Am Root behalten: Beispielkonfiguration und kanonischer Einstieg direkt neben `compose.yaml`. |
-| `Dockerfile` | OCI-/Self-Hosting | Am Root behalten: standardgebundener Produkt-Build für den unveränderten Root-Kontext. |
-| `Dockerfile.demo` | Öffentliche Demo | Unter `demo/containers/Dockerfile.demo`: ausschließlich Demo-App-Assembly; der Root bleibt Buildkontext. |
-| `Dockerfile.demo-seed` | Öffentliche Demo | Unter `demo/containers/Dockerfile.demo-seed`: ausschließlich Demo-Seed-Assembly; der Root bleibt Buildkontext. |
-| `compose.yaml` | OCI-/Self-Hosting | Am Root behalten: kanonischer Compose-Einstieg für die dokumentierte Installation. |
+| `deployment/self-hosted/.env.example` | OCI-/Self-Hosting | Beispielvariablen direkt neben dem Compose-Einstieg. |
+| `packaging/Taskfile.yml` | Packaging | Bindet Product- und Demo-Aufgaben unter ihrem jeweiligen Eigentümer ein. |
+| `packaging/product/Taskfile.yml` | OCI-/Self-Hosting | Produktimage-Build und SBOM. |
+| `packaging/product/Dockerfile` | OCI-/Self-Hosting | Produktimage-Build; Docker baut weiterhin mit dem Repository als Kontext. |
+| `packaging/demo/Dockerfile` | Öffentliche Demo | Erstellt die Demo-App-Assembly aus dem Root-Buildkontext. |
+| `packaging/demo/Dockerfile.seed` | Öffentliche Demo | Erstellt die Seed-Assembly aus dem Root-Buildkontext. |
+| `deployment/self-hosted/compose.yaml` | OCI-/Self-Hosting | Produktbetriebskonfiguration; relative Host-Pfade bleiben auf den Repository-Root bezogen. |
 | `.dockerignore` | OCI-/Self-Hosting | Am Root behalten: technisch an den unveränderten Root-Buildkontext gebunden. |
 | `.github/` | Repository | Am Root behalten: GitHub erwartet Workflows, Vorlagen und Dependabot-Konfiguration dort. |
 | Community-, Lizenz- und Support-Dateien | Repository | Am Root behalten: GitHub- und Community-Standards sowie rechtliche Hinweise erwarten diese Einstiege dort. |
@@ -55,8 +65,9 @@ Der Root-Taskgraph erhält die stabilen öffentlichen Einstiege und ordnet
 komponentenübergreifende Erzeuger und Verbraucher.
 `operator-cli/Taskfile.yml` besitzt GoReleaser-Paketierung und
 Reproduzierbarkeit, `docs/Taskfile.yml` den Publikationsaufbau und seine
-Artefaktprüfungen, `delivery/Taskfile.yml` Produktimage und SBOM,
-`demo/Taskfile.yml` Seed-/App-Assembly und Smoke-Verbrauch sowie
+Artefaktprüfungen, `packaging/Taskfile.yml` verbindet die Eigentümeraufgaben,
+`packaging/product/Taskfile.yml` Produktimage und SBOM,
+`packaging/demo/Taskfile.yml` Demo-Tests, Seed-/App-Assembly und Smoke-Verbrauch sowie
 `frontend/Taskfile.yml` Transportgenerierung, Produktionsbuild und dessen
 Verbraucher.
 Lokale npm-Einstiege bleiben selbständig nutzbar.
@@ -701,8 +712,17 @@ Docker Engine auf Linux ist die qualifizierte Referenz für Build, Release, CI
 und Self-Hosting.
 Das OCI-Image bleibt portabel; weitere konkrete Laufzeiten gehören nicht zum
 unterstützten oder geprüften Umfang.
-`compose.yaml` ist ein optionaler knapper Docker-Referenzweg für genau einen
+`deployment/self-hosted/compose.yaml` ist ein optionaler knapper Docker-Referenzweg für genau einen
 `lzug-app`-Container und ein persistentes Volume.
+Im Repository wird Compose vom Root mit explizitem Projektverzeichnis aufgerufen:
+
+```sh
+docker compose --project-directory . -f deployment/self-hosted/compose.yaml up -d
+```
+
+Damit bleiben lokale `.env`-Dateien und relative Host-Pfade am Repository-Root.
+Eine separat heruntergeladene Compose-Datei verwendet weiterhin ihr eigenes
+Installationsverzeichnis; der Standard für den Admin-Socket bleibt `./var/lzug-admin`.
 Docker Compose validiert und startet den Referenzservice im Pester-Vertrag.
 `tests/pester/Container.Tests.ps1` prüft den ausgelieferten Image- und
 Compose-Vertrag: gemeinsame Build-Identität, tatsächliche Runtime-Rechte,
@@ -729,7 +749,7 @@ Ein temporäres Compose-Override ersetzt ausschließlich das Socket-Bind-Mount
 durch ein privates Engine-Volume, damit POSIX-Eigentum auch in Docker Desktop
 geprüft werden kann.
 Datenvolume, Servicebefehl, UID/GID, Read-only-Dateisystem und übrige
-Sicherheitskonfiguration stammen aus `compose.yaml`.
+Sicherheitskonfiguration stammen aus `deployment/self-hosted/compose.yaml`.
 Nur die kurzlebigen Vorbereitungsschritte erhalten die benötigten Root-Rechte;
 Initialisierung und Service laufen als `10001:10001`.
 Der Image-Smoke prüft effektive Eigentümer, Verzeichnis-Modus `0750` und
@@ -753,17 +773,21 @@ festgelegt:
 
 | Pfad | Verantwortung |
 | --- | --- |
-| `demo/contract.py` | kleinster gemeinsamer Identitäts-, Manifest- und Laufzeitvertrag ohne ausführbare Delivery-Werkzeuge |
-| `demo/runtime/` | App-Einstieg, serverseitige Demo-Policy, Szenarioansicht, Arbeitskopien, Runtime-Verifikation und Seed-Initialisierung |
-| `demo/delivery/` | Build-time Seed- und App-Manifeste; Veröffentlichung und Promotion bleiben bei Docker, GitHub Packages, Attestations und Azure CLI |
-| `demo/containers/` | Builddefinitionen für Demo-App und Seed-Artefakt bei unverändertem Root-Buildkontext |
-| `demo/infra/` | vollständige OpenTofu-Topologie der öffentlichen Azure-Demo einschließlich unveränderter OIDC-, Environment- und State-Verträge mit `lzug-demo.tfstate` |
-| `demo/tests/` | komponentenspezifische Runtime-, Delivery-, Container-, Infrastruktur- und Vertragsprüfungen der Demo |
+| `packaging/demo/contract.py` | kleinster gemeinsamer Identitäts-, Manifest- und Laufzeitvertrag ohne ausführbare Delivery-Werkzeuge |
+| `packaging/demo/runtime/` | App-Einstieg, serverseitige Demo-Policy, Szenarioansicht, Arbeitskopien, Runtime-Verifikation und Seed-Initialisierung |
+| `packaging/demo/artifacts.py` | Build-time Seed- und App-Manifeste; Veröffentlichung und Promotion bleiben bei Docker, GitHub Packages, Attestations und Azure CLI |
+| `packaging/demo/Dockerfile` und `Dockerfile.seed` | Builddefinitionen für Demo-App und Seed-Artefakt bei unverändertem Root-Buildkontext |
+| `deployment/demo/infra/` | vollständige OpenTofu-Topologie der öffentlichen Azure-Demo einschließlich unveränderter OIDC-, Environment- und State-Verträge mit `lzug-demo.tfstate` |
+| `packaging/demo/tests/` | komponentenspezifische Runtime-, Delivery-, Container-, Infrastruktur- und Vertragsprüfungen der Demo |
 
 Echte repositoryweite Integrations- und Lieferwegprüfungen bleiben unter
 `tests/`.
-Runtime-Images kopieren nur `demo/contract.py` und die benötigten Module aus
-`demo/runtime/`; der Build-time Artefaktbau aus `demo/delivery/` bleibt außerhalb
+Die Quellmodule liegen unter `packaging/demo/`, behalten zur Laufzeit aber
+den Python-Namespace `demo`. Task und der Publication-Workflow ergänzen
+`packaging` zu `PYTHONPATH`; so entsteht kein lokales Python-Paket `packaging`,
+das die gleichnamige Tooling-Abhängigkeit verdecken könnte.
+Runtime-Images kopieren nur `packaging/demo/contract.py` und die benötigten Module aus
+`packaging/demo/runtime/`; der Build-time Artefaktbau aus `packaging/demo/artifacts.py` bleibt außerhalb
 der laufenden Images.
 Beim Einstieg erzeugt die Demo aus dem synthetischen Basisseed eine eigene
 SQLite-Arbeitskopie pro Besuch.
@@ -775,7 +799,7 @@ Fachaktionen, unterdrückt externe Benachrichtigungszustellung und lässt die
 produktive Autorisierung zusätzlich unverändert prüfen.
 Das Datenvolume bleibt flüchtig und der tägliche Reset ist eine zusätzliche
 Absicherung, kein Self-Hosting-Verfahren.
-`demo/infra/` beschreibt die Azure-Ressourcen deklarativ; GitHub OIDC und das
+`deployment/demo/infra/` beschreibt die Azure-Ressourcen deklarativ; GitHub OIDC und das
 geschützte Environment `demo` begrenzen echte Mutationen.
 
 ## Testeinstiege
@@ -784,7 +808,7 @@ geschützte Environment `demo` begrenzen echte Mutationen.
 | --- | --- |
 | Fachservice oder Repository | passendes Modul unter `backend/tests/` |
 | HTTP-Assembly, Routerregistrierung oder OpenAPI-Vertrag | `backend.tests.test_fastapi_assembly`, `test_fastapi_app`, `test_openapi_contract` und betroffener API-Test |
-| Demo-Runtime oder Demo-Artefakt | passendes Modul unter `demo/tests/` |
+| Demo-Runtime oder Demo-Artefakt | passendes Modul unter `packaging/demo/tests/` |
 | Release-, SBOM- oder Workflowvertrag | passendes Modul unter `tests/delivery/` |
 | Dokumentations- oder Publikationsvertrag | passendes Modul unter `tests/docs/` |
 | Synthetische Fixture-Quelle | `backend/tests/test_synthetic_fixtures.py`, Backend- und Demo-Tests |

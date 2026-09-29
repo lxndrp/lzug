@@ -54,7 +54,7 @@ function New-LzugFixture {
     $fixture = @{
         Name = $name; Image = $Image; Data = "$name-data"; Work = "$name-work"; Socket = "$name-socket"
         Container = ''; Url = ''; Directory = $Directory
-        Compose = @('compose', '--project-name', $name, '--env-file', "$Directory/compose.env", '-f', 'compose.yaml', '-f', "$Directory/socket.yaml")
+        Compose = @('compose', '--project-name', $name, '--project-directory', '.', '--env-file', "$Directory/compose.env", '-f', 'deployment/self-hosted/compose.yaml', '-f', "$Directory/socket.yaml")
     }
     New-Item -ItemType Directory -Path "$Directory/admin" -Force | Out-Null
     @"

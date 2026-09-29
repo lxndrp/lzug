@@ -146,7 +146,7 @@ jobs:
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
-          file: demo/containers/Dockerfile.demo-seed
+          file: packaging/demo/Dockerfile.seed
           load: true
           tags: lzug-demo-seed:publish-candidate
           build-args: |
@@ -244,7 +244,7 @@ jobs:
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
-          file: demo/containers/Dockerfile.demo
+          file: packaging/demo/Dockerfile
           push: true
           tags: ${{ steps.images.outputs.app_ref }}
           build-args: |

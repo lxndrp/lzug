@@ -4,21 +4,6 @@ vars:
   UV: uv run --locked --extra dev
 
 tasks:
-  test:
-    desc: Run delivery and workflow contract tests
-    cmds:
-      - "{{.UV}} python -m unittest discover -s tests/delivery"
-
-  tooling:
-    desc: Run repository tooling tests
-    cmds:
-      - "{{.UV}} python -m unittest discover -s tests/tooling"
-
-  oci:
-    desc: Run OCI and Compose Pester contracts
-    cmds:
-      - task: :quality:pester
-
   quality:image:
     desc: Build the local product OCI image and SBOM once per task run
     run: once
@@ -28,11 +13,11 @@ tasks:
         docker info >/dev/null
         revision="$(git rev-parse HEAD)"
         build_identity="$(PYTHONPATH=backend/src python3 -m backend.version --revision "$revision" --field identity)"
-        docker build \
+        docker build -f packaging/product/Dockerfile \
           --build-arg "BUILD_IDENTITY=$build_identity" \
           --build-arg "VCS_REF=$revision" \
           -t lzug-app:0.0.0-dev.local .
-        docker build \
+        docker build -f packaging/product/Dockerfile \
           --build-arg "BUILD_IDENTITY=0.0.0-rc.0" \
           --build-arg "RELEASE_TAG=v0.0.0-rc.0" \
           --build-arg "VCS_REF=$revision" \
