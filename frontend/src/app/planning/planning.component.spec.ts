@@ -460,6 +460,38 @@ describe('PlanningComponent', () => {
     expect(changeAvailability.isAvailabilitySaving(2, 1)).toBe(false);
   });
 
+  it('clears pending availability state when the round identity changes but preserves same-round refreshes', () => {
+    const component = fixture.componentInstance as unknown as {
+      changeAvailability: (
+        member: (typeof masterDataFixture.members)[number],
+        day: (typeof planningBoardFixture.candidateDays)[number],
+        availability: string,
+      ) => void;
+      availabilityFor: (memberId: number, dayId: number) => string;
+      isAvailabilitySaving: (memberId: number, dayId: number) => boolean;
+    };
+    vi.spyOn(fixture.componentInstance.saveAvailability, 'emit').mockReturnValue(undefined);
+
+    component.changeAvailability(
+      athenChairMembershipFixture,
+      planningBoardFixture.candidateDays[0],
+      'morning',
+    );
+    fixture.componentRef.setInput('round', { ...examRoundFixture, name: 'Runde A aktualisiert' });
+    fixture.detectChanges();
+
+    expect(component.availabilityFor(1, 1)).toBe('morning');
+    expect(component.isAvailabilitySaving(1, 1)).toBe(true);
+
+    fixture.componentRef.setInput('round', null);
+    fixture.detectChanges();
+    fixture.componentRef.setInput('round', { ...examRoundFixture, status: 'draft' });
+    fixture.detectChanges();
+
+    expect(component.availabilityFor(1, 1)).toBe('full_day');
+    expect(component.isAvailabilitySaving(1, 1)).toBe(false);
+  });
+
   it('should confirm saved cells and roll failed cells back', () => {
     showStep('responses');
     const component = fixture.componentInstance;
