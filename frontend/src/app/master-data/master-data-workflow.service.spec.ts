@@ -3,6 +3,7 @@ import { of, Subject, throwError } from 'rxjs';
 
 import type { Candidate, CommitteeMember } from '../api/api.models';
 import { MasterDataApiService } from '../api/master-data-api.service';
+import { RoundContextService } from '../api/round-context.service';
 import { ApplicationWorkspaceService } from '../shell/application-workspace.service';
 import { MasterDataWorkflowService } from './master-data-workflow.service';
 
@@ -13,10 +14,11 @@ describe('MasterDataWorkflowService', () => {
     createMember: ReturnType<typeof vi.fn>;
   };
   let workspace: {
-    round: ReturnType<typeof vi.fn>;
+    round: () => { id: number } | null;
     selectedCommitteeId: ReturnType<typeof vi.fn>;
     refresh: ReturnType<typeof vi.fn>;
   };
+  let roundContext: { roundId: ReturnType<typeof vi.fn> };
 
   const candidate = {
     id: 7,
@@ -36,14 +38,16 @@ describe('MasterDataWorkflowService', () => {
       createMember: vi.fn(),
     };
     workspace = {
-      round: vi.fn(() => null),
+      round: vi.fn(() => ({ id: 12 })),
       selectedCommitteeId: vi.fn(() => 3),
       refresh: vi.fn(),
     };
+    roundContext = { roundId: vi.fn(() => 12) };
     TestBed.configureTestingModule({
       providers: [
         MasterDataWorkflowService,
         { provide: MasterDataApiService, useValue: api },
+        { provide: RoundContextService, useValue: roundContext },
         { provide: ApplicationWorkspaceService, useValue: workspace },
       ],
     });
@@ -140,9 +144,8 @@ describe('MasterDataWorkflowService', () => {
     expect(service.requestState().status).toBe('idle');
   });
 
-  it('marks a candidate response stale after the active round changes', () => {
+  it('uses the selected round while the workspace read model still has the old round', () => {
     const pending = new Subject<Candidate>();
-    workspace.round.mockReturnValue({ id: 12 });
     api.createCandidate.mockReturnValue(pending);
     let result: unknown;
     service
@@ -150,7 +153,8 @@ describe('MasterDataWorkflowService', () => {
       .subscribe((value) => {
         result = value;
       });
-    workspace.round.mockReturnValue({ id: 13 });
+    roundContext.roundId.mockReturnValue(13);
+    expect(workspace.round()).toEqual({ id: 12 });
 
     pending.next(candidate);
     pending.complete();

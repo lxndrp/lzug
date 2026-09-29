@@ -14,6 +14,7 @@ import {
 
 import type { Candidate, CommitteeMember } from '../api/api.models';
 import { MasterDataApiService } from '../api/master-data-api.service';
+import { RoundContextService } from '../api/round-context.service';
 import type { CandidatePayload, CandidateUpdate } from '../candidates/candidates.component';
 import type { CommitteeMemberPayload } from '../committee/committee.component';
 import { ApplicationWorkspaceService } from '../shell/application-workspace.service';
@@ -32,6 +33,7 @@ export type MasterDataRequestState =
 @Injectable({ providedIn: 'root' })
 export class MasterDataWorkflowService {
   private readonly api = inject(MasterDataApiService);
+  private readonly roundContext = inject(RoundContextService);
   private readonly workspace = inject(ApplicationWorkspaceService);
   private readonly requestCounter = signal(0);
   private readonly state = signal<MasterDataRequestState>({ status: 'idle' });
@@ -53,29 +55,29 @@ export class MasterDataWorkflowService {
   }
 
   createCandidate(payload: CandidatePayload): Observable<MasterDataWorkflowResult<Candidate>> {
-    const roundId = this.workspace.round()?.id ?? null;
+    const roundId = this.roundContext.roundId();
     return this.run(
-      `candidate:${roundId ?? 'none'}:create`,
+      `candidate:${roundId}:create`,
       () => this.api.createCandidate(payload),
-      () => (this.workspace.round()?.id ?? null) === roundId,
+      () => this.roundContext.roundId() === roundId,
     );
   }
 
   deleteCandidate(id: number): Observable<MasterDataWorkflowResult<void>> {
-    const roundId = this.workspace.round()?.id ?? null;
+    const roundId = this.roundContext.roundId();
     return this.run(
-      `candidate:${roundId ?? 'none'}:${id}`,
+      `candidate:${roundId}:${id}`,
       () => this.api.deleteCandidate(id),
-      () => (this.workspace.round()?.id ?? null) === roundId,
+      () => this.roundContext.roundId() === roundId,
     );
   }
 
   updateCandidate(update: CandidateUpdate): Observable<MasterDataWorkflowResult<Candidate>> {
-    const roundId = this.workspace.round()?.id ?? null;
+    const roundId = this.roundContext.roundId();
     return this.run(
-      `candidate:${roundId ?? 'none'}:${update.id}`,
+      `candidate:${roundId}:${update.id}`,
       () => this.api.updateCandidate(update.id, update.payload),
-      () => (this.workspace.round()?.id ?? null) === roundId,
+      () => this.roundContext.roundId() === roundId,
     );
   }
 
