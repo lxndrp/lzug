@@ -177,6 +177,29 @@ describe('ConfirmedPlanEditorComponent', () => {
     expect(button(element, 'Änderung mit Grund speichern').disabled).toBe(false);
   });
 
+  it('hides the previous round editor while the newly selected round loads', () => {
+    fixture.detectChanges();
+    http.expectOne('/api/exam-rounds/1/confirmed-plan').flush(editablePlan());
+    http.expectOne('/api/exam-rounds/1/confirmed-plan/revisions').flush({ items: [], _links: {} });
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    expect(element.textContent).toContain('Bestätigten Plan ändern');
+
+    fixture.componentRef.setInput('roundId', 2);
+    fixture.detectChanges();
+    const roundBRequest = http.expectOne('/api/exam-rounds/2/confirmed-plan');
+
+    expect(element.textContent).toContain('Bearbeitbarer Plan wird geladen');
+    expect(element.textContent).not.toContain('Bestätigten Plan ändern');
+    expect(element.querySelector('.app-confirmed-editor-slots')).toBeNull();
+
+    roundBRequest.flush({ ...editablePlan(), round_id: 2 });
+    http.expectOne('/api/exam-rounds/2/confirmed-plan/revisions').flush({ items: [], _links: {} });
+    fixture.detectChanges();
+    expect(element.textContent).toContain('Bestätigten Plan ändern');
+  });
+
   it('offers only the prepared atomic revision in the demo', () => {
     TestBed.inject(AuthService).session.set({
       authenticated: true,

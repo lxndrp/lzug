@@ -87,6 +87,7 @@ export class ConfirmedPlanEditorComponent implements OnChanges {
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['plan']) this.planView.set(this.plan);
+    if (changes['roundId']) this.clearRoundState();
     if (changes['roundId'] || changes['plan']) this.load();
   }
 
@@ -311,6 +312,15 @@ export class ConfirmedPlanEditorComponent implements OnChanges {
 
   private isCurrentRequest(generation: number, roundId: number): boolean {
     return generation === this.requestGeneration && roundId === this.roundId;
+  }
+
+  private clearRoundState(): void {
+    this.draft.set(null);
+    this.revisions.set([]);
+    this.errorMessage.set(null);
+    this.reason.set('');
+    this.dirty.set(false);
+    this.demoPreparedChange.set(null);
   }
 
   private updateDay(day: PlanningProposalDay, patch: Partial<PlanningProposalDay>): void {
