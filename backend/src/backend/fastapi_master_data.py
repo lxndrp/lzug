@@ -6,7 +6,6 @@ from http import HTTPStatus
 from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, FastAPI, Request
-from fastapi.routing import APIRoute
 
 from backend.application import hateoas
 from backend.application.exam_venue_api import ExamVenueApi
@@ -80,9 +79,9 @@ from .fastapi_dependencies import (
     resource_identifier,
     venue_identifier,
 )
-from .fastapi_http import attach_application_responses, payload_data
 from .fastapi_http import finish as _finish
 from .fastapi_http import not_found as _not_found
+from .fastapi_http import payload_data
 
 if TYPE_CHECKING:
     from .fastapi_app import FastAPIConfig
@@ -298,6 +297,11 @@ def _resource_routes(resolved: FastAPIConfig, resource_name: str):
 
 def _register_exam_venue_routes(app, resolved, application, read_security, write_security):
     venue_api = ExamVenueApi(resolved.db_path, resolved.map_provider)
+    _register_exam_venue_change_routes(app, venue_api, read_security, write_security)
+    _register_exam_venue_resource_routes(app, venue_api, read_security, write_security)
+
+
+def _register_exam_venue_change_routes(app, venue_api, read_security, write_security):
 
     @app.get(
         "/api/exam-venues",
@@ -419,6 +423,8 @@ def _register_exam_venue_routes(app, resolved, application, read_security, write
         )
         return _not_found() if result is None else _finish(context, context.respond(result))
 
+
+def _register_exam_venue_resource_routes(app, venue_api, read_security, write_security):
     @app.post(
         "/api/exam-venues/{id}/promotion-requests",
         status_code=201,
@@ -942,7 +948,4 @@ def register_master_data_routes(
         read_security,
         write_security,
     )
-    for route in router.routes:
-        if isinstance(route, APIRoute):
-            attach_application_responses(route)
-    app.router.routes.extend(router.routes)
+    app.include_router(router)

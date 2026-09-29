@@ -82,8 +82,11 @@ HTTP-Handler und die gemeinsamen Registrierungsgrenzen.
 Authentisierung, Session und Observability.
 `backend.fastapi_integration_routes` besitzt die Router für Kalender,
 Benachrichtigungen sowie Abwesenheit und Vertretung.
-`backend.fastapi_http` stellt ihnen und der zentralen Transportgrenze die
-gemeinsame Response-, Attachment- und Same-Origin-Abbildung bereit.
+`backend.fastapi_http` stellt explizite Response-, Attachment- und
+Same-Origin-Helfer bereit.
+FastAPI übernimmt die Responsemodell-Verarbeitung und OpenAPI-Abbildung der
+eingebundenen Router direkt; eine manuelle Responsefeld-Rekonstruktion gibt es
+nicht.
 `backend.fastapi_planning_router` besitzt die Planungsübersichten,
 Vorschlags- und Bestätigungsaggregate, Planfolgen, Verfügbarkeitsübergänge und
 die zugehörigen Planungsressourcen.

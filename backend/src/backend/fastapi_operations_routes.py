@@ -312,7 +312,7 @@ def create_auth_router(resolved: FastAPIConfig) -> APIRouter:
         create_token_auth_router(resolved),
         create_session_router(resolved),
     ):
-        router.routes.extend(owned_router.routes)
+        router.include_router(owned_router)
     return router
 
 
@@ -376,5 +376,5 @@ def create_operations_router(
         create_auth_router(resolved),
         create_observability_router(),
     ):
-        router.routes.extend(owned_router.routes)
+        router.include_router(owned_router)
     return router
