@@ -1859,7 +1859,13 @@ class ExamResultService:
         try:
             return AssessmentRules.model_validate(raw).as_json_data()
         except ValidationError as error:
-            message = error.errors()[0]["msg"]
+            detail = error.errors()[0]
+            location = ".".join(str(part) for part in detail["loc"])
+            message = detail["msg"]
+            if location and detail["type"] == "missing":
+                message = f"{location} ist erforderlich"
+            elif location:
+                message = f"{location}: {message}"
             raise ValueError(message) from error
 
     def _assert_quorum(
