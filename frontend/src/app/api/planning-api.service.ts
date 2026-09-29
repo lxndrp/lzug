@@ -152,10 +152,13 @@ export class PlanningApiService {
     });
   }
 
-  createCandidateExamDay(payload: Omit<CandidateExamDay, 'id' | 'exam_round_id'>) {
+  createCandidateExamDay(
+    payload: Omit<CandidateExamDay, 'id' | 'exam_round_id'>,
+    roundId = this.roundId,
+  ) {
     return this.client.post<CandidateExamDay>('/api/candidate-exam-days', {
       ...payload,
-      exam_round_id: this.roundId,
+      exam_round_id: roundId,
     });
   }
 
@@ -176,10 +179,11 @@ export class PlanningApiService {
       MemberAvailability,
       'committee_member_id' | 'candidate_exam_day_id' | 'availability'
     >,
+    roundId = this.roundId,
   ) {
     return this.client.post<MemberAvailability>('/api/member-availabilities', {
       ...payload,
-      exam_round_id: this.roundId,
+      exam_round_id: roundId,
     });
   }
 

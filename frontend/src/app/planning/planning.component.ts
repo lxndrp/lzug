@@ -427,7 +427,7 @@ export class PlanningComponent implements OnChanges, OnDestroy {
   }
 
   /** Revert a failed optimistic cell to the value recorded before its request. */
-  markAvailabilityError(payload: AvailabilityPayload): void {
+  markAvailabilityError(payload: AvailabilityPayload, usePersistedValue = false): void {
     const key = this.availabilityCellKey(
       payload.committee_member_id,
       payload.candidate_exam_day_id,
@@ -438,10 +438,9 @@ export class PlanningComponent implements OnChanges, OnDestroy {
     }
 
     this.clearSavedStateTimer(key);
-    this.availabilityOverrides.update((overrides) => ({
-      ...overrides,
-      [key]: state.previous,
-    }));
+    this.availabilityOverrides.update((overrides) =>
+      usePersistedValue ? this.withoutKey(overrides, key) : { ...overrides, [key]: state.previous },
+    );
     this.availabilityCellStates.update((states) => ({
       ...states,
       [key]: { ...state, status: 'error' },

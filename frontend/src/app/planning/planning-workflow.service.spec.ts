@@ -160,7 +160,72 @@ describe('PlanningWorkflowService', () => {
     workflow.saveAvailability(payload);
 
     expect(apiClient.post).not.toHaveBeenCalled();
-    expect(markAvailabilityError).toHaveBeenCalledWith(payload);
+    expect(markAvailabilityError).toHaveBeenCalledWith(payload, true);
+  });
+
+  it('does not apply a late availability response to the newly selected round', () => {
+    const availabilityResponse = new Subject<{
+      id: number;
+      committee_member_id: number;
+      candidate_exam_day_id: number;
+      availability: 'morning';
+    }>();
+    const board = signal({ availabilities: [] as Array<{ id: number }> });
+    const workspace = {
+      round: signal<ExamRound | null>({
+        id: 1,
+        exam_half_year_id: 4,
+        name: 'Runde A',
+        committee_id: 3,
+        status: 'draft',
+        availability_deadline: null,
+        availability_reminder_at: null,
+      }),
+      loading: signal(false),
+      actionBusy: signal(false),
+      board,
+      refresh: vi.fn(),
+    };
+    const apiClient = { post: vi.fn(() => availabilityResponse) };
+    const feedback = { notify: vi.fn(), roleRestriction: vi.fn() };
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([]),
+        { provide: ApplicationWorkspaceService, useValue: workspace },
+        { provide: ApiClient, useValue: apiClient },
+        { provide: AuthService, useValue: { hasCapability: () => true, session: () => null } },
+        { provide: UiFeedbackService, useValue: feedback },
+      ],
+    });
+
+    const context = TestBed.inject(RoundContextService);
+    context.select(1);
+    const workflow = TestBed.inject(PlanningWorkflowService);
+    const markAvailabilitySaved = vi.fn();
+    const markAvailabilityError = vi.fn();
+    workflow.connect({
+      markAvailabilitySaved,
+      markAvailabilityError,
+    } as unknown as PlanningComponent);
+    const payload = {
+      committee_member_id: 1,
+      candidate_exam_day_id: 5,
+      availability: 'morning' as const,
+    };
+    workflow.saveAvailability(payload);
+
+    expect(apiClient.post).toHaveBeenCalledWith('/api/member-availabilities', {
+      ...payload,
+      exam_round_id: 1,
+    });
+    context.select(2);
+    availabilityResponse.next({ id: 7, ...payload });
+    availabilityResponse.complete();
+
+    expect(board()).toEqual({ availabilities: [] });
+    expect(markAvailabilitySaved).not.toHaveBeenCalled();
+    expect(markAvailabilityError).not.toHaveBeenCalled();
+    expect(feedback.notify).not.toHaveBeenCalled();
   });
 
   it('keeps availability request steps on the validated round if selection changes mid-request', () => {
@@ -237,6 +302,7 @@ describe('PlanningWorkflowService', () => {
       actionBusy: signal(false),
       refresh: vi.fn(),
     };
+    const feedback = { notify: vi.fn(), roleRestriction: vi.fn() };
     TestBed.configureTestingModule({
       providers: [
         provideRouter([]),
@@ -249,7 +315,7 @@ describe('PlanningWorkflowService', () => {
             session: () => null,
           },
         },
-        { provide: UiFeedbackService, useValue: { notify: vi.fn(), roleRestriction: vi.fn() } },
+        { provide: UiFeedbackService, useValue: feedback },
       ],
     });
 
@@ -272,5 +338,8 @@ describe('PlanningWorkflowService', () => {
     expect(apiClient.post).not.toHaveBeenCalledWith('/api/candidate-exam-days/generate', {
       round_id: 2,
     });
+    expect(workflow.candidateDayGeneration()).toBeNull();
+    expect(feedback.notify).not.toHaveBeenCalled();
+    expect(workspace.refresh).not.toHaveBeenCalled();
   });
 });

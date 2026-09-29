@@ -486,12 +486,20 @@ describe('PlanningComponent', () => {
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('✓ Gespeichert');
 
-    component.markAvailabilityError(payload);
+    component.markAvailabilityError(payload, true);
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).textContent).toContain(
       'Nicht gespeichert · zurückgesetzt',
     );
-    expect(changeAvailability.availabilityFor(1, 1)).toBe('full_day');
+    fixture.componentRef.setInput('board', {
+      ...planningBoardFixture,
+      availabilities: [
+        { ...planningBoardFixture.availabilities[0], availability: 'afternoon' },
+        ...planningBoardFixture.availabilities.slice(1),
+      ],
+    });
+    fixture.detectChanges();
+    expect(changeAvailability.availabilityFor(1, 1)).toBe('afternoon');
   });
 
   it('should keep wizard drafts available across steps and associate validation with the step', () => {
