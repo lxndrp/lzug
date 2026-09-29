@@ -13,6 +13,7 @@ describe('MasterDataWorkflowService', () => {
     createMember: ReturnType<typeof vi.fn>;
   };
   let workspace: {
+    round: ReturnType<typeof vi.fn>;
     selectedCommitteeId: ReturnType<typeof vi.fn>;
     refresh: ReturnType<typeof vi.fn>;
   };
@@ -35,6 +36,7 @@ describe('MasterDataWorkflowService', () => {
       createMember: vi.fn(),
     };
     workspace = {
+      round: vi.fn(() => null),
       selectedCommitteeId: vi.fn(() => 3),
       refresh: vi.fn(),
     };
@@ -59,6 +61,30 @@ describe('MasterDataWorkflowService', () => {
     expect(workspace.refresh).toHaveBeenCalledOnce();
   });
 
+  it('does not start a request or change state before subscription', () => {
+    const operation = service.createCandidate({ first_name: 'Ada' } as never);
+
+    expect(api.createCandidate).not.toHaveBeenCalled();
+    expect(service.actionBusy()).toBe(false);
+    expect(service.requestState()).toEqual({ status: 'idle' });
+
+    operation.subscribe();
+    expect(api.createCandidate).toHaveBeenCalledOnce();
+  });
+
+  it('shares one mutation across multiple subscriptions to the same operation', () => {
+    api.createCandidate.mockReturnValue(of(candidate));
+    const operation = service.createCandidate({ first_name: 'Ada' } as never);
+    const results: unknown[] = [];
+
+    operation.subscribe((value) => results.push(value));
+    operation.subscribe((value) => results.push(value));
+
+    expect(api.createCandidate).toHaveBeenCalledOnce();
+    expect(results).toHaveLength(2);
+    expect(service.actionBusy()).toBe(false);
+  });
+
   it('returns a typed error result without leaving a permanent busy state', () => {
     const error = new Error('request failed');
     api.createCandidate.mockReturnValue(throwError(() => error));
@@ -69,6 +95,20 @@ describe('MasterDataWorkflowService', () => {
     expect(result).toMatchObject({ ok: false, error, current: true });
     expect(service.actionBusy()).toBe(false);
     expect(service.requestState().status).toBe('error');
+  });
+
+  it('clears busy and returns a typed result when the request factory throws synchronously', () => {
+    const error = new Error('synchronous failure');
+    api.createCandidate.mockImplementation(() => {
+      throw error;
+    });
+    let result: unknown;
+
+    service.createCandidate({ first_name: 'Ada' } as never).subscribe((value) => (result = value));
+
+    expect(result).toMatchObject({ ok: false, error, current: true });
+    expect(service.actionBusy()).toBe(false);
+    expect(service.requestState()).toMatchObject({ status: 'error', error });
   });
 
   it('does not start a second write while the first one is pending', () => {
@@ -100,14 +140,38 @@ describe('MasterDataWorkflowService', () => {
     expect(service.requestState().status).toBe('idle');
   });
 
+  it('marks a candidate response stale after the active round changes', () => {
+    const pending = new Subject<Candidate>();
+    workspace.round.mockReturnValue({ id: 12 });
+    api.createCandidate.mockReturnValue(pending);
+    let result: unknown;
+    service
+      .createCandidate({ first_name: 'Ada', exam_round_id: 12 } as never)
+      .subscribe((value) => {
+        result = value;
+      });
+    workspace.round.mockReturnValue({ id: 13 });
+
+    pending.next(candidate);
+    pending.complete();
+
+    expect(result).toMatchObject({ ok: true, value: candidate, current: false });
+    expect(service.requestState().status).toBe('idle');
+    expect(service.actionBusy()).toBe(false);
+  });
+
   it('clears busy state when a pending request is aborted', () => {
     const pending = new Subject<Candidate>();
     api.createCandidate.mockReturnValue(pending);
-    const subscription = service.createCandidate({ first_name: 'Ada' } as never).subscribe();
+    const operation = service.createCandidate({ first_name: 'Ada' } as never);
+    const subscription = operation.subscribe();
 
     subscription.unsubscribe();
 
     expect(service.actionBusy()).toBe(false);
     expect(service.requestState().status).toBe('idle');
+
+    operation.subscribe();
+    expect(api.createCandidate).toHaveBeenCalledOnce();
   });
 });

@@ -1,5 +1,16 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { Observable, catchError, defer, finalize, map, of, tap } from 'rxjs';
+import {
+  EMPTY,
+  Observable,
+  ReplaySubject,
+  catchError,
+  defer,
+  finalize,
+  map,
+  of,
+  share,
+  tap,
+} from 'rxjs';
 
 import type { Candidate, CommitteeMember } from '../api/api.models';
 import { MasterDataApiService } from '../api/master-data-api.service';
@@ -31,33 +42,52 @@ export class MasterDataWorkflowService {
   createMember(
     payload: CommitteeMemberPayload,
   ): Observable<MasterDataWorkflowResult<CommitteeMember>> {
+    const selectedCommitteeId = this.workspace.selectedCommitteeId();
     return this.run(
       `committee:${payload.committee_id}`,
       () => this.api.createMember(payload),
-      () => this.workspace.selectedCommitteeId() === payload.committee_id,
+      () =>
+        selectedCommitteeId === payload.committee_id &&
+        this.workspace.selectedCommitteeId() === selectedCommitteeId,
     );
   }
 
   createCandidate(payload: CandidatePayload): Observable<MasterDataWorkflowResult<Candidate>> {
-    return this.run(`candidate:create`, () => this.api.createCandidate(payload));
+    const roundId = this.workspace.round()?.id ?? null;
+    return this.run(
+      `candidate:${roundId ?? 'none'}:create`,
+      () => this.api.createCandidate(payload),
+      () => (this.workspace.round()?.id ?? null) === roundId,
+    );
   }
 
   deleteCandidate(id: number): Observable<MasterDataWorkflowResult<void>> {
-    return this.run(`candidate:${id}`, () => this.api.deleteCandidate(id));
+    const roundId = this.workspace.round()?.id ?? null;
+    return this.run(
+      `candidate:${roundId ?? 'none'}:${id}`,
+      () => this.api.deleteCandidate(id),
+      () => (this.workspace.round()?.id ?? null) === roundId,
+    );
   }
 
   updateCandidate(update: CandidateUpdate): Observable<MasterDataWorkflowResult<Candidate>> {
-    return this.run(`candidate:${update.id}`, () =>
-      this.api.updateCandidate(update.id, update.payload),
+    const roundId = this.workspace.round()?.id ?? null;
+    return this.run(
+      `candidate:${roundId ?? 'none'}:${update.id}`,
+      () => this.api.updateCandidate(update.id, update.payload),
+      () => (this.workspace.round()?.id ?? null) === roundId,
     );
   }
 
   toggleMember(member: CommitteeMember): Observable<MasterDataWorkflowResult<CommitteeMember>> {
     const nextActive = member.is_active ? 0 : 1;
+    const selectedCommitteeId = this.workspace.selectedCommitteeId();
     return this.run(
       `committee:${member.committee_id}`,
       () => this.api.updateMember(member.id, { is_active: nextActive }),
-      () => this.workspace.selectedCommitteeId() === member.committee_id,
+      () =>
+        selectedCommitteeId === member.committee_id &&
+        this.workspace.selectedCommitteeId() === selectedCommitteeId,
     );
   }
 
@@ -66,49 +96,60 @@ export class MasterDataWorkflowService {
     request: () => Observable<T>,
     isCurrentContext: () => boolean = () => true,
   ): Observable<MasterDataWorkflowResult<T>> {
-    if (this.actionBusy()) {
-      return of();
-    }
+    let started = false;
+    return defer(() => {
+      if (started || this.actionBusy()) {
+        started = true;
+        return EMPTY;
+      }
+      started = true;
+      const requestId = this.requestCounter() + 1;
+      this.requestCounter.set(requestId);
+      this.state.set({ status: 'pending', requestId, contextKey });
 
-    const requestId = this.requestCounter() + 1;
-    this.requestCounter.set(requestId);
-    this.state.set({ status: 'pending', requestId, contextKey });
-
-    return defer(request).pipe(
-      map((value): MasterDataWorkflowResult<T> => ({
-        ok: true,
-        value,
-        requestId,
-        contextKey,
-        current: this.requestCounter() === requestId && isCurrentContext(),
-      })),
-      tap((result) => {
-        if (this.requestCounter() === requestId) {
-          this.state.set(
-            result.current ? { status: 'success', requestId, contextKey } : { status: 'idle' },
-          );
-        }
-        this.workspace.refresh();
-      }),
-      catchError((error: unknown) => {
-        const current = this.requestCounter() === requestId && isCurrentContext();
-        if (this.requestCounter() === requestId) {
-          this.state.set(
-            current ? { status: 'error', requestId, contextKey, error } : { status: 'idle' },
-          );
-        }
-        return of<MasterDataWorkflowResult<T>>({
-          ok: false,
-          error,
+      return defer(request).pipe(
+        map((value): MasterDataWorkflowResult<T> => ({
+          ok: true,
+          value,
           requestId,
           contextKey,
-          current,
-        });
-      }),
-      finalize(() => {
-        if (this.requestCounter() === requestId && this.state().status === 'pending') {
-          this.state.set({ status: 'idle' });
-        }
+          current: this.requestCounter() === requestId && isCurrentContext(),
+        })),
+        tap((result) => {
+          if (this.requestCounter() === requestId) {
+            this.state.set(
+              result.current ? { status: 'success', requestId, contextKey } : { status: 'idle' },
+            );
+          }
+          this.workspace.refresh();
+        }),
+        catchError((error: unknown) => {
+          const current = this.requestCounter() === requestId && isCurrentContext();
+          if (this.requestCounter() === requestId) {
+            this.state.set(
+              current ? { status: 'error', requestId, contextKey, error } : { status: 'idle' },
+            );
+          }
+          return of<MasterDataWorkflowResult<T>>({
+            ok: false,
+            error,
+            requestId,
+            contextKey,
+            current,
+          });
+        }),
+        finalize(() => {
+          if (this.requestCounter() === requestId && this.state().status === 'pending') {
+            this.state.set({ status: 'idle' });
+          }
+        }),
+      );
+    }).pipe(
+      share({
+        connector: () => new ReplaySubject<MasterDataWorkflowResult<T>>(1),
+        resetOnError: false,
+        resetOnComplete: false,
+        resetOnRefCountZero: true,
       }),
     );
   }
