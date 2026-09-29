@@ -80,7 +80,7 @@ export class PlanningWorkflowService {
   }
 
   savePlanningSettings(payload: PlanningSettingsPayload): void {
-    if (!this.workspaceMatchesSelectedRound()) return;
+    if (!this.ensureWorkspaceMatchesSelectedRound()) return;
     if (!this.auth.hasCapability('planning-settings:write')) {
       this.feedback.roleRestriction();
       return;
@@ -108,7 +108,7 @@ export class PlanningWorkflowService {
   }
 
   saveExamRound(payload: ExamRoundUpdate): void {
-    if (!this.workspaceMatchesSelectedRound()) return;
+    if (!this.ensureWorkspaceMatchesSelectedRound()) return;
     if (!this.auth.hasCapability('round:write')) {
       this.feedback.roleRestriction();
       return;
@@ -136,7 +136,7 @@ export class PlanningWorkflowService {
   }
 
   requestAvailabilities(payload: AvailabilityRequest): void {
-    if (!this.workspaceMatchesSelectedRound()) return;
+    if (!this.ensureWorkspaceMatchesSelectedRound()) return;
     if (!this.auth.hasCapability('availability:coordinate')) {
       this.feedback.roleRestriction();
       return;
@@ -166,7 +166,7 @@ export class PlanningWorkflowService {
   }
 
   createCandidateDay(payload: CandidateExamDayPayload): void {
-    if (!this.workspaceMatchesSelectedRound()) return;
+    if (!this.ensureWorkspaceMatchesSelectedRound()) return;
     if (!this.auth.hasCapability('candidate-days:create')) {
       this.feedback.roleRestriction();
       return;
@@ -191,7 +191,7 @@ export class PlanningWorkflowService {
   }
 
   generateCandidateDays(payload: PlanningSettingsPayload): void {
-    if (!this.workspaceMatchesSelectedRound()) return;
+    if (!this.ensureWorkspaceMatchesSelectedRound()) return;
     if (!this.canGenerateCandidateDays()) {
       this.feedback.roleRestriction();
       return;
@@ -223,7 +223,7 @@ export class PlanningWorkflowService {
   }
 
   toggleCandidateDay(day: CandidateExamDay): void {
-    if (!this.workspaceMatchesSelectedRound()) return;
+    if (!this.ensureWorkspaceMatchesSelectedRound()) return;
     if (!this.auth.hasCapability('candidate-days:toggle')) {
       this.feedback.roleRestriction();
       return;
@@ -248,7 +248,7 @@ export class PlanningWorkflowService {
   }
 
   saveAvailability(payload: AvailabilityPayload): void {
-    if (!this.workspaceMatchesSelectedRound()) {
+    if (!this.ensureWorkspaceMatchesSelectedRound()) {
       this.planningComponent?.markAvailabilityError(payload);
       return;
     }
@@ -297,7 +297,7 @@ export class PlanningWorkflowService {
   }
 
   generateProposal(): void {
-    if (!this.workspaceMatchesSelectedRound()) return;
+    if (!this.ensureWorkspaceMatchesSelectedRound()) return;
     if (!this.auth.hasCapability('planning-proposal:generate')) {
       this.feedback.roleRestriction();
       return;
@@ -324,7 +324,7 @@ export class PlanningWorkflowService {
   }
 
   confirmPlan(): void {
-    if (!this.workspaceMatchesSelectedRound()) return;
+    if (!this.ensureWorkspaceMatchesSelectedRound()) return;
     if (!this.auth.hasCapability('planning-proposal:confirm')) {
       this.feedback.roleRestriction();
       return;
@@ -373,7 +373,7 @@ export class PlanningWorkflowService {
   }
 
   savePlanningProposal(proposal: EditablePlanningProposal): void {
-    if (!this.workspaceMatchesSelectedRound()) return;
+    if (!this.ensureWorkspaceMatchesSelectedRound()) return;
     if (!this.auth.hasCapability('planning-proposal:replace')) {
       this.feedback.roleRestriction();
       return;
@@ -422,8 +422,16 @@ export class PlanningWorkflowService {
     this.editorViolations.set([]);
   }
 
-  private workspaceMatchesSelectedRound(): boolean {
-    return !this.workspace.loading() && this.workspace.round()?.id === this.roundContext.roundId();
+  private ensureWorkspaceMatchesSelectedRound(): boolean {
+    if (!this.workspace.loading() && this.workspace.round()?.id === this.roundContext.roundId()) {
+      return true;
+    }
+    this.feedback.notify(
+      'error',
+      'Prüfungsrunde wird aktualisiert',
+      'Die Daten der ausgewählten Prüfungsrunde werden noch aktualisiert. Bitte warten Sie kurz und versuchen Sie es erneut.',
+    );
+    return false;
   }
 
   private proposalErrorMessage(error: {

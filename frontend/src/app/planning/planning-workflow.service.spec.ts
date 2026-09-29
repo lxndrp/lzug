@@ -70,6 +70,50 @@ describe('PlanningWorkflowService', () => {
     );
   });
 
+  it('shows feedback when a same-round save is rejected during refresh', () => {
+    const workspace = {
+      round: signal<ExamRound | null>({
+        id: 2,
+        exam_half_year_id: 4,
+        name: 'Runde B',
+        committee_id: 3,
+        status: 'draft',
+        availability_deadline: null,
+        availability_reminder_at: null,
+      }),
+      loading: signal(true),
+      actionBusy: signal(false),
+      refresh: vi.fn(),
+    };
+    const apiClient = { patch: vi.fn(() => of({})) };
+    const feedback = { notify: vi.fn(), roleRestriction: vi.fn() };
+
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([]),
+        { provide: ApplicationWorkspaceService, useValue: workspace },
+        { provide: ApiClient, useValue: apiClient },
+        { provide: AuthService, useValue: { hasCapability: () => true, session: () => null } },
+        { provide: UiFeedbackService, useValue: feedback },
+      ],
+    });
+
+    TestBed.inject(RoundContextService).select(2);
+    const workflow = TestBed.inject(PlanningWorkflowService);
+    workflow.saveExamRound({
+      name: 'Runde B aktualisiert',
+      availability_deadline: null,
+      availability_reminder_at: null,
+    });
+
+    expect(apiClient.patch).not.toHaveBeenCalled();
+    expect(feedback.notify).toHaveBeenCalledWith(
+      'error',
+      'Prüfungsrunde wird aktualisiert',
+      'Die Daten der ausgewählten Prüfungsrunde werden noch aktualisiert. Bitte warten Sie kurz und versuchen Sie es erneut.',
+    );
+  });
+
   it('rolls back an availability edit rejected while the current round refreshes', () => {
     const displayedRound = signal<ExamRound | null>({
       id: 2,
