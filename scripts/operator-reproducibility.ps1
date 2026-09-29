@@ -24,13 +24,15 @@ foreach ($path in $generatedFiles) {
 
 New-Item -ItemType Directory -Path $temporaryDirectory | Out-Null
 try {
+    $revision = (& git -C $repositoryRoot rev-parse HEAD).Trim()
+    if ($LASTEXITCODE -ne 0) { throw 'Unable to determine the Git revision.' }
+    $previousPythonPath = $env:PYTHONPATH
+    $env:PYTHONPATH = Join-Path $repositoryRoot 'backend/src'
+    $version = (& python3 -m backend.version --revision $revision --field identity).Trim()
+    if ($LASTEXITCODE -ne 0) { throw 'Unable to determine the CLI build identity.' }
+
     Push-Location $operatorRoot
     try {
-        $revision = (& git -C $repositoryRoot rev-parse HEAD).Trim()
-        if ($LASTEXITCODE -ne 0) { throw 'Unable to determine the Git revision.' }
-        $version = (& python3 -m backend.version --revision $revision --field identity).Trim()
-        if ($LASTEXITCODE -ne 0) { throw 'Unable to determine the CLI build identity.' }
-
         Invoke-Native 'goreleaser' @('release', '--snapshot', '--clean')
         Move-Item -LiteralPath $dist -Destination (Join-Path $temporaryDirectory 'first')
 
@@ -84,6 +86,8 @@ try {
         Pop-Location
     }
 } finally {
+    if ($null -eq $previousPythonPath) { Remove-Item Env:PYTHONPATH -ErrorAction SilentlyContinue }
+    else { $env:PYTHONPATH = $previousPythonPath }
     if (Test-Path -LiteralPath $dist) { Remove-Item -LiteralPath $dist -Recurse -Force }
     foreach ($path in $generatedFiles) {
         if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Force }
