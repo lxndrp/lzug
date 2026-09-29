@@ -145,6 +145,23 @@ def resolved_memberships(data: dict[str, Any], adapter: str | None = None) -> li
 
 def validate_catalog(data: dict[str, Any]) -> None:
     """Fail closed when the canonical fixture catalog is incomplete or unsafe."""
+    _validate_catalog_header(data)
+    _validate_entity_groups(data)
+    index = catalog_index(data)
+    _validate_fixture_keys(index)
+    _validate_entity_ids(data)
+    _validate_scenarios(data, index)
+    email_domain = _validate_demo_records(data)
+    _validate_catalog_links(data)
+    _validate_locations_and_rooms(data)
+    _validate_location_contacts(data, email_domain)
+    _validate_demo_roles(data)
+    _validate_coverage(data, index)
+    _validate_legacy_mapping(data, index)
+    validate_seed_committees(data)
+
+
+def _validate_catalog_header(data: dict[str, Any]) -> None:
     if data.get("version") != 3 or not data.get("revision"):
         raise ValueError("Unsupported or missing fixture catalog version")
     if data.get("fixture_root") != FIXTURE_ROOT:
@@ -152,6 +169,9 @@ def validate_catalog(data: dict[str, Any]) -> None:
     if not data.get("demo_matrix_version"):
         raise ValueError("Demo matrix version is required")
     profiles(data)
+
+
+def _validate_entity_groups(data: dict[str, Any]) -> None:
     for group in ENTITY_GROUPS:
         if not isinstance(data.get(group), list) or not data[group]:
             raise ValueError(f"Fixture group must not be empty: {group}")
@@ -162,16 +182,21 @@ def validate_catalog(data: dict[str, Any]) -> None:
                     f"Fixture uses unknown adapters: {', '.join(sorted(unknown_adapters))}"
                 )
 
-    index = catalog_index(data)
+
+def _validate_fixture_keys(index: dict[str, Any]) -> None:
     for key in index:
         if not key.startswith(f"{FIXTURE_ROOT}.") or FIXTURE_KEY_PATTERN.fullmatch(key) is None:
             raise ValueError(f"Fixture key has an invalid root: {key}")
 
+
+def _validate_entity_ids(data: dict[str, Any]) -> None:
     for group in ENTITY_GROUPS:
         ids = [row["id"] for row in data[group] if "id" in row]
         if len(ids) != len(set(ids)):
             raise ValueError(f"Duplicate technical id in fixture group: {group}")
 
+
+def _validate_scenarios(data: dict[str, Any], index: dict[str, Any]) -> None:
     scenario_keys = {scenario["key"] for scenario in data["scenarios"]}
     if len(scenario_keys) != len(data["scenarios"]):
         raise ValueError("Duplicate scenario key")
@@ -191,6 +216,8 @@ def validate_catalog(data: dict[str, Any]) -> None:
         if unknown_scenarios:
             raise ValueError(f"Fixture references unknown scenarios: {row['fixture_key']}")
 
+
+def _validate_demo_records(data: dict[str, Any]) -> str:
     for organization in data["organizations"]:
         if (
             organization.get("is_fictional") is not True
@@ -198,10 +225,16 @@ def validate_catalog(data: dict[str, Any]) -> None:
             or organization.get("contact") is not None
         ):
             raise ValueError("Organizations must be fictional Greek demo records")
-
     email_domain = data["conventions"].get("email_domain")
     if email_domain != "demo.lzug.invalid":
         raise ValueError("Synthetic email domain must be demo.lzug.invalid")
+    _validate_people(data, email_domain)
+    _validate_candidates(data)
+    _validate_accounts(data, email_domain)
+    return email_domain
+
+
+def _validate_people(data: dict[str, Any], email_domain: str) -> None:
     for person in data["persons"]:
         if not person.get("first_name") or not person.get("last_name"):
             raise ValueError("Every synthetic person requires a full name")
@@ -209,15 +242,23 @@ def validate_catalog(data: dict[str, Any]) -> None:
             raise ValueError("Synthetic person email uses a forbidden domain")
         if person.get("mobile") is not None:
             raise ValueError("Synthetic person phone numbers are forbidden")
+
+
+def _validate_candidates(data: dict[str, Any]) -> None:
     for candidate in data["candidates"]:
         if not candidate.get("first_name") or not candidate.get("last_name"):
             raise ValueError("Every synthetic candidate requires a full name")
+
+
+def _validate_accounts(data: dict[str, Any], email_domain: str) -> None:
     for account in data["accounts"]:
         if not account["email"].endswith(f"@{email_domain}"):
             raise ValueError("Synthetic account email uses a forbidden domain")
         if account.get("capability_contract") != data["demo_matrix_version"]:
             raise ValueError("Account capability contract does not match demo matrix")
 
+
+def _validate_catalog_links(data: dict[str, Any]) -> None:
     for committee in data["committees"]:
         item_by_key(data, committee["organization_key"], "organizations")
     for membership in data["memberships"]:
@@ -228,32 +269,13 @@ def validate_catalog(data: dict[str, Any]) -> None:
         membership = item_by_key(data, account["membership_key"], "memberships")
         if membership["person_key"] != account["person_key"]:
             raise ValueError("Demo account and membership reference different people")
+
+
+def _validate_locations_and_rooms(data: dict[str, Any]) -> None:
     if len(data["locations"]) != 3 or len(data["rooms"]) != 6:
         raise ValueError("The Athens fixture requires exactly three venues and six rooms")
     for location in data["locations"]:
-        if location["scope"] == "global":
-            if location.get("committee_key") is not None:
-                raise ValueError("Global fixture venues must not reference a committee")
-        elif location["scope"] == "committee":
-            item_by_key(data, location["committee_key"], "committees")
-        else:
-            raise ValueError("Fixture venue scope must be global or committee")
-        coordinates = (location.get("latitude"), location.get("longitude"))
-        if (
-            location.get("country") != "Greece"
-            or location.get("coordinate_status") != "confirmed"
-            or not all(isinstance(value, (int, float)) for value in coordinates)
-            or not -90 <= coordinates[0] <= 90
-            or not -180 <= coordinates[1] <= 180
-            or location.get("source_retrieved_at") != SOURCE_RETRIEVED_AT
-            or not location.get("reality_notice")
-            or not location.get("name", "").endswith("(Demo)")
-        ):
-            raise ValueError("Athens fixture venue geodata is incomplete or unsafe")
-        source_url = urlsplit(location.get("source_url", ""))
-        if source_url.scheme != "https" or not source_url.hostname:
-            raise ValueError("Fixture venue source URL must be canonical HTTPS")
-
+        _validate_location(data, location)
     rooms_by_venue: dict[str, list[dict[str, Any]]] = {}
     for room in data["rooms"]:
         item_by_key(data, room["venue_key"], "locations")
@@ -267,6 +289,33 @@ def validate_catalog(data: dict[str, Any]) -> None:
     ):
         raise ValueError("Every Athens fixture venue requires exactly two rooms")
 
+
+def _validate_location(data: dict[str, Any], location: dict[str, Any]) -> None:
+    if location["scope"] == "global":
+        if location.get("committee_key") is not None:
+            raise ValueError("Global fixture venues must not reference a committee")
+    elif location["scope"] == "committee":
+        item_by_key(data, location["committee_key"], "committees")
+    else:
+        raise ValueError("Fixture venue scope must be global or committee")
+    coordinates = (location.get("latitude"), location.get("longitude"))
+    if (
+        location.get("country") != "Greece"
+        or location.get("coordinate_status") != "confirmed"
+        or not all(isinstance(value, (int, float)) for value in coordinates)
+        or not -90 <= coordinates[0] <= 90
+        or not -180 <= coordinates[1] <= 180
+        or location.get("source_retrieved_at") != SOURCE_RETRIEVED_AT
+        or not location.get("reality_notice")
+        or not location.get("name", "").endswith("(Demo)")
+    ):
+        raise ValueError("Athens fixture venue geodata is incomplete or unsafe")
+    source_url = urlsplit(location.get("source_url", ""))
+    if source_url.scheme != "https" or not source_url.hostname:
+        raise ValueError("Fixture venue source URL must be canonical HTTPS")
+
+
+def _validate_location_contacts(data: dict[str, Any], email_domain: str) -> None:
     contacts_by_venue: dict[str, list[dict[str, Any]]] = {}
     for contact in data["location_contacts"]:
         venue = item_by_key(data, contact["venue_key"], "locations")
@@ -294,10 +343,11 @@ def validate_catalog(data: dict[str, Any]) -> None:
     ):
         raise ValueError("Athens fixture contact cardinalities do not match the demo contract")
 
+
+def _validate_demo_roles(data: dict[str, Any]) -> None:
     roles = [account["demo_role"] for account in data["accounts"] if account["demo_role"]]
     if sorted(roles) != ["chair", "examiner", "replacement"]:
         raise ValueError("Exactly the three canonical demo roles are required")
-
     cross_key = f"{FIXTURE_ROOT}.person.crosscommittee"
     cross_committees = {
         membership["committee_key"]
@@ -307,6 +357,8 @@ def validate_catalog(data: dict[str, Any]) -> None:
     if len(cross_committees) < 2:
         raise ValueError("Cross-committee fixture must have two active memberships")
 
+
+def _validate_coverage(data: dict[str, Any], index: dict[str, Any]) -> None:
     coverage = data.get("coverage_matrix", {})
     if set(coverage) != REQUIRED_COVERAGE:
         raise ValueError("Fixture coverage matrix is incomplete or contains unknown rows")
@@ -314,6 +366,8 @@ def validate_catalog(data: dict[str, Any]) -> None:
         if not keys or any(key not in index for key in keys):
             raise ValueError(f"Fixture coverage row is invalid: {name}")
 
+
+def _validate_legacy_mapping(data: dict[str, Any], index: dict[str, Any]) -> None:
     legacy_names = [row["legacy"] for row in data["legacy_mapping"]]
     if len(legacy_names) != len(set(legacy_names)):
         raise ValueError("Legacy fixture mapping is ambiguous")
@@ -321,8 +375,6 @@ def validate_catalog(data: dict[str, Any]) -> None:
         _, target = index.get(mapping["fixture_key"], (None, None))
         if target is None or target.get("id") != mapping["technical_id"]:
             raise ValueError("Legacy fixture mapping does not preserve its technical id")
-
-    validate_seed_committees(data)
 
 
 def validate_seed_committees(data: dict[str, Any]) -> None:
@@ -483,7 +535,7 @@ def _render_record_set(record: dict[str, Any], reference_time: str) -> str:
             row[content_index] = hashlib.sha256(
                 repr(sorted(payload.items())).encode("utf-8")
             ).hexdigest()
-    return f'INSERT INTO "{table}" ({", ".join(columns)}) VALUES\n' f"{sql_rows(resolved_rows)};"
+    return f'INSERT INTO "{table}" ({", ".join(columns)}) VALUES\n{sql_rows(resolved_rows)};'
 
 
 def render_seed_records(

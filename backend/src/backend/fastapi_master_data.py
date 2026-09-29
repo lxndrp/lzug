@@ -297,6 +297,11 @@ def _resource_routes(resolved: FastAPIConfig, resource_name: str):
 
 def _register_exam_venue_routes(app, resolved, application, read_security, write_security):
     venue_api = ExamVenueApi(resolved.db_path, resolved.map_provider)
+    _register_exam_venue_change_routes(app, venue_api, read_security, write_security)
+    _register_exam_venue_resource_routes(app, venue_api, read_security, write_security)
+
+
+def _register_exam_venue_change_routes(app, venue_api, read_security, write_security):
 
     @app.get(
         "/api/exam-venues",
@@ -418,6 +423,8 @@ def _register_exam_venue_routes(app, resolved, application, read_security, write
         )
         return _not_found() if result is None else _finish(context, context.respond(result))
 
+
+def _register_exam_venue_resource_routes(app, venue_api, read_security, write_security):
     @app.post(
         "/api/exam-venues/{id}/promotion-requests",
         status_code=201,
