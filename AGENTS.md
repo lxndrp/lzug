@@ -16,24 +16,23 @@ Inhalte nicht zwischen Artefakten duplizieren; Kommentare halten neue Entscheidu
 Übergebene belastbare Startevidenz wiederverwenden; nur bei Lücke, Widerspruch oder relevanter Änderung gezielt aktualisieren.
 - Ein Gedankenexperiment oder ein umsetzungsreifes Issue allein ist keine Beauftragung.
 `Implementiere Issue #<nummer>.` ist bei umsetzungsreifem Issue ein vollständiger Auftrag bis zu Tests, Pull Request und geklärten Reviewbefunden im Scope.
-Neue Entscheidungen oder Scope-Änderungen im Issue dokumentieren und genau einmal an die Koordination übergeben.
+Neue Entscheidungen oder Scope-Änderungen im Issue dokumentieren und dem verantwortlichen Bearbeiter sowie dem Projektchat einmal übergeben.
 
 ## 2. Verantwortlichkeiten und Delegation
 
 | Rolle | Verantwortung |
 | --- | --- |
-| `Projekt entwickeln` | Interaktive Fachlichkeit, Architektur, Planung und Umgebung; bestätigte Ziele, Scope, Akzeptanzkriterien, Priority, Complexity, Schätzung, Iteration, Milestone und Project-README pflegen. |
-| `Umsetzung koordinieren` | Reife einmal prüfen, ausdrücklich beauftragte Arbeit zuordnen, Ausführungsstatus pflegen und nach Freigabe Merge/Closeout einschließlich belegter Istwerte verantworten. |
+| `Projekt entwickeln` | Interaktive Fachlichkeit, Architektur, Planung und Umgebung; bestätigte Ziele, Scope, Akzeptanzkriterien, Priority, Complexity, Schätzung, Iteration, Milestone und Project-README pflegen. Ausdrücklich beauftragte Arbeit nach Reifeprüfung zuordnen, Ausführungsstatus pflegen und nach Freigabe Merge/Closeout einschließlich belegter Istwerte verantworten. |
 | Verantwortlicher Bearbeiter je Issue | Code, Tests, Dokumentation, Pull Request, neue Reviewbefunde und Prüfnachweise im isolierten Arbeitsbereich liefern. |
 | Review-Lauf | Geprüfte Revision und Abdeckung im Review-Anker dokumentieren und bestätigte Befunde nach Duplikatprüfung erfassen. |
 
 - Planung, Refinement und Review bleiben gegenüber Produktcode read-only.
-Die beiden dauerhaften Chats implementieren keine Produktänderungen in ihrem permanenten Arbeitsbereich.
+Der dauerhafte Projektchat implementiert keine Produktänderungen in seinem permanenten Arbeitsbereich.
 Nicht triviale Repository-Änderungen zur Entwicklungsumgebung folgen ebenfalls dem Issue-Verfahren.
 - Höchstens zwei Issue-Umsetzungen gleichzeitig, mit genau einem verantwortlichen Bearbeiter sowie eigenem Feature-Branch und Worktree je Issue.
 Die Grenze zählt aktive Issue-Aufträge, nicht reine Recherche- oder Review-Teilaufträge; technische Agentenlimits gelten zusätzlich.
 Abgegrenzte Arbeit kann ein Subagent übernehmen; längere oder interaktive Umsetzung erhält einen eigenständigen Issue-Task.
-Die Koordination darf solche Tasks im ausdrücklich beauftragten Umfang anlegen.
+Der Projektchat darf solche Tasks im ausdrücklich beauftragten Umfang anlegen.
 Teilaufträge erhalten eindeutige Arbeitsbereiche; gleichzeitige Änderungen an denselben Dateien vermeiden.
 - Der Branch heißt `codex/<issue>-<kurzer-name>`, ein eigenständiger Issue-Task `<issue> (<type>): <title>`.
 Niemals direkt auf `master` committen; fremde Änderungen nicht zurücksetzen und nur auftragsbezogene Dateien stagen.
@@ -57,11 +56,11 @@ Der [Entwicklereinstieg](docs/developers/development.md) beschreibt Einrichtung 
 ## 3. Reife und Codebasis-Review
 
 - Vor dem Start Issue, Kommentare, Labels, Milestone, Parent-/Sub-Issues, verknüpfte PRs, Abhängigkeiten, Blocker und erreichbare Project-Felder prüfen.
-Die Koordination übergibt diese Startevidenz; ohne Übergabe prüft der verantwortliche Bearbeiter einmal selbst.
+Der Projektchat übergibt diese Startevidenz; ohne Übergabe prüft der verantwortliche Bearbeiter einmal selbst.
 - Bei `needs:*`, fehlendem Ziel, Scope oder Akzeptanzkriterien, ungelösten Blockern, widersprüchlichen Angaben oder konkurrierender Umsetzung nicht beginnen.
 Voraussetzungen nicht erfinden; konkreten Klärungsbedarf im GitHub-Artefakt dokumentieren.
 - Vor der ersten regulären Umsetzung eines neuen SemVer-Milestones ist ein vollständiger Review des aktuellen `master` erforderlich.
-Die Koordination veranlasst ihn und prüft den abgeschlossenen, dem Milestone zugeordneten Review-Anker.
+Der Projektchat veranlasst ihn und prüft den abgeschlossenen, dem Milestone zugeordneten Review-Anker.
 Der Anker ist `type: task`, trägt selbst kein `review:*`-Label und dokumentiert feste Commit-SHA, Umfang, Abschluss und verknüpfte Befunde.
 Ohne diesen Nachweis keine reguläre Umsetzung; reine Planung und Review sind selbst keine regulären Umsetzungen.
 Für spätere Umsetzungen desselben Milestones genügt der vorhandene vollständige Nachweis, sofern kein neuer wesentlicher Befund einen weiteren Review erfordert.
@@ -107,27 +106,27 @@ Sinnvolle Befunde im Scope vor dem Auflösen beheben; unklare, unzutreffende ode
 Übergaben und administrative Abgleiche ersetzen weder Code-/CI-Prüfungen noch erforderlichen menschlichen Review.
 - Merge erst nach erfolgreicher CI des letzten Stands, geklärten relevanten Befunden und erfüllten Akzeptanzkriterien.
 Merge, Release, Workflow-Dispatch und externe Aktivierung benötigen ausdrückliche Maintainer-Freigabe.
-Den freigegebenen Merge führt die Koordination aus, nicht der Umsetzungsbearbeiter.
+Den freigegebenen Merge führt der Projektchat aus, nicht der Umsetzungsbearbeiter.
 Azure-, DNS-, GitHub-Environment-, Secret-, OIDC-, Deployment- und OpenTofu-`apply`-Änderungen ebenfalls nur nach ausdrücklicher Freigabe; externe Systeme zunächst read-only prüfen.
 - Qualifizierte Dependabot-PRs nur durch den vorgesehenen Squash-Auto-Merge-Workflow anmelden.
 Major-, GitHub-Actions-, konfliktäre oder nicht eindeutig klassifizierte Updates bleiben manuell.
 - Fortschritt und Abschluss im Issue dokumentieren.
 Je Issue ein eigenes Codex-Goal verwenden, soweit technisch isoliert zurechenbar; erst nach erreichtem Ziel und lokaler Prüfung abschließen.
 Kein Tokenbudget erfinden.
-Die Koordination übernimmt ausschließlich ausgewiesene finale Laufzeit als Stunden in `Factual effort (h)` und Tokenzahl unverändert in `Cost (Tokens)`.
+Der Projektchat übernimmt ausschließlich ausgewiesene finale Laufzeit als Stunden in `Factual effort (h)` und Tokenzahl unverändert in `Cost (Tokens)`.
 Fehlende Einzelwerte bleiben leer; gemeinsame Eltern-/Subagent-Metriken nicht verteilen und historische Werte nicht schätzen.
-- Nach freigegebenem Merge, finaler CI und geklärten Reviews entfernt die Koordination nur den zugehörigen sauberen Worktree und lokalen/Remote-Feature-Branch.
+- Nach freigegebenem Merge, finaler CI und geklärten Reviews entfernt der Projektchat nur den zugehörigen sauberen Worktree und lokalen/Remote-Feature-Branch.
 Zuvor auch lokale und ignorierte Daten prüfen.
 Der Worktree darf ohne Rückfrage entfernt werden, wenn der Merge-Commit auf `origin/master` liegt,
 keine nicht ignorierten oder auftragsfremden Änderungen vorhanden sind und nur eindeutig regenerierbare Standardartefakte verbleiben,
 etwa virtuelle Python-Umgebungen, Bytecode-, Test- oder Linter-Caches sowie vergleichbare werkzeuggenerierte Build-Caches.
-Alle sonstigen ignorierten oder nicht eindeutig zuordenbaren Artefakte benennt die Koordination
+Alle sonstigen ignorierten oder nicht eindeutig zuordenbaren Artefakte benennt der Projektchat
 und verwirft oder sichert sie nur nach ausdrücklicher Entscheidung.
 Eigenständige Umsetzungstasks nicht automatisch archivieren.
 - Bei Statusaufträgen aktuellen Stand von Issue, Akzeptanzkriterien, PR, Reviews, CI, Dokumentation, Pages/Wiki, Branch und Worktree prüfen.
 Am Iterationsende und vor Release-Abschluss offene PR-/CI-/Closeout-Reste, verwaiste Arbeitsbereiche sowie Project-Zuordnung, Status und vorhandene Istwerte einmal gebündelt abgleichen.
 Dieser ereignisgesteuerte Closeout ist vom wöchentlichen Codebasis-Review getrennt.
-Die Koordination korrigiert belegte Ausführungsdaten; erforderliche Planänderungen gehen einmal an `Projekt entwickeln` und benötigen eine bestätigte Entscheidung.
+Der Projektchat korrigiert belegte Ausführungsdaten; erforderliche Planänderungen benötigen eine bestätigte Entscheidung.
 
 Ergänzend gelten die Frontend- und Reviewregeln unter
 [Komponenten](docs/developers/components.md) und [Entwicklung](docs/developers/development.md).
