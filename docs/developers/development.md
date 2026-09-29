@@ -64,6 +64,10 @@ mise exec -- task doctor:playwright
 
 `mise exec --` stellt auch für Task-Unterprozesse die projektweit gewählten
 Werkzeuge bereit.
+Auf macOS erhält nur Firefox für E2E-Tests ein eigenes
+[Core-Foundation-Appdatenverzeichnis](https://github.com/microsoft/playwright/issues/42768).
+Das temporäre Verzeichnis wird nach Ende des Browser-Workers bereinigt.
+`HOME` und andere Browser bleiben unverändert.
 `task dev` startet Backend und Frontend; das Frontend ist über
 `http://localhost:4200/` erreichbar.
 Die Datenbank wird über den normalen Migrationspfad vorbereitet.
