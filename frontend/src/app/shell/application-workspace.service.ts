@@ -27,15 +27,31 @@ export class ApplicationWorkspaceService {
   readonly actionBusy = signal(false);
   readonly applicationVersion = signal<string | null>(null);
   readonly masterDataError = signal(false);
+  private refreshGeneration = 0;
 
   refresh(): void {
     if (this.auth.state() !== 'authenticated') return;
+    const roundId = this.roundContext.roundId();
+    const generation = ++this.refreshGeneration;
+    if (this.round() && this.round()?.id !== roundId) {
+      this.round.set(null);
+      this.summary.set(null);
+      this.board.set(null);
+    }
+    this.masterDataError.set(false);
     this.loading.set(true);
     this.api
-      .refreshDashboard()
-      .pipe(finalize(() => this.loading.set(false)))
+      .refreshDashboard(roundId)
+      .pipe(
+        finalize(() => {
+          if (generation === this.refreshGeneration) this.loading.set(false);
+        }),
+      )
       .subscribe({
         next: ({ root, round, summary, board, masterData }) => {
+          if (generation !== this.refreshGeneration || this.roundContext.roundId() !== roundId) {
+            return;
+          }
           this.masterDataError.set(false);
           this.applicationVersion.set(root.version);
           this.round.set(round);
@@ -54,6 +70,9 @@ export class ApplicationWorkspaceService {
           this.message.set('Daten synchronisiert');
         },
         error: (error: { status?: number }) => {
+          if (generation !== this.refreshGeneration || this.roundContext.roundId() !== roundId) {
+            return;
+          }
           this.masterDataError.set(true);
           if (error.status === 401) {
             this.auth.markAnonymous();

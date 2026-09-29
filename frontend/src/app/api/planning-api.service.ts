@@ -49,12 +49,12 @@ export class PlanningApiService {
     return this.client.get<ApiRoot>('/api');
   }
 
-  getRoundSummary() {
-    return this.client.get<RoundSummary>(`/api/round-summary?round_id=${this.roundId}`);
+  getRoundSummary(roundId = this.roundId) {
+    return this.client.get<RoundSummary>(`/api/round-summary?round_id=${roundId}`);
   }
 
-  getExamRound() {
-    return this.client.get<ExamRound>(`/api/exam-rounds/${this.roundId}`);
+  getExamRound(roundId = this.roundId) {
+    return this.client.get<ExamRound>(`/api/exam-rounds/${roundId}`);
   }
 
   updateExamRound(payload: ExamRoundUpdate) {
@@ -73,19 +73,19 @@ export class PlanningApiService {
     return this.client.list<SchedulingOverviewItem>('/api/scheduling-overview');
   }
 
-  getPlanningBoard() {
+  getPlanningBoard(roundId = this.roundId) {
     return forkJoin({
-      days: this.client.list<ExamDay>(`/api/exam-days?round_id=${this.roundId}`),
+      days: this.client.list<ExamDay>(`/api/exam-days?round_id=${roundId}`),
       slots: this.client.list<ExamSlot>('/api/exam-slots'),
       assignments: this.client.list<ExamDayAssignment>('/api/exam-day-assignments'),
       members: this.client.list<CommitteeMember>('/api/members'),
       locations: this.client.list<Location>('/api/locations'),
-      candidates: this.masterData.getCandidateViews(),
+      candidates: this.masterData.getCandidateViews(roundId),
       candidateDays: this.client.list<CandidateExamDay>(
-        `/api/candidate-exam-days?round_id=${this.roundId}`,
+        `/api/candidate-exam-days?round_id=${roundId}`,
       ),
       availabilities: this.client.list<MemberAvailability>(
-        `/api/member-availabilities?round_id=${this.roundId}`,
+        `/api/member-availabilities?round_id=${roundId}`,
       ),
     }).pipe(
       map(
@@ -121,14 +121,14 @@ export class PlanningApiService {
     );
   }
 
-  refreshDashboard() {
+  refreshDashboard(roundId = this.roundId) {
     return this.getRoot().pipe(
       switchMap((root) =>
         forkJoin({
           root: of(root),
-          round: this.getExamRound(),
-          summary: this.getRoundSummary(),
-          board: this.getPlanningBoard(),
+          round: this.getExamRound(roundId),
+          summary: this.getRoundSummary(roundId),
+          board: this.getPlanningBoard(roundId),
           masterData: this.masterData.getMasterData(),
         }),
       ),
