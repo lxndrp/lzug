@@ -125,6 +125,23 @@ class FastAPIApplicationTests(unittest.TestCase):
                 self.assertIs(model, getattr(fastapi_app, model.__name__))
                 self.assertEqual("backend.api_contracts", model.__module__)
 
+    def test_included_router_error_schemas_are_scoped_to_each_application(self) -> None:
+        with TemporaryDirectory() as directory:
+            first_app = create_app(self.config(Path(directory) / "first.sqlite"))
+            second_app = create_app(self.config(Path(directory) / "second.sqlite"))
+
+        first_schema = first_app.openapi()
+        second_schema = second_app.openapi()
+        self.assertIsNot(first_schema, second_schema)
+        for schema in (first_schema, second_schema):
+            with self.subTest(schema=schema):
+                self.assertEqual(
+                    "#/components/schemas/ErrorResponse",
+                    schema["paths"]["/api/candidates"]["get"]["responses"]["422"]["content"][
+                        "application/json"
+                    ]["schema"]["$ref"],
+                )
+
     def config(self, db_path: Path) -> FastAPIConfig:
         return FastAPIConfig(
             db_path=db_path,

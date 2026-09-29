@@ -14,7 +14,6 @@ from urllib.parse import unquote
 from fastapi import Body, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import Response
-from fastapi.routing import APIRoute
 from sqlalchemy.exc import SQLAlchemyError
 from starlette.routing import Match
 
@@ -113,10 +112,10 @@ from .fastapi_dependencies import (
     validate_body_headers,
 )
 from .fastapi_execution import create_execution_router
-from .fastapi_http import attach_application_responses, payload_data
 from .fastapi_http import finish as _finish
 from .fastapi_http import json_response as _json_response
 from .fastapi_http import not_found as _not_found
+from .fastapi_http import payload_data
 from .fastapi_http import plain_text as _plain_text
 from .fastapi_http import same_origin as _same_origin
 from .fastapi_master_data import MIGRATED_DOMAIN_RESOURCES as MIGRATED_DOMAIN_RESOURCES
@@ -710,13 +709,13 @@ def _register_operations_router(app, resolved, application, read_security, write
     from .fastapi_operations_routes import create_operations_router
 
     router = create_operations_router(resolved, application, read_security, write_security)
-    app.router.routes.extend(router.routes)
+    app.include_router(router)
 
 
 def _register_integration_router(app, resolved, application, read_security, write_security):
     from .fastapi_integration_routes import create_integration_router
 
-    app.router.routes.extend(create_integration_router().routes)
+    app.include_router(create_integration_router())
 
 
 def _register_exam_round_routes(app, resolved, application, read_security, write_security):
@@ -935,11 +934,8 @@ def _register_execution_assessment_routes(
 
 
 def _extend_router(app: FastAPI, router) -> None:
-    """Attach prebuilt routes without rebuilding FastAPI's dependency graph."""
-    for route in router.routes:
-        if isinstance(route, APIRoute):
-            attach_application_responses(route)
-    app.router.routes.extend(router.routes)
+    """Include a prebuilt feature router through FastAPI's public API."""
+    app.include_router(router)
 
 
 def _register_static_route(app, resolved, application, read_security, write_security):

@@ -7,7 +7,6 @@ from http import HTTPStatus
 
 from fastapi import APIRouter, FastAPI, Request
 from fastapi.responses import Response
-from fastapi.routing import APIRoute
 
 from backend.application import hateoas
 from backend.application.repositories import REST_RESOURCES
@@ -39,7 +38,7 @@ from .fastapi_dependencies import (
     WriteContext,
     resource_identifier,
 )
-from .fastapi_http import attach_application_responses, payload_data
+from .fastapi_http import payload_data
 from .observability import emit_event
 
 MIGRATED_PLANNING_RESOURCES = (
@@ -575,7 +574,4 @@ def register_planning_router(
     _register_plan_consequence_routes(router, finish, not_found, read_security, write_security)
     _register_availability_routes(router, finish, write_security)
     _register_resource_routes(router, finish, not_found, read_security, write_security)
-    for route in router.routes:
-        if isinstance(route, APIRoute):
-            attach_application_responses(route)
-    app.router.routes.extend(router.routes)
+    app.include_router(router)

@@ -19,12 +19,14 @@ from backend.tests.helpers import openapi_document
 
 
 def _operations(router) -> set[tuple[str, str]]:
-    return {
-        (method, route.path)
-        for route in router.routes
-        if isinstance(route, APIRoute)
-        for method in route.methods
-    }
+    routes = set()
+    for route in router.routes:
+        if isinstance(route, APIRoute):
+            routes.update((method, route.path) for method in route.methods)
+        original_router = getattr(route, "original_router", None)
+        if original_router is not None:
+            routes.update(_operations(original_router))
+    return routes
 
 
 class FastAPIIntegrationRouterTests(unittest.TestCase):

@@ -6,7 +6,6 @@ from http import HTTPStatus
 from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, FastAPI, Request
-from fastapi.routing import APIRoute
 
 from backend.application import hateoas
 from backend.application.exam_venue_api import ExamVenueApi
@@ -80,9 +79,9 @@ from .fastapi_dependencies import (
     resource_identifier,
     venue_identifier,
 )
-from .fastapi_http import attach_application_responses, payload_data
 from .fastapi_http import finish as _finish
 from .fastapi_http import not_found as _not_found
+from .fastapi_http import payload_data
 
 if TYPE_CHECKING:
     from .fastapi_app import FastAPIConfig
@@ -942,7 +941,4 @@ def register_master_data_routes(
         read_security,
         write_security,
     )
-    for route in router.routes:
-        if isinstance(route, APIRoute):
-            attach_application_responses(route)
-    app.router.routes.extend(router.routes)
+    app.include_router(router)

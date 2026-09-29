@@ -159,7 +159,7 @@ def create_calendar_router() -> APIRouter:
         create_public_calendar_router(),
         create_calendar_management_router(),
     ):
-        router.routes.extend(owned_router.routes)
+        router.include_router(owned_router)
     return router
 
 
@@ -369,5 +369,5 @@ def create_integration_router() -> APIRouter:
         create_notification_router(),
         create_absence_router(),
     ):
-        router.routes.extend(owned_router.routes)
+        router.include_router(owned_router)
     return router
