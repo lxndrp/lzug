@@ -7,12 +7,15 @@ Systemkontext, die Sichten und die verbindlichen Prinzipien ein; dieses
 Register bleibt die maßgebliche Liste langfristiger Entscheidungen und ihres
 Status.
 
-Der Index führt den aktuellen Status jeder Entscheidung.
-Bei einer vollständigen Ablösung verweisen alter und neuer ADR im jeweiligen Abschnitt `Status` aufeinander (`Superseded by` beziehungsweise `Supersedes`).
-Eine Ergänzung oder Präzisierung ohne vollständige Ablösung bleibt ein Verweis im Kontext oder bei den Referenzen.
-Alle ADRs folgen der verbindlichen Nygard-Grundstruktur.
-Die [ADR-Vorlage](TEMPLATE.md) beschreibt die Pflicht- und optionalen Abschnitte;
-die Formatentscheidung steht im Registereintrag für ADR-0029.
+Der Index erleichtert die Suche und fasst den bekannten Status der
+Entscheidungen zusammen. Bei einer vollständigen Ablösung sollen alte und neue
+ADRs den Zusammenhang nachvollziehbar beschreiben; eine Ergänzung oder
+Präzisierung ohne vollständige Ablösung kann im Kontext oder bei den
+Referenzen stehen.
+Die [ADR-Vorlage](TEMPLATE.md) empfiehlt eine einheitliche Orientierung,
+erzwingt aber weder exakte Titel und Statuswörter noch eine Abschnittsfolge
+oder eine einmalige Registerverlinkung. Review und funktionierende Links
+sichern Verständlichkeit und Auffindbarkeit.
 
 | ADR | Entscheidung | Status |
 | --- | --- | --- |

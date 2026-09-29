@@ -316,7 +316,6 @@ class QualityWorkflowContractTests(unittest.TestCase):
         self.assertNotIn("'!scripts/**'", unknown)
         self.assertIn("'Taskfile.yml'", full)
         for path, owner in {
-            "scripts/check_documentation.py": "docs",
             "scripts/build-frontend.ps1": "frontend",
             "tests/pester/Container.Tests.ps1": "container",
             "frontend/Taskfile.yml": "transport",

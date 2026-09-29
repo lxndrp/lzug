@@ -9,16 +9,10 @@ tasks:
     cmds:
       - "{{.UV}} python -m unittest discover -s tests/docs"
 
-  check:
-    desc: Check project-specific documentation structure contracts
-    cmds:
-      - python3 -m scripts.check_documentation
-
   build:
     desc: Build the local technical reference and generated code references
     cmds:
       - task: test
-      - task: check
       - task: media:check
       - task: cli
       - task: technical
@@ -26,8 +20,6 @@ tasks:
 
   publication:
     desc: Build the complete static GitHub Pages artifact without deploying it
-    deps:
-      - check
     vars:
       OUTPUT: '{{default "build/publication" .OUTPUT}}'
       DEMO_URL: '{{default "https://demo.example.invalid" .DEMO_URL}}'

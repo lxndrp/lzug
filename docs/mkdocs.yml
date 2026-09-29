@@ -3,6 +3,9 @@ site_description: Versionierte technische Orientierung, Referenzen und Entscheid
 site_dir: ../site
 docs_dir: .
 strict: true
+validation:
+  links:
+    anchors: warn
 not_in_nav: |
   developers/decisions/*.md
   developers/reference/*

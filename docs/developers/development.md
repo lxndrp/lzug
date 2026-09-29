@@ -87,7 +87,7 @@ wird dort an eine feste Revision und vollständige Artefakte gebunden.
 | Betreiber-CLI | `task test:operator`, bei Packaging-Änderung `task quality:operator-packaging-and-reproducibility` |
 | Demo oder synthetische Fixtures | Betroffene Tests unter `demo/tests/` oder `backend/tests/`, danach `task quality:demo` bei Runtime-Änderung |
 | Delivery, OCI oder Compose | Betroffener Test unter `tests/delivery/` oder `tests/pester/`; passende `quality:*`-Task für die reale Integrationsgrenze |
-| Dokumentation und Site | `task docs:check`, `task docs`; für öffentliche Seiten zusätzlich die passenden `docs:publication:*`-Tasks |
+| Dokumentation und Site | `task docs`; für öffentliche Seiten zusätzlich die passenden `docs:publication:*`-Tasks |
 | Infrastruktur | `task quality:infra` |
 | Sichtbarer Browserablauf | `task quality:e2e` und getrennt `task quality:a11y`; vorher `task doctor` und `task doctor:playwright` |
 
@@ -154,8 +154,17 @@ Akzeptierte ADRs werden nicht nachträglich inhaltlich umgeschrieben.
 TypeScript-Services und fachliche Komponenten TSDoc.
 Kommentare erklären Invarianten, Ownership, Seiteneffekte und Fehlergrenzen.
 
-`task docs:check` prüft die Projektstruktur und das ADR-Register;
-`task docs` baut zusätzlich die technischen Referenzen.
+`task docs` baut die technischen Referenzen mit MkDocs und den jeweiligen
+Codegeneratoren. MkDocs prüft dabei Navigationsziele sowie interne Links und
+deren Anker; `strict: true` behandelt konfigurierte Warnungen als Fehler.
+Die fünf Kernbereiche des Entwicklerhandbuchs geben eine Orientierung, bilden
+aber keine abgeschlossene Seitenliste. Zusätzliche Seiten und Umbenennungen
+werden redaktionell im Review beurteilt. Doppelte kanonische Dokumentation und
+zusätzliche historische Archive bleiben unerwünscht; Git bewahrt die Historie.
+ADR-Titel, Statusformulierungen und Abschnittsreihenfolgen sind ebenfalls
+redaktionelle Entscheidungen. Vorlage und Review halten Entscheidungsstatus,
+Auffindbarkeit und nachvollziehbare Ablösungen verständlich; MkDocs prüft die
+tatsächlichen Linkziele.
 Für die öffentliche Site baut `task docs:publication` ein lokales Artefakt,
 ohne es zu veröffentlichen.
 Build, Link-, Browser- und Accessibility-Nachweise sowie die manuelle

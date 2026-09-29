@@ -1,7 +1,10 @@
 # ADR-Vorlage
 
 Diese Vorlage ist keine Architekturentscheidung und wird nicht in der Navigation veröffentlicht.
-Sie dient ausschließlich als Ausgangspunkt für neue ADRs unter diesem Verzeichnis.
+Sie bietet eine Orientierung für neue ADRs unter diesem Verzeichnis.
+Abschnitte, Titel und Statuswortlaut dürfen dem Inhalt folgen, solange
+Entscheidung, aktueller Stand und Beziehungen zu früheren Entscheidungen
+verständlich bleiben.
 
 ```markdown
 # ADR-NNNN: <knapper Entscheidungstitel>
@@ -41,9 +44,12 @@ Migrationsinventare.>
 
 `Datum` ist das Datum der Entscheidung.
 Bei rückwirkend dokumentierten ADRs bleibt dort das historische Entscheidungsdatum stehen.
-Die Grundstruktur besteht aus Titel, Datum, Status, Kontext, Entscheidung und Konsequenzen in dieser Reihenfolge.
-`Alternativen` und `Referenzen` sind optionale Abschnitte für begründete Auswahl beziehungsweise stabile Quellen.
+Titel, Datum, Status, Kontext, Entscheidung und Konsequenzen sind übliche
+Orientierungspunkte; ihre genaue Form und Reihenfolge ist nicht vorgeschrieben.
+`Alternativen` und `Referenzen` helfen bei Bedarf, Auswahl und Quellen
+nachvollziehbar zu machen.
 
-Nach der Annahme wird nur der Status auf `Akzeptiert.` geändert.
-Eine vollständige spätere Ablösung ergänzt ausschließlich im Status des alten ADRs `Superseded by: ADR-NNNN.` und trägt im neuen ADR `Supersedes: ADR-NNNN.`
-Ein ADR mit abweichender Grundstruktur oder ohne langfristige Entscheidung wird nicht angelegt.
+Ein Status soll den Entscheidungsstand klar benennen.
+Bei einer vollständigen späteren Ablösung sollen die betroffenen ADRs den
+Zusammenhang nachvollziehbar festhalten und aufeinander verweisen.
+Links werden mit dem Dokumentationsbuild geprüft.
