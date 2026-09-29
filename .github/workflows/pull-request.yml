@@ -93,9 +93,11 @@ jobs:
               - 'THIRD_PARTY_NOTICES.md'
             packaging:
               - 'operator-cli/.goreleaser.yml'
+              - 'operator-cli/Taskfile.yml'
               - 'operator-cli/go.mod'
               - 'operator-cli/go.sum'
               - 'backend/src/backend/version.py'
+              - 'scripts/operator-reproducibility.ps1'
               - 'THIRD_PARTY_NOTICES.md'
               - '.mise.toml'
               - 'Taskfile.yml'

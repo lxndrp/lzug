@@ -157,9 +157,11 @@ class QualityWorkflowContractTests(unittest.TestCase):
         packaging = mapping_block(changes, "packaging", indent=12)
         for path in (
             "operator-cli/.goreleaser.yml",
+            "operator-cli/Taskfile.yml",
             "operator-cli/go.mod",
             "operator-cli/go.sum",
             "backend/src/backend/version.py",
+            "scripts/operator-reproducibility.ps1",
             "THIRD_PARTY_NOTICES.md",
             ".mise.toml",
             "Taskfile.yml",
@@ -205,6 +207,8 @@ class QualityWorkflowContractTests(unittest.TestCase):
         self.assertIn("Where-Object { $_.type -in @('Archive', 'Binary') }", adapter)
         self.assertIn("Get-FileHash", adapter)
         self.assertIn("--build-metadata", adapter)
+        self.assertIn("[OperatingSystem]::IsLinux()", adapter)
+        self.assertIn("[OperatingSystem]::IsMacOS()", adapter)
         self.assertNotIn("operator-packaging", adapter)
         self.assertIn("operator-cli/dist must not exist", adapter)
         self.assertNotIn("rm -rf", adapter)

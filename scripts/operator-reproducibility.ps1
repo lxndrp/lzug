@@ -63,11 +63,15 @@ try {
             if ($firstHash -ne $secondHash) { throw "CLI artifact differs between clean builds: $relativePath" }
         }
 
-        $hostTarget = switch ("$([System.Runtime.InteropServices.RuntimeInformation]::OSDescription)|$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture)") {
-            { $_ -match 'Darwin|macOS' -and $_ -match 'Arm64' } { 'darwin/arm64'; break }
-            { $_ -match 'Darwin|macOS' -and $_ -match 'X64' } { 'darwin/amd64'; break }
-            { $_ -match 'Linux' -and $_ -match 'X64' } { 'linux/amd64'; break }
-            default { $null }
+        $architecture = [System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture
+        $hostTarget = if ([OperatingSystem]::IsMacOS() -and $architecture -eq [System.Runtime.InteropServices.Architecture]::Arm64) {
+            'darwin/arm64'
+        } elseif ([OperatingSystem]::IsMacOS() -and $architecture -eq [System.Runtime.InteropServices.Architecture]::X64) {
+            'darwin/amd64'
+        } elseif ([OperatingSystem]::IsLinux() -and $architecture -eq [System.Runtime.InteropServices.Architecture]::X64) {
+            'linux/amd64'
+        } else {
+            $null
         }
         if ($hostTarget) {
             $goos, $goarch = $hostTarget.Split('/')
