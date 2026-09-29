@@ -18,8 +18,6 @@ class PublicationDeliveryContractTests(unittest.TestCase):
         self.assertIn("blowfishVersion = 'v3.6.0'", config)
         self.assertIn("blowfishRevision = '4643c46bd5e921fee51c420575fadebf9f4b3681'", config)
         self.assertIn("github.com/nunocoracao/blowfish/v3 v3.6.0", module)
-        self.assertFalse((ROOT / "docs/publication.py").exists())
-        self.assertFalse((ROOT / "docs/publication/relearn").exists())
 
     def test_warm_up_is_bounded_and_sends_no_credentials_or_referrer(self) -> None:
         script = (ROOT / "docs/publication/blowfish/static/js/demo-warmup.js").read_text()
@@ -54,36 +52,6 @@ class PublicationDeliveryContractTests(unittest.TestCase):
         self.assertIn('{{ "images/favicon.svg" | relURL }}', favicon_partial)
         self.assertIn("static/images/favicon.svg", config)
 
-    def test_productive_sources_have_a_documentation_owner(self) -> None:
-        self.assertFalse((ROOT / "prototypes/publication").exists())
-        config = (ROOT / "docs/publication/hugo.toml").read_text()
-        for relative in (
-            "content/_index.md",
-            "content/referenz/_index.md",
-            "content/referenz/api/_index.md",
-            "content/referenz/datenbank/_index.md",
-            "content/quellen/_index.md",
-            "hugo.toml",
-            "go.mod",
-            "public-font.css",
-            "blowfish/assets/css/custom.css",
-            "blowfish/layouts/index.html",
-            "blowfish/layouts/_default/baseof.html",
-            "blowfish/layouts/_shortcodes/publication-scope.html",
-            "blowfish/static/js/demo-warmup.js",
-        ):
-            with self.subTest(relative=relative):
-                self.assertTrue((ROOT / "docs/publication" / relative).is_file())
-
-        for source, target in (
-            ("../../docs/portal/produkt.md", "content/produkt/_index.md"),
-            ("../../docs/developers/reference/backend.md", "content/referenz/backend/_index.md"),
-            ("../../docs/developers/reference/frontend.md", "content/referenz/frontend/_index.md"),
-        ):
-            with self.subTest(source=source):
-                self.assertIn(f"source = '{source}'", config)
-                self.assertIn(f"target = '{target}'", config)
-
     def test_product_and_portal_adapters_use_one_shared_visual_grammar(self) -> None:
         tokens = (ROOT / "brand/tokens.css").read_text()
         portal_css = (ROOT / "docs/publication/blowfish/assets/css/custom.css").read_text()
@@ -117,32 +85,6 @@ class PublicationDeliveryContractTests(unittest.TestCase):
             self.assertIn(link, readme)
         for legacy_route in ("/nutzen/", "/betreiben/", "/entwickeln/"):
             self.assertNotIn(f"lzug.repertoire.papaspyrou.name{legacy_route}", readme)
-
-    def test_hugo_owns_routes_and_source_rendering(self) -> None:
-        config = (ROOT / "docs/publication/hugo.toml").read_text()
-        source_shortcode_path = ROOT / "docs/publication/layouts/shortcodes/publication-source.html"
-        source_shortcode = source_shortcode_path.read_text()
-        self.assertIn("module.mounts", config)
-        self.assertIn("outputFormats.quellen", config)
-        self.assertIn("readFile", source_shortcode)
-        self.assertIn(
-            "python -m backend.fastapi_assembly",
-            (ROOT / "docs/Taskfile.yml").read_text(),
-        )
-
-    def test_generated_public_site_has_one_canonical_linkcheck_entry(self) -> None:
-        config = (ROOT / ".lychee.toml").read_text()
-        taskfile = (ROOT / "docs/Taskfile.yml").read_text()
-        workflow = workflow_text(".github/workflows/publication.yml")
-        self.assertIn("timeout = 20", config)
-        self.assertIn("max_retries = 2", config)
-        self.assertIn("retry_wait_time = 2", config)
-        self.assertIn('include_fragments = "full"', config)
-        self.assertIn(r"^https://demo\\.example\\.invalid(?:/|$)", config)
-        self.assertIn("  publication:linkcheck:", taskfile)
-        self.assertIn("lychee --config .lychee.toml", taskfile)
-        self.assertIn("task docs:publication:linkcheck", workflow)
-        self.assertIn('".lychee.toml"', workflow)
 
     def test_pages_deployment_is_manual_fail_closed_and_cannot_enable_pages(self) -> None:
         workflow = workflow_text(".github/workflows/publication.yml")

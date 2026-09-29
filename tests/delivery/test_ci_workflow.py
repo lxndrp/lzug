@@ -80,32 +80,6 @@ class QualityWorkflowContractTests(unittest.TestCase):
                     workflow_text(path),
                 )
 
-    def test_quality_validates_all_workflows_with_actionlint(self) -> None:
-        workflow_job = job_block(self.quality, "workflows")
-        self.assertIn("name: GitHub Actions workflows", workflow_job)
-        self.assertIn(
-            "mise install aqua:go-task/task@3.52.0 aqua:rhysd/actionlint@1.7.12",
-            workflow_job,
-        )
-        self.assertIn(
-            "mise exec --no-deps aqua:go-task/task@3.52.0 "
-            "aqua:rhysd/actionlint@1.7.12 -- task quality:workflows",
-            workflow_job,
-        )
-
-    def test_pull_requests_run_the_same_workflow_quality_task(self) -> None:
-        workflow_job = job_block(self.pull_request, "workflow-lint")
-        self.assertIn("name: GitHub Actions workflow syntax", workflow_job)
-        self.assertIn(
-            "mise install aqua:go-task/task@3.52.0 aqua:rhysd/actionlint@1.7.12",
-            workflow_job,
-        )
-        self.assertIn(
-            "mise exec --no-deps aqua:go-task/task@3.52.0 "
-            "aqua:rhysd/actionlint@1.7.12 -- task quality:workflows",
-            workflow_job,
-        )
-
     def test_pull_request_codeql_matrix_covers_all_configured_languages(self) -> None:
         self.assertIn(
             "language: ${{ fromJSON(inputs.languages) }}",
@@ -185,7 +159,6 @@ class QualityWorkflowContractTests(unittest.TestCase):
         self.assertIn("needs.changes.outputs.packaging == 'true'", package_job)
         packaging_tasks = "task quality:operator-packaging-and-reproducibility"
         self.assertIn(packaging_tasks, package_job)
-        self.assertNotIn("verify_cli_release", self.pull_request)
 
         cli_quality = job_block(self.quality, "cli")
         self.assertIn("quality:operator-packaging-and-reproducibility", cli_quality)

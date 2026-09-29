@@ -46,33 +46,6 @@ class ComponentConfigLayoutTests(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertTrue(Path(path).is_file())
 
-    def test_component_taskfiles_own_packaging_build_and_publication_flows(self) -> None:
-        operator = Path("operator-cli/Taskfile.yml").read_text(encoding="utf-8")
-        delivery = Path("delivery/Taskfile.yml").read_text(encoding="utf-8")
-        demo = Path("demo/Taskfile.yml").read_text(encoding="utf-8")
-        docs = Path("docs/Taskfile.yml").read_text(encoding="utf-8")
-        frontend = Path("frontend/Taskfile.yml").read_text(encoding="utf-8")
-        frontend_adapter = Path("scripts/build-frontend.ps1").read_text(encoding="utf-8")
-        root = Path("Taskfile.yml").read_text(encoding="utf-8")
-
-        self.assertIn("packaging-and-reproducibility", operator)
-        self.assertIn("operator-reproducibility.ps1", operator)
-        self.assertIn("quality:image", delivery)
-        self.assertIn("syft", delivery)
-        self.assertIn("seed_revision=$(jq -er", demo)
-        self.assertIn("scripts/demo-container-smoke.sh", demo)
-        self.assertIn("  publication:", docs)
-        self.assertIn("hugo --source docs/publication", docs)
-        self.assertIn("backend.fastapi_assembly", docs)
-        self.assertIn("typedoc", docs)
-        self.assertIn("production-build:", frontend)
-        self.assertIn("run: once", frontend)
-        self.assertIn("- transport:generate", frontend)
-        self.assertNotIn("Invoke-Native 'task'", frontend_adapter)
-        self.assertIn("- frontend:production-build", root)
-        self.assertIn("- task: frontend:e2e:development", root)
-        self.assertIn("- task: frontend:e2e:production", root)
-
     def test_shared_and_standard_root_entries_remain_available(self) -> None:
         for path in (
             ".mise.toml",

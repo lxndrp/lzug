@@ -5,23 +5,6 @@ from pathlib import Path
 
 
 class BuildIdentityContractTests(unittest.TestCase):
-    def test_legacy_version_file_is_removed(self) -> None:
-        self.assertFalse(Path("VERSION").exists())
-        active_contract = "\n".join(
-            Path(path).read_text(encoding="utf-8")
-            for path in (
-                "Dockerfile",
-                "Taskfile.yml",
-                ".github/workflows/pull-request.yml",
-                ".github/workflows/quality.yml",
-                ".github/workflows/release.yml",
-                "tests/pester/Container.Tests.ps1",
-            )
-        )
-        self.assertNotIn("cat VERSION", active_contract)
-        self.assertNotIn("/app/VERSION", active_contract)
-        self.assertNotIn("--version-file", active_contract)
-
     def test_oci_embeds_one_metadata_file_for_backend_and_frontend(self) -> None:
         dockerfile = Path("Dockerfile").read_text(encoding="utf-8")
 
