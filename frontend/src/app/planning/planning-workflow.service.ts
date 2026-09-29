@@ -248,7 +248,10 @@ export class PlanningWorkflowService {
   }
 
   saveAvailability(payload: AvailabilityPayload): void {
-    if (!this.workspaceMatchesSelectedRound()) return;
+    if (!this.workspaceMatchesSelectedRound()) {
+      this.planningComponent?.markAvailabilityError(payload);
+      return;
+    }
     const authSession = this.auth.session();
     const session = authSession?.demo_role ? authSession : null;
     const canSave =
