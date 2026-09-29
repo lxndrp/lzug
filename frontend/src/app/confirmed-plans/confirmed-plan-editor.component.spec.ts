@@ -138,8 +138,43 @@ describe('ConfirmedPlanEditorComponent', () => {
     staleSave.flush({ ...editablePlan(), round_id: 2, revision: 2 });
     fixture.detectChanges();
 
-    expect(element.textContent).not.toContain('Die Änderung wurde als neue Planrevision gespeichert.');
+    expect(element.textContent).not.toContain(
+      'Die Änderung wurde als neue Planrevision gespeichert.',
+    );
     expect(button(element, 'Änderung mit Grund speichern').disabled).toBe(true);
+  });
+
+  it('ignores a late successful load from the previous round after the current draft changes', () => {
+    fixture.detectChanges();
+    const staleLoad = http.expectOne('/api/exam-rounds/1/confirmed-plan');
+
+    fixture.componentRef.setInput('roundId', 2);
+    fixture.detectChanges();
+    http.expectOne('/api/exam-rounds/2/confirmed-plan').flush({ ...editablePlan(), round_id: 2 });
+    http.expectOne('/api/exam-rounds/2/confirmed-plan/revisions').flush({ items: [], _links: {} });
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    button(element, 'Termin 2 nach oben verschieben').click();
+    const reason = element.querySelector<HTMLTextAreaElement>('#confirmedPlanChangeReason')!;
+    reason.value = 'Entwurf der zweiten Runde';
+    reason.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    staleLoad.flush({ ...editablePlan(), revision: 7 });
+    fixture.detectChanges();
+
+    const firstCandidate = element.querySelector<HTMLSelectElement>(
+      'select[aria-label="Prüfling für Termin 1"]',
+    );
+    expect(firstCandidate).not.toBeNull();
+    expect(
+      Array.from(firstCandidate!.options).find((option) => option.selected)?.textContent,
+    ).toContain('Beta');
+    expect(element.querySelector<HTMLTextAreaElement>('#confirmedPlanChangeReason')?.value).toBe(
+      'Entwurf der zweiten Runde',
+    );
+    expect(button(element, 'Änderung mit Grund speichern').disabled).toBe(false);
   });
 
   it('offers only the prepared atomic revision in the demo', () => {
