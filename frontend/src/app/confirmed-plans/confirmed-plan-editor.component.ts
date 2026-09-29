@@ -59,6 +59,7 @@ export class ConfirmedPlanEditorComponent implements OnChanges {
   >(null);
   protected readonly isDemo = computed(() => this.auth.session()?.demo_role !== undefined);
   private readonly planView = signal<ConfirmedPlan | null>(null);
+  private requestGeneration = 0;
   protected readonly lockedDayIds = computed(
     () =>
       new Set(
@@ -86,23 +87,28 @@ export class ConfirmedPlanEditorComponent implements OnChanges {
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['plan']) this.planView.set(this.plan);
+    if (changes['roundId']) this.clearRoundState();
     if (changes['roundId'] || changes['plan']) this.load();
   }
 
   protected load(): void {
     if (!this.roundId) return;
+    const generation = ++this.requestGeneration;
+    const roundId = this.roundId;
     this.state.set('loading');
     this.errorMessage.set(null);
-    this.api.getEditableConfirmedPlan(this.roundId).subscribe({
+    this.api.getEditableConfirmedPlan(roundId).subscribe({
       next: (proposal) => {
+        if (!this.isCurrentRequest(generation, roundId)) return;
         this.draft.set(this.clone(proposal));
         this.reason.set('');
         this.dirty.set(false);
         this.state.set('ready');
-        this.loadDemoContract();
-        this.loadRevisions();
+        this.loadDemoContract(generation, roundId);
+        this.loadRevisions(generation, roundId);
       },
       error: () => {
+        if (!this.isCurrentRequest(generation, roundId)) return;
         this.state.set('error');
         this.errorMessage.set('Der bestätigte Plan konnte nicht geladen werden.');
       },
@@ -112,10 +118,13 @@ export class ConfirmedPlanEditorComponent implements OnChanges {
   protected save(): void {
     const proposal = this.draft();
     if (!proposal || !this.canSave()) return;
+    const generation = this.requestGeneration;
+    const roundId = this.roundId;
     this.state.set('saving');
     this.errorMessage.set(null);
-    this.api.saveEditableConfirmedPlan(this.roundId, proposal, this.reason()).subscribe({
+    this.api.saveEditableConfirmedPlan(roundId, proposal, this.reason()).subscribe({
       next: (saved) => {
+        if (!this.isCurrentRequest(generation, roundId)) return;
         this.draft.set(this.clone(saved));
         this.reason.set('');
         this.dirty.set(false);
@@ -125,14 +134,15 @@ export class ConfirmedPlanEditorComponent implements OnChanges {
             ? 'Die Planrevision wurde gespeichert. Öffnen Sie die Demo-Szenarien für den nächsten Schritt.'
             : 'Die Änderung wurde als neue Planrevision gespeichert.',
         );
-        this.loadRevisions();
+        this.loadRevisions(generation, roundId);
       },
       error: (error: { status?: number; error?: { error?: { message?: string } | string } }) => {
+        if (!this.isCurrentRequest(generation, roundId)) return;
         if (error.status === 409) {
           this.errorMessage.set(
             'Der Plan wurde inzwischen geändert. Die aktuelle Fassung wird neu geladen; Ihre lokalen Änderungen wurden nicht gespeichert.',
           );
-          this.loadAfterConflict();
+          this.loadAfterConflict(generation, roundId);
           return;
         }
         const detail = error.error?.error;
@@ -248,18 +258,20 @@ export class ConfirmedPlanEditorComponent implements OnChanges {
     return `Revision ${revision.previous_revision} → ${revision.resulting_revision}`;
   }
 
-  private loadAfterConflict(): void {
+  private loadAfterConflict(generation: number, roundId: number): void {
     this.state.set('loading');
-    this.api.getEditableConfirmedPlan(this.roundId).subscribe({
+    this.api.getEditableConfirmedPlan(roundId).subscribe({
       next: (proposal) => {
+        if (!this.isCurrentRequest(generation, roundId)) return;
         this.draft.set(this.clone(proposal));
         this.reason.set('');
         this.dirty.set(false);
         this.state.set('ready');
-        this.loadDemoContract();
-        this.loadRevisions();
+        this.loadDemoContract(generation, roundId);
+        this.loadRevisions(generation, roundId);
       },
       error: () => {
+        if (!this.isCurrentRequest(generation, roundId)) return;
         this.state.set('error');
         this.errorMessage.set(
           'Der neue Planstand konnte nicht geladen werden. Bitte laden Sie die Seite erneut.',
@@ -268,25 +280,47 @@ export class ConfirmedPlanEditorComponent implements OnChanges {
     });
   }
 
-  private loadRevisions(): void {
-    this.api.getConfirmedPlanRevisions(this.roundId).subscribe({
-      next: (revisions) => this.revisions.set(revisions),
-      error: () => this.revisions.set([]),
+  private loadRevisions(generation: number, roundId: number): void {
+    this.api.getConfirmedPlanRevisions(roundId).subscribe({
+      next: (revisions) => {
+        if (this.isCurrentRequest(generation, roundId)) this.revisions.set(revisions);
+      },
+      error: () => {
+        if (this.isCurrentRequest(generation, roundId)) this.revisions.set([]);
+      },
     });
   }
 
-  private loadDemoContract(): void {
+  private loadDemoContract(generation: number, roundId: number): void {
     if (!this.isDemo()) {
       this.demoPreparedChange.set(null);
       return;
     }
     this.runtimeExperience.getDemoScenarios().subscribe({
-      next: (overview) => this.demoPreparedChange.set(overview.prepared_plan_change),
+      next: (overview) => {
+        if (this.isCurrentRequest(generation, roundId)) {
+          this.demoPreparedChange.set(overview.prepared_plan_change);
+        }
+      },
       error: () => {
+        if (!this.isCurrentRequest(generation, roundId)) return;
         this.demoPreparedChange.set(null);
         this.errorMessage.set('Die vorbereitete Demo-Änderung konnte nicht geladen werden.');
       },
     });
+  }
+
+  private isCurrentRequest(generation: number, roundId: number): boolean {
+    return generation === this.requestGeneration && roundId === this.roundId;
+  }
+
+  private clearRoundState(): void {
+    this.draft.set(null);
+    this.revisions.set([]);
+    this.errorMessage.set(null);
+    this.reason.set('');
+    this.dirty.set(false);
+    this.demoPreparedChange.set(null);
   }
 
   private updateDay(day: PlanningProposalDay, patch: Partial<PlanningProposalDay>): void {

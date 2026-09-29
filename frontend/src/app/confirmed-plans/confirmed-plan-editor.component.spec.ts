@@ -104,6 +104,102 @@ describe('ConfirmedPlanEditorComponent', () => {
     expect(element.textContent).toContain('Revision 3');
   });
 
+  it('ignores late responses from the previous round and preserves the current draft', () => {
+    fixture.detectChanges();
+    const staleLoad = http.expectOne('/api/exam-rounds/1/confirmed-plan');
+
+    fixture.componentRef.setInput('roundId', 2);
+    fixture.detectChanges();
+    http.expectOne('/api/exam-rounds/2/confirmed-plan').flush({ ...editablePlan(), round_id: 2 });
+    http.expectOne('/api/exam-rounds/2/confirmed-plan/revisions').flush({ items: [], _links: {} });
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    button(element, 'Termin 2 nach oben verschieben').click();
+    const reason = element.querySelector<HTMLTextAreaElement>('#confirmedPlanChangeReason')!;
+    reason.value = 'Entwurf der zweiten Runde';
+    reason.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    staleLoad.flush(
+      { error: { message: 'alte Runde nicht erreichbar' } },
+      { status: 500, statusText: 'Error' },
+    );
+    fixture.detectChanges();
+    expect(button(element, 'Änderung mit Grund speichern').disabled).toBe(false);
+    expect(element.textContent).not.toContain('Der bestätigte Plan konnte nicht geladen werden.');
+
+    button(element, 'Änderung mit Grund speichern').click();
+    const staleSave = http.expectOne('/api/exam-rounds/2/confirmed-plan');
+    fixture.componentRef.setInput('roundId', 3);
+    fixture.detectChanges();
+    http.expectOne('/api/exam-rounds/3/confirmed-plan').flush({ ...editablePlan(), round_id: 3 });
+    http.expectOne('/api/exam-rounds/3/confirmed-plan/revisions').flush({ items: [], _links: {} });
+    staleSave.flush({ ...editablePlan(), round_id: 2, revision: 2 });
+    fixture.detectChanges();
+
+    expect(element.textContent).not.toContain(
+      'Die Änderung wurde als neue Planrevision gespeichert.',
+    );
+    expect(button(element, 'Änderung mit Grund speichern').disabled).toBe(true);
+  });
+
+  it('ignores a late successful load from the previous round after the current draft changes', () => {
+    fixture.detectChanges();
+    const staleLoad = http.expectOne('/api/exam-rounds/1/confirmed-plan');
+
+    fixture.componentRef.setInput('roundId', 2);
+    fixture.detectChanges();
+    http.expectOne('/api/exam-rounds/2/confirmed-plan').flush({ ...editablePlan(), round_id: 2 });
+    http.expectOne('/api/exam-rounds/2/confirmed-plan/revisions').flush({ items: [], _links: {} });
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    button(element, 'Termin 2 nach oben verschieben').click();
+    const reason = element.querySelector<HTMLTextAreaElement>('#confirmedPlanChangeReason')!;
+    reason.value = 'Entwurf der zweiten Runde';
+    reason.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    staleLoad.flush({ ...editablePlan(), revision: 7 });
+    fixture.detectChanges();
+
+    const firstCandidate = element.querySelector<HTMLSelectElement>(
+      'select[aria-label="Prüfling für Termin 1"]',
+    );
+    expect(firstCandidate).not.toBeNull();
+    expect(
+      Array.from(firstCandidate!.options).find((option) => option.selected)?.textContent,
+    ).toContain('Beta');
+    expect(element.querySelector<HTMLTextAreaElement>('#confirmedPlanChangeReason')?.value).toBe(
+      'Entwurf der zweiten Runde',
+    );
+    expect(button(element, 'Änderung mit Grund speichern').disabled).toBe(false);
+  });
+
+  it('hides the previous round editor while the newly selected round loads', () => {
+    fixture.detectChanges();
+    http.expectOne('/api/exam-rounds/1/confirmed-plan').flush(editablePlan());
+    http.expectOne('/api/exam-rounds/1/confirmed-plan/revisions').flush({ items: [], _links: {} });
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    expect(element.textContent).toContain('Bestätigten Plan ändern');
+
+    fixture.componentRef.setInput('roundId', 2);
+    fixture.detectChanges();
+    const roundBRequest = http.expectOne('/api/exam-rounds/2/confirmed-plan');
+
+    expect(element.textContent).toContain('Bearbeitbarer Plan wird geladen');
+    expect(element.textContent).not.toContain('Bestätigten Plan ändern');
+    expect(element.querySelector('.app-confirmed-editor-slots')).toBeNull();
+
+    roundBRequest.flush({ ...editablePlan(), round_id: 2 });
+    http.expectOne('/api/exam-rounds/2/confirmed-plan/revisions').flush({ items: [], _links: {} });
+    fixture.detectChanges();
+    expect(element.textContent).toContain('Bestätigten Plan ändern');
+  });
+
   it('offers only the prepared atomic revision in the demo', () => {
     TestBed.inject(AuthService).session.set({
       authenticated: true,
