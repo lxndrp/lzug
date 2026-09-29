@@ -36,7 +36,7 @@ Buildkontext voraussetzt.
 | Datei | Eigentümer | Entscheidung und Begründung |
 | --- | --- | --- |
 | `.mise.toml` | Repository | Am Root behalten: ein gemeinsamer Toolchain-Pin für Python, Node.js, Go, Hugo, Lychee, uv, Task, Syft, GoReleaser und OpenTofu. |
-| `Taskfile.yml` | Repository | Am Root behalten: kanonischer Einstieg für Setup, Tests, Dokumentation, Qualität, SBOM und Entwicklung. |
+| `Taskfile.yml` | Repository | Am Root behalten: öffentliche Namen, komponentenübergreifende Abhängigkeiten und Quality-Aggregation; Implementierungsabläufe liegen in den Taskfiles ihrer Eigentümer. |
 | `pyproject.toml` | Python-/Dokumentations-Toolchain | Am Root behalten: Backend, Demo, Skripte, Tests und MkDocs teilen ein uv-Projekt und einen Tooling-Vertrag. |
 | `uv.lock` | Python-/Dokumentations-Toolchain | Am Root behalten: einziger Lockfile für das gemeinsame uv-Projekt; kein zweites Python-Toolingprojekt. |
 | `.python-version` | Python-/Dokumentations-Toolchain | Am Root behalten: alle Python-Verbraucher verwenden dieselbe Version. |
@@ -50,6 +50,24 @@ Buildkontext voraussetzt.
 | `.dockerignore` | OCI-/Self-Hosting | Am Root behalten: technisch an den unveränderten Root-Buildkontext gebunden. |
 | `.github/` | Repository | Am Root behalten: GitHub erwartet Workflows, Vorlagen und Dependabot-Konfiguration dort. |
 | Community-, Lizenz- und Support-Dateien | Repository | Am Root behalten: GitHub- und Community-Standards sowie rechtliche Hinweise erwarten diese Einstiege dort. |
+
+Der Root-Taskgraph erhält die stabilen öffentlichen Einstiege und ordnet
+komponentenübergreifende Erzeuger und Verbraucher.
+`operator-cli/Taskfile.yml` besitzt GoReleaser-Paketierung und
+Reproduzierbarkeit, `docs/Taskfile.yml` den Publikationsaufbau und seine
+Artefaktprüfungen, `delivery/Taskfile.yml` Produktimage und SBOM,
+`demo/Taskfile.yml` Seed-/App-Assembly und Smoke-Verbrauch sowie
+`frontend/Taskfile.yml` Transportgenerierung, Produktionsbuild und dessen
+Verbraucher.
+Lokale npm-Einstiege bleiben selbständig nutzbar.
+Der Frontend-Adapter ruft keine Task-Aufträge mehr auf; die Task-Abhängigkeiten
+machen die Transportgenerierung und Buildreihenfolge sichtbar.
+
+Der lokale Frontend-Quality-Auftrag baut das Produktionsbundle einmal pro
+Tasklauf.
+Der Produktions-E2E-Test verbraucht diesen Build; der separate
+Entwicklungsserver-E2E-Test bleibt erhalten.
+Unabhängige Komponenten bleiben parallel ausführbar.
 
 ## Backend
 

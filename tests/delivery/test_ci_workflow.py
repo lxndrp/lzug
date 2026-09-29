@@ -189,28 +189,25 @@ class QualityWorkflowContractTests(unittest.TestCase):
         self.assertIn("quality:operator-packaging-and-reproducibility", cli_quality)
         self.assertNotIn("PowerShell", cli_quality)
 
-        taskfile = Path("Taskfile.yml").read_text(encoding="utf-8")
-        packaging = taskfile.split("  quality:operator-packaging:\n", 1)[1].split(
-            "  quality:operator-reproducibility:\n", 1
-        )[0]
-        reproducibility = taskfile.split("  quality:operator-reproducibility:\n", 1)[1].split(
-            "  quality:oci:\n", 1
-        )[0]
+        taskfile = "\n".join(
+            Path(path).read_text(encoding="utf-8")
+            for path in ("Taskfile.yml", "delivery/Taskfile.yml")
+        )
+        operator_taskfile = Path("operator-cli/Taskfile.yml").read_text(encoding="utf-8")
+        adapter = Path("scripts/operator-reproducibility.ps1").read_text(encoding="utf-8")
         snapshot_build = "goreleaser release --snapshot --clean"
-        self.assertEqual(1, packaging.count(snapshot_build))
-        self.assertEqual(2, reproducibility.count(snapshot_build))
-        baseline = 'baseline="$repository_root/build/quality/operator-packaging"'
-        self.assertIn(baseline, packaging)
-        self.assertIn('mkdir -p "$(dirname "$baseline")"', packaging)
-        self.assertIn(baseline, reproducibility)
-        self.assertIn('if test ! -d "$baseline"; then', reproducibility)
-        self.assertIn('cmp "$baseline/$artifact"', reproducibility)
-        combined_extract = "quality:operator-packaging-and-reproducibility:\n"
-        combined = taskfile.split("  " + combined_extract, 1)[1].split(
-            "  quality:operator-reproducibility:\n", 1
-        )[0]
-        self.assertIn("task: quality:operator-packaging", combined)
-        self.assertIn("task: quality:operator-reproducibility", combined)
+        self.assertNotIn(snapshot_build, taskfile)
+        self.assertIn("task: operator:packaging-and-reproducibility", taskfile)
+        packaging_task = operator_taskfile.split("  packaging-and-reproducibility:\n", 1)[1]
+        self.assertIn("scripts/operator-reproducibility.ps1", packaging_task)
+        self.assertEqual(2, adapter.count("@('release', '--snapshot', '--clean')"))
+        self.assertIn("artifacts.json", adapter)
+        self.assertIn("Where-Object { $_.type -in @('Archive', 'Binary') }", adapter)
+        self.assertIn("Get-FileHash", adapter)
+        self.assertIn("--build-metadata", adapter)
+        self.assertNotIn("operator-packaging", adapter)
+        self.assertIn("operator-cli/dist must not exist", adapter)
+        self.assertNotIn("rm -rf", adapter)
 
     def test_direct_syft_scans_use_the_declarative_repository_configuration(self) -> None:
         config = Path(".syft.yaml").read_text(encoding="utf-8")
@@ -220,7 +217,10 @@ class QualityWorkflowContractTests(unittest.TestCase):
         self.assertIn("include-dev-dependencies: true", config)
         self.assertNotIn("cache:", config)
 
-        taskfile = Path("Taskfile.yml").read_text(encoding="utf-8")
+        taskfile = "\n".join(
+            Path(path).read_text(encoding="utf-8")
+            for path in ("Taskfile.yml", "delivery/Taskfile.yml")
+        )
         product_publish = workflow_text(".github/workflows/product-publish.yml")
         demo_publish = workflow_text(".github/workflows/demo-publish.yml")
         for source, config_path in (
@@ -481,9 +481,9 @@ class QualityWorkflowContractTests(unittest.TestCase):
         self.assertNotIn("task test:demo", job_block(self.pull_request, "delivery"))
         self.assertIn("task delivery:oci", job_block(self.pull_request, "container"))
         self.assertIn("quality:oci quality:pester quality:demo", self.quality)
-        self.assertIn("npm --prefix frontend run test:e2e", self.quality)
-        self.assertIn("npm --prefix frontend run test:a11y", self.quality)
-        self.assertIn("npm --prefix frontend run test:ui-review", self.quality)
+        self.assertIn("task frontend:e2e", self.quality)
+        self.assertIn("task frontend:a11y", self.quality)
+        self.assertIn("task frontend:ui-review", self.quality)
 
     def test_browser_quality_jobs_install_task_for_the_frontend_adapter(self) -> None:
         for job_name in ("e2e", "a11y"):
@@ -516,8 +516,8 @@ class QualityWorkflowContractTests(unittest.TestCase):
             self.assertIn("mise install aqua:PowerShell/PowerShell@7.5.3", job)
             self.assertIn("task frontend:transport", job)
         frontend_tasks = Path("frontend/Taskfile.yml").read_text(encoding="utf-8")
-        transport_task = frontend_tasks.split("  transport:\n", 1)[1].split(
-            "  transport:generate:\n", 1
+        transport_task = frontend_tasks.split("  production-build:\n", 1)[1].split(
+            "  security:\n", 1
         )[0]
         self.assertIn("npm run build:ci", transport_task)
         self.assertNotIn("git status --short", transport_task)

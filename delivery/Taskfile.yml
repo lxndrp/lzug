@@ -18,3 +18,26 @@ tasks:
     desc: Run OCI and Compose Pester contracts
     cmds:
       - task: :quality:pester
+
+  quality:image:
+    desc: Build the local product OCI image and SBOM once per task run
+    run: once
+    cmds:
+      - |
+        set -eu
+        docker info >/dev/null
+        revision="$(git rev-parse HEAD)"
+        build_identity="$(PYTHONPATH=backend/src python3 -m backend.version --revision "$revision" --field identity)"
+        docker build \
+          --build-arg "BUILD_IDENTITY=$build_identity" \
+          --build-arg "VCS_REF=$revision" \
+          -t lzug-app:0.0.0-dev.local .
+        docker build \
+          --build-arg "BUILD_IDENTITY=0.0.0-rc.0" \
+          --build-arg "RELEASE_TAG=v0.0.0-rc.0" \
+          --build-arg "VCS_REF=$revision" \
+          -t lzug-app:0.0.0-rc.0-contract .
+        mkdir -p build/quality
+        env SYFT_CACHE_DIR=/tmp/lzug-syft-cache \
+          "${SYFT_BINARY:-syft}" scan --config .syft.yaml lzug-app:0.0.0-dev.local \
+          --output "cyclonedx-json@1.6=build/quality/lzug.image.sbom.cdx.json"

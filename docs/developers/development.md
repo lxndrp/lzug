@@ -14,6 +14,16 @@ die Abhängigkeiten bleiben in den jeweiligen Ökosystem-Lockdateien gebunden.
 Die Aufgaben und ihre Befehle stehen in `Taskfile.yml`.
 Die Zuständigkeit dieser Quellen erläutert [ADR-0034](decisions/0034-versionsbindung-und-unveraenderliche-referenzen.md).
 
+Task ist der gemeinsame Ablaufgraph.
+Das Root-Taskfile erhält öffentliche Einstiege und ordnet
+komponentenübergreifende Abhängigkeiten; Komponenten-Taskfiles besitzen ihre
+lokalen Erzeuger, Prüfungen und Ausgaben.
+Der lokale Quality-Lauf teilt den Frontend-Produktionsbuild mit dem
+Produktions-E2E-Verbrauch und führt den Entwicklungsserver-E2E-Test getrennt
+aus.
+Die CLI-Reproduzierbarkeitsprüfung erstellt zwei saubere Builds und vergleicht
+die laut GoReleaser-Manifest erzeugten Archive und Binaries.
+
 Die allgemeine Zuständigkeitsregel und Entscheidungsreihenfolge beschreibt
 [ADR-0039](decisions/0039-deklarative-toolchain-zustaendigkeiten.md): zuerst
 native deklarative Konfiguration und Standardmechanismen nutzen, danach

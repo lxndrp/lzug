@@ -86,11 +86,18 @@ try {
     if ($configuration -notin @('production', 'demo')) {
         throw "Unsupported frontend configuration: $configuration"
     }
-    Push-Location $root
-    try {
-        Invoke-Native 'task' @('frontend:transport:generate')
-    } finally {
-        Pop-Location
+    if ($env:LZUG_FRONTEND_TRANSPORT_READY -ne 'true') {
+        $openApi = Join-Path ([System.IO.Path]::GetTempPath()) "lzug-frontend-openapi-$([guid]::NewGuid()).json"
+        Invoke-Native 'uv' @('run', '--locked', '--extra', 'dev', 'python', '-m', 'backend.fastapi_assembly', '--profile', 'transport', $openApi)
+        $created.Add($openApi)
+        Push-Location $frontend
+        try {
+            $env:LZUG_OPENAPI_INPUT = $openApi
+            $env:LZUG_TRANSPORT_OUTPUT = Join-Path $frontend 'src/app/api/generated'
+            Invoke-Native 'node' @('node_modules/.bin/openapi-ts', '--file', 'openapi-ts.config.mjs', '--no-log-file', '--silent')
+        } finally {
+            Pop-Location
+        }
     }
     Push-Location $frontend
     try {

@@ -127,19 +127,19 @@ class PublicationDeliveryContractTests(unittest.TestCase):
         self.assertIn("readFile", source_shortcode)
         self.assertIn(
             "python -m backend.fastapi_assembly",
-            (ROOT / "Taskfile.yml").read_text(),
+            (ROOT / "docs/Taskfile.yml").read_text(),
         )
 
     def test_generated_public_site_has_one_canonical_linkcheck_entry(self) -> None:
         config = (ROOT / ".lychee.toml").read_text()
-        taskfile = (ROOT / "Taskfile.yml").read_text()
+        taskfile = (ROOT / "docs/Taskfile.yml").read_text()
         workflow = workflow_text(".github/workflows/publication.yml")
         self.assertIn("timeout = 20", config)
         self.assertIn("max_retries = 2", config)
         self.assertIn("retry_wait_time = 2", config)
         self.assertIn('include_fragments = "full"', config)
         self.assertIn(r"^https://demo\\.example\\.invalid(?:/|$)", config)
-        self.assertIn("docs:publication:linkcheck:", taskfile)
+        self.assertIn("  publication:linkcheck:", taskfile)
         self.assertIn("lychee --config .lychee.toml", taskfile)
         self.assertIn("task docs:publication:linkcheck", workflow)
         self.assertIn('".lychee.toml"', workflow)
@@ -179,7 +179,7 @@ class PublicationDeliveryContractTests(unittest.TestCase):
     def test_every_publication_run_builds_and_checks_one_artifact_once(self) -> None:
         workflow = workflow_text(".github/workflows/publication.yml")
         build = job_block(workflow, "build")
-        taskfile = (ROOT / "Taskfile.yml").read_text()
+        taskfile = (ROOT / "docs/Taskfile.yml").read_text()
         self.assertEqual(1, build.count("task docs:publication DEMO_URL="))
         self.assertEqual(1, build.count("task docs:publication:linkcheck OUTPUT=build/publication"))
         self.assertIn("Build the Pages publication once", build)
@@ -189,6 +189,7 @@ class PublicationDeliveryContractTests(unittest.TestCase):
         self.assertNotIn("gh run download", build)
         self.assertNotIn("publication:artifact:", taskfile)
         self.assertNotIn("docs:publication:check:", taskfile)
+        self.assertIn("Publication artifact is missing or incomplete", taskfile)
 
     def test_checks_and_manual_pages_deployment_use_the_single_build_output(self) -> None:
         workflow = workflow_text(".github/workflows/publication.yml")

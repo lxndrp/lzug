@@ -24,10 +24,85 @@ tasks:
       - task: technical
       - task: frontend
 
+  publication:
+    desc: Build the complete static GitHub Pages artifact without deploying it
+    deps:
+      - check
+    vars:
+      OUTPUT: '{{default "build/publication" .OUTPUT}}'
+      DEMO_URL: '{{default "https://demo.example.invalid" .DEMO_URL}}'
+      BASE_URL: '{{default "https://lzug.repertoire.papaspyrou.name" .BASE_URL}}'
+    cmds:
+      - |
+        set -eu
+        output="{{.OUTPUT}}"
+        case "$output" in /*) ;; *) output="$PWD/$output" ;; esac
+        revision="$(git rev-parse HEAD)"
+        source_date_epoch="$(git show -s --format=%ct HEAD)"
+        export SOURCE_DATE_EPOCH="$source_date_epoch"
+        export HUGO_PARAMS_DEMOURL="{{.DEMO_URL}}"
+        export HUGO_PARAMS_REPOSITORYREVISION="$revision"
+        hugo --source docs/publication --destination "$output" --minify --gc --baseURL "{{.BASE_URL}}/"
+        mkdir -p "$output/referenz/api" "$output/referenz/frontend"
+        {{.UV}} python -m backend.fastapi_assembly "$output/referenz/api/openapi.json"
+        test -s "$output/referenz/api/openapi.json"
+        (cd frontend && node_modules/.bin/typedoc --out "$output/referenz/frontend")
+        test -s "$output/referenz/frontend/index.html"
+        touch "$output/.nojekyll"
+        {{.UV}} python scripts/publication_metadata.py "$output" \
+          --revision "$revision" --base-url "{{.BASE_URL}}" \
+          --demo-url "{{.DEMO_URL}}" --source-date-epoch "$source_date_epoch"
+        test -s "$output/publication-metadata.json"
+
+  publication:linkcheck:
+    desc: Check every link and fragment in the generated public site
+    vars:
+      OUTPUT: '{{default "build/publication" .OUTPUT}}'
+    cmds:
+      - |
+        set -eu
+        output="{{.OUTPUT}}"
+        case "$output" in /*) ;; *) output="$PWD/$output" ;; esac
+        test -s "$output/publication-metadata.json" || { echo "Publication artifact is missing or incomplete: $output" >&2; exit 1; }
+        lychee --config .lychee.toml --root-dir "$output" "$output"
+
+  publication:browser:
+    desc: Check the production landing flow on desktop and mobile with Playwright
+    vars:
+      OUTPUT: '{{default "build/publication" .OUTPUT}}'
+    cmds:
+      - |
+        set -eu
+        output="{{.OUTPUT}}"
+        case "$output" in /*) ;; *) output="$PWD/$output" ;; esac
+        test -s "$output/publication-metadata.json" || { echo "Publication artifact is missing or incomplete: $output" >&2; exit 1; }
+        LZUG_PUBLICATION_ROOT="$output" npm --prefix frontend run test:publication
+
+  publication:a11y:
+    desc: Check the production landing page with Playwright and axe
+    vars:
+      OUTPUT: '{{default "build/publication" .OUTPUT}}'
+    cmds:
+      - |
+        set -eu
+        output="{{.OUTPUT}}"
+        case "$output" in /*) ;; *) output="$PWD/$output" ;; esac
+        test -s "$output/publication-metadata.json" || { echo "Publication artifact is missing or incomplete: $output" >&2; exit 1; }
+        LZUG_PUBLICATION_ROOT="$output" npm --prefix frontend run test:publication:a11y
+
   media:check:
     desc: Check Playwright-captured demo media metadata and image dimensions
     cmds:
       - python3 -m docs.media.check
+
+  media:capture:
+    desc: Recreate the reviewed synthetic demo screenshots from their canonical scenario
+    dir: frontend
+    env:
+      LZUG_CAPTURE_DEMO_MEDIA: "true"
+      LZUG_E2E_RUN_ID: demo-media-v8
+    cmds:
+      - node e2e/run-playwright.mjs demo-workflows.spec.ts --grep "keeps isolated demo scenarios"
 
   cli:
     internal: true
