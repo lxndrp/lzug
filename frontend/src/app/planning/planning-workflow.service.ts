@@ -141,9 +141,10 @@ export class PlanningWorkflowService {
       this.feedback.roleRestriction();
       return;
     }
+    const roundId = this.roundContext.roundId();
     this.workspace.actionBusy.set(true);
     this.api
-      .requestAvailabilities(payload)
+      .requestAvailabilities(payload, roundId)
       .pipe(finalize(() => this.workspace.actionBusy.set(false)))
       .subscribe({
         next: (result) => {
@@ -196,11 +197,12 @@ export class PlanningWorkflowService {
       this.feedback.roleRestriction();
       return;
     }
+    const roundId = this.roundContext.roundId();
     this.workspace.actionBusy.set(true);
     this.api
-      .savePlanningSettings(payload)
+      .savePlanningSettings(payload, roundId)
       .pipe(
-        switchMap(() => this.api.generateCandidateExamDays()),
+        switchMap(() => this.api.generateCandidateExamDays(roundId)),
         finalize(() => this.workspace.actionBusy.set(false)),
       )
       .subscribe({
