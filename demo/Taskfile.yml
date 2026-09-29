@@ -22,3 +22,44 @@ tasks:
         demo.tests.test_demo_contract
         demo.tests.test_demo_delivery_contract
         demo.tests.test_demo_url_contract
+
+  quality:
+    desc: Build the demo seed, extract its manifest, build the app, and run smoke checks
+    deps:
+      - :delivery:quality:image
+    cmds:
+      - |
+        set -eu
+        docker info >/dev/null
+        revision="$(git rev-parse HEAD)"
+        short_revision="$(echo "$revision" | cut -c1-7)"
+        temporary_directory="$(mktemp -d)"
+        seed_container=""
+        cleanup() {
+          if [ -n "$seed_container" ]; then
+            docker rm --force "$seed_container" >/dev/null 2>&1 || true
+          fi
+          rm -rf "$temporary_directory"
+        }
+        trap cleanup EXIT
+        product_tag="snapshot/v0.2.0-SNAPSHOT.$short_revision"
+        build_identity="v0.2.0-SNAPSHOT@$short_revision"
+        seed_image="lzug-demo-seed:local"
+        app_image="lzug-demo-app:local"
+        docker build -f demo/containers/Dockerfile.demo-seed \
+          --build-arg "PRODUCT_TAG=$product_tag" \
+          --build-arg "VCS_REF=$revision" \
+          -t "$seed_image" .
+        seed_container=$(docker create "$seed_image")
+        docker cp "$seed_container:/opt/lzug-demo/seed/lzug.sqlite" "$temporary_directory/lzug.sqlite"
+        docker cp "$seed_container:/opt/lzug-demo/seed/manifest.json" "$temporary_directory/manifest.json"
+        docker rm "$seed_container" >/dev/null
+        seed_container=""
+        seed_revision=$(jq -er '.seed_revision' "$temporary_directory/manifest.json")
+        docker build -f demo/containers/Dockerfile.demo \
+          --build-arg "BUILD_IDENTITY=$build_identity" \
+          --build-arg "PRODUCT_TAG=$product_tag" \
+          --build-arg "VCS_REF=$revision" \
+          --build-arg "SEED_REVISION=$seed_revision" \
+          -t "$app_image" .
+        scripts/demo-container-smoke.sh "$app_image" "$seed_image" lzug-app:0.0.0-dev.local "$seed_revision"

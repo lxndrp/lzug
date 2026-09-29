@@ -14,3 +14,9 @@ tasks:
       - task: test
       - go vet ./...
       - goreleaser check
+
+  packaging-and-reproducibility:
+    desc: Build CLI release artifacts twice and verify manifest-selected outputs
+    dir: operator-cli
+    cmds:
+      - pwsh -NoProfile -File ../scripts/operator-reproducibility.ps1

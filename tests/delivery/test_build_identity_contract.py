@@ -67,12 +67,16 @@ class BuildIdentityContractTests(unittest.TestCase):
                 ".github/workflows/quality.yml",
             )
         )
-        taskfile = Path("Taskfile.yml").read_text(encoding="utf-8")
+        taskfile = "\n".join(
+            Path(path).read_text(encoding="utf-8")
+            for path in ("Taskfile.yml", "delivery/Taskfile.yml")
+        )
+        delivery_taskfile = Path("delivery/Taskfile.yml").read_text(encoding="utf-8")
         release = Path(".github/workflows/release.yml").read_text(encoding="utf-8")
         product = Path(".github/workflows/product-publish.yml").read_text(encoding="utf-8")
 
         self.assertIn("task quality:oci", workflows)
-        self.assertIn('--revision "$revision" --field identity', taskfile)
+        self.assertIn('--revision "$revision" --field identity', delivery_taskfile)
         self.assertIn('--build-arg "BUILD_IDENTITY=$build_identity"', taskfile)
         self.assertIn('--tag "$RELEASE_TAG" --revision "$TARGET_SHA"', product)
         self.assertIn("RELEASE_TAG: ${{ inputs.product_tag }}", product)

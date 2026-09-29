@@ -447,8 +447,8 @@ jobs:
         run: |
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           test "$(sysctl -n kernel.apparmor_restrict_unprivileged_userns)" = 0
-      - run: npm --prefix frontend run test:e2e
-      - run: npm --prefix frontend run test:ui-review
+      - run: task frontend:e2e
+      - run: task frontend:ui-review
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: failure()
         with:
@@ -495,7 +495,7 @@ jobs:
         run: |
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           test "$(sysctl -n kernel.apparmor_restrict_unprivileged_userns)" = 0
-      - run: npm --prefix frontend run test:a11y
+      - run: task frontend:a11y
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: failure()
         with:

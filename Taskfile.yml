@@ -164,80 +164,6 @@ tasks:
     cmds:
       - task: docs:build
 
-  docs:publication:
-    desc: Build the complete static GitHub Pages artifact without deploying it
-    deps:
-      - docs:check
-    vars:
-      OUTPUT: '{{default "build/publication" .OUTPUT}}'
-      DEMO_URL: '{{default "https://demo.example.invalid" .DEMO_URL}}'
-      BASE_URL: '{{default "https://lzug.repertoire.papaspyrou.name" .BASE_URL}}'
-    cmds:
-      - >-
-        output="{{.OUTPUT}}"; case "$output" in /*) ;; *) output="$PWD/$output";; esac;
-        env SOURCE_DATE_EPOCH="$(git show -s --format=%ct HEAD)" HUGO_PARAMS_DEMOURL="{{.DEMO_URL}}" HUGO_PARAMS_REPOSITORYREVISION="$(git rev-parse HEAD)" hugo --source docs/publication --destination "$output"
-        --minify --gc --baseURL "{{.BASE_URL}}/"
-      - >-
-        output="{{.OUTPUT}}"; case "$output" in /*) ;; *) output="$PWD/$output";; esac;
-        mkdir -p "$output/referenz/api" "$output/referenz/frontend"
-        && {{.UV}} python -m backend.fastapi_assembly "$output/referenz/api/openapi.json"
-        && cd frontend && node_modules/.bin/typedoc --out "$output/referenz/frontend"
-      - >-
-        output="{{.OUTPUT}}"; case "$output" in /*) ;; *) output="$PWD/$output";; esac;
-        touch "$output/.nojekyll"
-      - >-
-        output="{{.OUTPUT}}"; case "$output" in /*) ;; *) output="$PWD/$output";; esac;
-        {{.UV}} python scripts/publication_metadata.py "$output"
-        --revision "$(git rev-parse HEAD)" --base-url "{{.BASE_URL}}"
-        --demo-url "{{.DEMO_URL}}" --source-date-epoch "$(git show -s --format=%ct HEAD)"
-
-  docs:publication:linkcheck:
-    desc: Check every link and fragment in the generated public site
-    vars:
-      OUTPUT: '{{default "build/publication" .OUTPUT}}'
-    cmds:
-      - |
-        set -eu
-        output="{{.OUTPUT}}"
-        case "$output" in
-          /*) root_dir="$output" ;;
-          *) root_dir="$PWD/$output" ;;
-        esac
-        test -d "$root_dir" || {
-          echo "Publication artifact is missing: $root_dir" >&2
-          exit 1
-        }
-        lychee --config .lychee.toml --root-dir "$root_dir" "$output"
-
-  docs:publication:browser:
-    desc: Check the production landing flow on desktop and mobile with Playwright
-    vars:
-      OUTPUT: '{{default "build/publication" .OUTPUT}}'
-    cmds:
-      - >-
-        output="{{.OUTPUT}}"; case "$output" in /*) ;; *) output="$PWD/$output";; esac;
-        test -d "$output" || { echo "Publication artifact is missing: $output" >&2; exit 1; };
-        LZUG_PUBLICATION_ROOT="$output" npm --prefix frontend run test:publication
-
-  docs:publication:a11y:
-    desc: Check the production landing page with Playwright and axe
-    vars:
-      OUTPUT: '{{default "build/publication" .OUTPUT}}'
-    cmds:
-      - >-
-        output="{{.OUTPUT}}"; case "$output" in /*) ;; *) output="$PWD/$output";; esac;
-        test -d "$output" || { echo "Publication artifact is missing: $output" >&2; exit 1; };
-        LZUG_PUBLICATION_ROOT="$output" npm --prefix frontend run test:publication:a11y
-
-  docs:media:capture:
-    desc: Recreate the reviewed synthetic demo screenshots from their canonical scenario
-    dir: frontend
-    env:
-      LZUG_CAPTURE_DEMO_MEDIA: "true"
-      LZUG_E2E_RUN_ID: demo-media-v8
-    cmds:
-      - node e2e/run-playwright.mjs demo-workflows.spec.ts --grep "keeps isolated demo scenarios"
-
   quality:
     desc: Run the complete local quality assurance suite in parallel
     deps:
@@ -329,63 +255,19 @@ tasks:
       - task: operator:quality
 
   quality:operator-packaging:
-    desc: Build CLI archives once and retain the reproducibility baseline
-    dir: operator-cli
+    desc: Build CLI release artifacts twice and verify manifest-selected outputs
     cmds:
-      - |
-        set -eu
-        test ! -e dist || { echo "operator-cli dist directory must not exist before CLI verification" >&2; exit 1; }
-        repository_root="$(git rev-parse --show-toplevel)"
-        baseline="$repository_root/build/quality/operator-packaging"
-        rm -rf "$baseline"
-        mkdir -p "$(dirname "$baseline")"
-        trap 'rm -rf dist; rm -f .goreleaser-build-metadata.json .goreleaser-license .goreleaser-third-party-notices.md' EXIT
-        revision="$(git rev-parse HEAD)"
-        application_version="$(PYTHONPATH=../backend/src python3 -m backend.version --revision "$revision" --field identity)"
-        goreleaser release --snapshot --clean
-        mv dist "$baseline"
+      - task: operator:packaging-and-reproducibility
 
   quality:operator-packaging-and-reproducibility:
     desc: Verify the CLI packaging contract and reproducibility with two clean builds
     cmds:
-      - task: quality:operator-packaging
-      - task: quality:operator-reproducibility
+      - task: operator:packaging-and-reproducibility
 
   quality:operator-reproducibility:
     desc: Verify byte-stable CLI archives and binaries across two clean builds
-    dir: operator-cli
     cmds:
-      - |
-        set -eu
-        test ! -e dist || { echo "operator-cli dist directory must not exist before CLI verification" >&2; exit 1; }
-        repository_root="$(git rev-parse --show-toplevel)"
-        baseline="$repository_root/build/quality/operator-packaging"
-        temporary_directory="$(mktemp -d)"
-        trap 'rm -rf dist "$baseline" "$temporary_directory"; rm -f .goreleaser-build-metadata.json .goreleaser-license .goreleaser-third-party-notices.md' EXIT
-        revision="$(git rev-parse HEAD)"
-        application_version="$(PYTHONPATH=../backend/src python3 -m backend.version --revision "$revision" --field identity)"
-        if test ! -d "$baseline"; then
-          goreleaser release --snapshot --clean
-          mv dist "$baseline"
-        fi
-        goreleaser release --snapshot --clean
-        mv dist "$temporary_directory/second"
-        for artifact in $(python3 -c 'import json; from pathlib import Path; import sys; p=Path(sys.argv[1]).resolve().parent; [print(a["path"].removeprefix("dist/")) for a in json.loads((p / "artifacts.json").read_text()) if a["type"] in ("Archive", "Binary")]' "$baseline/artifacts.json"); do
-          cmp "$baseline/$artifact" "$temporary_directory/second/$artifact"
-        done
-        case "$(uname -s)-$(uname -m)" in
-          Linux-x86_64) host_target="linux/amd64" ;;
-          Darwin-x86_64) host_target="darwin/amd64" ;;
-          Darwin-arm64) host_target="darwin/arm64" ;;
-          *) host_target="" ;;
-        esac
-        if [ -n "$host_target" ]; then
-          host_binary=$(python3 -c 'import json; from pathlib import Path; import sys; p=Path(sys.argv[1]).resolve().parent; goos, goarch = sys.argv[2].split("/"); print(p / next(a["path"].removeprefix("dist/") for a in json.loads((p / "artifacts.json").read_text()) if a["type"] == "Binary" and a["goos"] == goos and a["goarch"] == goarch))' "$baseline/artifacts.json" "$host_target")
-          actual=$("$host_binary" --build-metadata)
-          expected=$(python3 -c 'import json, sys; print(json.dumps({"identity": sys.argv[1], "release": False, "revision": sys.argv[2], "tag": None}, separators=(",", ":")))' "$application_version" "$revision")
-          test "$actual" = "$expected"
-        fi
-        echo "CLI release artifacts are byte-stable"
+      - task: operator:packaging-and-reproducibility
 
   quality:oci:
     desc: Build the local OCI quality image
@@ -394,52 +276,8 @@ tasks:
 
   quality:demo:
     desc: Build and verify the separate demo app and seed OCI pair
-    deps:
-      - quality:image
     cmds:
-      - |
-        set -eu
-        docker info >/dev/null
-        revision="$(git rev-parse HEAD)"
-        short_revision="$(echo "$revision" | cut -c1-7)"
-        temporary_directory="$(mktemp -d)"
-        seed_container=""
-        cleanup() {
-          if [ -n "$seed_container" ]; then
-            docker rm --force "$seed_container" >/dev/null 2>&1 || true
-          fi
-          rm -rf "$temporary_directory"
-        }
-        trap cleanup EXIT
-        product_tag="snapshot/v0.2.0-SNAPSHOT.$short_revision"
-        build_identity="v0.2.0-SNAPSHOT@$short_revision"
-        seed_image="lzug-demo-seed:local"
-        app_image="lzug-demo-app:local"
-        docker build -f demo/containers/Dockerfile.demo-seed \
-          --build-arg "PRODUCT_TAG=$product_tag" \
-          --build-arg "VCS_REF=$revision" \
-          -t "$seed_image" .
-        seed_container=$(docker create "$seed_image")
-        docker cp \
-          "$seed_container:/opt/lzug-demo/seed/lzug.sqlite" \
-          "$temporary_directory/lzug.sqlite"
-        docker cp \
-          "$seed_container:/opt/lzug-demo/seed/manifest.json" \
-          "$temporary_directory/manifest.json"
-        docker rm "$seed_container" >/dev/null
-        seed_container=""
-        seed_revision=$(jq -er '.seed_revision' "$temporary_directory/manifest.json")
-        docker build -f demo/containers/Dockerfile.demo \
-          --build-arg "BUILD_IDENTITY=$build_identity" \
-          --build-arg "PRODUCT_TAG=$product_tag" \
-          --build-arg "VCS_REF=$revision" \
-          --build-arg "SEED_REVISION=$seed_revision" \
-          -t "$app_image" .
-        scripts/demo-container-smoke.sh \
-          "$app_image" \
-          "$seed_image" \
-          lzug-app:0.0.0-dev.local \
-          "$seed_revision"
+      - task: demo:quality
 
   quality:demo-matrix:
     desc: Verify demo roles, capabilities, mutation allowlist, and default-deny paths
@@ -471,26 +309,7 @@ tasks:
     internal: true
     run: once
     cmds:
-      - |
-        set -eu
-        docker info >/dev/null
-        revision="$(git rev-parse HEAD)"
-        build_identity="$(PYTHONPATH=backend/src python3 -m backend.version --revision "$revision" --field identity)"
-        docker build \
-          --build-arg "BUILD_IDENTITY=$build_identity" \
-          --build-arg "VCS_REF=$revision" \
-          -t lzug-app:0.0.0-dev.local .
-        # Local release-form fixture for the guarded migration path, never published.
-        docker build \
-          --build-arg "BUILD_IDENTITY=0.0.0-rc.0" \
-          --build-arg "RELEASE_TAG=v0.0.0-rc.0" \
-          --build-arg "VCS_REF=$revision" \
-          -t lzug-app:0.0.0-rc.0-contract .
-      - >-
-        mkdir -p build/quality
-        && env SYFT_CACHE_DIR=/tmp/lzug-syft-cache
-        "${SYFT_BINARY:-syft}" scan --config .syft.yaml lzug-app:0.0.0-dev.local
-        --output "cyclonedx-json@1.6=build/quality/lzug.image.sbom.cdx.json"
+      - task: delivery:quality:image
 
   quality:container:
     desc: Run the packaged image and runtime integration smoke
@@ -518,8 +337,11 @@ tasks:
 
   quality:e2e:
     desc: Run browser end-to-end tests
+    deps:
+      - frontend:production-build
     cmds:
-      - task: frontend:e2e
+      - task: frontend:e2e:development
+      - task: frontend:e2e:production
 
   quality:a11y:
     desc: Run browser accessibility tests

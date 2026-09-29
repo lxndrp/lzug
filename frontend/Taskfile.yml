@@ -8,22 +8,35 @@ tasks:
 
   quality:
     desc: Run frontend lint, build, and unit tests
+    env:
+      LZUG_FRONTEND_TRANSPORT_READY: 'true'
     cmds:
       - cd frontend && npm run lint
       - cd frontend && npm run format:check
-      - cd frontend && npm run build:ci
+      - task: production-build
       - cd frontend && npm run test:coverage
 
   transport:
     desc: Generate transport types from FastAPI and compile the frontend against them
     cmds:
-      - cd frontend && npm run build:ci
+      - task: transport:generate
+      - task: production-build
 
   transport:generate:
     desc: Generate the low-level TypeScript transport types from FastAPI OpenAPI
     cmds:
-      - 'uv run --locked --extra dev python -m backend.fastapi_assembly --profile transport build/frontend-openapi.json'
+      - 'mkdir -p build && uv run --locked --extra dev python -m backend.fastapi_assembly --profile transport build/frontend-openapi.json'
       - 'cd frontend && LZUG_OPENAPI_INPUT=../build/frontend-openapi.json LZUG_TRANSPORT_OUTPUT=src/app/api/generated ./node_modules/.bin/openapi-ts --file openapi-ts.config.mjs --no-log-file --silent'
+
+  production-build:
+    desc: Generate frontend transport types and build the production bundle once per task run
+    run: once
+    deps:
+      - transport:generate
+    env:
+      LZUG_FRONTEND_TRANSPORT_READY: 'true'
+    cmds:
+      - cd frontend && npm run build:ci
 
   security:
     desc: Run the production npm critical security gate
@@ -49,6 +62,16 @@ tasks:
     desc: Run browser end-to-end tests
     cmds:
       - cd frontend && npm run test:e2e
+
+  e2e:production:
+    desc: Run production-bundle browser tests against the task graph build
+    cmds:
+      - cd frontend && npm run test:e2e:production
+
+  e2e:development:
+    desc: Run browser tests against the development server
+    cmds:
+      - cd frontend && npm run test:e2e:development
 
   a11y:
     desc: Run browser accessibility tests
