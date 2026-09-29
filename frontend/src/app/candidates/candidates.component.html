@@ -250,6 +250,7 @@
               [appearance]="creatingCandidate() ? 'secondary' : 'primary'"
               [attr.aria-expanded]="creatingCandidate()"
               aria-controls="candidate-create-editor"
+              [disabled]="actionBusy"
               (click)="toggleCandidateCreation()"
             >
               <svg
@@ -565,6 +566,7 @@
                           appearance="primary"
                           size="s"
                           type="button"
+                          [disabled]="actionBusy"
                           (click)="toggleCandidateCreation()"
                         >
                           <svg [cIcon]="icons.add" class="app-button-icon" aria-hidden="true"></svg>
