@@ -11,7 +11,7 @@ class DemoDeployWorkflowTests(unittest.TestCase):
         cls.workflow = workflow_text(".github/workflows/demo-deploy.yml")
         cls.release = workflow_text(".github/workflows/release.yml")
         cls.snapshot = workflow_text(".github/workflows/snapshot.yml")
-        cls.script = workflow_text("scripts/demo-deploy.ps1")
+        cls.script = workflow_text("deployment/demo/deploy.ps1")
 
     def test_deployment_receives_only_the_immutable_image_pair(self) -> None:
         deploy = job_block(self.release, "demo-deploy") + job_block(self.snapshot, "demo-deploy")

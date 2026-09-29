@@ -13,7 +13,11 @@ class ContainerRuntimeSupportTests(unittest.TestCase):
             Path("scripts"),
             Path("tests/pester"),
         )
-        files = [Path("Taskfile.yml"), Path("compose.yaml"), Path(".env.example")]
+        files = [
+            Path("Taskfile.yml"),
+            Path("deployment/self-hosted/compose.yaml"),
+            Path("deployment/self-hosted/.env.example"),
+        ]
         for root in roots:
             files.extend(path for path in root.rglob("*") if path.is_file())
 

@@ -117,7 +117,7 @@ jobs:
           subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
 
       - name: Promote and verify the immutable pair
-        run: pwsh -NoProfile -File scripts/demo-deploy.ps1 -Operation "${{ inputs.operation }}"
+        run: pwsh -NoProfile -File deployment/demo/deploy.ps1 -Operation "${{ inputs.operation }}"
 
       - name: Explain failure and collect non-sensitive diagnostics
         if: failure()

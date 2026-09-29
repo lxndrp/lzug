@@ -313,7 +313,7 @@ jobs:
         with:
           version: 3.52.0
       - run: uv sync --locked --extra dev
-      - run: task delivery:test demo:test delivery:tooling
+      - run: task packaging:test packaging:demo:test packaging:tooling
 
   container:
     name: Container

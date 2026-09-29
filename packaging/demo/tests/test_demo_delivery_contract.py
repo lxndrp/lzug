@@ -33,8 +33,8 @@ class DemoDeliveryContractTests(unittest.TestCase):
     def test_snapshot_namespace_is_consistent(self) -> None:
         for path in (
             "backend/src/backend/version.py",
-            "demo/infra/variables.tf",
-            "demo/infra/main.tf",
+            "deployment/demo/infra/variables.tf",
+            "deployment/demo/infra/main.tf",
         ):
             self.assertIn("snapshot/", Path(path).read_text(encoding="utf-8"))
 

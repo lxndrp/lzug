@@ -2,7 +2,7 @@
 
 set -eu
 
-root_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+root_dir=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 . "$root_dir/scripts/container-contract.sh"
 app_image=${1:-lzug-demo-app:local}
 seed_image=${2:-lzug-demo-seed:local}
