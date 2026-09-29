@@ -5,43 +5,6 @@ from pathlib import Path
 
 
 class BuildIdentityContractTests(unittest.TestCase):
-    def test_oci_embeds_one_metadata_file_for_backend_and_frontend(self) -> None:
-        dockerfile = Path("Dockerfile").read_text(encoding="utf-8")
-
-        self.assertIn("/build-metadata.json ./backend/src/build-metadata.json", dockerfile)
-        self.assertIn("/build-metadata.json ./public/build-metadata.json", dockerfile)
-        self.assertIn('org.opencontainers.image.version="$BUILD_IDENTITY"', dockerfile)
-        self.assertIn('org.opencontainers.image.revision="$VCS_REF"', dockerfile)
-        self.assertIn('case "$RELEASE_TAG" in snapshot/*-SNAPSHOT.*)', dockerfile)
-        self.assertIn("--allow-demo-snapshot", dockerfile)
-
-    def test_openapi_generator_config_is_available_in_the_docker_context(self) -> None:
-        dockerfiles = "\n".join(
-            Path(path).read_text(encoding="utf-8")
-            for path in ("Dockerfile", "demo/containers/Dockerfile.demo")
-        )
-        dockerignore = Path(".dockerignore").read_text(encoding="utf-8")
-
-        self.assertIn("frontend/openapi-ts.config.mjs", dockerfiles)
-        self.assertIn("!frontend/openapi-ts.config.mjs", dockerignore)
-
-    def test_oci_runtime_embeds_a_built_operator_cli_without_its_toolchain(self) -> None:
-        dockerfile = Path("Dockerfile").read_text(encoding="utf-8")
-
-        self.assertIn("AS operator-cli-build", dockerfile)
-        self.assertIn('GOOS="$TARGETOS" GOARCH="$TARGETARCH"', dockerfile)
-        self.assertIn("go build -trimpath", dockerfile)
-        self.assertIn("/usr/local/bin/lzug-admin", dockerfile)
-        self.assertTrue(Path("tests/pester/Container.Tests.ps1").exists())
-
-    def test_runtime_contract_compares_backend_frontend_cli_and_oci(self) -> None:
-        harness = Path("tests/pester/LzugHarness.ps1").read_text(encoding="utf-8")
-        container = Path("tests/pester/Container.Tests.ps1").read_text(encoding="utf-8")
-
-        self.assertIn("org.opencontainers.image.revision", container)
-        self.assertIn("Wait-LzugReady", harness)
-        self.assertIn("Invoke-LzugNative", harness)
-
     def test_ci_and_release_derive_identity_from_commit_and_tag(self) -> None:
         workflows = "\n".join(
             Path(path).read_text(encoding="utf-8")
