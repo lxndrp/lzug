@@ -13,8 +13,7 @@ from backend.application.repositories import ResourceRepository
 from backend.identity.auth import AuthenticationRepository
 from backend.identity.authorization import AuthorizationScope
 from backend.persistence.models import CANDIDATE
-from demo.contract import demo_identity
-from demo.delivery.artifacts import (
+from demo.artifacts import (
     RUNTIME_CONTRACT,
     DemoArtifactError,
     build_app_manifest,
@@ -24,6 +23,7 @@ from demo.delivery.artifacts import (
     verify_pair_manifests,
     verify_seed,
 )
+from demo.contract import demo_identity
 from demo.runtime.seed import initialize_workdir
 from demo.runtime.validation import DemoRuntimeError, validate_runtime_binding
 

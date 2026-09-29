@@ -51,7 +51,7 @@ jobs:
               - 'frontend/**/*.md'
               - 'frontend/THIRD_PARTY_NOTICES.md'
               - 'frontend/typedoc.json'
-              - 'demo/contract.py'
+              - 'packaging/demo/contract.py'
               - 'tests/docs/**'
               - '.python-version'
               - 'pyproject.toml'
@@ -101,35 +101,40 @@ jobs:
               - 'Taskfile.yml'
             delivery:
               - 'backend/**'
-              - 'demo/**'
-              - 'scripts/demo-deploy.ps1'
+              - 'packaging/**'
+              - 'deployment/**'
+              - 'tests/delivery/**'
+              - 'tests/tooling/**'
               - 'fixtures/**'
               - '.python-version'
               - 'pyproject.toml'
               - 'uv.lock'
-              - 'demo/delivery/**'
             infra:
-              - 'demo/infra/**'
+              - 'deployment/demo/infra/**'
               - '.python-version'
               - 'pyproject.toml'
               - 'uv.lock'
             container:
+              - 'Taskfile.yml'
+              - 'packaging/Taskfile.yml'
+              - 'packaging/product/Taskfile.yml'
               - '.syft.yaml'
               - 'tests/pester/Container.Tests.ps1'
               - 'tests/pester/Compatibility.Tests.ps1'
               - 'tests/pester/**'
               - '.dockerignore'
-              - '.env.example'
-              - 'Dockerfile'
-              - 'demo/containers/Dockerfile.demo'
-              - 'demo/containers/Dockerfile.demo-seed'
-              - 'compose.yaml'
-              - 'demo/**'
+              - 'deployment/self-hosted/.env.example'
+              - 'packaging/product/Dockerfile'
+              - 'packaging/demo/Dockerfile'
+              - 'packaging/demo/Dockerfile.seed'
+              - 'deployment/self-hosted/compose.yaml'
+              - 'packaging/demo/**'
+              - 'deployment/demo/**'
               - 'db/**'
               - 'fixtures/**'
               - 'frontend/demo-overlays/**'
               - 'scripts/build-frontend.ps1'
-              - 'scripts/demo-container-smoke.sh'
+              - 'packaging/demo/container-smoke.sh'
               - 'fixtures/generate.py'
               - 'operator-cli/**'
               - '.python-version'
@@ -160,23 +165,26 @@ jobs:
               - '**'
               - '!backend/**'
               - '!db/**'
-              - '!demo/**'
+              - '!packaging/**'
+              - '!deployment/**'
               - '!brand/**'
               - '!docs/**'
               - '!fixtures/**'
               - '!frontend/**'
               - '!infra/**'
+              - '!tests/delivery/**'
+              - '!tests/tooling/**'
               - '!operator-cli/**'
               - '!scripts/build-frontend.ps1'
               - '!backend/src/backend/version.py'
               - '!scripts/run-pester.ps1'
-              - '!scripts/demo-deploy.ps1'
-              - '!demo/contract.py'
+              - '!deployment/demo/deploy.ps1'
+              - '!packaging/demo/contract.py'
               - '!.github/**'
               - '!.lychee.toml'
               - '!.vscode/**'
               - '!.dockerignore'
-              - '!.env.example'
+              - '!deployment/self-hosted/.env.example'
               - '!.gitignore'
               - '!.mise.toml'
               - '!.syft.yaml'
@@ -186,7 +194,7 @@ jobs:
               - '!CHANGELOG.md'
               - '!CODE_OF_CONDUCT.md'
               - '!CONTRIBUTING.md'
-              - '!Dockerfile'
+              - '!packaging/product/Dockerfile'
               - '!LICENSE'
               - '!README.md'
               - '!SECURITY.md'
@@ -194,7 +202,7 @@ jobs:
               - '!THIRD_PARTY_NOTICES.md'
               - '!Taskfile.yml'
               - '!tests/**'
-              - '!compose.yaml'
+              - '!deployment/self-hosted/compose.yaml'
               - '!pyproject.toml'
               - '!uv.lock'
 
@@ -461,7 +469,7 @@ jobs:
         with:
           version: 3.52.0
       - run: uv sync --locked --extra dev
-      - run: task delivery:test delivery:tooling
+      - run: task packaging:test packaging:tooling
 
   container:
     name: Container details
@@ -493,7 +501,7 @@ jobs:
       - name: Build and exercise the real container contracts
         env:
           SYFT_BINARY: ${{ steps.syft.outputs.cmd }}
-        run: task delivery:oci
+        run: task packaging:oci
       - name: Publish Pester test report
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

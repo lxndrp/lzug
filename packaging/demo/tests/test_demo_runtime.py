@@ -44,11 +44,11 @@ from backend.tests.fixture_data import (
     seed_demo_scenarios,
 )
 from backend.tests.helpers import ApiServer, TempDatabase, TestLzugHandler
-from demo.contract import RUNTIME_CONTRACT, canonical_digest, demo_identity
-from demo.delivery.artifacts import (
+from demo.artifacts import (
     build_app_manifest,
     build_seed,
 )
+from demo.contract import RUNTIME_CONTRACT, canonical_digest, demo_identity
 from demo.runtime.policy import (
     DEMO_MUTATION_MATRIX,
     DEMO_READ_MATRIX,
