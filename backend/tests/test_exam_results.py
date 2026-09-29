@@ -227,6 +227,29 @@ class ExamResultRuleTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "100 Prozent"):
             self.service._validate_rules(invalid)
 
+    def test_weight_minimum_is_inclusive_for_components_and_criteria(self) -> None:
+        rules = assessment_rules()
+        rules["components"][0]["weight"] = "0.0000001"
+        rules["components"][1]["weight"] = "34.9999999"
+        criteria = rules["components"][0]["criteria"]
+        criteria[0]["weight"] = "99.9999999"
+        criteria.append(
+            {
+                **criteria[0],
+                "key": "clarity",
+                "label": "Klarheit",
+                "weight": "0.0000001",
+            }
+        )
+
+        normalized = self.service._validate_rules(rules)
+
+        self.assertEqual(Decimal("0.0000001"), Decimal(normalized["components"][0]["weight"]))
+        self.assertEqual(
+            Decimal("0.0000001"),
+            Decimal(normalized["components"][0]["criteria"][1]["weight"]),
+        )
+
 
 class ExamResultTests(unittest.TestCase):
     def setUp(self) -> None:

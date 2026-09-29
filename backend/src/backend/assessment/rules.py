@@ -45,7 +45,7 @@ class CriterionRules(_RuleModel):
     weight: Annotated[
         Decimal,
         BeforeValidator(_decimal),
-        Field(allow_inf_nan=False, gt=Decimal("0.0000001"), le=100),
+        Field(allow_inf_nan=False, ge=Decimal("0.0000001"), le=100),
     ]
 
     @model_validator(mode="after")
@@ -66,7 +66,7 @@ class ComponentRules(_RuleModel):
     weight: Annotated[
         Decimal,
         BeforeValidator(_decimal),
-        Field(allow_inf_nan=False, gt=Decimal("0.0000001"), le=100),
+        Field(allow_inf_nan=False, ge=Decimal("0.0000001"), le=100),
     ]
     day_scoped: StrictBool
     required_assessors: Annotated[StrictInt, Field(ge=1)]
