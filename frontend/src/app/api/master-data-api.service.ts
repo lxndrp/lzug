@@ -62,11 +62,11 @@ export class MasterDataApiService {
    * that have not yet been added to the selected round.
    */
 
-  getCandidateViews() {
+  getCandidateViews(roundId = this.roundId) {
     return forkJoin({
       candidates: this.client.list<Candidate>('/api/candidates'),
       roundCandidates: this.client.list<RoundCandidate>(
-        `/api/round-candidates?round_id=${this.roundId}&is_active=1`,
+        `/api/round-candidates?round_id=${roundId}&is_active=1`,
       ),
     }).pipe(
       map(({ candidates, roundCandidates }) =>

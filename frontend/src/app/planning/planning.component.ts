@@ -182,6 +182,11 @@ export class PlanningComponent implements OnChanges, OnDestroy {
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['round']) {
+      const previousRoundId = changes['round'].previousValue?.id;
+      const currentRoundId = changes['round'].currentValue?.id;
+      if (previousRoundId !== currentRoundId) {
+        this.clearAvailabilityState();
+      }
       this.syncRoundDraft();
     }
     if (changes['summary'] || changes['board'] || changes['masterData']) {
@@ -194,8 +199,7 @@ export class PlanningComponent implements OnChanges, OnDestroy {
   }
 
   ngOnDestroy(): void {
-    this.savedStateTimers.forEach((timer) => clearTimeout(timer));
-    this.savedStateTimers.clear();
+    this.clearAvailabilityState();
   }
 
   protected capacity(): number {
@@ -427,7 +431,7 @@ export class PlanningComponent implements OnChanges, OnDestroy {
   }
 
   /** Revert a failed optimistic cell to the value recorded before its request. */
-  markAvailabilityError(payload: AvailabilityPayload): void {
+  markAvailabilityError(payload: AvailabilityPayload, usePersistedValue = false): void {
     const key = this.availabilityCellKey(
       payload.committee_member_id,
       payload.candidate_exam_day_id,
@@ -438,10 +442,9 @@ export class PlanningComponent implements OnChanges, OnDestroy {
     }
 
     this.clearSavedStateTimer(key);
-    this.availabilityOverrides.update((overrides) => ({
-      ...overrides,
-      [key]: state.previous,
-    }));
+    this.availabilityOverrides.update((overrides) =>
+      usePersistedValue ? this.withoutKey(overrides, key) : { ...overrides, [key]: state.previous },
+    );
     this.availabilityCellStates.update((states) => ({
       ...states,
       [key]: { ...state, status: 'error' },
@@ -740,6 +743,13 @@ export class PlanningComponent implements OnChanges, OnDestroy {
   private removeAvailabilityCellEntry(key: string): void {
     this.availabilityOverrides.update((overrides) => this.withoutKey(overrides, key));
     this.availabilityCellStates.update((states) => this.withoutKey(states, key));
+  }
+
+  private clearAvailabilityState(): void {
+    this.savedStateTimers.forEach((timer) => clearTimeout(timer));
+    this.savedStateTimers.clear();
+    this.availabilityCellStates.set({});
+    this.availabilityOverrides.set({});
   }
 
   private withoutKey<T>(record: Record<string, T>, key: string): Record<string, T> {

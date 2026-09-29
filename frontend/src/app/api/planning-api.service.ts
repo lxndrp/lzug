@@ -49,22 +49,22 @@ export class PlanningApiService {
     return this.client.get<ApiRoot>('/api');
   }
 
-  getRoundSummary() {
-    return this.client.get<RoundSummary>(`/api/round-summary?round_id=${this.roundId}`);
+  getRoundSummary(roundId = this.roundId) {
+    return this.client.get<RoundSummary>(`/api/round-summary?round_id=${roundId}`);
   }
 
-  getExamRound() {
-    return this.client.get<ExamRound>(`/api/exam-rounds/${this.roundId}`);
+  getExamRound(roundId = this.roundId) {
+    return this.client.get<ExamRound>(`/api/exam-rounds/${roundId}`);
   }
 
-  updateExamRound(payload: ExamRoundUpdate) {
-    return this.client.patch<ExamRound>(`/api/exam-rounds/${this.roundId}`, payload);
+  updateExamRound(payload: ExamRoundUpdate, roundId = this.roundId) {
+    return this.client.patch<ExamRound>(`/api/exam-rounds/${roundId}`, payload);
   }
 
-  requestAvailabilities(payload: AvailabilityRequest) {
-    return this.updateExamRound(payload).pipe(
+  requestAvailabilities(payload: AvailabilityRequest, roundId = this.roundId) {
+    return this.updateExamRound(payload, roundId).pipe(
       switchMap(() =>
-        this.client.post<ExamRound>(`/api/exam-rounds/${this.roundId}/request-availabilities`, {}),
+        this.client.post<ExamRound>(`/api/exam-rounds/${roundId}/request-availabilities`, {}),
       ),
     );
   }
@@ -73,19 +73,19 @@ export class PlanningApiService {
     return this.client.list<SchedulingOverviewItem>('/api/scheduling-overview');
   }
 
-  getPlanningBoard() {
+  getPlanningBoard(roundId = this.roundId) {
     return forkJoin({
-      days: this.client.list<ExamDay>(`/api/exam-days?round_id=${this.roundId}`),
+      days: this.client.list<ExamDay>(`/api/exam-days?round_id=${roundId}`),
       slots: this.client.list<ExamSlot>('/api/exam-slots'),
       assignments: this.client.list<ExamDayAssignment>('/api/exam-day-assignments'),
       members: this.client.list<CommitteeMember>('/api/members'),
       locations: this.client.list<Location>('/api/locations'),
-      candidates: this.masterData.getCandidateViews(),
+      candidates: this.masterData.getCandidateViews(roundId),
       candidateDays: this.client.list<CandidateExamDay>(
-        `/api/candidate-exam-days?round_id=${this.roundId}`,
+        `/api/candidate-exam-days?round_id=${roundId}`,
       ),
       availabilities: this.client.list<MemberAvailability>(
-        `/api/member-availabilities?round_id=${this.roundId}`,
+        `/api/member-availabilities?round_id=${roundId}`,
       ),
     }).pipe(
       map(
@@ -121,14 +121,14 @@ export class PlanningApiService {
     );
   }
 
-  refreshDashboard() {
+  refreshDashboard(roundId = this.roundId) {
     return this.getRoot().pipe(
       switchMap((root) =>
         forkJoin({
           root: of(root),
-          round: this.getExamRound(),
-          summary: this.getRoundSummary(),
-          board: this.getPlanningBoard(),
+          round: this.getExamRound(roundId),
+          summary: this.getRoundSummary(roundId),
+          board: this.getPlanningBoard(roundId),
           masterData: this.masterData.getMasterData(),
         }),
       ),
@@ -144,23 +144,27 @@ export class PlanningApiService {
 
   savePlanningSettings(
     payload: Omit<PlanningSettings, 'id' | 'exam_round_id' | 'updated_by_member_id'>,
+    roundId = this.roundId,
   ) {
     return this.client.post<PlanningSettings>('/api/planning-settings', {
       ...payload,
-      exam_round_id: this.roundId,
+      exam_round_id: roundId,
     });
   }
 
-  createCandidateExamDay(payload: Omit<CandidateExamDay, 'id' | 'exam_round_id'>) {
+  createCandidateExamDay(
+    payload: Omit<CandidateExamDay, 'id' | 'exam_round_id'>,
+    roundId = this.roundId,
+  ) {
     return this.client.post<CandidateExamDay>('/api/candidate-exam-days', {
       ...payload,
-      exam_round_id: this.roundId,
+      exam_round_id: roundId,
     });
   }
 
-  generateCandidateExamDays() {
+  generateCandidateExamDays(roundId = this.roundId) {
     return this.client.post<CandidateDayGenerationResult>('/api/candidate-exam-days/generate', {
-      round_id: this.roundId,
+      round_id: roundId,
     } satisfies PlanningRoundRequest);
   }
 
@@ -175,10 +179,11 @@ export class PlanningApiService {
       MemberAvailability,
       'committee_member_id' | 'candidate_exam_day_id' | 'availability'
     >,
+    roundId = this.roundId,
   ) {
     return this.client.post<MemberAvailability>('/api/member-availabilities', {
       ...payload,
-      exam_round_id: this.roundId,
+      exam_round_id: roundId,
     });
   }
 

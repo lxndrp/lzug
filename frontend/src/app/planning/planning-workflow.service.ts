@@ -80,16 +80,19 @@ export class PlanningWorkflowService {
   }
 
   savePlanningSettings(payload: PlanningSettingsPayload): void {
+    if (!this.ensureWorkspaceMatchesSelectedRound()) return;
     if (!this.auth.hasCapability('planning-settings:write')) {
       this.feedback.roleRestriction();
       return;
     }
+    const roundId = this.roundContext.roundId();
     this.workspace.actionBusy.set(true);
     this.api
-      .savePlanningSettings(payload)
+      .savePlanningSettings(payload, roundId)
       .pipe(finalize(() => this.workspace.actionBusy.set(false)))
       .subscribe({
         next: () => {
+          if (!this.isSelectedRound(roundId)) return;
           this.feedback.notify(
             'success',
             'Planungsrahmen gespeichert',
@@ -97,26 +100,31 @@ export class PlanningWorkflowService {
           );
           this.workspace.refresh();
         },
-        error: () =>
+        error: () => {
+          if (!this.isSelectedRound(roundId)) return;
           this.feedback.notify(
             'error',
             'Planungsrahmen nicht gespeichert',
             'Bitte erneut versuchen.',
-          ),
+          );
+        },
       });
   }
 
   saveExamRound(payload: ExamRoundUpdate): void {
+    if (!this.ensureWorkspaceMatchesSelectedRound()) return;
     if (!this.auth.hasCapability('round:write')) {
       this.feedback.roleRestriction();
       return;
     }
+    const roundId = this.roundContext.roundId();
     this.workspace.actionBusy.set(true);
     this.api
-      .updateExamRound(payload)
+      .updateExamRound(payload, roundId)
       .pipe(finalize(() => this.workspace.actionBusy.set(false)))
       .subscribe({
         next: () => {
+          if (!this.isSelectedRound(roundId)) return;
           this.feedback.notify(
             'success',
             'Prüfungsrunde gespeichert',
@@ -124,26 +132,31 @@ export class PlanningWorkflowService {
           );
           this.workspace.refresh();
         },
-        error: () =>
+        error: () => {
+          if (!this.isSelectedRound(roundId)) return;
           this.feedback.notify(
             'error',
             'Prüfungsrunde nicht gespeichert',
             'Bitte Eingaben prüfen.',
-          ),
+          );
+        },
       });
   }
 
   requestAvailabilities(payload: AvailabilityRequest): void {
+    if (!this.ensureWorkspaceMatchesSelectedRound()) return;
     if (!this.auth.hasCapability('availability:coordinate')) {
       this.feedback.roleRestriction();
       return;
     }
+    const roundId = this.roundContext.roundId();
     this.workspace.actionBusy.set(true);
     this.api
-      .requestAvailabilities(payload)
+      .requestAvailabilities(payload, roundId)
       .pipe(finalize(() => this.workspace.actionBusy.set(false)))
       .subscribe({
         next: (result) => {
+          if (!this.isSelectedRound(roundId)) return;
           this.feedback.notify(
             result.notification_warning ? 'error' : 'success',
             result.notification_warning
@@ -153,53 +166,63 @@ export class PlanningWorkflowService {
           );
           this.workspace.refresh();
         },
-        error: () =>
+        error: () => {
+          if (!this.isSelectedRound(roundId)) return;
           this.feedback.notify(
             'error',
             'Verfügbarkeiten nicht angefragt',
             'Gespeicherte Angaben bleiben erhalten. Bitte Voraussetzungen prüfen.',
-          ),
+          );
+        },
       });
   }
 
   createCandidateDay(payload: CandidateExamDayPayload): void {
+    if (!this.ensureWorkspaceMatchesSelectedRound()) return;
     if (!this.auth.hasCapability('candidate-days:create')) {
       this.feedback.roleRestriction();
       return;
     }
+    const roundId = this.roundContext.roundId();
     this.workspace.actionBusy.set(true);
     this.api
-      .createCandidateExamDay(payload)
+      .createCandidateExamDay(payload, roundId)
       .pipe(finalize(() => this.workspace.actionBusy.set(false)))
       .subscribe({
         next: (day) => {
+          if (!this.isSelectedRound(roundId)) return;
           this.planningComponent?.resetCandidateDayDraft();
           this.feedback.notify('success', 'Prüfungstag angelegt', day.date);
           this.workspace.refresh();
         },
-        error: () =>
+        error: () => {
+          if (!this.isSelectedRound(roundId)) return;
           this.feedback.notify(
             'error',
             'Prüfungstag nicht angelegt',
             'Die Eingabe bleibt erhalten. Bitte erneut versuchen.',
-          ),
+          );
+        },
       });
   }
 
   generateCandidateDays(payload: PlanningSettingsPayload): void {
+    if (!this.ensureWorkspaceMatchesSelectedRound()) return;
     if (!this.canGenerateCandidateDays()) {
       this.feedback.roleRestriction();
       return;
     }
+    const roundId = this.roundContext.roundId();
     this.workspace.actionBusy.set(true);
     this.api
-      .savePlanningSettings(payload)
+      .savePlanningSettings(payload, roundId)
       .pipe(
-        switchMap(() => this.api.generateCandidateExamDays()),
+        switchMap(() => this.api.generateCandidateExamDays(roundId)),
         finalize(() => this.workspace.actionBusy.set(false)),
       )
       .subscribe({
         next: (result) => {
+          if (!this.isSelectedRound(roundId)) return;
           this.candidateDayGeneration.set(result);
           this.feedback.notify(
             'success',
@@ -208,20 +231,24 @@ export class PlanningWorkflowService {
           );
           this.workspace.refresh();
         },
-        error: () =>
+        error: () => {
+          if (!this.isSelectedRound(roundId)) return;
           this.feedback.notify(
             'error',
             'Prüfungstage nicht berechnet',
             'Planungszeitraum und Bundesland konnten nicht verarbeitet werden.',
-          ),
+          );
+        },
       });
   }
 
   toggleCandidateDay(day: CandidateExamDay): void {
+    if (!this.ensureWorkspaceMatchesSelectedRound()) return;
     if (!this.auth.hasCapability('candidate-days:toggle')) {
       this.feedback.roleRestriction();
       return;
     }
+    const roundId = this.roundContext.roundId();
     const nextActive = day.is_active ? 0 : 1;
     this.workspace.actionBusy.set(true);
     this.api
@@ -229,6 +256,7 @@ export class PlanningWorkflowService {
       .pipe(finalize(() => this.workspace.actionBusy.set(false)))
       .subscribe({
         next: () => {
+          if (!this.isSelectedRound(roundId)) return;
           this.feedback.notify(
             'success',
             `Prüfungstag ${nextActive ? 'aktiviert' : 'deaktiviert'}`,
@@ -236,12 +264,19 @@ export class PlanningWorkflowService {
           );
           this.workspace.refresh();
         },
-        error: () =>
-          this.feedback.notify('error', 'Prüfungstag nicht geändert', 'Bitte erneut versuchen.'),
+        error: () => {
+          if (!this.isSelectedRound(roundId)) return;
+          this.feedback.notify('error', 'Prüfungstag nicht geändert', 'Bitte erneut versuchen.');
+        },
       });
   }
 
   saveAvailability(payload: AvailabilityPayload): void {
+    if (!this.ensureWorkspaceMatchesSelectedRound()) {
+      this.planningComponent?.markAvailabilityError(payload, true);
+      return;
+    }
+    const roundId = this.roundContext.roundId();
     const authSession = this.auth.session();
     const session = authSession?.demo_role ? authSession : null;
     const canSave =
@@ -256,8 +291,9 @@ export class PlanningWorkflowService {
       this.planningComponent?.markAvailabilityError(payload);
       return;
     }
-    this.api.saveMemberAvailability(payload).subscribe({
+    this.api.saveMemberAvailability(payload, roundId).subscribe({
       next: (availability) => {
+        if (!this.isSelectedRound(roundId)) return;
         this.workspace.board.update((board) =>
           board
             ? {
@@ -276,6 +312,7 @@ export class PlanningWorkflowService {
         this.planningComponent?.markAvailabilitySaved(payload);
       },
       error: () => {
+        if (!this.isSelectedRound(roundId)) return;
         this.planningComponent?.markAvailabilityError(payload);
         this.feedback.notify(
           'error',
@@ -287,16 +324,19 @@ export class PlanningWorkflowService {
   }
 
   generateProposal(): void {
+    if (!this.ensureWorkspaceMatchesSelectedRound()) return;
     if (!this.auth.hasCapability('planning-proposal:generate')) {
       this.feedback.roleRestriction();
       return;
     }
+    const roundId = this.roundContext.roundId();
     this.workspace.actionBusy.set(true);
     this.api
       .generateProposal()
       .pipe(finalize(() => this.workspace.actionBusy.set(false)))
       .subscribe({
         next: (result) => {
+          if (!this.isSelectedRound(roundId)) return;
           this.lastResult.set(result);
           const planned = result.counts['planned_slots'] ?? 0;
           const suffix = result.validation?.passed === false ? ' mit Hinweisen' : '';
@@ -307,22 +347,27 @@ export class PlanningWorkflowService {
           );
           this.workspace.refresh();
         },
-        error: () =>
-          this.feedback.notify('error', 'Planung nicht erzeugt', 'Bitte Planungsdaten prüfen.'),
+        error: () => {
+          if (!this.isSelectedRound(roundId)) return;
+          this.feedback.notify('error', 'Planung nicht erzeugt', 'Bitte Planungsdaten prüfen.');
+        },
       });
   }
 
   confirmPlan(): void {
+    if (!this.ensureWorkspaceMatchesSelectedRound()) return;
     if (!this.auth.hasCapability('planning-proposal:confirm')) {
       this.feedback.roleRestriction();
       return;
     }
+    const roundId = this.roundContext.roundId();
     this.workspace.actionBusy.set(true);
     this.api
       .confirmPlan()
       .pipe(finalize(() => this.workspace.actionBusy.set(false)))
       .subscribe({
         next: (result) => {
+          if (!this.isSelectedRound(roundId)) return;
           this.lastResult.set(result);
           const confirmed = result.counts['confirmed_slots'] ?? 0;
           const warning = result.notification_warning ?? result.calendar_warning;
@@ -332,24 +377,29 @@ export class PlanningWorkflowService {
             warning ?? `${confirmed} Termine sind verbindlich.`,
           );
           this.workspace.refresh();
-          void this.router.navigateByUrl(`/confirmed-plans/${this.roundContext.roundId()}`);
+          void this.router.navigateByUrl(`/confirmed-plans/${roundId}`);
         },
-        error: () =>
-          this.feedback.notify('error', 'Plan nicht bestätigt', 'Bitte erneut versuchen.'),
+        error: () => {
+          if (!this.isSelectedRound(roundId)) return;
+          this.feedback.notify('error', 'Plan nicht bestätigt', 'Bitte erneut versuchen.');
+        },
       });
   }
 
   loadPlanningProposal(): void {
     if (this.workspace.round()?.status !== 'plan_proposed') return;
+    const roundId = this.roundContext.roundId();
     this.editorState.set('loading');
     this.editorError.set(null);
     this.editorViolations.set([]);
     this.api.getPlanningProposal().subscribe({
       next: (proposal) => {
+        if (!this.isSelectedRound(roundId)) return;
         this.proposal.set(proposal);
         this.editorState.set('ready');
       },
       error: (error: { status?: number; error?: { error?: { message?: string } | string } }) => {
+        if (!this.isSelectedRound(roundId)) return;
         this.editorState.set('error');
         this.editorError.set(this.proposalErrorMessage(error));
       },
@@ -361,15 +411,18 @@ export class PlanningWorkflowService {
   }
 
   savePlanningProposal(proposal: EditablePlanningProposal): void {
+    if (!this.ensureWorkspaceMatchesSelectedRound()) return;
     if (!this.auth.hasCapability('planning-proposal:replace')) {
       this.feedback.roleRestriction();
       return;
     }
+    const roundId = this.roundContext.roundId();
     this.editorState.set('saving');
     this.editorError.set(null);
     this.editorViolations.set([]);
     this.api.savePlanningProposal(proposal).subscribe({
       next: (saved) => {
+        if (!this.isSelectedRound(roundId)) return;
         this.proposal.set(saved);
         this.editorState.set('ready');
         this.feedback.notify(
@@ -390,6 +443,7 @@ export class PlanningWorkflowService {
             | string;
         };
       }) => {
+        if (!this.isSelectedRound(roundId)) return;
         this.editorState.set('error');
         const detail = typeof error.error?.error === 'object' ? error.error.error : undefined;
         this.editorViolations.set(detail?.violations ?? []);
@@ -407,6 +461,22 @@ export class PlanningWorkflowService {
     this.editorState.set('idle');
     this.editorError.set(null);
     this.editorViolations.set([]);
+  }
+
+  private ensureWorkspaceMatchesSelectedRound(): boolean {
+    if (!this.workspace.loading() && this.workspace.round()?.id === this.roundContext.roundId()) {
+      return true;
+    }
+    this.feedback.notify(
+      'error',
+      'Prüfungsrunde wird aktualisiert',
+      'Die Daten der ausgewählten Prüfungsrunde werden noch aktualisiert. Bitte warten Sie kurz und versuchen Sie es erneut.',
+    );
+    return false;
+  }
+
+  private isSelectedRound(roundId: number): boolean {
+    return this.roundContext.roundId() === roundId;
   }
 
   private proposalErrorMessage(error: {
