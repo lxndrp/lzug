@@ -37,6 +37,7 @@ export class ApplicationWorkspaceService {
       this.round.set(null);
       this.summary.set(null);
       this.board.set(null);
+      this.masterData.set(null);
     }
     this.masterDataError.set(false);
     this.loading.set(true);
