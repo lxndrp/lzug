@@ -22,7 +22,6 @@ allein nicht als Vereinfachungsnachweis.
 | --- | --- | --- |
 | `scripts/build-frontend.ps1` | Frontend; `frontend/package.json` | Staged lokal fehlende Brand- und Build-Metadaten, erzeugt bei direkten npm-Aufrufen die Transporttypen mit den nativen Python- und openapi-ts-Einstiegen und ruft Angular für Build, Watch oder Serve auf. Im Taskgraph erledigt der explizite Task die Transportgenerierung davor. Der Adapter ruft Task nicht verschachtelt auf und entfernt im Fehlerfall ausschließlich selbst angelegte Dateien. |
 | `scripts/operator-reproducibility.ps1` | Betreiber-CLI; `operator:packaging-and-reproducibility` | Führt genau zwei saubere GoReleaser-Builds aus, liest die tatsächlichen Archive und Binaries aus `artifacts.json`, vergleicht ihre SHA-256-Werte und prüft auf unterstützten Hosts die CLI-Metadaten. Lehnt vorhandene `dist`- und GoReleaser-Arbeitsdateien ab und entfernt nur die während des Laufs erzeugten Dateien. |
-| `scripts/check_documentation.py` | Dokumentation; `task docs:check` | Prüft nur den aktuellen Dokumentationsbaum, MkDocs-Navigation, ADR-Status, den entfernten Repository-Handbuchbestand und Root-Grenzen. Link-, Markdown- und Buildprüfung verbleiben bei MkDocs/Hugo. |
 | `tests/pester/Container.Tests.ps1` | OCI/Self-Hosting; `task quality:container`, `quality:compose`, vollständige Quality-Suite | Prüft Imageidentität, Runtime-Rechte, Frontend-/Health-Auslieferung, CLI-Socketanbindung und einen Daten-Roundtrip über Container-Neuerstellung. |
 | `tests/pester/Operator.Tests.ps1` | Betreiber-CLI; `task quality:operator-container`, vollständige Quality-Suite | Prüft den interaktiven CLI-Einstieg des gebauten Produkt-Binaries über ein echtes Pseudoterminal. |
 | `scripts/demo-container-smoke.sh` | Öffentliche Demo; `demo:quality` | Beweist den separaten App-/Seed-Containervertrag einschließlich Seed-Revision, Runtime-Policy und Wiederanlaufgrenzen. Behalten, weil der allgemeine Produktimage-Smoke diese Demo-Paarung nicht abdeckt. |
@@ -61,6 +60,10 @@ Die Transporttypen stammen vor jedem Frontend-Build aus demselben
 FastAPI-Checkout und werden von `openapi-ts` in sein konfiguriertes
 Verzeichnis geschrieben.
 Die Drift- und Dateiabgleichwrapper wurden mit #812 entfernt.
+`scripts/check_documentation.py` wurde mit #948 entfernt.
+`task docs` nutzt den strict MkDocs-Build für Navigationsziele und interne
+Links samt Ankern; Seitenstruktur und ADR-Redaktion bleiben Gegenstand des
+Reviews.
 `scripts/build_metadata.py` ist mit #812 in `backend.version` aufgegangen;
 Git-Aufrufe und Release-Tag-Zielprüfungen bleiben bei Aufrufern.
 `scripts/validate_demo_url_contract.py` ist mit #812 in `demo.contract`

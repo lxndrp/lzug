@@ -13,8 +13,8 @@ Die allgemeine Release-Orchestrierung bleibt Aufgabe von #347.
 ## Kontext
 
 Der bisherige Python-Builder implementierte Go-Cross-Build, Archivierung und Byte-Stabilität selbst.
-Der veröffentlichte Vertrag von `v0.1.0` und die zugehörigen Tests belegen sechs Archive für Linux, macOS und Windows auf `amd64` und `arm64`.
-Jedes Archiv enthält genau das unversionierte Binary und `build-metadata.json`; die Dateinamen bleiben `lzug-admin-VERSION-BETRIEBSSYSTEM-ARCHITEKTUR` mit `tar.gz` beziehungsweise `zip` für Windows.
+Im veröffentlichten Vertrag von `v0.1.0` enthält jedes der sechs Archive für Linux, macOS und Windows auf `amd64` und `arm64` genau das unversionierte Binary und `build-metadata.json`.
+Die Dateinamen bleiben `lzug-admin-VERSION-BETRIEBSSYSTEM-ARCHITEKTUR` mit `tar.gz` beziehungsweise `zip` für Windows.
 
 GoReleaser `2.17.1` wurde anhand des veröffentlichten SHA-256-Digests geprüft.
 Das Werkzeug steht unter der MIT-Lizenz.
@@ -29,8 +29,12 @@ Die standardmäßig erzeugte GoReleaser-Checksummendatei wäre ein achtes sichtb
 
 GoReleaser `2.17.1` ersetzt den projektspezifischen CLI-Builder.
 Die Version ist lokal in `.mise.toml` und in CI gemeinsam mit der auf einen Commit gepinnten offiziellen GoReleaser-Action festgelegt.
-`operator-cli/.goreleaser.yml` beschreibt ausschließlich die sechs Builds und
-Archive.
+`operator-cli/.goreleaser.yml` beschreibt die sechs Builds und Archive sowie
+die mitzuliefernden Dateien. Jedes Archiv enthält das Binary,
+`build-metadata.json`, `LICENSE` und `THIRD_PARTY_NOTICES.md`; die beiden
+Hinweisdateien werden vor dem Build aus den Repository-Quellen kopiert.
+Die Konfiguration ist die maßgebliche Beschreibung des Lieferumfangs und wird
+im Review anhand von Plattformen, Archivformaten und Dateien bewertet.
 
 `scripts/build_metadata.py` bleibt die gemeinsame fail-closed Metadatengrenze.
 Bei einem Release prüft sie, dass der SemVer-Tag annotiert ist und exakt auf die gebaute vollständige Revision zeigt.
