@@ -13,8 +13,8 @@ Die allgemeine Release-Orchestrierung bleibt Aufgabe von #347.
 ## Kontext
 
 Der bisherige Python-Builder implementierte Go-Cross-Build, Archivierung und Byte-Stabilität selbst.
-Der veröffentlichte Vertrag von `v0.1.0` und die zugehörigen Tests belegen sechs Archive für Linux, macOS und Windows auf `amd64` und `arm64`.
-Jedes Archiv enthält genau das unversionierte Binary und `build-metadata.json`; die Dateinamen bleiben `lzug-admin-VERSION-BETRIEBSSYSTEM-ARCHITEKTUR` mit `tar.gz` beziehungsweise `zip` für Windows.
+Im veröffentlichten Vertrag von `v0.1.0` enthält jedes der sechs Archive für Linux, macOS und Windows auf `amd64` und `arm64` genau das unversionierte Binary und `build-metadata.json`.
+Die Dateinamen bleiben `lzug-admin-VERSION-BETRIEBSSYSTEM-ARCHITEKTUR` mit `tar.gz` beziehungsweise `zip` für Windows.
 
 GoReleaser `2.17.1` wurde anhand des veröffentlichten SHA-256-Digests geprüft.
 Das Werkzeug steht unter der MIT-Lizenz.
