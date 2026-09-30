@@ -11,6 +11,7 @@ tasks:
     env:
       LZUG_FRONTEND_TRANSPORT_READY: 'true'
     cmds:
+      - cd frontend && npm run architecture:check
       - cd frontend && npm run lint
       - cd frontend && npm run format:check
       - task: production-build

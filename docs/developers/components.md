@@ -530,16 +530,47 @@ in der Diagnose nur Anbieter und Fehlerklasse.
 Das Angular-Frontend verwendet TypeScript, Angular Router und Taiga UI.
 Es ist ein ruhiges Arbeitswerkzeug für wiederkehrende Ausschussprozesse und
 keine Marketingoberfläche.
-Fachliche API-Modelle und API-Clients unter `frontend/src/app/api/` bilden die
-Backendgrenze.
+Die Zielabhängigkeit verläuft von Komponenten über Feature-Facades und
+Anwendungsfälle zu Ports; Adapter binden HTTP, Browserfunktionen und weitere
+Integrationen an.
+Fachliche API-Clients unter `frontend/src/app/api/` kapseln heute den
+Backendtransport.
 `ApiClient` besitzt den gemeinsamen HTTP- und Collection-Transport;
 Planung, Stammdaten, Prüfungsrunden, bestätigte Pläne, Prüfungstage,
 Prüfungsprotokolle, Ergebnisse, persönliche Daten und Prüfungsorte besitzen
 jeweils einen fachlichen Client.
 Der schmale `api.models.ts`-Export hält bestehende Importpfade stabil, ohne
 Transportmodelle erneut zu definieren.
-Fachliche Komponenten halten keine parallele Transport- oder
-Autorisierungslogik.
+Komponenten konsumieren nur die Facade ihres Features oder ausdrücklich
+UI-nahe gemeinsame Services.
+Facades stellen die Zustände und Befehle bereit, die eine Oberfläche benötigt;
+Anwendungsfälle koordinieren fachliche Abläufe und hängen von Ports ab.
+Ports benennen die benötigten Fähigkeiten ohne HTTP-Pfade, Statuscodes oder
+OpenAPI-Typen.
+Adapter übersetzen zwischen solchen Verträgen und konkreten technischen
+Schnittstellen.
+`app.config.ts` ist die Composition Root für anwendungsweite Adapterwahl.
+Eine lokale Feature-Registrierung ist passend, wenn ein Adapter nur zu einem
+Feature gehört.
+
+Diese Grenze wird schrittweise featureweise eingeführt.
+Die Terminübersicht unter `frontend/src/app/scheduling-overview/` zeigt das
+Muster: Ihre Komponente verwendet `SchedulingOverviewFacade`, der
+Anwendungsfall hängt am `SchedulingOverviewPort`, und
+`HttpSchedulingOverviewAdapter` übersetzt das vorhandene API-Modell in ein
+transportneutrales Featuremodell.
+Die bestehende Anzeige und ihre Lade-, Leer- und Fehlerzustände bleiben dabei
+unverändert; ihre Komponententests benötigen keinen HTTP-Testcontroller.
+Der Architekturtest prüft die Abhängigkeiten dieses Beispiels.
+Weitere direkte API-Abhängigkeiten werden mit der Migrationsplanung #907
+umgestellt.
+
+Abstraktionen entstehen nur an einer tatsächlichen Austausch- oder
+Testgrenze.
+Eine Facade oder ein Use Case ist keine Pflichtklasse pro API-Aufruf.
+OpenAPI-generierte Typen und Transportdetails bleiben langfristig im jeweiligen
+HTTP-Adapter; die konkrete Bereinigung der vorhandenen API-Modelle und
+HTTP-Fehlergrenzen ist in #908 nachgewiesen.
 
 `ApplicationWorkspaceService` hält ausschließlich den fachübergreifenden
 Lesezustand des gewählten Prüfungskontexts.

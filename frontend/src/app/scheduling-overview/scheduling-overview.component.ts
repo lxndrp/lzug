@@ -1,12 +1,11 @@
-import { Component, EventEmitter, OnInit, Output, inject, signal } from '@angular/core';
+import { Component, EventEmitter, OnInit, Output, inject } from '@angular/core';
 import { TuiButton } from '@taiga-ui/core';
 import { TuiBadge } from '@taiga-ui/kit';
 import { TuiHeader } from '@taiga-ui/layout';
 
-import { SchedulingOverviewItem, SchedulingStatusGroup } from '../api/api.models';
-import { PlanningApiService } from '../api/planning-api.service';
+import { SchedulingOverviewItem, SchedulingStatusGroup } from './scheduling-overview.models';
+import { SchedulingOverviewFacade } from './scheduling-overview.facade';
 
-export type OverviewState = 'loading' | 'ready' | 'error';
 export type SchedulingOverviewAction = {
   id: number;
   target: 'workflow' | 'confirmed-plan';
@@ -15,16 +14,15 @@ export type SchedulingOverviewAction = {
 @Component({
   selector: 'app-scheduling-overview',
   imports: [TuiBadge, TuiButton, TuiHeader],
+  providers: [SchedulingOverviewFacade],
   templateUrl: './scheduling-overview.component.html',
   styleUrl: './scheduling-overview.component.css',
 })
 export class SchedulingOverviewComponent implements OnInit {
-  private readonly api = inject(PlanningApiService);
+  protected readonly facade = inject(SchedulingOverviewFacade);
 
   @Output() openRound = new EventEmitter<SchedulingOverviewAction>();
 
-  protected readonly state = signal<OverviewState>('loading');
-  protected readonly items = signal<SchedulingOverviewItem[]>([]);
   protected readonly groups: Array<{
     id: SchedulingStatusGroup;
     label: string;
@@ -49,22 +47,15 @@ export class SchedulingOverviewComponent implements OnInit {
   ];
 
   ngOnInit(): void {
-    this.load();
+    this.facade.load();
   }
 
   protected load(): void {
-    this.state.set('loading');
-    this.api.getSchedulingOverview().subscribe({
-      next: (items) => {
-        this.items.set(items);
-        this.state.set('ready');
-      },
-      error: () => this.state.set('error'),
-    });
+    this.facade.load();
   }
 
   protected itemsFor(group: SchedulingStatusGroup): SchedulingOverviewItem[] {
-    return this.items().filter((item) => item.status_group === group);
+    return this.facade.items().filter((item) => item.statusGroup === group);
   }
 
   protected statusLabel(status: string): string {
@@ -99,12 +90,12 @@ export class SchedulingOverviewComponent implements OnInit {
   }
 
   protected periodLabel(item: SchedulingOverviewItem): string {
-    if (!item.calendar_week_from || !item.calendar_week_to) return 'Zeitraum noch nicht festgelegt';
-    return `KW ${item.calendar_week_from.slice(-2)}–${item.calendar_week_to.slice(-2)}`;
+    if (!item.calendarWeekFrom || !item.calendarWeekTo) return 'Zeitraum noch nicht festgelegt';
+    return `KW ${item.calendarWeekFrom.slice(-2)}–${item.calendarWeekTo.slice(-2)}`;
   }
 
   protected halfYearLabel(item: SchedulingOverviewItem): string {
-    return `${item.exam_half_year.season === 'summer' ? 'Sommer' : 'Winter'} ${item.exam_half_year.year}`;
+    return `${item.examHalfYear.season === 'summer' ? 'Sommer' : 'Winter'} ${item.examHalfYear.year}`;
   }
 
   protected badgeAppearance(group: SchedulingStatusGroup): string {
