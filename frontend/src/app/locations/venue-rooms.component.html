@@ -6,8 +6,8 @@
         <li>
           <div class="locations-item-heading">
             <strong>{{ room.name }}</strong>
-            <span tuiBadge [appearance]="room.is_active ? 'positive' : 'neutral'">
-              {{ room.is_active ? 'Aktiv' : 'Inaktiv' }}
+            <span tuiBadge [appearance]="room.isActive ? 'positive' : 'neutral'">
+              {{ room.isActive ? 'Aktiv' : 'Inaktiv' }}
             </span>
           </div>
           <dl class="locations-inline-definition-list">
@@ -21,7 +21,7 @@
             </div>
             <div>
               <dt>Zugangshinweise</dt>
-              <dd class="locations-preserved-text">{{ optional(room.access_notes) }}</dd>
+              <dd class="locations-preserved-text">{{ optional(room.accessNotes) }}</dd>
             </div>
           </dl>
           @if (!readOnly && venue.capabilities.manage) {
@@ -35,7 +35,7 @@
                 Bearbeiten
               </button>
               <button tuiButton type="button" appearance="secondary" (click)="toggle.emit(room)">
-                {{ room.is_active ? 'Deaktivieren' : 'Reaktivieren' }}
+                {{ room.isActive ? 'Deaktivieren' : 'Reaktivieren' }}
               </button>
               <button tuiButton type="button" appearance="negative" (click)="delete.emit(room)">
                 Löschen
@@ -76,21 +76,21 @@
               </tui-textfield>
               <tui-textfield class="app-field-quarter">
                 <label tuiLabel>Raumnummer</label>
-                <input tuiInput name="editRoomNumber" [(ngModel)]="roomEditDraft.room_number" />
+                <input tuiInput name="editRoomNumber" [(ngModel)]="roomEditDraft.roomNumber" />
               </tui-textfield>
               <tui-textfield class="app-field-full">
                 <label tuiLabel>Zugangs- oder Auffindungshinweis</label>
                 <input
                   tuiInput
                   name="editRoomAccessNotes"
-                  [(ngModel)]="roomEditDraft.access_notes"
+                  [(ngModel)]="roomEditDraft.accessNotes"
                 />
               </tui-textfield>
               <label class="app-field-full">
                 <input
                   type="checkbox"
                   name="editRoomMeaningfulChange"
-                  [(ngModel)]="roomEditDraft.meaningful_change"
+                  [(ngModel)]="roomEditDraft.meaningfulChange"
                 />
                 Die Änderung ist inhaltlich relevant und soll betroffene Mitglieder benachrichtigen.
               </label>

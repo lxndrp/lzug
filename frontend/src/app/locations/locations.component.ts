@@ -16,102 +16,29 @@ import { TuiButton, TuiInput, TuiTextfield } from '@taiga-ui/core';
 import { TuiBadge } from '@taiga-ui/kit';
 import { TuiForm, TuiHeader } from '@taiga-ui/layout';
 
-import { ExamRoom, ExamVenue, ExamVenueContact, MasterData } from '../api/api.models';
+import type {
+  GeocodeCandidate,
+  LocationSnapshot,
+  Venue,
+  VenueContact,
+  VenueRoom,
+  VenueRoomDraft,
+  VenueCreate,
+  VenueUpdate,
+  VenueRoomCreate,
+  VenueRoomUpdate,
+  VenueContactCreate,
+  VenueContactUpdate,
+} from './locations.models';
 import { VenueContactsComponent } from './venue-contacts.component';
 import { VenueRoomsComponent } from './venue-rooms.component';
 
-export type VenueCreate = {
-  scope: 'global' | 'committee';
-  committee_id: number | null;
-  name: string;
-  street: string;
-  postal_code: string;
-  city: string;
-  country: string;
-  site_name?: string | null;
-  entrance?: string | null;
-  travel_directions?: string | null;
-  accessibility_status: 'confirmed' | 'needs_clarification';
-  is_accessible: boolean | null;
-  accessibility_notes?: string | null;
-  is_active: boolean;
-  latitude?: number | null;
-  longitude?: number | null;
-  coordinate_status?: 'missing' | 'needs_review' | 'confirmed';
-  coordinate_source?: string | null;
-  duplicate_reason?: string;
-  meaningful_change?: boolean;
-};
-export type GeocodeCandidate = {
-  venueId: number;
-  latitude: number;
-  longitude: number;
-  source: string;
-};
-export type VenueUpdate = {
-  id: number;
-  payload: Partial<VenueCreate> & { expected_revision: number };
-};
-export type RoomCreate = {
-  venueId: number;
-  payload: {
-    name: string;
-    building?: string | null;
-    wing?: string | null;
-    floor?: string | null;
-    room_number?: string | null;
-    access_notes?: string | null;
-    capacity: number | null;
-    is_active: boolean;
-  };
-};
-export type RoomDraft = {
-  name: string;
-  building?: string | null;
-  wing?: string | null;
-  floor?: string | null;
-  room_number?: string | null;
-  access_notes?: string | null;
-  capacity: number | null;
-  is_active?: boolean;
-  meaningful_change?: boolean;
-};
-export type RoomUpdate = {
-  id: number;
-  payload: {
-    expected_revision: number;
-    name?: string;
-    building?: string | null;
-    wing?: string | null;
-    floor?: string | null;
-    room_number?: string | null;
-    access_notes?: string | null;
-    capacity?: number | null;
-    is_active?: boolean;
-    meaningful_change?: boolean;
-  };
-};
-export type ContactCreate = {
-  venueId: number;
-  payload: {
-    label: string;
-    email: string | null;
-    phone: string | null;
-    availability_notes: string | null;
-    is_active: boolean;
-  };
-};
-export type ContactUpdate = {
-  id: number;
-  payload: {
-    expected_revision: number;
-    label?: string;
-    email?: string | null;
-    phone?: string | null;
-    availability_notes?: string | null;
-    is_active?: boolean;
-  };
-};
+export type { GeocodeCandidate, VenueCreate, VenueUpdate } from './locations.models';
+export type RoomCreate = VenueRoomCreate;
+export type RoomDraft = VenueRoomDraft;
+export type RoomUpdate = VenueRoomUpdate;
+export type ContactCreate = VenueContactCreate;
+export type ContactUpdate = VenueContactUpdate;
 
 @Component({
   selector: 'app-locations',
@@ -135,7 +62,7 @@ export class LocationsComponent implements OnChanges {
   @ViewChild('venueCreateButton')
   private venueCreateButton?: ElementRef<HTMLButtonElement>;
 
-  @Input() masterData: MasterData | null = null;
+  @Input() snapshot: LocationSnapshot | null = null;
   @Input() actionBusy = false;
   @Input() isOperator = false;
   @Input() readOnly = false;
@@ -149,20 +76,20 @@ export class LocationsComponent implements OnChanges {
   @Output() closeDetail = new EventEmitter<void>();
   @Output() createVenue = new EventEmitter<VenueCreate>();
   @Output() updateVenue = new EventEmitter<VenueUpdate>();
-  @Output() deleteVenue = new EventEmitter<ExamVenue>();
+  @Output() deleteVenue = new EventEmitter<Venue>();
   @Output() createRoom = new EventEmitter<RoomCreate>();
   @Output() updateRoom = new EventEmitter<RoomUpdate>();
-  @Output() deleteRoom = new EventEmitter<ExamRoom>();
+  @Output() deleteRoom = new EventEmitter<VenueRoom>();
   @Output() createContact = new EventEmitter<ContactCreate>();
   @Output() updateContact = new EventEmitter<ContactUpdate>();
-  @Output() deleteContact = new EventEmitter<ExamVenueContact>();
-  @Output() requestPromotion = new EventEmitter<{ venue: ExamVenue; reason: string }>();
+  @Output() deleteContact = new EventEmitter<VenueContact>();
+  @Output() requestPromotion = new EventEmitter<{ venue: Venue; reason: string }>();
   @Output() decidePromotion = new EventEmitter<{
-    venue: ExamVenue;
+    venue: Venue;
     decision: 'approve' | 'reject';
     reason: string;
   }>();
-  @Output() geocodeVenue = new EventEmitter<ExamVenue>();
+  @Output() geocodeVenue = new EventEmitter<Venue>();
   @Output() retryConsequences = new EventEmitter<number>();
 
   protected readonly creating = signal(false);
@@ -188,33 +115,33 @@ export class LocationsComponent implements OnChanges {
     label: '',
     email: '',
     phone: '',
-    availability_notes: '',
-    is_active: true,
+    availabilityNotes: '',
+    isActive: true,
   };
   protected contactEditDraft = {
     label: '',
     email: '',
     phone: '',
-    availability_notes: '',
+    availabilityNotes: '',
   };
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['detailVenueId']) this.mapLoadError.set(false);
   }
 
-  protected venues(): ExamVenue[] {
-    return this.masterData?.examVenues ?? [];
+  protected venues(): Venue[] {
+    return this.snapshot?.venues ?? [];
   }
 
-  protected filteredVenues(): ExamVenue[] {
+  protected filteredVenues(): Venue[] {
     const query = this.searchTerm().trim().toLocaleLowerCase();
     return this.venues().filter((venue) => {
       if (this.scopeFilter() !== 'all' && venue.scope !== this.scopeFilter()) return false;
-      if (this.statusFilter() === 'active' && !venue.is_active) return false;
-      if (this.statusFilter() === 'inactive' && venue.is_active) return false;
+      if (this.statusFilter() === 'active' && !venue.isActive) return false;
+      if (this.statusFilter() === 'inactive' && venue.isActive) return false;
       if (
         this.statusFilter() === 'clarification' &&
-        venue.accessibility_status !== 'needs_clarification'
+        venue.accessibilityStatus !== 'needs_clarification'
       ) {
         return false;
       }
@@ -223,7 +150,7 @@ export class LocationsComponent implements OnChanges {
       const searchable = [
         venue.name,
         venue.street,
-        venue.postal_code,
+        venue.postalCode,
         venue.city,
         venue.country,
         ...venue.rooms.flatMap((room) => [
@@ -231,7 +158,7 @@ export class LocationsComponent implements OnChanges {
           room.building,
           room.wing,
           room.floor,
-          room.room_number,
+          room.roomNumber,
         ]),
       ]
         .filter(Boolean)
@@ -241,48 +168,48 @@ export class LocationsComponent implements OnChanges {
     });
   }
 
-  protected detailVenue(): ExamVenue | null {
+  protected detailVenue(): Venue | null {
     if (this.detailVenueId === null) return null;
     return this.venues().find((venue) => venue.id === this.detailVenueId) ?? null;
   }
 
-  protected activeRooms(venue: ExamVenue): ExamRoom[] {
-    return venue.rooms.filter((room) => Boolean(room.is_active));
+  protected activeRooms(venue: Venue): VenueRoom[] {
+    return venue.rooms.filter((room) => Boolean(room.isActive));
   }
 
-  protected activeRoomNames(venue: ExamVenue): string {
+  protected activeRoomNames(venue: Venue): string {
     return this.activeRooms(venue)
       .map((room) => room.name)
       .join(', ');
   }
 
-  protected committeeName(venue: ExamVenue): string {
+  protected committeeName(venue: Venue): string {
     if (venue.scope === 'global') return 'Alle Ausschüsse';
     return (
-      this.masterData?.committees.find((committee) => committee.id === venue.committee_id)?.name ??
+      this.snapshot?.committees.find((committee) => committee.id === venue.committeeId)?.name ??
       'Zuständiger Ausschuss'
     );
   }
 
-  protected scopeLabel(venue: ExamVenue): string {
+  protected scopeLabel(venue: Venue): string {
     return venue.scope === 'global' ? 'Globaler Ort' : `Ausschuss: ${this.committeeName(venue)}`;
   }
 
-  protected statusLabel(venue: ExamVenue): string {
-    if (venue.accessibility_status === 'needs_clarification') return 'Klärung erforderlich';
-    return venue.is_active ? 'Aktiv' : 'Inaktiv';
+  protected statusLabel(venue: Venue): string {
+    if (venue.accessibilityStatus === 'needs_clarification') return 'Klärung erforderlich';
+    return venue.isActive ? 'Aktiv' : 'Inaktiv';
   }
 
-  protected accessibilityLabel(venue: ExamVenue): string {
-    if (venue.accessibility_status !== 'confirmed' || venue.is_accessible === null) {
+  protected accessibilityLabel(venue: Venue): string {
+    if (venue.accessibilityStatus !== 'confirmed' || venue.isAccessible === null) {
       return 'Noch nicht bestätigt';
     }
-    return venue.is_accessible ? 'Ja' : 'Nein';
+    return venue.isAccessible ? 'Ja' : 'Nein';
   }
 
-  protected roomLocation(room: ExamRoom): string {
+  protected roomLocation(room: VenueRoom): string {
     return (
-      [room.building, room.wing, room.floor, room.room_number].filter(Boolean).join(' · ') ||
+      [room.building, room.wing, room.floor, room.roomNumber].filter(Boolean).join(' · ') ||
       'Nicht hinterlegt'
     );
   }
@@ -291,15 +218,15 @@ export class LocationsComponent implements OnChanges {
     return value?.trim() || 'Nicht hinterlegt';
   }
 
-  protected address(venue: ExamVenue): string {
-    return [venue.street, [venue.postal_code, venue.city].filter(Boolean).join(' '), venue.country]
+  protected address(venue: Venue): string {
+    return [venue.street, [venue.postalCode, venue.city].filter(Boolean).join(' '), venue.country]
       .filter(Boolean)
       .join(', ');
   }
 
-  protected coordinateLabel(venue: ExamVenue): string {
+  protected coordinateLabel(venue: Venue): string {
     if (
-      venue.coordinate_status === 'confirmed' &&
+      venue.coordinateStatus === 'confirmed' &&
       venue.latitude !== null &&
       venue.latitude !== undefined &&
       venue.longitude !== null &&
@@ -307,41 +234,41 @@ export class LocationsComponent implements OnChanges {
     ) {
       return `${venue.latitude.toFixed(6)}, ${venue.longitude.toFixed(6)} (WGS84, bestätigt)`;
     }
-    if (venue.coordinate_status === 'needs_review') return 'Erneut zu prüfen';
+    if (venue.coordinateStatus === 'needs_review') return 'Erneut zu prüfen';
     return 'Nicht hinterlegt';
   }
 
-  protected isSyntheticDemoVenue(venue: ExamVenue): boolean {
+  protected isSyntheticDemoVenue(venue: Venue): boolean {
     return (
-      venue.name.endsWith('(Demo)') && Boolean(venue.site_name?.startsWith('Reale geografische'))
+      venue.name.endsWith('(Demo)') && Boolean(venue.siteName?.startsWith('Reale geografische'))
     );
   }
 
-  protected coordinateSourceLabel(venue: ExamVenue): string {
-    return venue.coordinate_source?.split(';')[0]?.trim() || 'Nicht hinterlegt';
+  protected coordinateSourceLabel(venue: Venue): string {
+    return venue.coordinateSource?.split(';')[0]?.trim() || 'Nicht hinterlegt';
   }
 
-  protected coordinateSourceUrl(venue: ExamVenue): string | null {
-    return venue.coordinate_source?.match(/https:\/\/[^;\s]+/)?.[0] ?? null;
+  protected coordinateSourceUrl(venue: Venue): string | null {
+    return venue.coordinateSource?.match(/https:\/\/[^;\s]+/)?.[0] ?? null;
   }
 
-  protected coordinateSourceDate(venue: ExamVenue): string | null {
-    return venue.coordinate_source?.match(/Abrufdatum:\s*(\d{4}-\d{2}-\d{2})/)?.[1] ?? null;
+  protected coordinateSourceDate(venue: Venue): string | null {
+    return venue.coordinateSource?.match(/Abrufdatum:\s*(\d{4}-\d{2}-\d{2})/)?.[1] ?? null;
   }
 
-  protected mapIsActive(venue: ExamVenue): boolean {
+  protected mapIsActive(venue: Venue): boolean {
     return this.mapProvider(venue).mode !== 'off';
   }
 
-  protected mapProvider(venue: ExamVenue): NonNullable<ExamVenue['map_provider']> {
-    return venue.map_provider ?? { mode: 'off' };
+  protected mapProvider(venue: Venue): Venue['mapProvider'] {
+    return venue.mapProvider;
   }
 
-  protected canShowMap(venue: ExamVenue): boolean {
-    return this.mapIsActive(venue) && venue.coordinate_status === 'confirmed';
+  protected canShowMap(venue: Venue): boolean {
+    return this.mapIsActive(venue) && venue.coordinateStatus === 'confirmed';
   }
 
-  protected mapEmbedUrl(venue: ExamVenue): SafeResourceUrl {
+  protected mapEmbedUrl(venue: Venue): SafeResourceUrl {
     const latitude = (venue.latitude ?? 0).toFixed(6);
     const longitude = (venue.longitude ?? 0).toFixed(6);
     const latitudeValue = Number(latitude);
@@ -359,7 +286,7 @@ export class LocationsComponent implements OnChanges {
     return this.sanitizer.bypassSecurityTrustResourceUrl(source);
   }
 
-  protected routeUrl(venue: ExamVenue): string {
+  protected routeUrl(venue: Venue): string {
     const latitude = (venue.latitude ?? 0).toFixed(6);
     const longitude = (venue.longitude ?? 0).toFixed(6);
     return this.mapProvider(venue).mode === 'osm'
@@ -371,22 +298,22 @@ export class LocationsComponent implements OnChanges {
     return document.querySelector('app-root')?.getAttribute('data-google-maps-embed-key') ?? '';
   }
 
-  protected candidateFor(venue: ExamVenue): GeocodeCandidate | null {
-    if (venue.coordinate_status === 'confirmed' || this.geocodeCandidate?.venueId !== venue.id) {
+  protected candidateFor(venue: Venue): GeocodeCandidate | null {
+    if (venue.coordinateStatus === 'confirmed' || this.geocodeCandidate?.venueId !== venue.id) {
       return null;
     }
     return this.geocodeCandidate;
   }
 
-  protected confirmGeocode(venue: ExamVenue, candidate: GeocodeCandidate): void {
+  protected confirmGeocode(venue: Venue, candidate: GeocodeCandidate): void {
     this.updateVenue.emit({
       id: venue.id,
       payload: {
-        expected_revision: venue.revision,
+        expectedRevision: venue.revision,
         latitude: candidate.latitude,
         longitude: candidate.longitude,
-        coordinate_status: 'confirmed',
-        coordinate_source: candidate.source,
+        coordinateStatus: 'confirmed',
+        coordinateSource: candidate.source,
       },
     });
   }
@@ -398,23 +325,23 @@ export class LocationsComponent implements OnChanges {
     this.accessibilityFilter.set('all');
   }
 
-  private matchesAccessibilityFilter(venue: ExamVenue): boolean {
+  private matchesAccessibilityFilter(venue: Venue): boolean {
     const filter = this.accessibilityFilter();
     if (filter === 'all') return true;
     if (filter === 'yes')
-      return venue.accessibility_status === 'confirmed' && venue.is_accessible === 1;
+      return venue.accessibilityStatus === 'confirmed' && venue.isAccessible === true;
     if (filter === 'no')
-      return venue.accessibility_status === 'confirmed' && venue.is_accessible === 0;
-    return venue.accessibility_status !== 'confirmed' || venue.is_accessible === null;
+      return venue.accessibilityStatus === 'confirmed' && venue.isAccessible === false;
+    return venue.accessibilityStatus !== 'confirmed' || venue.isAccessible === null;
   }
 
   protected submitVenue(): void {
     const payload = this.normalizedVenue({
       ...this.draft,
       scope: this.isOperator ? 'global' : 'committee',
-      committee_id: this.isOperator ? null : this.draft.committee_id,
+      committeeId: this.isOperator ? null : this.draft.committeeId,
     });
-    if (!payload.name || (payload.scope === 'committee' && !payload.committee_id)) return;
+    if (!payload.name || (payload.scope === 'committee' && !payload.committeeId)) return;
     this.createVenue.emit(payload);
   }
 
@@ -426,148 +353,148 @@ export class LocationsComponent implements OnChanges {
     this.creating.set(true);
   }
 
-  protected startEditing(venue: ExamVenue): void {
+  protected startEditing(venue: Venue): void {
     this.editingVenueId.set(venue.id);
     this.editDraft = {
       scope: venue.scope,
-      committee_id: venue.committee_id,
+      committeeId: venue.committeeId,
       name: venue.name,
       street: venue.street,
-      postal_code: venue.postal_code,
+      postalCode: venue.postalCode,
       city: venue.city,
       country: venue.country,
-      site_name: venue.site_name,
+      siteName: venue.siteName,
       entrance: venue.entrance,
-      travel_directions: venue.travel_directions,
-      accessibility_status: venue.accessibility_status,
-      is_accessible: venue.is_accessible === null ? null : Boolean(venue.is_accessible),
-      accessibility_notes: venue.accessibility_notes,
-      is_active: Boolean(venue.is_active),
+      travelDirections: venue.travelDirections,
+      accessibilityStatus: venue.accessibilityStatus,
+      isAccessible: venue.isAccessible === null ? null : Boolean(venue.isAccessible),
+      accessibilityNotes: venue.accessibilityNotes,
+      isActive: Boolean(venue.isActive),
       latitude: venue.latitude,
       longitude: venue.longitude,
-      coordinate_status: venue.coordinate_status,
-      coordinate_source: venue.coordinate_source,
-      meaningful_change: true,
+      coordinateStatus: venue.coordinateStatus,
+      coordinateSource: venue.coordinateSource,
+      meaningfulChange: true,
     };
   }
 
-  protected submitVenueUpdate(venue: ExamVenue): void {
+  protected submitVenueUpdate(venue: Venue): void {
     if (!this.editDraft) return;
     const payload = this.normalizedVenue(this.editDraft);
     if (
       payload.latitude === venue.latitude &&
       payload.longitude === venue.longitude &&
-      payload.coordinate_status === venue.coordinate_status &&
-      payload.coordinate_source === venue.coordinate_source
+      payload.coordinateStatus === venue.coordinateStatus &&
+      payload.coordinateSource === venue.coordinateSource
     ) {
       delete payload.latitude;
       delete payload.longitude;
-      delete payload.coordinate_status;
-      delete payload.coordinate_source;
+      delete payload.coordinateStatus;
+      delete payload.coordinateSource;
     }
     this.updateVenue.emit({
       id: venue.id,
-      payload: { ...payload, expected_revision: venue.revision },
+      payload: { ...payload, expectedRevision: venue.revision },
     });
   }
 
-  protected toggleVenue(venue: ExamVenue): void {
+  protected toggleVenue(venue: Venue): void {
     this.updateVenue.emit({
       id: venue.id,
-      payload: { expected_revision: venue.revision, is_active: !venue.is_active },
+      payload: { expectedRevision: venue.revision, isActive: !venue.isActive },
     });
   }
 
-  protected submitRoom(venue: ExamVenue): void {
+  protected submitRoom(venue: Venue): void {
     const payload = this.normalizedRoom(this.roomDraft);
     const name = payload.name;
     if (!name) return;
-    this.createRoom.emit({ venueId: venue.id, payload: { ...payload, is_active: true } });
+    this.createRoom.emit({ venueId: venue.id, payload: { ...payload, isActive: true } });
   }
 
-  protected toggleRoom(room: ExamRoom): void {
+  protected toggleRoom(room: VenueRoom): void {
     this.updateRoom.emit({
       id: room.id,
-      payload: { expected_revision: room.revision, is_active: !room.is_active },
+      payload: { expectedRevision: room.revision, isActive: !room.isActive },
     });
   }
 
-  protected startEditingRoom(room: ExamRoom): void {
+  protected startEditingRoom(room: VenueRoom): void {
     this.editingRoomId.set(room.id);
     this.roomEditDraft = {
       name: room.name,
       building: room.building,
       wing: room.wing,
       floor: room.floor,
-      room_number: room.room_number,
-      access_notes: room.access_notes,
+      roomNumber: room.roomNumber,
+      accessNotes: room.accessNotes,
       capacity: room.capacity,
-      is_active: Boolean(room.is_active),
-      meaningful_change: true,
+      isActive: Boolean(room.isActive),
+      meaningfulChange: true,
     };
   }
 
-  protected submitRoomUpdate(room: ExamRoom): void {
+  protected submitRoomUpdate(room: VenueRoom): void {
     const payload = this.normalizedRoom(this.roomEditDraft);
     const name = payload.name;
     if (!name) return;
     this.updateRoom.emit({
       id: room.id,
       payload: {
-        expected_revision: room.revision,
+        expectedRevision: room.revision,
         ...payload,
       },
     });
   }
 
-  protected submitContact(venue: ExamVenue): void {
+  protected submitContact(venue: Venue): void {
     const payload = {
       ...this.contactDraft,
       label: this.contactDraft.label.trim(),
       email: this.contactDraft.email.trim() || null,
       phone: this.contactDraft.phone.trim() || null,
-      availability_notes: this.contactDraft.availability_notes.trim() || null,
+      availabilityNotes: this.contactDraft.availabilityNotes.trim() || null,
     };
-    if (!payload.label || (!payload.email && !payload.phone && !payload.availability_notes)) return;
+    if (!payload.label || (!payload.email && !payload.phone && !payload.availabilityNotes)) return;
     this.createContact.emit({ venueId: venue.id, payload });
   }
 
-  protected toggleContact(contact: ExamVenueContact): void {
+  protected toggleContact(contact: VenueContact): void {
     this.updateContact.emit({
       id: contact.id,
-      payload: { expected_revision: contact.revision, is_active: !contact.is_active },
+      payload: { expectedRevision: contact.revision, isActive: !contact.isActive },
     });
   }
 
-  protected startEditingContact(contact: ExamVenueContact): void {
+  protected startEditingContact(contact: VenueContact): void {
     this.editingContactId.set(contact.id);
     this.contactEditDraft = {
       label: contact.label,
       email: contact.email ?? '',
       phone: contact.phone ?? '',
-      availability_notes: contact.availability_notes ?? '',
+      availabilityNotes: contact.availabilityNotes ?? '',
     };
   }
 
-  protected submitContactUpdate(contact: ExamVenueContact): void {
+  protected submitContactUpdate(contact: VenueContact): void {
     const payload = {
-      expected_revision: contact.revision,
+      expectedRevision: contact.revision,
       label: this.contactEditDraft.label.trim(),
       email: this.contactEditDraft.email.trim() || null,
       phone: this.contactEditDraft.phone.trim() || null,
-      availability_notes: this.contactEditDraft.availability_notes.trim() || null,
+      availabilityNotes: this.contactEditDraft.availabilityNotes.trim() || null,
     };
-    if (!payload.label || (!payload.email && !payload.phone && !payload.availability_notes)) return;
+    if (!payload.label || (!payload.email && !payload.phone && !payload.availabilityNotes)) return;
     this.updateContact.emit({ id: contact.id, payload });
   }
 
-  protected submitPromotion(venue: ExamVenue): void {
+  protected submitPromotion(venue: Venue): void {
     const reason = this.promotionReason.trim();
     if (!reason) return;
     this.requestPromotion.emit({ venue, reason });
   }
 
-  protected submitPromotionDecision(venue: ExamVenue, decision: 'approve' | 'reject'): void {
+  protected submitPromotionDecision(venue: Venue, decision: 'approve' | 'reject'): void {
     const reason = this.decisionReason.trim();
     if (!reason) return;
     this.decidePromotion.emit({ venue, decision, reason });
@@ -596,10 +523,10 @@ export class LocationsComponent implements OnChanges {
       label: '',
       email: '',
       phone: '',
-      availability_notes: '',
-      is_active: true,
+      availabilityNotes: '',
+      isActive: true,
     };
-    this.contactEditDraft = { label: '', email: '', phone: '', availability_notes: '' };
+    this.contactEditDraft = { label: '', email: '', phone: '', availabilityNotes: '' };
     this.promotionReason = '';
     this.decisionReason = '';
   }
@@ -607,37 +534,37 @@ export class LocationsComponent implements OnChanges {
   private normalizedVenue(source: VenueCreate): VenueCreate {
     return {
       ...source,
-      committee_id: source.scope === 'global' ? null : source.committee_id,
+      committeeId: source.scope === 'global' ? null : source.committeeId,
       name: source.name.trim(),
       street: source.street.trim(),
-      postal_code: source.postal_code.trim(),
+      postalCode: source.postalCode.trim(),
       city: source.city.trim(),
       country: source.country.trim(),
-      site_name: source.site_name?.trim() || null,
+      siteName: source.siteName?.trim() || null,
       entrance: source.entrance?.trim() || null,
-      travel_directions: source.travel_directions?.trim() || null,
-      accessibility_notes: source.accessibility_notes?.trim() || null,
+      travelDirections: source.travelDirections?.trim() || null,
+      accessibilityNotes: source.accessibilityNotes?.trim() || null,
     };
   }
 
   private emptyVenue(): VenueCreate {
     return {
       scope: this.isOperator ? 'global' : 'committee',
-      committee_id: null,
+      committeeId: null,
       name: '',
       street: '',
-      postal_code: '',
+      postalCode: '',
       city: '',
       country: 'Deutschland',
-      accessibility_status: 'needs_clarification',
-      is_accessible: null,
-      is_active: false,
-      duplicate_reason: '',
-      site_name: null,
+      accessibilityStatus: 'needs_clarification',
+      isAccessible: null,
+      isActive: false,
+      duplicateReason: '',
+      siteName: null,
       entrance: null,
-      travel_directions: null,
-      accessibility_notes: null,
-      meaningful_change: true,
+      travelDirections: null,
+      accessibilityNotes: null,
+      meaningfulChange: true,
     };
   }
 
@@ -648,8 +575,8 @@ export class LocationsComponent implements OnChanges {
       building: source.building?.trim() || null,
       wing: source.wing?.trim() || null,
       floor: source.floor?.trim() || null,
-      room_number: source.room_number?.trim() || null,
-      access_notes: source.access_notes?.trim() || null,
+      roomNumber: source.roomNumber?.trim() || null,
+      accessNotes: source.accessNotes?.trim() || null,
     };
   }
 
@@ -659,11 +586,11 @@ export class LocationsComponent implements OnChanges {
       building: null as string | null,
       wing: null as string | null,
       floor: null as string | null,
-      room_number: null as string | null,
-      access_notes: null as string | null,
+      roomNumber: null as string | null,
+      accessNotes: null as string | null,
       capacity: null as number | null,
-      is_active: isActive,
-      meaningful_change: true,
+      isActive: isActive,
+      meaningfulChange: true,
     };
   }
 }

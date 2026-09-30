@@ -1,25 +1,28 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { Observable, finalize, forkJoin } from 'rxjs';
 
-import type { ExamRoom, ExamVenue, ExamVenueContact } from '../api/api.models';
-import { VenueApiService } from '../api/venue-api.service';
+import { LOCATIONS_PORT } from './locations.port';
 import type {
-  ContactCreate,
-  ContactUpdate,
   GeocodeCandidate,
-  LocationsComponent,
-  RoomCreate,
-  RoomUpdate,
+  Venue,
+  VenueChangeImpact,
+  VenueContact,
+  VenueContactCreate,
+  VenueContactUpdate,
   VenueCreate,
+  VenueRoom,
+  VenueRoomCreate,
+  VenueRoomUpdate,
   VenueUpdate,
-} from './locations.component';
+} from './locations.models';
+import type { LocationsComponent } from './locations.component';
 import { ApplicationWorkspaceService } from '../shell/application-workspace.service';
 import { UiFeedbackService } from '../shell/ui-feedback.service';
 
-/** Venue aggregate commands, impact checks, and consequence feedback. */
+/** UI-facing venue workflows, including confirmations and post-save feedback. */
 @Injectable({ providedIn: 'root' })
 export class VenueWorkflowService {
-  private readonly api = inject(VenueApiService);
+  private readonly port = inject(LOCATIONS_PORT);
   private readonly feedback = inject(UiFeedbackService);
   private readonly workspace = inject(ApplicationWorkspaceService);
   private locationsComponent?: LocationsComponent;
@@ -30,7 +33,7 @@ export class VenueWorkflowService {
     this.locationsComponent = component;
   }
 
-  requestVenueDeletion(venue: ExamVenue): void {
+  requestVenueDeletion(venue: Venue): void {
     this.feedback.confirm(
       `${venue.name} löschen?`,
       'Nur ein vollständig ungenutzter Ort ohne Räume und Kontakte kann gelöscht werden.',
@@ -41,16 +44,16 @@ export class VenueWorkflowService {
 
   createVenue(payload: VenueCreate): void {
     this.workspace.actionBusy.set(true);
-    this.api
-      .checkExamVenueDuplicates(payload as unknown as Record<string, unknown>)
+    this.port
+      .checkDuplicates(payload)
       .pipe(finalize(() => this.workspace.actionBusy.set(false)))
       .subscribe({
-        next: ({ items }) => {
-          const save = () => this.persistVenue(payload, items.length > 0);
-          if (!items.length) return save();
+        next: (duplicates) => {
+          const save = () => this.persistVenue(payload, duplicates.length > 0);
+          if (!duplicates.length) return save();
           this.feedback.confirm(
             'Ähnliche Prüfungsorte gefunden',
-            items.map((item) => `${item.name} · ${item.address}`).join('\n'),
+            duplicates.map((item) => `${item.name} · ${item.address}`).join('\n'),
             'Trotzdem anlegen',
             save,
           );
@@ -66,8 +69,8 @@ export class VenueWorkflowService {
 
   private persistVenue(payload: VenueCreate, duplicatesReviewed: boolean): void {
     this.workspace.actionBusy.set(true);
-    this.api
-      .createExamVenue({ ...payload, duplicates_reviewed: duplicatesReviewed })
+    this.port
+      .createVenue({ ...payload, duplicatesReviewed })
       .pipe(finalize(() => this.workspace.actionBusy.set(false)))
       .subscribe({
         next: (venue) => {
@@ -87,24 +90,22 @@ export class VenueWorkflowService {
   updateVenue(update: VenueUpdate): void {
     this.workspace.actionBusy.set(true);
     forkJoin({
-      impact: this.api.getExamVenueChangeImpact(update.id, update.payload),
-      duplicates: this.api.checkExamVenueDuplicates(update.payload, update.id),
+      impact: this.port.getVenueChangeImpact(update.id, update.payload),
+      duplicates: this.port.checkDuplicates(update.payload, update.id),
     })
       .pipe(finalize(() => this.workspace.actionBusy.set(false)))
       .subscribe({
         next: ({ impact, duplicates }) => {
-          const requiresConfirmation = impact.requires_confirmation ?? impact.count > 0;
-          const needsConfirmation = requiresConfirmation || duplicates.items.length > 0;
+          const requiresConfirmation = impact.requiresConfirmation ?? impact.count > 0;
+          const needsConfirmation = requiresConfirmation || duplicates.length > 0;
           const save = () =>
-            this.persistVenueUpdate(update, requiresConfirmation, duplicates.items.length > 0);
+            this.persistVenueUpdate(update, requiresConfirmation, duplicates.length > 0);
           if (!needsConfirmation) return save();
           this.feedback.confirm(
-            duplicates.items.length
-              ? 'Ähnliche Prüfungsorte gefunden'
-              : 'Bestätigte Termine betroffen',
+            duplicates.length ? 'Ähnliche Prüfungsorte gefunden' : 'Bestätigte Termine betroffen',
             [
               this.venueImpactMessage(impact),
-              ...duplicates.items.map((item) => `${item.name} · ${item.address}`),
+              ...duplicates.map((item) => `${item.name} · ${item.address}`),
             ]
               .filter(Boolean)
               .join('\n'),
@@ -121,10 +122,10 @@ export class VenueWorkflowService {
       });
   }
 
-  geocodeVenue(venue: ExamVenue): void {
+  geocodeVenue(venue: Venue): void {
     this.workspace.actionBusy.set(true);
-    this.api
-      .geocodeExamVenue(venue.id, venue.revision)
+    this.port
+      .geocodeVenue(venue.id, venue.revision)
       .pipe(finalize(() => this.workspace.actionBusy.set(false)))
       .subscribe({
         next: (candidate) => {
@@ -150,28 +151,24 @@ export class VenueWorkflowService {
     duplicatesReviewed: boolean,
   ): void {
     this.workspace.actionBusy.set(true);
-    this.api
-      .updateExamVenue(update.id, {
-        ...update.payload,
-        confirm_future_assignments: confirmed,
-        duplicates_reviewed: duplicatesReviewed,
-      })
+    this.port
+      .updateVenue({ ...update, confirmFutureAssignments: confirmed, duplicatesReviewed })
       .pipe(finalize(() => this.workspace.actionBusy.set(false)))
       .subscribe({
         next: (venue) => {
           this.locationsComponent?.finishEditing(venue.id);
           if (
-            update.payload.coordinate_status === 'confirmed' &&
+            update.payload.coordinateStatus === 'confirmed' &&
             this.geocodeCandidate()?.venueId === venue.id
           ) {
             this.geocodeCandidate.set(null);
           }
           this.feedback.notify(
-            venue.consequence_warning ? 'error' : 'success',
-            venue.consequence_warning
+            venue.consequenceWarning ? 'error' : 'success',
+            venue.consequenceWarning
               ? 'Prüfungsort gespeichert, Folgen unvollständig'
               : 'Prüfungsort gespeichert',
-            venue.consequence_warning ?? venue.name,
+            venue.consequenceWarning ?? venue.name,
           );
           this.workspace.refresh();
         },
@@ -180,36 +177,29 @@ export class VenueWorkflowService {
       });
   }
 
-  deleteVenue(venue: ExamVenue): void {
+  deleteVenue(venue: Venue): void {
     this.runVenueAction(
-      this.api.deleteExamVenue(venue.id, venue.revision),
+      this.port.deleteVenue(venue.id, venue.revision),
       'Prüfungsort gelöscht',
       venue.name,
     );
   }
 
-  createRoom(command: RoomCreate): void {
-    this.runVenueAction(
-      this.api.createExamRoom(command.venueId, command.payload),
-      'Raum angelegt',
-      String(command.payload.name ?? ''),
-    );
+  createRoom(command: VenueRoomCreate): void {
+    this.runVenueAction(this.port.createRoom(command), 'Raum angelegt', command.payload.name);
   }
 
-  updateRoom(command: RoomUpdate): void {
+  updateRoom(command: VenueRoomUpdate): void {
     this.workspace.actionBusy.set(true);
-    this.api
-      .getExamRoomChangeImpact(command.id, command.payload)
+    this.port
+      .getRoomChangeImpact(command.id, command.payload)
       .pipe(finalize(() => this.workspace.actionBusy.set(false)))
       .subscribe({
         next: (impact) => {
-          const requiresConfirmation = impact.requires_confirmation ?? impact.count > 0;
+          const requiresConfirmation = impact.requiresConfirmation ?? impact.count > 0;
           const save = () =>
             this.runVenueAction(
-              this.api.updateExamRoom(command.id, {
-                ...command.payload,
-                confirm_future_assignments: requiresConfirmation,
-              }),
+              this.port.updateRoom({ ...command, confirmFutureAssignments: requiresConfirmation }),
               'Raum gespeichert',
               '',
             );
@@ -230,61 +220,49 @@ export class VenueWorkflowService {
       });
   }
 
-  deleteRoom(room: ExamRoom): void {
-    this.runVenueAction(
-      this.api.deleteExamRoom(room.id, room.revision),
-      'Raum gelöscht',
-      room.name,
-    );
+  deleteRoom(room: VenueRoom): void {
+    this.runVenueAction(this.port.deleteRoom(room.id, room.revision), 'Raum gelöscht', room.name);
   }
 
   retryVenueConsequences(auditId: number): void {
     this.runVenueAction(
-      this.api.retryExamVenueConsequences(auditId),
+      this.port.retryConsequences(auditId),
       'Folgen erneut verarbeitet',
       'Der aktuelle Status wurde geprüft.',
     );
   }
 
-  createContact(command: ContactCreate): void {
+  createContact(command: VenueContactCreate): void {
     this.runVenueAction(
-      this.api.createExamVenueContact(command.venueId, command.payload),
+      this.port.createContact(command),
       'Kontakt angelegt',
-      String(command.payload.label ?? ''),
+      command.payload.label,
     );
   }
 
-  updateContact(command: ContactUpdate): void {
-    this.runVenueAction(
-      this.api.updateExamVenueContact(command.id, command.payload),
-      'Kontakt gespeichert',
-      '',
-    );
+  updateContact(command: VenueContactUpdate): void {
+    this.runVenueAction(this.port.updateContact(command), 'Kontakt gespeichert', '');
   }
 
-  deleteContact(contact: ExamVenueContact): void {
+  deleteContact(contact: VenueContact): void {
     this.runVenueAction(
-      this.api.deleteExamVenueContact(contact.id, contact.revision),
+      this.port.deleteContact(contact.id, contact.revision),
       'Kontakt gelöscht',
       contact.label,
     );
   }
 
-  requestPromotion(command: { venue: ExamVenue; reason: string }): void {
+  requestPromotion(command: { venue: Venue; reason: string }): void {
     this.runVenueAction(
-      this.api.requestExamVenuePromotion(command.venue.id, command.venue.revision, command.reason),
+      this.port.requestPromotion(command.venue.id, command.venue.revision, command.reason),
       'Hochstufung beantragt',
       command.venue.name,
     );
   }
 
-  decidePromotion(command: {
-    venue: ExamVenue;
-    decision: 'approve' | 'reject';
-    reason: string;
-  }): void {
+  decidePromotion(command: { venue: Venue; decision: 'approve' | 'reject'; reason: string }): void {
     this.runVenueAction(
-      this.api.decideExamVenuePromotion(
+      this.port.decidePromotion(
         command.venue.id,
         command.venue.revision,
         command.decision,
@@ -301,8 +279,12 @@ export class VenueWorkflowService {
       next: (result) => {
         this.locationsComponent?.finishEditing(-1);
         const warning =
-          typeof result === 'object' && result !== null && 'consequence_warning' in result
-            ? String(result.consequence_warning)
+          typeof result === 'object' &&
+          result !== null &&
+          'consequenceWarning' in result &&
+          typeof result.consequenceWarning === 'string' &&
+          result.consequenceWarning.trim()
+            ? result.consequenceWarning
             : null;
         this.feedback.notify(
           warning ? 'error' : 'success',
@@ -320,23 +302,16 @@ export class VenueWorkflowService {
     });
   }
 
-  private venueImpactMessage(impact: {
-    count: number;
-    date_from: string | null;
-    date_to: string | null;
-    calendar?: { event_count: number; fields: string[] };
-    notifications?: { recipient_count: number; fields: string[] };
-  }): string {
+  private venueImpactMessage(impact: VenueChangeImpact): string {
     if (!impact.count) return '';
-    const lines = [
-      `${impact.count} bestätigte Einplanungen vom ${impact.date_from} bis ${impact.date_to}.`,
-      impact.calendar?.event_count
-        ? `${impact.calendar.event_count} Kalenderereignisse werden aktualisiert (${impact.calendar.fields.join(', ')}).`
+    return [
+      `${impact.count} bestätigte Einplanungen vom ${impact.dateFrom} bis ${impact.dateTo}.`,
+      impact.calendar.eventCount
+        ? `${impact.calendar.eventCount} Kalenderereignisse werden aktualisiert (${impact.calendar.fields.join(', ')}).`
         : 'Keine Kalenderaktualisierung erwartet.',
-      impact.notifications?.recipient_count
-        ? `${impact.notifications.recipient_count} Mitglieder werden benachrichtigt (${impact.notifications.fields.join(', ')}).`
+      impact.notifications.recipientCount
+        ? `${impact.notifications.recipientCount} Mitglieder werden benachrichtigt (${impact.notifications.fields.join(', ')}).`
         : 'Keine Benachrichtigung erwartet.',
-    ];
-    return lines.join('\n');
+    ].join('\n');
   }
 }
