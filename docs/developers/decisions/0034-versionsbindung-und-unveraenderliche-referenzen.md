@@ -84,4 +84,4 @@ Sie bleiben nach ihrem jeweiligen Inhalts- oder Integritätsvertrag bestehen und
 - [ADR-0014: OCI-Einzelcontainer mit SQLite und persistentem `/data`](0014-oci-einzelcontainer-und-persistentes-data.md)
 - [ADR-0020: Minimaler Releaseablauf mit GitHub-Bordmitteln](0020-minimaler-releaseablauf-mit-github-bordmitteln.md)
 - [ADR-0022: Tag-gebundene Demo-Assembly und inhaltsadressierter Seed](0022-tag-gebundene-demo-assembly-und-seed.md)
-- [ADR-0028: SBOM-Orchestrierung und CycloneDX-Standardwerkzeuge abgrenzen](0028-sbom-orchestrierung-und-cyclonedx-standardwerkzeuge.md)
+- [ADR-0038: SBOM-Erzeugung als direkte Syft-Standardaufrufe](0038-syft-standardaufrufe-fuer-sbom-erzeugung.md)

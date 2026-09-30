@@ -6,8 +6,11 @@
 
 ## Status
 
-Akzeptiert.
-Superseded by: ADR-0032.
+Historische Präzisierung.
+Ihre laufende Regelung wurde durch ADR-0032 ersetzt und später in Quelle und
+Zielgruppe durch ADR-0035 weiterentwickelt.
+Die in ADR-0012 geforderte synchronisierte Sidebar gilt nicht fort.
+Für den geltenden Stand siehe ADR-0035.
 
 ## Kontext
 

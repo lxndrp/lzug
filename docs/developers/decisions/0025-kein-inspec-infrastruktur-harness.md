@@ -6,7 +6,13 @@
 
 ## Status
 
-Akzeptiert; abgelöst durch [ADR-0037: PowerShell/Pester-Testharness](0037-powershell-pester-testharness.md).
+Teilweise fortgeltend.
+Die Entscheidung gegen einen zusätzlichen InSpec-Harness gilt weiter.
+Die frühere Shell-/Python-Orchestrierung für Produkt-, Compose- und
+Kompatibilitätsverträge ist durch
+[ADR-0037: PowerShell/Pester-Testharness](0037-powershell-pester-testharness.md)
+abgelöst.
+Demo-Smokes und OpenTofu-Prüfungen bleiben bei ihren Komponenten.
 
 ## Kontext
 

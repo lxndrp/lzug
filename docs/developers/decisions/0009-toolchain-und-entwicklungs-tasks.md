@@ -7,6 +7,8 @@
 ## Status
 
 Akzeptiert.
+Die öffentliche Taskgrenze gilt fort; die konkreten Zuständigkeiten aus
+früheren Abschnitten werden durch ADR-0039 präzisiert.
 
 ## Kontext
 
@@ -16,54 +18,36 @@ Die vorhandenen Abläufe für Einrichtung, Tests, Dokumentation, Qualitätssiche
 
 ## Entscheidung
 
-`mise` verwaltet ausschließlich die Toolchains Python, Node.js, Go, uv, Task und Syft.
-Task und Syft werden über Aqua-Backend-Einträge bereitgestellt.
-Syft ersetzt die projektspezifische Lizenzinventur durch standardisierte CycloneDX-Artefakte; diese konkrete Wiederverwendung in lokaler Prüfung, CI und Release belegt den zusätzlichen Toolnutzen.
-`Taskfile.yml` ist die einzige öffentliche Schnittstelle für lokale Entwicklungsabläufe; `task setup`, `task test`, `task docs`, `task sbom`, `task quality` und `task dev` sowie ihre dokumentierten Teilaufgaben ersetzen die bisherigen `mise run`-Befehle.
+Diese Entscheidung trennt die Werkzeugbereitstellung von den öffentlichen
+Entwicklungsabläufen: `mise` stellt gepinnte Werkzeuge bereit, `Task` ist die
+einzige öffentliche Schnittstelle für lokale Entwicklungsabläufe.
+Die aktuelle Zuordnung nativer Konfiguration, Standardaufrufe und verbleibender
+Logik folgt [ADR-0039](0039-deklarative-toolchain-zustaendigkeiten.md).
+Die konkrete Bereitstellung und verfügbaren Tasks stehen in
+[Entwicklung](../development.md); dieser ADR legt keine heutige Werkzeugliste,
+SBOM-Auswahl oder Quality-Aufgabenfolge fest.
 
-GitHub Actions ist keine lokale Entwickler-Schnittstelle: Die Pipeline modelliert bewusst getrennte Jobs, wählt ihre Jobs konservativ nach Änderungsumfang, nutzt jobspezifische Caches und veröffentlicht Coverage- sowie getrennte Playwright-Artefakte.
-Der immer laufende Gesamtstatus und die Pfadklassifikation sind unter
-[Pull-Request-Gates](../delivery.md#pull-request-gates) dokumentiert.
-Die darin ausgeführten Prüfkommandos entsprechen weiter den lokalen Workflow-Schritten.
+GitHub Actions ist keine lokale Entwickler-Schnittstelle.
+Auslöser, Runner, Berechtigungen und CI-Nachweise bleiben Plattformaufgaben;
+die aktuellen Pull-Request-Gates stehen unter
+[Delivery und Veröffentlichung](../delivery.md#pull-request-gates).
 
 ## Konsequenzen
 
-Die lokale Einrichtung beginnt mit `mise install` und setzt sich mit
-`mise exec -- task setup` fort.
-Python-Kommandos im Taskfile nutzen `uv run` gegen die gesperrten Entwicklungsabhängigkeiten, Frontend-Aufgaben verwenden ihr Arbeitsverzeichnis und `npm ci`.
-Die Einrichtung installiert die Frontend-Abhängigkeiten; die Playwright-Browser
-werden mit dem separaten `task setup:playwright`-Task geladen.
-`task doctor` prüft Toolchain und virtuelle Python-Umgebung, während
-`task doctor:playwright` die Browser-Executables ohne vollständigen
-Qualitätslauf prüft.
-`task quality` führt Backend, Frontend, Security, Operator-CLI, OCI-Build, standardisierte Dependency-SBOM, Dokumentation und Overall parallel aus.
-`task quality:overall` bündelt Container-, Compose-, CLI-zu-Container-, Browser-End-to-End- und Accessibility-Verträge.
-Die beiden Browser-Tasks bleiben separat aufrufbar, werden im lokalen Vollauf jedoch seriell ausgeführt.
-`task quality:operator` prüft den Go-Vertrag und baut dieselben sechs portablen Ziele wie CI ohne Änderungen an `dist/`.
+Die jeweils aktuelle lokale Einrichtung, Testauswahl und Taskliste stehen in
+[Entwicklung](../development.md) und im Taskgraph.
+Prüftiefe folgt Risiko und betroffenen Schnittstellen; Task klassifiziert dafür
+keine Pfade.
+Diese Entscheidung dupliziert weder eine Taskliste noch eine zweite
+Qualitäts- oder Artefaktpolicy.
+Die aktuelle Zuordnung von Standardwerkzeugen und gegebenenfalls nötigen
+Adaptern folgt ADR-0039.
 
-Die lokale Prüfung wird bewusst nach Risiko und betroffenen Schnittstellen gewählt; Task klassifiziert dafür keine Pfade.
-Die Teilaufgaben entsprechen den Qualitätsbereichen aus #230:
-
-| Änderungsumfang | Passende lokale Prüfung |
-| --- | --- |
-| Technische Dokumentation | `task docs` |
-| Eng begrenzter Backend- oder Frontend-Test | `task test:backend` oder `task test:frontend` |
-| Produktiver Backend- oder Frontend-Vertrag | Betroffener `quality`-Teil sowie `task docs` und die ausgewählten Untertasks von `task quality:overall` |
-| npm-Produktionsabhängigkeiten | `task quality:security` und betroffener Frontend-Teil |
-| Operator-CLI | `task test:operator`, bei produktiven Änderungen `task quality:operator` |
-| OCI- oder Compose-Konfiguration | `task quality:oci` und die betroffenen Untertasks von `task quality:overall` |
-| Unklar, querschnittlich oder Toolchain | `task quality` |
-
-`task quality:oci` baut einmal das lokale Image `lzug-app:0.0.0-dev.local`.
-Container-, Compose- und Betreiber-CLI-Vertrag verwenden dieses Image gemeinsam im Overall-Lauf.
-`task quality:compose-config` trennt dabei die generische Standardprüfung über `compose config --quiet` von der kleinen getesteten lzug-Runtime-Policy.
-Die Laufzeitprüfungen verwenden Docker Engine auf Linux als qualifizierte Referenz und melden einen fehlenden oder nicht erreichbaren Docker-Daemon verständlich.
-Trivy Config oder Conftest werden mangels zusätzlichem Nachweis gegenüber Compose plus exakter Projektpolicy nicht eingeführt.
-Gehostete Trivy-Image- und CodeQL-Scans bleiben bewusst CI-spezifisch.
-
-ADR-0003 bleibt als historische Toolchain-Entscheidung bestehen; dieser ADR ersetzt dessen frühere Zuordnung lokaler Abläufe zu `mise`.
-Die übergreifende Vorrangregel für native Konfiguration, Komponentenlogik und
-notwendige Adapter ergänzt [ADR-0039](0039-deklarative-toolchain-zustaendigkeiten.md).
+ADR-0003 hält die ursprüngliche Werkzeugwahl fest.
+Die übergreifende, aktuell geltende Zuordnung von Werkzeugversionen,
+Paketabhängigkeiten, Taskgraph, Plattformaufgaben und verbleibender Logik
+steht in [ADR-0039](0039-deklarative-toolchain-zustaendigkeiten.md) und hat
+Vorrang vor früheren Einzelzuordnungen dieses ADRs.
 
 ## Alternativen
 

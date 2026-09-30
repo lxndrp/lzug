@@ -6,8 +6,11 @@
 
 ## Status
 
-Akzeptiert.
-Superseded by: ADR-0032.
+Historische Publikationsentscheidung.
+Die getroffene Plattform- und Theme-Wahl wurde durch ADR-0032 ersetzt;
+dessen Quellen- und Zielgruppentrennung wurde anschließend durch ADR-0035
+abgelöst.
+Für den geltenden Publikationsvertrag siehe ADR-0035.
 
 ## Kontext
 

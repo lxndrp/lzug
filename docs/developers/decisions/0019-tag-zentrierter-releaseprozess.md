@@ -6,7 +6,11 @@
 
 ## Status
 
-Akzeptiert.
+Historische Zwischenentscheidung.
+ADR-0020 hat Issue-Closure-Trigger, automatische Release-Issues,
+einzelne CI-Check-Abfragen und Recovery-Steuerung abgelöst.
+Der annotierte Tag als Releaseidentität und die Environment-Freigabe bleiben
+Teil des geltenden Ablaufs; den aktuellen Vertrag beschreibt ADR-0020.
 
 ## Kontext
 
@@ -42,9 +46,11 @@ das manuelle Gate-Formular entfallen.
 weil sie gemeinsame Build- beziehungsweise Lieferartefaktverträge abbilden und auch außerhalb der Release-Steuerung verwendet werden.
 - Der Publish-Job baut weiterhin die auszuliefernden Artefakte, führt aber
 keine Smoke-Tests, Trivy-Scans, interne Artefaktübergaben oder Attestation-Wiederholungen aus.
-- Künftige GitHub Releases veröffentlichen genau sechs installierbare
-CLI-Archive und eine aggregierte CycloneDX-SBOM.
-Detaillierte SBOMs und Subject-Prüfsummen bleiben temporäre Eingaben signierter Attestations; GitHubs Asset-Digests ersetzen eine eigene sichtbare Prüfsummendatei.
+- Die damalige Planung sichtbarer CLI-Archive und einer aggregierten
+CycloneDX-Release-SBOM ist historisch.
+ADR-0038 ersetzt sie: veröffentlichte OCI-Images erhalten ihre SBOMs;
+Repository-Dependency-, CLI- und aggregierte Release-SBOMs werden nicht
+veröffentlicht.
 - Ein bereits veröffentlichter Release schließt einen Retry nur bei seinem
 generationsspezifisch vollständigen Bestand idempotent ab.
 Der historische Release `v0.1.0` bleibt dabei unverändert.

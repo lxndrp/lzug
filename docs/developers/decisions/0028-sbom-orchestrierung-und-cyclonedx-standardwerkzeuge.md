@@ -6,7 +6,10 @@
 
 ## Status
 
-Akzeptiert; abgelöst durch [ADR-0038: SBOM-Erzeugung als direkte Syft-Standardaufrufe](0038-syft-standardaufrufe-fuer-sbom-erzeugung.md).
+Vollständig abgelöst durch
+[ADR-0038: SBOM-Erzeugung als direkte Syft-Standardaufrufe](0038-syft-standardaufrufe-fuer-sbom-erzeugung.md).
+Die nachstehenden Abschnitte dokumentieren ausschließlich den damaligen
+Entscheidungsstand und beschreiben keine geltende SBOM-Policy.
 
 ## Kontext
 

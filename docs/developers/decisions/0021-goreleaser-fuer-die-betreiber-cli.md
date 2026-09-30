@@ -8,7 +8,10 @@
 
 Akzeptiert.
 Konkretisiert [ADR-0020](0020-minimaler-releaseablauf-mit-github-bordmitteln.md) für die Verpackung der Betreiber-CLI.
-Die allgemeine Release-Orchestrierung bleibt Aufgabe von #347.
+Die hier genannte ursprüngliche GoReleaser-Version dokumentiert den damaligen
+Beschluss, nicht den aktuellen Pin; maßgeblich ist `.mise.toml`.
+Die allgemeine Release-Orchestrierung bleibt Aufgabe der aktuellen Release-
+Workflows.
 
 ## Kontext
 
@@ -36,33 +39,39 @@ Hinweisdateien werden vor dem Build aus den Repository-Quellen kopiert.
 Die Konfiguration ist die maßgebliche Beschreibung des Lieferumfangs und wird
 im Review anhand von Plattformen, Archivformaten und Dateien bewertet.
 
-`scripts/build_metadata.py` bleibt die gemeinsame fail-closed Metadatengrenze.
-Bei einem Release prüft sie, dass der SemVer-Tag annotiert ist und exakt auf die gebaute vollständige Revision zeigt.
-GoReleaser injiziert dieselbe Version, Revision und denselben Tag in das Binary und nimmt die erzeugte `build-metadata.json` in jedes Archiv auf.
-Snapshots verwenden weiterhin die Entwicklungsidentität `0.0.0-dev+sha.<vollständige Revision>`.
+Der komponenteneigene Vertrag in `backend.version` erzeugt und validiert
+Build-Metadaten einschließlich Entwicklungsidentität.
+Aufrufer verantworten Git-Revision und Tagzielprüfung; die kanonische
+Konfiguration sowie die aktuellen Build- und Paketierungsdetails stehen in
+`operator-cli/.goreleaser.yml` und den dazugehörigen Tasks.
 
-`task quality:operator` validiert die Konfiguration und führt die Go-Tests und `go vet` aus.
-`task quality:operator-packaging` erzeugt einmal die von GoReleaser konfigurierte Snapshot-Assembly und behält sie als Vergleichsbasis.
-`task quality:operator-reproducibility` nutzt diese Basis, erzeugt genau einen weiteren unabhängigen Clean-Build und vergleicht Archive und Binärdateien bytegleich; allein aufgerufen erzeugt der Task zunächst selbst eine Basis und bleibt damit ein vollständiger Zwei-Build-Nachweis.
-`task quality:operator-packaging-and-reproducibility` führt beide Schritte seriell aus und ist der gemeinsame Quality- und PR-Einstieg.
-Damit wird die Wiederholbarkeit der von GoReleaser konfigurierten Assembly statt ihrer internen Verdrahtung abgesichert.
+Die Reproduzierbarkeitsprüfung erzeugt zwei saubere GoReleaser-Builds und
+vergleicht Archive und Binärdateien anhand des GoReleaser-Manifests.
+Eine persistente oder wiederverwendete Baseline wird nicht gepflegt.
+Der aktuelle Einstieg steht im Werkzeuginventar unter
+[Operator-CLI-Reproduzierbarkeit](../script-inventory.md).
 
 ## Integration in #347
 
-- GoReleaser schreibt Archive, Binärdateien und `artifacts.json` nach `dist/`.
-- Der Releaseablauf übernimmt ausschließlich die sechs Archive als sichtbare
-CLI-Assets.
-- GitHub Attestations attestieren die Archive weiterhin außerhalb von
-GoReleaser.
-GoReleaser erzeugt weder eigene SBOMs noch Checksummen- oder Provenance-Dateien.
-- Auslöser, Environment-Freigabe, Tag-Erzeugung, OCI-Publish, Draft-Release und
-Wiederanlauf bleiben vollständig im Umfang von #347.
+Die GoReleaser-Konfiguration beschreibt die CLI-Ausgaben.
+Die aktuelle Release-Assetmenge und Attestierung sind Liefervertrag des
+Release-Workflows, keine von diesem ADR duplizierte SBOM- oder Release-
+Orchestrierungsregel.
+GoReleaser erzeugt keine SBOMs oder zusätzlichen sichtbaren Prüfsummenassets;
+SBOMs werden gemäß ADR-0038 ausschließlich für veröffentlichte OCI-Images
+erzeugt.
+Issue #347 hat die damals geplante Integration umgesetzt.
 
 ## Konsequenzen
 
 Der eigene Builder und seine Implementierungstests entfallen.
 Die verbleibende projektspezifische Logik prüft nur Produktmetadaten und beobachtbare Artefaktinvarianten.
-Ein Upgrade von Go oder GoReleaser muss die Reproduzierbarkeitsprüfung aus dem einmaligen Packaging-Build und einem weiteren Clean-Build erneut bestehen; ohne Bytegleichheit oder bei zusätzlichen Artefakten ist es nicht zulässig.
+Ein Upgrade von Go oder GoReleaser muss die Reproduzierbarkeitsprüfung mit
+zwei sauberen Builds bestehen; ohne Bytegleichheit oder bei zusätzlichen
+Artefakten ist es nicht zulässig.
+Der aktuelle Task- und Laufzeitvertrag bleibt in nativer Konfiguration und
+Werkzeuginventar maßgeblich; diese ADR-Fassung hält die ursprüngliche
+GoReleaser-Entscheidung und nicht jedes aktuelle Taskdetail fest.
 Die allgemeine Zuordnung verbleibender Logik und die Vorrangregel für native
 Werkzeugkonfiguration folgen [ADR-0039](0039-deklarative-toolchain-zustaendigkeiten.md).
 

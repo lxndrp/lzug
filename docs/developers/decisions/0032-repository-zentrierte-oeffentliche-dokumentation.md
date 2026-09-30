@@ -6,8 +6,9 @@
 
 ## Status
 
-Akzeptiert am 2026-09-03.
-Superseded by: ADR-0035.
+Historische Publikationsentscheidung.
+Durch [ADR-0035](0035-getrennte-publikations-und-versionsarchitektur.md)
+vollständig abgelöst.
 Supersedes: ADR-0011.
 Supersedes: ADR-0012.
 Supersedes: ADR-0023.
