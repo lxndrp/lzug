@@ -44,7 +44,9 @@
   },
   "private": true,
   "overrides": {
-    "fast-uri": "3.1.6"
+    "@hey-api/json-schema-ref-parser@1.4.4": {
+      "js-yaml": "4.3.2"
+    }
   },
   "dependencies": {
     "@angular/aria": "~22.2.0",
@@ -62,7 +64,7 @@
     "@taiga-ui/icons": "^5.25.0",
     "@taiga-ui/kit": "^5.25.0",
     "@taiga-ui/layout": "^5.25.0",
-    "lucide": "1.39.0",
+    "lucide": "1.49.0",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0",
     "zone.js": "^0.16.3"

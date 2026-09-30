@@ -32,9 +32,14 @@ The production bundles contain only the required Latin, Greek, and Greek Extende
 
 ## Lucide
 
-The product's functional icons use the exactly locked `lucide` 0.468.0 package.
+The product's functional icons use the exactly locked `lucide` 1.49.0 package.
 The product mapping keeps stable semantic names in
 [`frontend/src/app/app-icons.ts`](frontend/src/app/app-icons.ts).
+The package pin is checked by `brand/generate-assets.mjs` and must be updated
+with the lockfile when Lucide changes; verify every mapped icon against the new
+package before accepting an update. Lucide is used at build time to bundle the
+selected local icons; the release notice and this package license entry must
+remain aligned.
 
 - License: [ISC](https://github.com/lucide-icons/lucide/blob/main/LICENSE).
 - Upstream: [Lucide](https://lucide.dev/).
