@@ -160,7 +160,7 @@ assert.doesNotMatch(
   /\bhref\b|\bHttpClient\b|\bfetch\s*\(|types\.gen/,
   'workspace port exposes a transport address or OpenAPI types',
 );
-assert.match(workspacePort, /Key extends '_links' \? never/);
+assert.match(workspacePort, /WithoutHttpLinks/);
 assert.match(workspaceAdapter, /PlanningApiService/);
 assert.match(workspaceAdapter, /withoutHttpLinks/);
 assert.match(workspaceSpec, /WORKSPACE_PORT/);

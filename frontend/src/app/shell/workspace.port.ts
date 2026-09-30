@@ -2,12 +2,7 @@ import { InjectionToken } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import type { ExamRound, MasterData, PlanningBoard, RoundSummary } from '../api/api.models';
-
-export type WithoutHttpLinks<T> = T extends readonly (infer Item)[]
-  ? WithoutHttpLinks<Item>[]
-  : T extends object
-    ? { [Key in keyof T as Key extends '_links' ? never : Key]: WithoutHttpLinks<T[Key]> }
-    : T;
+import type { WithoutHttpLinks } from '../application/without-http-links';
 
 /** Shared workspace data for route-level features, without HAL navigation links. */
 export type WorkspaceSnapshot = {
