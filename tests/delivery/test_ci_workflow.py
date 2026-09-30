@@ -52,7 +52,7 @@ class QualityWorkflowContractTests(unittest.TestCase):
         self.assertIn("golang-x-security:", self.dependabot_config)
         self.assertIn("directory: /operator-cli", self.dependabot_config)
 
-    def test_dependabot_auto_merge_allows_only_qualified_go_patch_and_minor(self) -> None:
+    def test_dependabot_auto_merge_allows_go_patch_and_minor(self) -> None:
         classification = self.dependabot.split(
             'case "${PACKAGE_ECOSYSTEM}:${UPDATE_TYPE}" in', 1
         )[1].split("esac", 1)[0]
@@ -70,7 +70,7 @@ class QualityWorkflowContractTests(unittest.TestCase):
         self.assertNotIn("actions/checkout", self.dependabot)
         self.assertNotIn("workflow_run:", self.dependabot)
 
-    def test_dependabot_auto_merge_leaves_major_actions_and_unknown_updates_manual(self) -> None:
+    def test_dependabot_auto_merge_leaves_major_actions_and_unknown_manual(self) -> None:
         classification = self.dependabot.split(
             'case "${PACKAGE_ECOSYSTEM}:${UPDATE_TYPE}" in', 1
         )[1].split("esac", 1)[0]
