@@ -38,6 +38,8 @@ import { LOCATIONS_PORT } from './locations/locations.port';
 import { HttpLocationsAdapter } from './api/http-locations.adapter';
 import { HttpLocationsReadAdapter } from './api/http-locations-read.adapter';
 import { LOCATIONS_READ_PORT } from './locations/locations.port';
+import { HttpDemoScenariosAdapter } from './api/http-demo-scenarios.adapter';
+import { DEMO_SCENARIOS_PORT } from './demo-scenarios/application/demo-scenarios.port';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -50,6 +52,7 @@ export const appConfig: ApplicationConfig = {
     { provide: LOCATIONS_READ_PORT, useClass: HttpLocationsReadAdapter },
     { provide: WORKSPACE_PORT, useClass: HttpWorkspaceAdapter },
     { provide: CONFIRMED_PLANS_PORT, useClass: HttpConfirmedPlansAdapter },
+    { provide: DEMO_SCENARIOS_PORT, useClass: HttpDemoScenariosAdapter },
     { provide: AUTHENTICATION_PORT, useExisting: AuthService },
     { provide: LIFECYCLE_AVAILABILITY_PORT, useExisting: LifecycleService },
     { provide: FRONTEND_ERROR_REPORTER_PORT, useClass: HttpFrontendErrorReporter },

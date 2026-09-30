@@ -1,36 +1,52 @@
-import { provideHttpClient } from '@angular/common/http';
-import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { provideTaiga } from '@taiga-ui/core';
+import { of } from 'rxjs';
 import { vi } from 'vitest';
 
-import { DemoScenarioOverview } from '../api/api.models';
 import { AuthService } from '../auth/auth.service';
+import { DemoScenariosApplication } from './application/demo-scenarios.application';
+import { DemoRole, DemoScenarioOverview } from './demo-scenarios.models';
 import { DemoScenariosComponent } from './demo-scenarios.component';
 
 describe('DemoScenariosComponent', () => {
   let fixture: ComponentFixture<DemoScenariosComponent>;
-  let http: HttpTestingController;
+  let currentOverview: DemoScenarioOverview;
+  let application: {
+    getOverview: ReturnType<typeof vi.fn>;
+    reset: ReturnType<typeof vi.fn>;
+  };
+  let auth: {
+    markAnonymous: ReturnType<typeof vi.fn>;
+    startDemoSession: ReturnType<typeof vi.fn>;
+    logout: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(async () => {
+    currentOverview = overview();
+    application = {
+      getOverview: vi.fn(() => of(currentOverview)),
+      reset: vi.fn(() => of(undefined)),
+    };
+    auth = {
+      markAnonymous: vi.fn(),
+      startDemoSession: vi.fn(() => of(undefined)),
+      logout: vi.fn(() => of(undefined)),
+    };
     await TestBed.configureTestingModule({
       imports: [DemoScenariosComponent],
       providers: [
         provideRouter([]),
-        provideHttpClient(),
-        provideHttpClientTesting(),
         provideTaiga({ scrollbars: 'native' }),
+        { provide: DemoScenariosApplication, useValue: application },
+        { provide: AuthService, useValue: auth },
       ],
     }).compileComponents();
     fixture = TestBed.createComponent(DemoScenariosComponent);
-    http = TestBed.inject(HttpTestingController);
-    TestBed.inject(AuthService).session.set(session('examiner'));
   });
 
   afterEach(() => {
     fixture.destroy();
-    http.verify();
     vi.restoreAllMocks();
   });
 
@@ -49,21 +65,18 @@ describe('DemoScenariosComponent', () => {
     );
     expect(element.querySelectorAll('progress')).toHaveLength(2);
     expect(element.querySelector('a[href="/confirmed-plans/1/days/1"]')).not.toBeNull();
+    expect(application.getOverview).toHaveBeenCalledOnce();
   });
 
   it('switches roles without resetting the workspace and reloads its derived state', () => {
     load(overview());
+    currentOverview = overview('chair');
     button('Zu Vorsitz wechseln').click();
-
-    const switchRequest = http.expectOne('/api/demo/session');
-    expect(switchRequest.request.method).toBe('POST');
-    expect(switchRequest.request.body).toEqual({ role: 'chair' });
-    switchRequest.flush({ authenticated: true });
-    http.expectOne('/api/session').flush(session('chair'));
-    http.expectOne('/api/demo/scenarios').flush(overview('chair'));
     fixture.detectChanges();
 
-    expect(TestBed.inject(AuthService).session()?.demo_role).toBe('chair');
+    expect(auth.startDemoSession).toHaveBeenCalledWith('chair');
+    expect(application.reset).not.toHaveBeenCalled();
+    expect(application.getOverview).toHaveBeenCalledTimes(2);
     expect((fixture.nativeElement as HTMLElement).textContent).toContain(
       'Vorsitz · Theseus von Athen',
     );
@@ -73,17 +86,14 @@ describe('DemoScenariosComponent', () => {
     load(overview('chair'));
     vi.spyOn(window, 'confirm').mockReturnValue(false);
     button('Szenario neu starten').click();
-    http.expectNone('/api/demo/reset');
+    expect(application.reset).not.toHaveBeenCalled();
 
     vi.mocked(window.confirm).mockReturnValue(true);
     button('Szenario neu starten').click();
-    const reset = http.expectOne('/api/demo/reset');
-    expect(reset.request.method).toBe('POST');
-    expect(reset.request.body).toEqual({});
-    reset.flush({ status: 'reset', role: 'chair', expires_at: '2026-09-02T11:00:00Z' });
-    http.expectOne('/api/demo/scenarios').flush(overview('chair'));
     fixture.detectChanges();
 
+    expect(application.reset).toHaveBeenCalledOnce();
+    expect(application.getOverview).toHaveBeenCalledTimes(2);
     expect((fixture.nativeElement as HTMLElement).textContent).toContain(
       'Vorsitz · Theseus von Athen',
     );
@@ -101,16 +111,16 @@ describe('DemoScenariosComponent', () => {
     step?.click();
     expect(navigate).toHaveBeenCalledWith('/confirmed-plans/1/days/1');
 
+    currentOverview = overview('chair');
     button('Zu Vorsitz wechseln').click();
+    fixture.detectChanges();
     expect(navigate).toHaveBeenCalledTimes(1);
-    http.expectOne('/api/demo/session').flush({ authenticated: true });
-    http.expectOne('/api/session').flush(session('chair'));
-    http.expectOne('/api/demo/scenarios').flush(overview('chair'));
+    expect(auth.startDemoSession).toHaveBeenCalledWith('chair');
   });
 
   function load(value: DemoScenarioOverview): void {
+    currentOverview = value;
     fixture.detectChanges();
-    http.expectOne('/api/demo/scenarios').flush(value);
     fixture.detectChanges();
   }
 
@@ -123,45 +133,20 @@ describe('DemoScenariosComponent', () => {
   }
 });
 
-function session(role: 'chair' | 'examiner' | 'replacement') {
-  const values = {
-    chair: {
-      account_id: 1,
-      person_id: 1,
-      committee_member_id: 1,
-      display_name: 'Theseus von Athen',
-    },
-    examiner: { account_id: 2, person_id: 3, committee_member_id: 3, display_name: 'Peter Quince' },
-    replacement: {
-      account_id: 4,
-      person_id: 6,
-      committee_member_id: 6,
-      display_name: 'Francis Flute',
-    },
-  }[role];
-  return {
-    authenticated: true,
-    is_operator: false,
-    demo_role: role,
-    capabilities: [`${role}:test`],
-    ...values,
-  };
-}
-
-function overview(role: 'chair' | 'examiner' | 'replacement' = 'examiner'): DemoScenarioOverview {
+function overview(role: DemoRole = 'examiner'): DemoScenarioOverview {
   return {
     mode: 'demo',
-    demo_matrix_version: 'demo-paths-v8',
-    current_role: role,
-    created_at: '2026-09-02T10:00:00Z',
-    expires_at: '2026-09-02T11:00:00Z',
-    remaining_seconds: 3600,
+    demoMatrixVersion: 'demo-paths-v8',
+    currentRole: role,
+    createdAt: '2026-09-02T10:00:00Z',
+    expiresAt: '2026-09-02T11:00:00Z',
+    remainingSeconds: 3600,
     roles: [
-      { name: 'chair', display_name: 'Theseus von Athen', task: 'Koordination und Planrevision' },
-      { name: 'examiner', display_name: 'Peter Quince', task: 'Eigenen Ausfall melden' },
+      { name: 'chair', displayName: 'Theseus von Athen', task: 'Koordination und Planrevision' },
+      { name: 'examiner', displayName: 'Peter Quince', task: 'Eigenen Ausfall melden' },
       {
         name: 'replacement',
-        display_name: 'Francis Flute',
+        displayName: 'Francis Flute',
         task: 'Eigene Ersatzanfrage beantworten',
       },
     ],
@@ -170,30 +155,30 @@ function overview(role: 'chair' | 'examiner' | 'replacement' = 'examiner'): Demo
         id: 'absence',
         title: 'Dringlicher Ausfall und Ersatz',
         status: 'ready',
-        completed_steps: 0,
-        total_steps: 3,
-        next_role: 'examiner',
-        next_action: 'Eigenen Ausfall melden',
+        completedSteps: 0,
+        totalSteps: 3,
+        nextRole: 'examiner',
+        nextAction: 'Eigenen Ausfall melden',
         path: '/confirmed-plans/1/days/1',
       },
       {
         id: 'plan-change',
         title: 'Bestätigte Planänderung',
         status: 'ready',
-        completed_steps: 0,
-        total_steps: 1,
-        next_role: 'chair',
-        next_action: 'Planänderung bestätigen',
+        completedSteps: 0,
+        totalSteps: 1,
+        nextRole: 'chair',
+        nextAction: 'Planänderung bestätigen',
         path: '/confirmed-plans/1/edit',
       },
     ],
-    prepared_plan_change: {
-      round_id: 1,
-      day_id: 2,
-      source_location_id: 1,
-      target_location_id: 2,
-      assignment_id: 6,
-      replacement_member_id: 6,
+    preparedPlanChange: {
+      roundId: 1,
+      dayId: 2,
+      sourceLocationId: 1,
+      targetLocationId: 2,
+      assignmentId: 6,
+      replacementMemberId: 6,
       reason: 'Synthetischer Ortswechsel mit gleichseitiger Ersatzbesetzung',
     },
     notices: [
@@ -201,7 +186,7 @@ function overview(role: 'chair' | 'examiner' | 'replacement' = 'examiner'): Demo
       'Keine realen personenbezogenen Daten eingeben.',
       'Externe Zustellung ist in der öffentlichen Demo deaktiviert.',
     ],
-    location_contract:
+    locationContract:
       'Reale Athener Anschriften und Referenzpunkte verorten ausschließlich synthetische Prüfungsstätten. In Ortsdetails lädt OpenStreetMap automatisch externe Kartenkacheln; ein Routenlink öffnet den Zielpunkt erst nach bewusster Auswahl.',
   };
 }
