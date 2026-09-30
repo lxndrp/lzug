@@ -42,7 +42,7 @@
       }
 
       <div class="app-confirmed-editor-days">
-        @for (day of current.exam_days; track day.id) {
+        @for (day of current.days; track day.id) {
           <article class="app-confirmed-editor-day" [class.is-locked]="isLocked(day)">
             <header>
               <div>
@@ -62,7 +62,7 @@
                 Prüfungsort
                 <select
                   [disabled]="controlsDisabled(day)"
-                  [ngModel]="day.location_id"
+                  [ngModel]="day.locationId"
                   (ngModelChange)="updateLocation(day, $event)"
                 >
                   @for (location of board?.locations ?? []; track location.id) {
@@ -90,23 +90,21 @@
                 <tbody>
                   @for (slot of day.slots; track slot.id; let index = $index) {
                     <tr>
-                      <td>{{ slot.sequence_number }}</td>
+                      <td>{{ slot.sequenceNumber }}</td>
                       <td>
                         <select
-                          [attr.aria-label]="'Prüfling für Termin ' + slot.sequence_number"
+                          [attr.aria-label]="'Prüfling für Termin ' + slot.sequenceNumber"
                           [disabled]="controlsDisabled(day)"
-                          [ngModel]="slot.round_candidate_id"
-                          (ngModelChange)="updateSlot(day, slot, { round_candidate_id: $event })"
+                          [ngModel]="slot.roundCandidateId"
+                          (ngModelChange)="updateSlot(day, slot, { roundCandidateId: $event })"
                         >
                           @for (
                             candidate of board?.candidates ?? [];
-                            track candidate.roundCandidate?.id
+                            track candidate.roundCandidateId
                           ) {
-                            @if (candidate.roundCandidate; as roundCandidate) {
-                              <option [ngValue]="roundCandidate.id">
-                                {{ candidateLabel(roundCandidate.id) }}
-                              </option>
-                            }
+                            <option [ngValue]="candidate.roundCandidateId">
+                              {{ candidateLabel(candidate.roundCandidateId) }}
+                            </option>
                           }
                         </select>
                       </td>
@@ -114,8 +112,8 @@
                         <select
                           aria-label="Prüfungsart"
                           [disabled]="controlsDisabled(day)"
-                          [ngModel]="slot.slot_type"
-                          (ngModelChange)="updateSlot(day, slot, { slot_type: $event })"
+                          [ngModel]="slot.slotType"
+                          (ngModelChange)="updateSlot(day, slot, { slotType: $event })"
                         >
                           <option value="regular">Regulär</option>
                           <option value="mep">MEP</option>
@@ -128,7 +126,7 @@
                           type="button"
                           [disabled]="controlsDisabled(day) || index === 0"
                           [attr.aria-label]="
-                            'Termin ' + slot.sequence_number + ' nach oben verschieben'
+                            'Termin ' + slot.sequenceNumber + ' nach oben verschieben'
                           "
                           (click)="moveSlot(day, index, -1)"
                         >
@@ -140,7 +138,7 @@
                           type="button"
                           [disabled]="controlsDisabled(day) || index === day.slots.length - 1"
                           [attr.aria-label]="
-                            'Termin ' + slot.sequence_number + ' nach unten verschieben'
+                            'Termin ' + slot.sequenceNumber + ' nach unten verschieben'
                           "
                           (click)="moveSlot(day, index, 1)"
                         >
@@ -160,9 +158,9 @@
                   <div>
                     <select
                       aria-label="Mitglied der Besetzung"
-                      [ngModel]="assignment.committee_member_id"
+                      [ngModel]="assignment.committeeMemberId"
                       (ngModelChange)="
-                        updateAssignment(day, assignment, { committee_member_id: $event })
+                        updateAssignment(day, assignment, { committeeMemberId: $event })
                       "
                     >
                       @for (member of board?.members ?? []; track member.id) {
@@ -171,9 +169,9 @@
                     </select>
                     <select
                       aria-label="Rolle der Besetzung"
-                      [ngModel]="assignment.assignment_role"
+                      [ngModel]="assignment.assignmentRole"
                       (ngModelChange)="
-                        updateAssignment(day, assignment, { assignment_role: $event })
+                        updateAssignment(day, assignment, { assignmentRole: $event })
                       "
                     >
                       <option value="examiner">Prüfer/in</option>
@@ -181,8 +179,8 @@
                     </select>
                     <select
                       aria-label="Tageshälfte der Besetzung"
-                      [ngModel]="assignment.day_part"
-                      (ngModelChange)="updateAssignment(day, assignment, { day_part: $event })"
+                      [ngModel]="assignment.dayPart"
+                      (ngModelChange)="updateAssignment(day, assignment, { dayPart: $event })"
                     >
                       <option value="morning">Vormittag</option>
                       <option value="afternoon">Nachmittag</option>
@@ -202,9 +200,9 @@
             <div>
               <strong>Vorbereitete Demo-Revision</strong>
               <span>
-                {{ locationLabel(change.source_location_id) }} wird durch
-                {{ locationLabel(change.target_location_id) }} ersetzt; zugleich übernimmt
-                {{ memberLabel(change.replacement_member_id) }} die vorgegebene Besetzung.
+                {{ locationLabel(change.sourceLocationId) }} wird durch
+                {{ locationLabel(change.targetLocationId) }} ersetzt; zugleich übernimmt
+                {{ memberLabel(change.replacementMemberId) }} die vorgegebene Besetzung.
               </span>
             </div>
             <button

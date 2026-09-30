@@ -219,6 +219,7 @@ const confirmedWorkflowPath = path.join(
   'confirmed-plans-workflow.service.ts',
 );
 const confirmedPortPath = path.join(root, 'confirmed-plans', 'confirmed-plans.port.ts');
+const confirmedModelsPath = path.join(root, 'confirmed-plans', 'confirmed-plans.models.ts');
 const confirmedPlansSpecPath = path.join(
   root,
   'confirmed-plans',
@@ -236,6 +237,7 @@ const [
   confirmedEditor,
   confirmedWorkflow,
   confirmedPort,
+  confirmedModels,
   confirmedPlansSpec,
   confirmedEditorSpec,
   confirmedAdapter,
@@ -246,6 +248,7 @@ const [
     confirmedEditorPath,
     confirmedWorkflowPath,
     confirmedPortPath,
+    confirmedModelsPath,
     confirmedPlansSpecPath,
     confirmedEditorSpecPath,
     confirmedAdapterPath,
@@ -275,8 +278,28 @@ assert.doesNotMatch(
   /HttpClient|fetch\s*\(|types\.gen|['"]\/api\//,
   'confirmed-plan port must not expose transport details',
 );
+for (const [name, source] of [
+  ['confirmed-plan list component', confirmedPlans],
+  ['confirmed-plan editor', confirmedEditor],
+  ['confirmed-plan workflow', confirmedWorkflow],
+  ['confirmed-plan port', confirmedPort],
+  ['confirmed-plan models', confirmedModels],
+  ['confirmed-plan list tests', confirmedPlansSpec],
+  ['confirmed-plan editor tests', confirmedEditorSpec],
+]) {
+  assert.doesNotMatch(
+    importsOf(source),
+    /(?:^|\/)api\.models(?:$|\n)/,
+    `${name} must not import backend/API models`,
+  );
+}
+assert.match(confirmedPort, /from '\.\/confirmed-plans\.models'/);
+assert.match(confirmedModels, /examHalfYear|roundCandidateId|committeeMemberId/);
+assert.match(confirmedAdapter, /fromApiConfirmedPlan\(/);
+assert.match(confirmedAdapter, /fromApiEditableConfirmedPlan\(/);
+assert.match(confirmedAdapter, /toApiEditableConfirmedPlan\(/);
+assert.match(confirmedAdapter, /fromApiConfirmedPlanRevision\(/);
 assert.match(confirmedAdapter, /ConfirmedPlanApiService/);
-assert.match(confirmedAdapter, /withoutHttpLinks/);
 for (const [name, spec] of [
   ['confirmed-plan list', confirmedPlansSpec],
   ['confirmed-plan editor', confirmedEditorSpec],
@@ -288,7 +311,9 @@ for (const [name, spec] of [
   );
 }
 assert.match(confirmedAdapterSpec, /HttpConfirmedPlansAdapter/);
-assert.match(confirmedAdapterSpec, /_links/);
+assert.match(confirmedAdapterSpec, /apiEditablePayload/);
+assert.match(confirmedAdapterSpec, /round_id/);
+assert.match(confirmedAdapterSpec, /roundId/);
 assert.equal(
   hasProviderBinding(config, 'CONFIRMED_PLANS_PORT', 'HttpConfirmedPlansAdapter'),
   true,

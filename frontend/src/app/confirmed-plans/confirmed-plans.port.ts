@@ -4,20 +4,19 @@ import { Observable } from 'rxjs';
 import type {
   ConfirmedPlan,
   ConfirmedPlanRevision,
-  EditablePlanningProposal,
-} from '../api/api.models';
-import type { WithoutHttpLinks } from '../application/without-http-links';
+  EditableConfirmedPlan,
+} from './confirmed-plans.models';
 
 /** Confirmed-plan queries and revision commands required by the feature. */
 export interface ConfirmedPlansPort {
-  list(): Observable<WithoutHttpLinks<ConfirmedPlan>[]>;
-  getEditable(roundId: number): Observable<WithoutHttpLinks<EditablePlanningProposal>>;
+  list(): Observable<ConfirmedPlan[]>;
+  getEditable(roundId: number): Observable<EditableConfirmedPlan>;
   saveEditable(
     roundId: number,
-    proposal: WithoutHttpLinks<EditablePlanningProposal>,
+    proposal: EditableConfirmedPlan,
     reason: string,
-  ): Observable<WithoutHttpLinks<EditablePlanningProposal>>;
-  listRevisions(roundId: number): Observable<WithoutHttpLinks<ConfirmedPlanRevision>[]>;
+  ): Observable<EditableConfirmedPlan>;
+  listRevisions(roundId: number): Observable<ConfirmedPlanRevision[]>;
 }
 
 export const CONFIRMED_PLANS_PORT = new InjectionToken<ConfirmedPlansPort>('CONFIRMED_PLANS_PORT');

@@ -4,26 +4,26 @@ import { provideTaiga } from '@taiga-ui/core';
 import { Subject, of, throwError } from 'rxjs';
 
 import { ApplicationError } from '../application/application-error';
-import {
-  ConfirmedPlan,
-  ConfirmedPlanRevision,
-  EditablePlanningProposal,
-  PlanningBoard,
-} from '../api/api.models';
 import { AuthService } from '../auth/auth.service';
 import type { AuthSession } from '../auth/auth.service';
 import { RuntimeExperienceService } from '../runtime/runtime-experience.service';
 import { ConfirmedPlansWorkflowService } from './confirmed-plans-workflow.service';
 import { ConfirmedPlanEditorComponent } from './confirmed-plan-editor.component';
+import type {
+  ConfirmedPlan,
+  ConfirmedPlanRevision,
+  ConfirmedPlansBoard,
+  EditableConfirmedPlan,
+} from './confirmed-plans.models';
 
 describe('ConfirmedPlanEditorComponent', () => {
   let fixture: ComponentFixture<ConfirmedPlanEditorComponent>;
   let loads: Array<{
     roundId: number;
-    subject: Subject<EditablePlanningProposal>;
+    subject: Subject<EditableConfirmedPlan>;
     settled: boolean;
   }>;
-  let saves: Array<Subject<EditablePlanningProposal>>;
+  let saves: Array<Subject<EditableConfirmedPlan>>;
   let workflow: {
     getEditableConfirmedPlan: ReturnType<typeof vi.fn>;
     saveEditableConfirmedPlan: ReturnType<typeof vi.fn>;
@@ -38,7 +38,7 @@ describe('ConfirmedPlanEditorComponent', () => {
     nextSaveError = null;
     workflow = {
       getEditableConfirmedPlan: vi.fn((roundId: number) => {
-        const subject = new Subject<EditablePlanningProposal>();
+        const subject = new Subject<EditableConfirmedPlan>();
         loads.push({ roundId, subject, settled: false });
         return subject;
       }),
@@ -48,7 +48,7 @@ describe('ConfirmedPlanEditorComponent', () => {
           nextSaveError = null;
           return throwError(() => error);
         }
-        const subject = new Subject<EditablePlanningProposal>();
+        const subject = new Subject<EditableConfirmedPlan>();
         saves.push(subject);
         return subject;
       }),
@@ -92,17 +92,17 @@ describe('ConfirmedPlanEditorComponent', () => {
     const [roundId, saved, changeReason] = workflow.saveEditableConfirmedPlan.mock.calls[0];
     expect(roundId).toBe(1);
     expect(changeReason).toBe('Reihenfolge nach Rücksprache korrigiert');
-    expect(saved.exam_days[0].slots.map((slot: { id: number }) => slot.id)).toEqual([2, 1]);
+    expect(saved.days[0].slots.map((slot: { id: number | null }) => slot.id)).toEqual([2, 1]);
 
     workflow.getConfirmedPlanRevisions.mockReturnValueOnce(
       of([
         {
           id: 1,
-          previous_revision: 1,
-          resulting_revision: 2,
+          previousRevision: 1,
+          resultingRevision: 2,
           reason: changeReason,
-          actor_member_id: 1,
-          created_at: '2026-08-30T12:00:00Z',
+          actorMemberId: 1,
+          createdAt: '2026-08-30T12:00:00Z',
           before: editablePlan(),
           after: { ...editablePlan(), revision: 2 },
         } satisfies ConfirmedPlanRevision,
@@ -116,7 +116,7 @@ describe('ConfirmedPlanEditorComponent', () => {
 
   it('shows a locked day read-only and reloads the aggregate after a conflict', () => {
     const locked = plan();
-    locked.days[0].slots[0].actual_started_at = '2026-11-16T08:30:00+01:00';
+    locked.days[0].slots[0].actualStartedAt = '2026-11-16T08:30:00+01:00';
     fixture.componentRef.setInput('plan', locked);
     loadEditor();
     const element = fixture.nativeElement as HTMLElement;
@@ -146,7 +146,7 @@ describe('ConfirmedPlanEditorComponent', () => {
     fixture.detectChanges();
     fixture.componentRef.setInput('roundId', 2);
     fixture.detectChanges();
-    resolveLoad(2, { ...editablePlan(), round_id: 2 });
+    resolveLoad(2, { ...editablePlan(), roundId: 2 });
     fixture.detectChanges();
 
     const element = fixture.nativeElement as HTMLElement;
@@ -164,8 +164,8 @@ describe('ConfirmedPlanEditorComponent', () => {
     button(element, 'Änderung mit Grund speichern').click();
     fixture.componentRef.setInput('roundId', 3);
     fixture.detectChanges();
-    resolveLoad(3, { ...editablePlan(), round_id: 3 });
-    resolveSave({ ...editablePlan(), round_id: 2, revision: 2 });
+    resolveLoad(3, { ...editablePlan(), roundId: 3 });
+    resolveSave({ ...editablePlan(), roundId: 2, revision: 2 });
     fixture.detectChanges();
 
     expect(element.textContent).not.toContain(
@@ -178,7 +178,7 @@ describe('ConfirmedPlanEditorComponent', () => {
     fixture.detectChanges();
     fixture.componentRef.setInput('roundId', 2);
     fixture.detectChanges();
-    resolveLoad(2, { ...editablePlan(), round_id: 2 });
+    resolveLoad(2, { ...editablePlan(), roundId: 2 });
     fixture.detectChanges();
 
     const element = fixture.nativeElement as HTMLElement;
@@ -218,7 +218,7 @@ describe('ConfirmedPlanEditorComponent', () => {
     expect(element.textContent).not.toContain('Bestätigten Plan ändern');
     expect(element.querySelector('.app-confirmed-editor-slots')).toBeNull();
 
-    resolveLoad(2, { ...editablePlan(), round_id: 2 });
+    resolveLoad(2, { ...editablePlan(), roundId: 2 });
     fixture.detectChanges();
     expect(element.textContent).toContain('Bestätigten Plan ändern');
   });
@@ -257,9 +257,9 @@ describe('ConfirmedPlanEditorComponent', () => {
     );
     expect(element.querySelector<HTMLFieldSetElement>('fieldset')?.disabled).toBe(true);
     const component = fixture.componentInstance as unknown as {
-      controlsDisabled(day: ReturnType<typeof editablePlan>['exam_days'][number]): boolean;
+      controlsDisabled(day: ReturnType<typeof editablePlan>['days'][number]): boolean;
     };
-    expect(component.controlsDisabled(editablePlan().exam_days[0])).toBe(true);
+    expect(component.controlsDisabled(editablePlan().days[0])).toBe(true);
 
     button(element, 'Änderung vorbereiten').click();
     fixture.detectChanges();
@@ -267,10 +267,9 @@ describe('ConfirmedPlanEditorComponent', () => {
     const [roundId, saved, reason] = workflow.saveEditableConfirmedPlan.mock.calls[0];
     expect(roundId).toBe(1);
     expect(reason).toBe('Synthetischer Ortswechsel mit gleichseitiger Ersatzbesetzung');
-    expect(saved.exam_days[0].room_id).toBe(2);
-    expect(saved.exam_days[0].location_id).toBe(2);
-    expect(saved.exam_days[0].assignments[0].committee_member_id).toBe(2);
-    expect(saved._links).toBeUndefined();
+    expect(saved.days[0].roomId).toBe(2);
+    expect(saved.days[0].locationId).toBe(2);
+    expect(saved.days[0].assignments[0].committeeMemberId).toBe(2);
     resolveSave({ ...editablePlan(), revision: 2 });
     fixture.detectChanges();
     expect(element.textContent).toContain('Öffnen Sie die Demo-Szenarien');
@@ -287,7 +286,7 @@ describe('ConfirmedPlanEditorComponent', () => {
     expect(request).toBeDefined();
     if (!request) throw new Error(`No pending confirmed-plan request for round ${roundId}`);
     request.settled = true;
-    request.subject.next(value as EditablePlanningProposal);
+    request.subject.next(value);
     request.subject.complete();
   }
 
@@ -303,7 +302,7 @@ describe('ConfirmedPlanEditorComponent', () => {
     const request = saves.find((item) => !item.closed);
     expect(request).toBeDefined();
     if (!request) throw new Error('No pending confirmed-plan save request');
-    request.next(value as EditablePlanningProposal);
+    request.next(value);
     request.complete();
   }
 });
@@ -316,51 +315,51 @@ function button(element: HTMLElement, label: string): HTMLButtonElement {
   return found!;
 }
 
-function editablePlan(): EditablePlanningProposal {
+function editablePlan(): EditableConfirmedPlan {
   return {
-    round_id: 1,
+    roundId: 1,
     revision: 1,
-    exam_days: [
+    days: [
       {
+        candidateDayId: 1,
         id: 1,
-        candidate_exam_day_id: 1,
         date: '2026-11-16',
-        location_id: 1,
+        locationId: 1,
         status: 'confirmed',
         slots: [
           {
             id: 1,
-            round_candidate_id: 1,
-            slot_type: 'regular',
-            starts_at: '',
-            ends_at: '',
-            sequence_number: 1,
+            roundCandidateId: 1,
+            slotType: 'regular',
+            startsAt: '',
+            endsAt: '',
+            sequenceNumber: 1,
             status: 'confirmed',
           },
           {
             id: 2,
-            round_candidate_id: 2,
-            slot_type: 'regular',
-            starts_at: '',
-            ends_at: '',
-            sequence_number: 2,
+            roundCandidateId: 2,
+            slotType: 'regular',
+            startsAt: '',
+            endsAt: '',
+            sequenceNumber: 2,
             status: 'confirmed',
           },
         ],
         assignments: [
           {
             id: 1,
-            committee_member_id: 1,
-            assignment_role: 'examiner',
-            day_part: 'morning',
-            fallback_status: null,
+            committeeMemberId: 1,
+            assignmentRole: 'examiner',
+            dayPart: 'morning',
+            fallbackStatus: null,
           },
           {
             id: 2,
-            committee_member_id: 2,
-            assignment_role: 'fallback',
-            day_part: 'morning',
-            fallback_status: 'confirmed',
+            committeeMemberId: 2,
+            assignmentRole: 'fallback',
+            dayPart: 'morning',
+            fallbackStatus: 'confirmed',
           },
         ],
       },
@@ -373,93 +372,66 @@ function plan(): ConfirmedPlan {
     id: 1,
     name: 'Winter 2026/27',
     committee: { id: 1, name: 'Prüfungsausschuss Teststadt' },
-    exam_half_year: { id: 1, season: 'winter', year: 2026, status: 'active' },
+    examHalfYear: { id: 1, season: 'winter', year: 2026, status: 'active' },
     days: [
       {
         id: 1,
         date: '2026-11-16',
         revision: 1,
-        closure_status: 'open',
+        closureStatus: 'open',
         location: { id: 1, name: 'Prüfungszentrum', room: '101', city: 'Teststadt' },
         slots: [
           {
             id: 1,
-            starts_at: '',
-            ends_at: '',
-            sequence_number: 1,
-            slot_type: 'regular',
-            actual_started_at: null,
-            execution_status: 'open',
-            status_changed_at: '',
-            actual_completed_at: null,
-            status_reason: null,
-            candidate_attendance: { status: 'open', arrived_at: null },
+            startsAt: '',
+            endsAt: '',
+            sequenceNumber: 1,
+            slotType: 'regular',
+            actualStartedAt: null,
+            executionStatus: 'open',
+            statusChangedAt: '',
+            actualCompletedAt: null,
+            statusReason: null,
+            candidateAttendance: { status: 'open', arrivedAt: null },
             candidate: {
               id: 1,
-              first_name: 'Prüfling',
-              last_name: 'Alpha',
-              ihk_exam_number: 'TEST-1',
+              firstName: 'Prüfling',
+              lastName: 'Alpha',
+              examNumber: 'TEST-1',
             },
           },
           {
             id: 2,
-            starts_at: '',
-            ends_at: '',
-            sequence_number: 2,
-            slot_type: 'regular',
-            actual_started_at: null,
-            execution_status: 'open',
-            status_changed_at: '',
-            actual_completed_at: null,
-            status_reason: null,
-            candidate_attendance: { status: 'open', arrived_at: null },
+            startsAt: '',
+            endsAt: '',
+            sequenceNumber: 2,
+            slotType: 'regular',
+            actualStartedAt: null,
+            executionStatus: 'open',
+            statusChangedAt: '',
+            actualCompletedAt: null,
+            statusReason: null,
+            candidateAttendance: { status: 'open', arrivedAt: null },
             candidate: {
               id: 2,
-              first_name: 'Prüfling',
-              last_name: 'Beta',
-              ihk_exam_number: 'TEST-2',
+              firstName: 'Prüfling',
+              lastName: 'Beta',
+              examNumber: 'TEST-2',
             },
           },
         ],
         assignments: [],
-        status_summary: { open: 2, running: 0, completed: 0, cancelled: 0, needs_follow_up: 0 },
+        statusSummary: { open: 2, running: 0, completed: 0, cancelled: 0, needs_follow_up: 0 },
       },
     ],
   };
 }
 
-function board(): PlanningBoard {
+function board(): ConfirmedPlansBoard {
   return {
-    days: [],
     members: [
-      {
-        id: 1,
-        person_id: 1,
-        committee_id: 1,
-        first_name: 'Erika',
-        last_name: 'Erste',
-        member_status: 'ordinary',
-        committee_role: 'member',
-        representing_side: 'employer',
-        email: 'erika@example.invalid',
-        email_verified_at: null,
-        mobile: null,
-        is_active: 1,
-      },
-      {
-        id: 2,
-        person_id: 2,
-        committee_id: 1,
-        first_name: 'Fabian',
-        last_name: 'Fallback',
-        member_status: 'deputy',
-        committee_role: 'member',
-        representing_side: 'employee',
-        email: 'fabian@example.invalid',
-        email_verified_at: null,
-        mobile: null,
-        is_active: 1,
-      },
+      { id: 1, firstName: 'Erika', lastName: 'Erste' },
+      { id: 2, firstName: 'Fabian', lastName: 'Fallback' },
     ],
     locations: [
       { id: 1, name: 'Prüfungszentrum', room: '101', city: 'Teststadt' },
@@ -467,43 +439,17 @@ function board(): PlanningBoard {
     ],
     candidates: [
       {
-        candidate: {
-          id: 1,
-          first_name: 'Prüfling',
-          last_name: 'Alpha',
-          ihk_exam_number: 'TEST-1',
-          specialization: 'application_development',
-          training_company: 'Testbetrieb',
-        },
-        roundCandidate: {
-          id: 1,
-          exam_round_id: 1,
-          candidate_id: 1,
-          attempt_number: 1,
-          requires_mep: 0,
-          is_active: 1,
-        },
+        roundCandidateId: 1,
+        firstName: 'Prüfling',
+        lastName: 'Alpha',
+        examNumber: 'TEST-1',
       },
       {
-        candidate: {
-          id: 2,
-          first_name: 'Prüfling',
-          last_name: 'Beta',
-          ihk_exam_number: 'TEST-2',
-          specialization: 'application_development',
-          training_company: 'Testbetrieb',
-        },
-        roundCandidate: {
-          id: 2,
-          exam_round_id: 1,
-          candidate_id: 2,
-          attempt_number: 1,
-          requires_mep: 0,
-          is_active: 1,
-        },
+        roundCandidateId: 2,
+        firstName: 'Prüfling',
+        lastName: 'Beta',
+        examNumber: 'TEST-2',
       },
     ],
-    candidateDays: [],
-    availabilities: [],
   };
 }

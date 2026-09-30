@@ -67,8 +67,8 @@
               <div>
                 <strong>{{ plan.name }}</strong
                 ><span class="app-muted app-block"
-                  >{{ plan.exam_half_year.season === 'summer' ? 'Sommer' : 'Winter' }}
-                  {{ plan.exam_half_year.year }}</span
+                  >{{ plan.examHalfYear.season === 'summer' ? 'Sommer' : 'Winter' }}
+                  {{ plan.examHalfYear.year }}</span
                 >
               </div>
               @if (canEdit) {
@@ -124,16 +124,16 @@
                       <tbody>
                         @for (slot of day.slots; track slot.id) {
                           <tr>
-                            <td>{{ timeLabel(slot.starts_at) }}–{{ timeLabel(slot.ends_at) }}</td>
+                            <td>{{ timeLabel(slot.startsAt) }}–{{ timeLabel(slot.endsAt) }}</td>
                             <td>
                               <span
                                 tuiBadge
-                                [appearance]="slot.slot_type === 'mep' ? 'warning' : 'neutral'"
-                                >{{ examLabel(slot.slot_type) }}</span
+                                [appearance]="slot.slotType === 'mep' ? 'warning' : 'neutral'"
+                                >{{ examLabel(slot.slotType) }}</span
                               >
                             </td>
-                            <td>{{ slot.candidate.first_name }} {{ slot.candidate.last_name }}</td>
-                            <td>{{ slot.candidate.ihk_exam_number }}</td>
+                            <td>{{ slot.candidate.firstName }} {{ slot.candidate.lastName }}</td>
+                            <td>{{ slot.candidate.examNumber }}</td>
                           </tr>
                         } @empty {
                           <tr>
@@ -151,19 +151,19 @@
                           <span
                             tuiBadge
                             [appearance]="
-                              assignment.assignment_role === 'fallback' ? 'warning' : 'positive'
+                              assignment.assignmentRole === 'fallback' ? 'warning' : 'positive'
                             "
-                            >{{ roleLabel(assignment.assignment_role) }}</span
+                            >{{ roleLabel(assignment.assignmentRole) }}</span
                           >
                           <span class="app-confirmed-assignment">
                             <span
-                              >{{ assignment.member.first_name }}
-                              {{ assignment.member.last_name }}</span
+                              >{{ assignment.member.firstName }}
+                              {{ assignment.member.lastName }}</span
                             >
                             <span>{{
-                              representingSideLabel(assignment.member.representing_side)
+                              representingSideLabel(assignment.member.representingSide)
                             }}</span>
-                            <span>{{ dayPartLabel(assignment.day_part) }}</span>
+                            <span>{{ dayPartLabel(assignment.dayPart) }}</span>
                           </span>
                         </li>
                       } @empty {
