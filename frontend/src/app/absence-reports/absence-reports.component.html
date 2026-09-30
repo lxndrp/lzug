@@ -29,15 +29,15 @@
             <dl>
               <div>
                 <dt>Prüfungstag</dt>
-                <dd>{{ report.exam_day_id }}</dd>
+                <dd>{{ report.examDayId }}</dd>
               </div>
               <div>
                 <dt>Gemeldet</dt>
-                <dd>{{ report.reported_at | date: 'dd.MM.yyyy, HH:mm' }}</dd>
+                <dd>{{ report.reportedAt | date: 'dd.MM.yyyy, HH:mm' }}</dd>
               </div>
               <div>
                 <dt>Ausgefallenes Mitglied</dt>
-                <dd>{{ report.committee_member_id }}</dd>
+                <dd>{{ report.committeeMemberId }}</dd>
               </div>
             </dl>
             @if (ownResponse(report); as response) {
@@ -75,7 +75,7 @@
                 <strong>Antworten der Ersatzsuche</strong>
                 @for (response of report.responses; track response.id) {
                   <span>
-                    Ersatzmitglied {{ response.committee_member_id }} · {{ response.response }}
+                    Ersatzmitglied {{ response.committeeMemberId }} · {{ response.response }}
                   </span>
                   @if (response.response === 'available') {
                     <button
@@ -83,7 +83,7 @@
                       appearance="primary"
                       type="button"
                       [disabled]="busyResponse() !== null"
-                      (click)="selectReplacement(report, response.committee_member_id)"
+                      (click)="selectReplacement(report, response.committeeMemberId)"
                     >
                       Vorgegebenen Ersatz auswählen
                     </button>
@@ -95,9 +95,7 @@
               <summary>Historie anzeigen ({{ report.audit.length }})</summary>
               <ol>
                 @for (event of report.audit; track event.id) {
-                  <li>
-                    {{ event.event_type }} · {{ event.created_at | date: 'dd.MM.yyyy, HH:mm' }}
-                  </li>
+                  <li>{{ event.eventType }} · {{ event.createdAt | date: 'dd.MM.yyyy, HH:mm' }}</li>
                 }
               </ol>
             </details>

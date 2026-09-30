@@ -1,5 +1,5 @@
+import { HttpHeaders, provideHttpClient } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 
 import { PlanningApiService } from './planning-api.service';
@@ -7,7 +7,7 @@ import { ConfirmedPlanApiService } from './confirmed-plan-api.service';
 import { ExamProtocolApiService } from './exam-protocol-api.service';
 import { ExamRoundApiService } from './exam-round-api.service';
 import { MasterDataApiService } from './master-data-api.service';
-import { PersonalApiService } from './personal-api.service';
+import { HttpPersonalAdapter } from './http-personal.adapter';
 import { VenueApiService } from './venue-api.service';
 import { RuntimeExperienceService } from '../runtime/runtime-experience.service';
 import {
@@ -36,7 +36,7 @@ describe('domain API services', () => {
   let protocols: ExamProtocolApiService;
   let examRounds: ExamRoundApiService;
   let masterData: MasterDataApiService;
-  let personal: PersonalApiService;
+  let personal: HttpPersonalAdapter;
   let venues: VenueApiService;
   let runtimeExperience: RuntimeExperienceService;
   let http: HttpTestingController;
@@ -51,7 +51,7 @@ describe('domain API services', () => {
     protocols = TestBed.inject(ExamProtocolApiService);
     examRounds = TestBed.inject(ExamRoundApiService);
     masterData = TestBed.inject(MasterDataApiService);
-    personal = TestBed.inject(PersonalApiService);
+    personal = TestBed.inject(HttpPersonalAdapter);
     venues = TestBed.inject(VenueApiService);
     runtimeExperience = TestBed.inject(RuntimeExperienceService);
     http = TestBed.inject(HttpTestingController);
@@ -255,7 +255,16 @@ describe('domain API services', () => {
   });
 
   it('should use the channel-neutral notification endpoints', () => {
-    personal.getNotifications().subscribe((items) => expect(items[0].id).toBe(7));
+    personal.listNotifications().subscribe((items) =>
+      expect(items[0]).toEqual({
+        id: 7,
+        eventType: 'plan_confirmed',
+        title: 'Prüfungsplan bestätigt',
+        message: 'Ihre Termine sind verfügbar.',
+        actionPath: '/confirmed-plans/1',
+        createdAt: '2026-10-01T10:00:00+00:00',
+      }),
+    );
     const notifications = http.expectOne('/api/notifications');
     expect(notifications.request.method).toBe('GET');
     notifications.flush({
@@ -272,10 +281,53 @@ describe('domain API services', () => {
       _links: {},
     });
 
-    personal.getNotificationOverview().subscribe((items) => expect(items).toEqual([]));
+    personal.listNotificationOverview().subscribe((items) =>
+      expect(items).toEqual([
+        {
+          notificationId: 8,
+          eventType: 'availability_requested',
+          recipientMemberId: 3,
+          channel: 'web_push',
+          status: 'unavailable',
+          attemptCount: 1,
+          errorCode: 'not_registered',
+          updatedAt: '2026-10-01T10:01:00+00:00',
+        },
+      ]),
+    );
     const overview = http.expectOne('/api/notification-overview');
     expect(overview.request.method).toBe('GET');
-    overview.flush({ items: [], _links: {} });
+    overview.flush({
+      items: [
+        {
+          notification_id: 8,
+          event_type: 'availability_requested',
+          recipient_member_id: 3,
+          channel: 'web_push',
+          status: 'unavailable',
+          attempt_count: 1,
+          error_code: 'not_registered',
+          updated_at: '2026-10-01T10:01:00+00:00',
+        },
+      ],
+      _links: {},
+    });
+
+    personal.getNotificationChannels().subscribe((channels) =>
+      expect(channels).toEqual({
+        webPush: { available: true, publicKey: 'test-key' },
+        emailFallbackConfigured: false,
+        sinkEnabled: true,
+      }),
+    );
+    http.expectOne('/api/notification-channels').flush({
+      web_push: { available: true, public_key: 'test-key' },
+      email_fallback_configured: false,
+      sink_enabled: true,
+    });
+
+    personal.listNotificationProblems().subscribe((items) => expect(items).toEqual([]));
+    http.expectOne('/api/notification-problems').flush({ items: [], _links: {} });
 
     personal.registerPushSubscription('https://push.example.invalid/one').subscribe();
     const registration = http.expectOne('/api/push-subscriptions');
@@ -285,7 +337,14 @@ describe('domain API services', () => {
   });
 
   it('should expose the personal calendar feed endpoints', () => {
-    personal.getCalendarStatus().subscribe((status) => expect(status.active).toBe(true));
+    personal.getCalendarStatus().subscribe((status) =>
+      expect(status).toEqual({
+        active: true,
+        activatedAt: '2026-10-01T10:00:00+00:00',
+        revokedAt: null,
+        timeZone: 'Europe/Berlin',
+      }),
+    );
     const status = http.expectOne('/api/calendar');
     expect(status.request.method).toBe('GET');
     status.flush({
@@ -296,12 +355,71 @@ describe('domain API services', () => {
       _links: {},
     });
 
-    personal.getCalendarEvents().subscribe((events) => expect(events).toEqual([]));
+    personal.listCalendarEvents().subscribe((events) =>
+      expect(events).toEqual([
+        {
+          id: 5,
+          externalEventId: 'calendar-5',
+          date: '2026-11-16',
+          startsAt: '08:30',
+          endsAt: '09:30',
+          timeZone: 'Europe/Berlin',
+          location: 'Raum 1',
+          role: 'Prüfperson',
+          roundName: 'Winterprüfung 2026',
+          status: 'sent',
+          version: 2,
+        },
+      ]),
+    );
     const events = http.expectOne('/api/calendar/events');
     expect(events.request.method).toBe('GET');
-    events.flush({ items: [], _links: {} });
+    events.flush({
+      items: [
+        {
+          id: 5,
+          external_event_id: 'calendar-5',
+          date: '2026-11-16',
+          starts_at: '08:30',
+          ends_at: '09:30',
+          time_zone: 'Europe/Berlin',
+          location: 'Raum 1',
+          role: 'Prüfperson',
+          round_name: 'Winterprüfung 2026',
+          status: 'sent',
+          version: 2,
+          download_url: '/api/calendar/events/5.ics',
+        },
+      ],
+      _links: {},
+    });
 
-    personal.activateCalendarFeed(true).subscribe((result) => expect(result.active).toBe(true));
+    personal.downloadCalendarEvent(5).subscribe((download) =>
+      expect(download).toEqual({
+        content: 'BEGIN:VCALENDAR',
+        mediaType: 'text/calendar; charset=utf-8',
+        fileName: 'winterpruefung.ics',
+      }),
+    );
+    const download = http.expectOne('/api/calendar/events/5.ics');
+    expect(download.request.method).toBe('GET');
+    download.flush('BEGIN:VCALENDAR', {
+      headers: new HttpHeaders({
+        'content-type': 'text/calendar; charset=utf-8',
+        'content-disposition': 'attachment; filename="winterpruefung.ics"',
+      }),
+    });
+
+    personal.activateCalendarFeed(true).subscribe((result) =>
+      expect(result).toEqual({
+        active: true,
+        activatedAt: '2026-10-01T10:00:00+00:00',
+        revokedAt: null,
+        timeZone: 'Europe/Berlin',
+        feedUrl: '/api/calendar/feed/token.ics',
+        notice: 'only now',
+      }),
+    );
     const activate = http.expectOne('/api/calendar/feed');
     expect(activate.request.method).toBe('POST');
     expect(activate.request.body).toEqual({ rotate: true });
@@ -326,6 +444,73 @@ describe('domain API services', () => {
       notice: 'revoked',
       _links: {},
     });
+  });
+
+  it('maps absence reports and writes at the HTTP adapter boundary', () => {
+    personal.listAbsenceReports().subscribe((items) => {
+      expect(items[0]).toEqual({
+        id: 1,
+        examDayId: 7,
+        examDayAssignmentId: 8,
+        committeeMemberId: 3,
+        reportedByMemberId: 3,
+        reportedAt: '2026-11-01T09:00:00+00:00',
+        reason: null,
+        status: 'replacement_requested',
+        selectedReplacementMemberId: null,
+        version: 1,
+        createdAt: '2026-11-01T09:00:00+00:00',
+        updatedAt: '2026-11-01T09:00:00+00:00',
+        responses: [
+          {
+            id: 5,
+            committeeMemberId: 7,
+            response: 'pending',
+            requestedAt: '2026-11-01T09:00:00+00:00',
+            expiresAt: null,
+            urgent: true,
+            respondedAt: null,
+          },
+        ],
+        audit: [
+          {
+            id: 1,
+            actorMemberId: 3,
+            eventType: 'reported',
+            fromStatus: null,
+            toStatus: 'replacement_requested',
+            details: null,
+            createdAt: '2026-11-01T09:00:00+00:00',
+          },
+        ],
+      });
+    });
+    http.expectOne('/api/absence-reports').flush({ items: [absenceReportResponse()], _links: {} });
+
+    personal
+      .createAbsenceReport({ examDayId: 7, assignmentId: 8, reason: '  Krank  ', dayRevision: 2 })
+      .subscribe();
+    const create = http.expectOne('/api/absence-reports');
+    expect(create.request.method).toBe('POST');
+    expect(create.request.body).toEqual({
+      exam_day_id: 7,
+      exam_day_assignment_id: 8,
+      reason: 'Krank',
+      day_revision: 2,
+    });
+    create.flush(absenceReportResponse());
+
+    personal.answerReplacement(5, 'available').subscribe();
+    const answer = http.expectOne('/api/replacement-responses/5');
+    expect(answer.request.method).toBe('PATCH');
+    expect(answer.request.body).toEqual({ response: 'available' });
+    answer.flush(absenceReportResponse());
+
+    personal.selectReplacement(1, 7, 3).subscribe();
+    const select = http.expectOne('/api/absence-reports/1/select-replacement');
+    expect(select.request.method).toBe('POST');
+    expect(select.request.body).toEqual({ committee_member_id: 7, version: 3 });
+    select.flush(absenceReportResponse());
   });
 
   it('should expose committee member write operations', () => {
@@ -684,3 +869,42 @@ describe('domain API services', () => {
     openCorrection.flush({});
   });
 });
+
+function absenceReportResponse() {
+  return {
+    id: 1,
+    exam_day_id: 7,
+    exam_day_assignment_id: 8,
+    committee_member_id: 3,
+    reported_by_member_id: 3,
+    reported_at: '2026-11-01T09:00:00+00:00',
+    reason: null,
+    status: 'replacement_requested',
+    selected_replacement_member_id: null,
+    version: 1,
+    created_at: '2026-11-01T09:00:00+00:00',
+    updated_at: '2026-11-01T09:00:00+00:00',
+    responses: [
+      {
+        id: 5,
+        committee_member_id: 7,
+        response: 'pending',
+        requested_at: '2026-11-01T09:00:00+00:00',
+        expires_at: null,
+        urgent: true,
+        responded_at: null,
+      },
+    ],
+    audit: [
+      {
+        id: 1,
+        actor_member_id: 3,
+        event_type: 'reported',
+        from_status: null,
+        to_status: 'replacement_requested',
+        details: null,
+        created_at: '2026-11-01T09:00:00+00:00',
+      },
+    ],
+  };
+}

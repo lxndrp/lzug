@@ -16,7 +16,7 @@ import {
 } from '../api/api.models';
 import { ApplicationError } from '../application/application-error';
 import { ExamDayApiService } from '../api/exam-day-api.service';
-import { PersonalApiService } from '../api/personal-api.service';
+import { PersonalFacade } from '../personal/personal.facade';
 import { AuthService } from '../auth/auth.service';
 import { ExamProtocolComponent } from '../exam-protocol/exam-protocol.component';
 import { ExamResultComponent } from '../exam-result/exam-result.component';
@@ -31,7 +31,7 @@ export type ExamDayViewState = 'loading' | 'ready' | 'error' | 'not-found';
 })
 export class ExamDayComponent implements OnInit, OnChanges {
   private readonly api = inject(ExamDayApiService);
-  private readonly personalApi = inject(PersonalApiService);
+  private readonly personal = inject(PersonalFacade);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
 
@@ -216,8 +216,12 @@ export class ExamDayComponent implements OnInit, OnChanges {
     this.savingKeys.set(new Set([`absence-${assignmentId}`]));
     this.actionMessage.set(null);
     this.actionError.set(null);
-    this.personalApi
-      .createAbsenceReport(dayId, assignmentId, undefined, this.view()?.day.revision)
+    this.personal
+      .createAbsenceReport({
+        examDayId: dayId,
+        assignmentId,
+        dayRevision: this.view()?.day.revision,
+      })
       .subscribe({
         next: () => {
           if (actionSequence !== this.requestSequence) return;

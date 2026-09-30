@@ -1,74 +1,56 @@
-import { provideHttpClient } from '@angular/common/http';
-import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideTaiga } from '@taiga-ui/core';
 import { provideRouter } from '@angular/router';
+import { of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { AuthService } from '../auth/auth.service';
+import { PERSONAL_PORT, type PersonalPort } from '../personal/personal.port';
 import { NotificationsComponent } from './notifications.component';
 
 describe('NotificationsComponent', () => {
+  let personal: PersonalPort;
+
   beforeEach(async () => {
+    personal = createPersonalPort();
     await TestBed.configureTestingModule({
       imports: [NotificationsComponent],
       providers: [
-        provideHttpClient(),
-        provideHttpClientTesting(),
+        { provide: PERSONAL_PORT, useValue: personal },
         provideRouter([]),
         provideTaiga({ scrollbars: 'native' }),
       ],
     }).compileComponents();
   });
 
-  afterEach(() => TestBed.inject(HttpTestingController).verify({ ignoreCancelled: true }));
-
   it('renders own content and only technical metadata for committee problems', () => {
-    const fixture = TestBed.createComponent(NotificationsComponent);
-    const http = TestBed.inject(HttpTestingController);
-    fixture.detectChanges();
-
-    http.expectOne('/api/notifications').flush({
-      items: [
+    personal.listNotifications = vi.fn().mockReturnValue(
+      of([
         {
           id: 1,
-          event_type: 'availability_reminder',
+          eventType: 'availability_reminder',
           title: 'Verfügbarkeitsrückmeldung offen',
           message: 'Ihre Rückmeldung ist noch offen.',
-          action_path: '/scheduling-overview/1',
-          created_at: '2026-09-29T18:00:00+00:00',
+          actionPath: '/scheduling-overview/1',
+          createdAt: '2026-09-29T18:00:00+00:00',
         },
-      ],
-      _links: {},
-    });
-    http.expectOne('/api/notification-overview').flush({
-      items: [
+      ]),
+    );
+    personal.listNotificationOverview = vi.fn().mockReturnValue(
+      of([
         {
-          notification_id: 2,
-          event_type: 'availability_requested',
-          recipient_member_id: 7,
+          notificationId: 2,
+          eventType: 'availability_requested',
+          recipientMemberId: 7,
           channel: 'web_push',
           status: 'unavailable',
-          attempt_count: 0,
-          error_code: 'not_registered',
-          updated_at: '2026-09-29T18:00:00+00:00',
+          attemptCount: 0,
+          errorCode: 'not_registered',
+          updatedAt: '2026-09-29T18:00:00+00:00',
         },
-      ],
-      _links: {},
-    });
-    http.expectOne('/api/notification-channels').flush({
-      web_push: { available: false, public_key: null },
-      email_fallback_configured: false,
-      sink_enabled: false,
-    });
-    http.expectOne('/api/calendar').flush({
-      active: false,
-      activated_at: null,
-      revoked_at: null,
-      time_zone: 'Europe/Berlin',
-      _links: {},
-    });
-    http.expectOne('/api/calendar/events').flush({ items: [], _links: {} });
+      ]),
+    );
+    const fixture = TestBed.createComponent(NotificationsComponent);
     fixture.detectChanges();
 
     const content = (fixture.nativeElement as HTMLElement).textContent ?? '';
@@ -77,6 +59,8 @@ describe('NotificationsComponent', () => {
     expect(content).toContain('Zustellstatus im Ausschuss');
     expect(content).toContain('Nicht verfügbar');
     expect(content).not.toContain('Inhalt eines anderen Mitglieds');
+    expect(personal.listNotifications).toHaveBeenCalledOnce();
+    expect(personal.listNotificationOverview).toHaveBeenCalledOnce();
   });
 
   it('keeps push and feed management read-only without demo mutation capabilities', () => {
@@ -89,43 +73,31 @@ describe('NotificationsComponent', () => {
       demo_role: 'examiner',
       capabilities: ['notifications:read-own', 'calendar:read-own'],
     });
-    const fixture = TestBed.createComponent(NotificationsComponent);
-    const http = TestBed.inject(HttpTestingController);
-    fixture.detectChanges();
-
-    http.expectOne('/api/notifications').flush({ items: [], _links: {} });
-    http.expectOne('/api/notification-overview').flush({ items: [], _links: {} });
-    http.expectOne('/api/notification-channels').flush({
-      web_push: { available: true, public_key: 'test-key' },
-      email_fallback_configured: false,
-      sink_enabled: false,
-    });
-    http.expectOne('/api/calendar').flush({
-      active: false,
-      activated_at: null,
-      revoked_at: null,
-      time_zone: 'Europe/Berlin',
-      _links: {},
-    });
-    http.expectOne('/api/calendar/events').flush({
-      items: [
+    personal.getNotificationChannels = vi.fn().mockReturnValue(
+      of({
+        webPush: { available: true, publicKey: 'test-key' },
+        emailFallbackConfigured: false,
+        sinkEnabled: false,
+      }),
+    );
+    personal.listCalendarEvents = vi.fn().mockReturnValue(
+      of([
         {
           id: 1,
-          external_event_id: 'calendar-event-1',
+          externalEventId: 'calendar-event-1',
           date: '2026-11-16',
-          starts_at: '08:30',
-          ends_at: '09:30',
-          time_zone: 'Europe/Berlin',
+          startsAt: '08:30',
+          endsAt: '09:30',
+          timeZone: 'Europe/Berlin',
           location: 'Raum 1',
           role: 'Prüfperson',
-          round_name: 'Winterprüfung 2026',
+          roundName: 'Winterprüfung 2026',
           status: 'sent',
           version: 1,
-          download_url: '/api/calendar/events/1.ics',
         },
-      ],
-      _links: {},
-    });
+      ]),
+    );
+    const fixture = TestBed.createComponent(NotificationsComponent);
     fixture.detectChanges();
 
     const element = fixture.nativeElement as HTMLElement;
@@ -135,7 +107,35 @@ describe('NotificationsComponent', () => {
     expect(element.textContent).toContain('Feed-Aktivierung, Neuerzeugung und Widerruf');
     expect(element.textContent).not.toContain('Browser-Benachrichtigungen aktivieren');
     expect(element.textContent).not.toContain('Persönlichen Feed aktivieren');
-    expect(element.querySelector('a[href="/api/calendar/events/1.ics"]')).not.toBeNull();
+    expect(
+      Array.from(element.querySelectorAll('button')).some((button) =>
+        button.textContent?.includes('Datei laden'),
+      ),
+    ).toBe(true);
+  });
+
+  it('downloads a calendar event through the personal port', async () => {
+    personal.downloadCalendarEvent = vi.fn().mockReturnValue(
+      of({
+        content: 'BEGIN:VCALENDAR',
+        mediaType: 'text/calendar; charset=utf-8',
+        fileName: 'winterpruefung.ics',
+      }),
+    );
+    const fixture = TestBed.createComponent(NotificationsComponent);
+    const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:calendar');
+    const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+
+    (
+      fixture.componentInstance as unknown as { downloadCalendarEvent(id: number): void }
+    ).downloadCalendarEvent(5);
+
+    expect(personal.downloadCalendarEvent).toHaveBeenCalledWith(5);
+    expect(createObjectURL).toHaveBeenCalledWith(expect.any(Blob));
+    expect(click).toHaveBeenCalledOnce();
+    await new Promise((resolve) => window.setTimeout(resolve, 1));
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:calendar');
   });
 
   it('explains a denied browser permission without registering an endpoint', async () => {
@@ -147,9 +147,9 @@ describe('NotificationsComponent', () => {
       pushMessage(): string | null;
     };
     component.channels.set({
-      web_push: { available: true, public_key: 'test-key' },
-      email_fallback_configured: false,
-      sink_enabled: false,
+      webPush: { available: true, publicKey: 'test-key' },
+      emailFallbackConfigured: false,
+      sinkEnabled: false,
     });
     component.canEnablePush = () => true;
     const originalNotification = globalThis.Notification;
@@ -168,30 +168,12 @@ describe('NotificationsComponent', () => {
     }
 
     expect(component.pushMessage()).toBe('Browser-Benachrichtigungen wurden nicht erlaubt.');
+    expect(personal.registerPushSubscription).not.toHaveBeenCalled();
   });
 
   it('activates, rotates, and revokes the personal calendar feed', () => {
     const fixture = TestBed.createComponent(NotificationsComponent);
-    const http = TestBed.inject(HttpTestingController);
     fixture.detectChanges();
-    flushInitialRequests(http, [
-      {
-        id: 1,
-        external_event_id: 'calendar-event-1',
-        date: '2026-11-16',
-        starts_at: '08:30',
-        ends_at: '09:30',
-        time_zone: 'Europe/Berlin',
-        location: 'Raum 1',
-        role: 'Prüfperson',
-        round_name: 'Winterprüfung 2026',
-        status: 'sent',
-        version: 1,
-        download_url: '/api/calendar/events/1.ics',
-      },
-    ]);
-    fixture.detectChanges();
-
     const component = fixture.componentInstance as unknown as {
       activateCalendar(rotate?: boolean): void;
       revokeCalendar(): void;
@@ -206,51 +188,50 @@ describe('NotificationsComponent', () => {
       component.calendarBusy.set(true);
       component.activateCalendar();
       component.revokeCalendar();
-      http.expectNone('/api/calendar/feed');
+      expect(personal.activateCalendarFeed).not.toHaveBeenCalled();
+      expect(personal.revokeCalendarFeed).not.toHaveBeenCalled();
       component.calendarBusy.set(false);
 
+      personal.activateCalendarFeed = vi.fn().mockReturnValue(
+        of({
+          active: true,
+          activatedAt: '2026-10-01T10:00:00+00:00',
+          revokedAt: null,
+          timeZone: 'Europe/Berlin',
+          feedUrl: '/api/calendar/feed/first.ics',
+          notice: 'first activation',
+        }),
+      );
       component.activateCalendar();
-      const activation = http.expectOne('/api/calendar/feed');
-      expect(activation.request.body).toEqual({ rotate: false });
-      activation.flush({
-        active: true,
-        activated_at: '2026-10-01T10:00:00+00:00',
-        revoked_at: null,
-        time_zone: 'Europe/Berlin',
-        feed_url: '/api/calendar/feed/first.ics',
-        notice: 'first activation',
-        _links: {},
-      });
+      expect(personal.activateCalendarFeed).toHaveBeenCalledWith(false);
       expect(component.feedUrl()).toBe('/api/calendar/feed/first.ics');
       expect(component.calendarMessage()).toBe('first activation');
-      fixture.detectChanges();
-      expect((fixture.nativeElement as HTMLElement).textContent).toContain('Winterprüfung 2026');
 
+      personal.activateCalendarFeed = vi.fn().mockReturnValue(
+        of({
+          active: true,
+          activatedAt: '2026-10-01T11:00:00+00:00',
+          revokedAt: null,
+          timeZone: 'Europe/Berlin',
+          feedUrl: '/api/calendar/feed/second.ics',
+          notice: 'rotated',
+        }),
+      );
       component.activateCalendar(true);
-      const rotation = http.expectOne('/api/calendar/feed');
-      expect(rotation.request.body).toEqual({ rotate: true });
-      rotation.flush({
-        active: true,
-        activated_at: '2026-10-01T11:00:00+00:00',
-        revoked_at: null,
-        time_zone: 'Europe/Berlin',
-        feed_url: '/api/calendar/feed/second.ics',
-        notice: 'rotated',
-        _links: {},
-      });
+      expect(personal.activateCalendarFeed).toHaveBeenCalledWith(true);
       expect(component.feedUrl()).toBe('/api/calendar/feed/second.ics');
 
+      personal.revokeCalendarFeed = vi.fn().mockReturnValue(
+        of({
+          active: false,
+          activatedAt: '2026-10-01T11:00:00+00:00',
+          revokedAt: '2026-10-01T12:00:00+00:00',
+          timeZone: 'Europe/Berlin',
+          notice: 'revoked',
+        }),
+      );
       component.revokeCalendar();
-      const revoke = http.expectOne('/api/calendar/feed');
-      expect(revoke.request.method).toBe('DELETE');
-      revoke.flush({
-        active: false,
-        activated_at: '2026-10-01T11:00:00+00:00',
-        revoked_at: '2026-10-01T12:00:00+00:00',
-        time_zone: 'Europe/Berlin',
-        notice: 'revoked',
-        _links: {},
-      });
+      expect(personal.revokeCalendarFeed).toHaveBeenCalledOnce();
       expect(component.feedUrl()).toBeNull();
       expect(component.calendarMessage()).toBe('revoked');
       expect(component.calendarStatusLabel({ status: 'cancelled' } as never)).toBe('Storniert');
@@ -263,10 +244,7 @@ describe('NotificationsComponent', () => {
 
   it('reports feed errors and honors activation and revoke cancellations', () => {
     const fixture = TestBed.createComponent(NotificationsComponent);
-    const http = TestBed.inject(HttpTestingController);
     fixture.detectChanges();
-    flushInitialRequests(http);
-
     const component = fixture.componentInstance as unknown as {
       activateCalendar(rotate?: boolean): void;
       revokeCalendar(): void;
@@ -276,21 +254,19 @@ describe('NotificationsComponent', () => {
 
     try {
       component.activateCalendar(true);
-      http.expectNone('/api/calendar/feed');
+      expect(personal.activateCalendarFeed).not.toHaveBeenCalled();
       component.revokeCalendar();
-      http.expectNone('/api/calendar/feed');
+      expect(personal.revokeCalendarFeed).not.toHaveBeenCalled();
 
+      confirm.mockReturnValue(true);
+      personal.activateCalendarFeed = vi.fn().mockReturnValue(throwError(() => new Error()));
       component.activateCalendar();
-      const activation = http.expectOne('/api/calendar/feed');
-      activation.flush({ error: 'failed' }, { status: 500, statusText: 'Server Error' });
       expect(component.calendarMessage()).toBe(
         'Der persönliche Kalenderzugang konnte nicht aktiviert werden.',
       );
 
-      confirm.mockReturnValue(true);
+      personal.revokeCalendarFeed = vi.fn().mockReturnValue(throwError(() => new Error()));
       component.revokeCalendar();
-      const revoke = http.expectOne('/api/calendar/feed');
-      revoke.flush({ error: 'failed' }, { status: 500, statusText: 'Server Error' });
       expect(component.calendarMessage()).toBe(
         'Der persönliche Kalenderzugang konnte nicht widerrufen werden.',
       );
@@ -300,18 +276,9 @@ describe('NotificationsComponent', () => {
   });
 
   it('reports initial calendar loading errors', () => {
+    personal.getCalendarStatus = vi.fn().mockReturnValue(throwError(() => new Error()));
     const fixture = TestBed.createComponent(NotificationsComponent);
-    const http = TestBed.inject(HttpTestingController);
     fixture.detectChanges();
-
-    http.expectOne('/api/notifications').flush({ items: [], _links: {} });
-    http.expectOne('/api/notification-overview').flush({ items: [], _links: {} });
-    http.expectOne('/api/notification-channels').flush({
-      web_push: { available: false, public_key: null },
-      email_fallback_configured: false,
-      sink_enabled: false,
-    });
-    http.expectOne('/api/calendar').flush({}, { status: 500, statusText: 'Server Error' });
 
     const component = fixture.componentInstance as unknown as {
       pushMessage(): string | null;
@@ -320,20 +287,71 @@ describe('NotificationsComponent', () => {
   });
 });
 
-function flushInitialRequests(http: HttpTestingController, events: unknown[] = []): void {
-  http.expectOne('/api/notifications').flush({ items: [], _links: {} });
-  http.expectOne('/api/notification-overview').flush({ items: [], _links: {} });
-  http.expectOne('/api/notification-channels').flush({
-    web_push: { available: false, public_key: null },
-    email_fallback_configured: false,
-    sink_enabled: false,
-  });
-  http.expectOne('/api/calendar').flush({
-    active: false,
-    activated_at: null,
-    revoked_at: null,
-    time_zone: 'Europe/Berlin',
-    _links: {},
-  });
-  http.expectOne('/api/calendar/events').flush({ items: events, _links: {} });
+function createPersonalPort(): PersonalPort {
+  return {
+    listNotifications: vi.fn().mockReturnValue(of([])),
+    listNotificationProblems: vi.fn().mockReturnValue(of([])),
+    listNotificationOverview: vi.fn().mockReturnValue(of([])),
+    getNotificationChannels: vi.fn().mockReturnValue(
+      of({
+        webPush: { available: false, publicKey: null },
+        emailFallbackConfigured: false,
+        sinkEnabled: false,
+      }),
+    ),
+    getCalendarStatus: vi
+      .fn()
+      .mockReturnValue(
+        of({ active: false, activatedAt: null, revokedAt: null, timeZone: 'Europe/Berlin' }),
+      ),
+    listCalendarEvents: vi.fn().mockReturnValue(of([])),
+    downloadCalendarEvent: vi
+      .fn()
+      .mockReturnValue(
+        of({ content: 'BEGIN:VCALENDAR', mediaType: 'text/calendar', fileName: 'calendar.ics' }),
+      ),
+    activateCalendarFeed: vi.fn().mockReturnValue(
+      of({
+        active: true,
+        activatedAt: null,
+        revokedAt: null,
+        timeZone: 'Europe/Berlin',
+        feedUrl: '/api/calendar/feed/test.ics',
+        notice: 'activated',
+      }),
+    ),
+    revokeCalendarFeed: vi.fn().mockReturnValue(
+      of({
+        active: false,
+        activatedAt: null,
+        revokedAt: null,
+        timeZone: 'Europe/Berlin',
+        notice: 'revoked',
+      }),
+    ),
+    listAbsenceReports: vi.fn().mockReturnValue(of([])),
+    createAbsenceReport: vi.fn().mockReturnValue(of(emptyReport())),
+    answerReplacement: vi.fn().mockReturnValue(of(emptyReport())),
+    selectReplacement: vi.fn().mockReturnValue(of(emptyReport())),
+    registerPushSubscription: vi.fn().mockReturnValue(of(undefined)),
+  };
+}
+
+function emptyReport() {
+  return {
+    id: 1,
+    examDayId: 1,
+    examDayAssignmentId: 1,
+    committeeMemberId: 1,
+    reportedByMemberId: 1,
+    reportedAt: '',
+    reason: null,
+    status: '',
+    selectedReplacementMemberId: null,
+    version: 1,
+    createdAt: '',
+    updatedAt: '',
+    responses: [],
+    audit: [],
+  };
 }

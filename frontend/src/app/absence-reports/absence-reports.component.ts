@@ -2,9 +2,9 @@ import { DatePipe } from '@angular/common';
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { TuiButton } from '@taiga-ui/core';
 
-import { AbsenceReport } from '../api/api.models';
+import { PersonalAbsenceReport } from '../personal/personal.models';
 import { ApplicationError } from '../application/application-error';
-import { PersonalApiService } from '../api/personal-api.service';
+import { PersonalFacade } from '../personal/personal.facade';
 import { AuthService } from '../auth/auth.service';
 
 @Component({
@@ -14,10 +14,10 @@ import { AuthService } from '../auth/auth.service';
   styleUrl: './absence-reports.component.css',
 })
 export class AbsenceReportsComponent implements OnInit {
-  private readonly api = inject(PersonalApiService);
+  private readonly personal = inject(PersonalFacade);
   private readonly auth = inject(AuthService);
 
-  protected readonly reports = signal<AbsenceReport[]>([]);
+  protected readonly reports = signal<PersonalAbsenceReport[]>([]);
   protected readonly loading = signal(true);
   protected readonly busyResponse = signal<number | null>(null);
   protected readonly message = signal<string | null>(null);
@@ -26,16 +26,16 @@ export class AbsenceReportsComponent implements OnInit {
     this.load();
   }
 
-  protected ownResponse(report: AbsenceReport) {
+  protected ownResponse(report: PersonalAbsenceReport) {
     const memberId = this.auth.session()?.committee_member_id;
-    return report.responses.find((response) => response.committee_member_id === memberId);
+    return report.responses.find((response) => response.committeeMemberId === memberId);
   }
 
   protected answer(responseId: number, answer: 'available' | 'unavailable'): void {
     if (!this.canRespondToOwnAbsence()) return;
     this.busyResponse.set(responseId);
     this.message.set(null);
-    this.api.answerReplacement(responseId, answer).subscribe({
+    this.personal.answerReplacement(responseId, answer).subscribe({
       next: (report) => {
         this.reports.update((reports) =>
           reports.map((item) => (item.id === report.id ? report : item)),
@@ -54,11 +54,11 @@ export class AbsenceReportsComponent implements OnInit {
     });
   }
 
-  protected selectReplacement(report: AbsenceReport, memberId: number): void {
+  protected selectReplacement(report: PersonalAbsenceReport, memberId: number): void {
     if (!this.canCoordinateAbsence() || this.busyResponse() !== null) return;
     this.busyResponse.set(report.id);
     this.message.set(null);
-    this.api.selectReplacement(report.id, memberId, report.version).subscribe({
+    this.personal.selectReplacement(report.id, memberId, report.version).subscribe({
       next: (updated) => {
         this.reports.update((reports) =>
           reports.map((item) => (item.id === updated.id ? updated : item)),
@@ -95,7 +95,7 @@ export class AbsenceReportsComponent implements OnInit {
 
   private load(): void {
     this.loading.set(true);
-    this.api.getAbsenceReports().subscribe({
+    this.personal.listAbsenceReports().subscribe({
       next: (reports) => {
         this.reports.set(reports);
         this.loading.set(false);
