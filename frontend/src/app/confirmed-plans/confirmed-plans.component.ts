@@ -12,8 +12,8 @@ import { Router } from '@angular/router';
 import { TuiButton } from '@taiga-ui/core';
 import { TuiBadge } from '@taiga-ui/kit';
 
-import { ConfirmedPlan, PlanningBoard } from '../api/api.models';
-import { ConfirmedPlanApiService } from '../api/confirmed-plan-api.service';
+import { ConfirmedPlansWorkflowService } from './confirmed-plans-workflow.service';
+import type { ConfirmedPlan, ConfirmedPlansBoard } from './confirmed-plans.models';
 import { ConfirmedPlanEditorComponent } from './confirmed-plan-editor.component';
 
 export type ViewState = 'loading' | 'ready' | 'error';
@@ -25,12 +25,12 @@ export type ViewState = 'loading' | 'ready' | 'error';
   styleUrl: './confirmed-plans.component.css',
 })
 export class ConfirmedPlansComponent implements OnInit, OnChanges {
-  private readonly api = inject(ConfirmedPlanApiService);
+  private readonly confirmedPlans = inject(ConfirmedPlansWorkflowService);
   private readonly router = inject(Router);
 
   @Input() roundId: number | null = null;
   @Input() editRoundId: number | null = null;
-  @Input() board: PlanningBoard | null = null;
+  @Input() board: ConfirmedPlansBoard | null = null;
   @Input() canEdit = false;
   protected readonly state = signal<ViewState>('loading');
   protected readonly plans = signal<ConfirmedPlan[]>([]);
@@ -71,7 +71,7 @@ export class ConfirmedPlansComponent implements OnInit, OnChanges {
 
   protected load(): void {
     this.state.set('loading');
-    this.api.getConfirmedPlans().subscribe({
+    this.confirmedPlans.getConfirmedPlans().subscribe({
       next: (plans) => {
         this.plans.set(plans);
         this.selectFirstVisibleCommittee();

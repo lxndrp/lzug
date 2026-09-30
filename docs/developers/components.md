@@ -580,6 +580,9 @@ Snapshot ohne HAL-Links; die anwendungsweite Bindung liegt in
 `app.config.ts`.
 `PlanningWorkflowService` koordiniert Planungsbefehle über `PlanningPort`;
 `HttpPlanningAdapter` übersetzt diese Aufrufe in den vorhandenen API-Client.
+Bestätigte Pläne verwenden denselben Schnitt: `ConfirmedPlansWorkflowService`
+ruft `ConfirmedPlansPort` auf, dessen HTTP-Adapter Plan- und Revisionsantworten
+von HAL-Links bereinigt.
 Planungs-, Stammdaten- und Ortsbefehle liegen in den zuständigen
 Workflow-Services.
 Die Verwaltung der Prüfungshalbjahre verwendet eigene Featuremodelle und den

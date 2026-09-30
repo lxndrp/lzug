@@ -1,34 +1,29 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
-import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
 import { provideTaiga } from '@taiga-ui/core';
+import { of, throwError } from 'rxjs';
 
+import { ConfirmedPlansWorkflowService } from './confirmed-plans-workflow.service';
 import { ConfirmedPlansComponent } from './confirmed-plans.component';
 
 describe('ConfirmedPlansComponent', () => {
   let fixture: ComponentFixture<ConfirmedPlansComponent>;
-  let http: HttpTestingController;
+  let workflow: { getConfirmedPlans: ReturnType<typeof vi.fn> };
 
   beforeEach(async () => {
+    workflow = { getConfirmedPlans: vi.fn(() => of(plans())) };
     await TestBed.configureTestingModule({
       imports: [ConfirmedPlansComponent],
       providers: [
         provideRouter([]),
-        provideHttpClient(),
-        provideHttpClientTesting(),
+        { provide: ConfirmedPlansWorkflowService, useValue: workflow },
         provideTaiga({ scrollbars: 'native' }),
       ],
     }).compileComponents();
     fixture = TestBed.createComponent(ConfirmedPlansComponent);
-    http = TestBed.inject(HttpTestingController);
   });
 
-  afterEach(() => http.verify());
-
   it('shows robust local times and German labels in committee tabs', () => {
-    fixture.detectChanges();
-    http.expectOne('/api/confirmed-plans').flush({ items: plans(), _links: {} });
     fixture.detectChanges();
     const element = fixture.nativeElement as HTMLElement;
     expect(element.textContent).toContain('Prüfungsausschuss Plan Alpha');
@@ -66,8 +61,6 @@ describe('ConfirmedPlansComponent', () => {
 
   it('links tabs to their panel and supports arrow-key selection', () => {
     fixture.detectChanges();
-    http.expectOne('/api/confirmed-plans').flush({ items: plans(), _links: {} });
-    fixture.detectChanges();
 
     const element = fixture.nativeElement as HTMLElement;
     const tabs = element.querySelectorAll<HTMLButtonElement>('[role="tab"]');
@@ -90,8 +83,6 @@ describe('ConfirmedPlansComponent', () => {
   it('opens a round-specific confirmed plan without exposing other rounds', () => {
     fixture.componentRef.setInput('roundId', 2);
     fixture.detectChanges();
-    http.expectOne('/api/confirmed-plans').flush({ items: plans(), _links: {} });
-    fixture.detectChanges();
 
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('Prüfling Plan-Beta');
@@ -104,8 +95,6 @@ describe('ConfirmedPlansComponent', () => {
     fixture.componentRef.setInput('editRoundId', 1);
     fixture.componentRef.setInput('canEdit', false);
     fixture.detectChanges();
-    http.expectOne('/api/confirmed-plans').flush({ items: plans(), _links: {} });
-    fixture.detectChanges();
 
     const element = fixture.nativeElement as HTMLElement;
     expect(element.querySelector('app-confirmed-plan-editor')).toBeNull();
@@ -113,8 +102,10 @@ describe('ConfirmedPlansComponent', () => {
   });
 
   it('renders empty and retryable error states', () => {
-    fixture.detectChanges();
-    http.expectOne('/api/confirmed-plans').flush({ items: [], _links: {} });
+    workflow.getConfirmedPlans
+      .mockReturnValueOnce(of([]))
+      .mockReturnValueOnce(throwError(() => new Error('unavailable')))
+      .mockReturnValueOnce(of([]));
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).textContent).toContain(
       'Keine bestätigten Prüfungspläne',
@@ -122,15 +113,12 @@ describe('ConfirmedPlansComponent', () => {
 
     fixture = TestBed.createComponent(ConfirmedPlansComponent);
     fixture.detectChanges();
-    http.expectOne('/api/confirmed-plans').flush({}, { status: 500, statusText: 'Server Error' });
-    fixture.detectChanges();
     click(fixture.nativeElement as HTMLElement, 'Erneut versuchen');
-    http.expectOne('/api/confirmed-plans').flush({ items: [], _links: {} });
+    fixture.detectChanges();
+    expect(workflow.getConfirmedPlans).toHaveBeenCalledTimes(3);
   });
 
   it('keeps modified day-link clicks as native navigation', () => {
-    fixture.detectChanges();
-    http.expectOne('/api/confirmed-plans').flush({ items: plans(), _links: {} });
     fixture.detectChanges();
 
     const link = (fixture.nativeElement as HTMLElement).querySelector<HTMLAnchorElement>(
@@ -158,11 +146,13 @@ function click(element: HTMLElement, label: string): void {
 
 function plans() {
   const day = (
-    candidate: { first_name: string; last_name: string; ihk_exam_number: string },
-    slot_type = 'regular',
+    candidate: { firstName: string; lastName: string; examNumber: string },
+    slotType = 'regular',
   ) => ({
-    id: candidate.ihk_exam_number === 'TEST-PLAN-1' ? 1 : 2,
+    id: candidate.examNumber === 'TEST-PLAN-1' ? 1 : 2,
     date: '2026-11-16',
+    revision: 1,
+    closureStatus: 'open',
     location: {
       id: 1,
       name: 'Prüfungszentrum Plan (Test)',
@@ -172,64 +162,74 @@ function plans() {
     slots: [
       {
         id: 1,
-        starts_at: '2026-11-16 08:30:00',
-        ends_at: '2026-11-16 09:30:00',
-        sequence_number: 1,
-        slot_type,
+        startsAt: '2026-11-16 08:30:00',
+        endsAt: '2026-11-16 09:30:00',
+        sequenceNumber: 1,
+        slotType,
+        actualStartedAt: null,
+        executionStatus: 'open',
+        statusChangedAt: '',
+        actualCompletedAt: null,
+        statusReason: null,
+        candidateAttendance: { status: 'open', arrivedAt: null },
         candidate: { id: 1, ...candidate },
       },
     ],
     assignments: [
       {
         id: 1,
-        assignment_role: 'examiner',
-        day_part: 'full_day',
-        fallback_status: null,
+        assignmentRole: 'examiner',
+        dayPart: 'full_day',
+        fallbackStatus: null,
+        attendance: { status: 'open', arrivedAt: null },
         member: {
           id: 1,
-          first_name: 'Testperson',
-          last_name: 'Plan-Alpha',
-          representing_side: 'employer',
+          firstName: 'Testperson',
+          lastName: 'Plan-Alpha',
+          representingSide: 'employer',
         },
       },
       {
         id: 2,
-        assignment_role: 'fallback',
-        day_part: 'morning',
-        fallback_status: 'confirmed',
+        assignmentRole: 'fallback',
+        dayPart: 'morning',
+        fallbackStatus: 'confirmed',
+        attendance: { status: 'open', arrivedAt: null },
         member: {
           id: 2,
-          first_name: 'Testperson',
-          last_name: 'Plan-Beta',
-          representing_side: 'employee',
+          firstName: 'Testperson',
+          lastName: 'Plan-Beta',
+          representingSide: 'employee',
         },
       },
       {
         id: 3,
-        assignment_role: 'examiner',
-        day_part: 'afternoon',
-        fallback_status: null,
+        assignmentRole: 'examiner',
+        dayPart: 'afternoon',
+        fallbackStatus: null,
+        attendance: { status: 'open', arrivedAt: null },
         member: {
           id: 3,
-          first_name: 'Testperson',
-          last_name: 'Plan-Gamma',
-          representing_side: 'school',
+          firstName: 'Testperson',
+          lastName: 'Plan-Gamma',
+          representingSide: 'school',
         },
       },
     ],
+    statusSummary: { open: 1, running: 0, completed: 0, cancelled: 0, needs_follow_up: 0 },
   });
   return [
     {
       id: 1,
       name: 'Winter Testrunde Alpha',
       committee: { id: 1, name: 'Prüfungsausschuss Plan Alpha' },
-      exam_half_year: { id: 1, season: 'winter', year: 2026, status: 'active' },
+      examHalfYear: { id: 1, season: 'winter', year: 2026, status: 'active' },
       days: [
         day(
           {
-            first_name: 'Prüfling',
-            last_name: 'Plan-Alpha',
-            ihk_exam_number: 'TEST-PLAN-1',
+            firstName: 'Prüfling',
+            lastName: 'Plan-Alpha',
+            examNumber: 'TEST-PLAN-1',
           },
           'mep',
         ),
@@ -239,12 +239,12 @@ function plans() {
       id: 2,
       name: 'Winter Testrunde Beta',
       committee: { id: 2, name: 'Prüfungsausschuss Plan Beta' },
-      exam_half_year: { id: 1, season: 'winter', year: 2026, status: 'active' },
+      examHalfYear: { id: 1, season: 'winter', year: 2026, status: 'active' },
       days: [
         day({
-          first_name: 'Prüfling',
-          last_name: 'Plan-Beta',
-          ihk_exam_number: 'TEST-PLAN-2',
+          firstName: 'Prüfling',
+          lastName: 'Plan-Beta',
+          examNumber: 'TEST-PLAN-2',
         }),
       ],
     },

@@ -207,6 +207,118 @@ assert.equal(
   'composition root binds the workspace port to its HTTP adapter',
 );
 
+const confirmedPlansPath = path.join(root, 'confirmed-plans', 'confirmed-plans.component.ts');
+const confirmedEditorPath = path.join(
+  root,
+  'confirmed-plans',
+  'confirmed-plan-editor.component.ts',
+);
+const confirmedWorkflowPath = path.join(
+  root,
+  'confirmed-plans',
+  'confirmed-plans-workflow.service.ts',
+);
+const confirmedPortPath = path.join(root, 'confirmed-plans', 'confirmed-plans.port.ts');
+const confirmedModelsPath = path.join(root, 'confirmed-plans', 'confirmed-plans.models.ts');
+const confirmedPlansSpecPath = path.join(
+  root,
+  'confirmed-plans',
+  'confirmed-plans.component.spec.ts',
+);
+const confirmedEditorSpecPath = path.join(
+  root,
+  'confirmed-plans',
+  'confirmed-plan-editor.component.spec.ts',
+);
+const confirmedAdapterPath = path.join(root, 'api', 'http-confirmed-plans.adapter.ts');
+const confirmedAdapterSpecPath = path.join(root, 'api', 'http-confirmed-plans.adapter.spec.ts');
+const [
+  confirmedPlans,
+  confirmedEditor,
+  confirmedWorkflow,
+  confirmedPort,
+  confirmedModels,
+  confirmedPlansSpec,
+  confirmedEditorSpec,
+  confirmedAdapter,
+  confirmedAdapterSpec,
+] = await Promise.all(
+  [
+    confirmedPlansPath,
+    confirmedEditorPath,
+    confirmedWorkflowPath,
+    confirmedPortPath,
+    confirmedModelsPath,
+    confirmedPlansSpecPath,
+    confirmedEditorSpecPath,
+    confirmedAdapterPath,
+    confirmedAdapterSpecPath,
+  ].map((file) => readFile(file, 'utf8')),
+);
+
+for (const [name, component] of [
+  ['confirmed plans', confirmedPlans],
+  ['confirmed-plan editor', confirmedEditor],
+]) {
+  assert.match(importsOf(component), /confirmed-plans-workflow\.service/);
+  assert.doesNotMatch(
+    importsOf(component),
+    /ConfirmedPlanApiService|confirmed-plan-api\.service|ApiClient|api-client\.service/,
+    `${name} must not depend directly on a transport service`,
+  );
+}
+assert.match(confirmedWorkflow, /CONFIRMED_PLANS_PORT/);
+assert.doesNotMatch(
+  importsOf(confirmedWorkflow),
+  /ConfirmedPlanApiService|confirmed-plan-api\.service|ApiClient|api-client\.service/,
+  'confirmed-plan application operations must depend on their port',
+);
+assert.doesNotMatch(
+  confirmedPort,
+  /HttpClient|fetch\s*\(|types\.gen|['"]\/api\//,
+  'confirmed-plan port must not expose transport details',
+);
+for (const [name, source] of [
+  ['confirmed-plan list component', confirmedPlans],
+  ['confirmed-plan editor', confirmedEditor],
+  ['confirmed-plan workflow', confirmedWorkflow],
+  ['confirmed-plan port', confirmedPort],
+  ['confirmed-plan models', confirmedModels],
+  ['confirmed-plan list tests', confirmedPlansSpec],
+  ['confirmed-plan editor tests', confirmedEditorSpec],
+]) {
+  assert.doesNotMatch(
+    importsOf(source),
+    /(?:^|\/)api\.models(?:$|\n)/,
+    `${name} must not import backend/API models`,
+  );
+}
+assert.match(confirmedPort, /from '\.\/confirmed-plans\.models'/);
+assert.match(confirmedModels, /examHalfYear|roundCandidateId|committeeMemberId/);
+assert.match(confirmedAdapter, /fromApiConfirmedPlan\(/);
+assert.match(confirmedAdapter, /fromApiEditableConfirmedPlan\(/);
+assert.match(confirmedAdapter, /toApiEditableConfirmedPlan\(/);
+assert.match(confirmedAdapter, /fromApiConfirmedPlanRevision\(/);
+assert.match(confirmedAdapter, /ConfirmedPlanApiService/);
+for (const [name, spec] of [
+  ['confirmed-plan list', confirmedPlansSpec],
+  ['confirmed-plan editor', confirmedEditorSpec],
+]) {
+  assert.doesNotMatch(
+    spec,
+    /HttpTestingController|provideHttpClientTesting/,
+    `${name} behavior tests must use application-boundary doubles`,
+  );
+}
+assert.match(confirmedAdapterSpec, /HttpConfirmedPlansAdapter/);
+assert.match(confirmedAdapterSpec, /apiEditablePayload/);
+assert.match(confirmedAdapterSpec, /round_id/);
+assert.match(confirmedAdapterSpec, /roundId/);
+assert.equal(
+  hasProviderBinding(config, 'CONFIRMED_PLANS_PORT', 'HttpConfirmedPlansAdapter'),
+  true,
+  'composition root binds the confirmed-plans port to its HTTP adapter',
+);
 const halfYearsComponentPath = path.join(root, 'exam-half-years', 'exam-half-years.component.ts');
 const halfYearsWorkflowPath = path.join(
   root,

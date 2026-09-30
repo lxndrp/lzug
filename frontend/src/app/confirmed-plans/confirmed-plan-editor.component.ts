@@ -11,20 +11,20 @@ import { FormsModule } from '@angular/forms';
 import { TuiButton, TuiNotification } from '@taiga-ui/core';
 import { TuiBadge } from '@taiga-ui/kit';
 
-import {
-  ConfirmedPlan,
-  ConfirmedPlanRevision,
-  DemoScenarioOverview,
-  EditablePlanningProposal,
-  PlanningBoard,
-  PlanningProposalAssignment,
-  PlanningProposalDay,
-  PlanningProposalSlot,
-} from '../api/api.models';
-import { ConfirmedPlanApiService } from '../api/confirmed-plan-api.service';
 import { ApplicationError } from '../application/application-error';
 import { AuthService } from '../auth/auth.service';
 import { RuntimeExperienceService } from '../runtime/runtime-experience.service';
+import { ConfirmedPlansWorkflowService } from './confirmed-plans-workflow.service';
+import type {
+  ConfirmedPlan,
+  ConfirmedPlanRevision,
+  ConfirmedPlansBoard,
+  EditableConfirmedPlan,
+  EditableConfirmedPlanAssignment,
+  EditableConfirmedPlanDay,
+  EditableConfirmedPlanSlot,
+  PreparedConfirmedPlanChange,
+} from './confirmed-plans.models';
 
 /** Lifecycle states exposed by the confirmed-plan editor. */
 export type EditorState = 'loading' | 'ready' | 'saving' | 'error';
@@ -41,23 +41,21 @@ export type EditorState = 'loading' | 'ready' | 'saving' | 'error';
   styleUrl: './confirmed-plan-editor.component.css',
 })
 export class ConfirmedPlanEditorComponent implements OnChanges {
-  private readonly api = inject(ConfirmedPlanApiService);
+  private readonly confirmedPlans = inject(ConfirmedPlansWorkflowService);
   private readonly auth = inject(AuthService);
   private readonly runtimeExperience = inject(RuntimeExperienceService);
 
   @Input({ required: true }) roundId!: number;
   @Input({ required: true }) plan!: ConfirmedPlan;
-  @Input() board: PlanningBoard | null = null;
+  @Input() board: ConfirmedPlansBoard | null = null;
 
   protected readonly state = signal<EditorState>('loading');
-  protected readonly draft = signal<EditablePlanningProposal | null>(null);
+  protected readonly draft = signal<EditableConfirmedPlan | null>(null);
   protected readonly revisions = signal<ConfirmedPlanRevision[]>([]);
   protected readonly errorMessage = signal<string | null>(null);
   protected readonly reason = signal('');
   protected readonly dirty = signal(false);
-  protected readonly demoPreparedChange = signal<
-    DemoScenarioOverview['prepared_plan_change'] | null
-  >(null);
+  protected readonly demoPreparedChange = signal<PreparedConfirmedPlanChange | null>(null);
   protected readonly isDemo = computed(() => this.auth.session()?.demo_role !== undefined);
   private readonly planView = signal<ConfirmedPlan | null>(null);
   private requestGeneration = 0;
@@ -67,12 +65,12 @@ export class ConfirmedPlanEditorComponent implements OnChanges {
         (this.planView()?.days ?? [])
           .filter(
             (day) =>
-              day.closure_status !== 'open' ||
+              day.closureStatus !== 'open' ||
               day.slots.some(
                 (slot) =>
-                  slot.actual_started_at !== null ||
-                  slot.actual_completed_at !== null ||
-                  slot.execution_status !== 'open',
+                  slot.actualStartedAt !== null ||
+                  slot.actualCompletedAt !== null ||
+                  slot.executionStatus !== 'open',
               ),
           )
           .map((day) => day.id),
@@ -98,7 +96,7 @@ export class ConfirmedPlanEditorComponent implements OnChanges {
     const roundId = this.roundId;
     this.state.set('loading');
     this.errorMessage.set(null);
-    this.api.getEditableConfirmedPlan(roundId).subscribe({
+    this.confirmedPlans.getEditableConfirmedPlan(roundId).subscribe({
       next: (proposal) => {
         if (!this.isCurrentRequest(generation, roundId)) return;
         this.draft.set(this.clone(proposal));
@@ -123,7 +121,7 @@ export class ConfirmedPlanEditorComponent implements OnChanges {
     const roundId = this.roundId;
     this.state.set('saving');
     this.errorMessage.set(null);
-    this.api.saveEditableConfirmedPlan(roundId, proposal, this.reason()).subscribe({
+    this.confirmedPlans.saveEditableConfirmedPlan(roundId, proposal, this.reason()).subscribe({
       next: (saved) => {
         if (!this.isCurrentRequest(generation, roundId)) return;
         this.draft.set(this.clone(saved));
@@ -156,11 +154,11 @@ export class ConfirmedPlanEditorComponent implements OnChanges {
     });
   }
 
-  protected isLocked(day: PlanningProposalDay): boolean {
+  protected isLocked(day: EditableConfirmedPlanDay): boolean {
     return day.id === null || this.lockedDayIds().has(day.id);
   }
 
-  protected controlsDisabled(day: PlanningProposalDay): boolean {
+  protected controlsDisabled(day: EditableConfirmedPlanDay): boolean {
     return this.isLocked(day) || this.isDemo() || this.state() === 'saving';
   }
 
@@ -169,78 +167,76 @@ export class ConfirmedPlanEditorComponent implements OnChanges {
     const current = this.draft();
     if (!change || !current || this.dirty() || this.state() !== 'ready') return;
     const proposal = this.clone(current);
-    const day = proposal.exam_days.find((item) => item.id === change.day_id);
-    const assignment = day?.assignments.find((item) => item.id === change.assignment_id);
+    const day = proposal.days.find((item) => item.id === change.dayId);
+    const assignment = day?.assignments.find((item) => item.id === change.assignmentId);
     if (!day || !assignment) {
       this.errorMessage.set('Die vorbereitete Demo-Änderung passt nicht zum aktuellen Planstand.');
       return;
     }
-    day.room_id = change.target_location_id;
-    day.location_id = change.target_location_id;
-    assignment.committee_member_id = change.replacement_member_id;
+    day.roomId = change.targetLocationId;
+    day.locationId = change.targetLocationId;
+    assignment.committeeMemberId = change.replacementMemberId;
     this.draft.set(proposal);
     this.reason.set(change.reason);
     this.dirty.set(true);
     this.errorMessage.set(null);
   }
 
-  protected updateLocation(day: PlanningProposalDay, locationId: number): void {
+  protected updateLocation(day: EditableConfirmedPlanDay, locationId: number): void {
     const roomId = Number(locationId);
-    this.updateDay(day, { room_id: roomId, location_id: roomId });
+    this.updateDay(day, { roomId, locationId: roomId });
   }
 
   protected updateSlot(
-    day: PlanningProposalDay,
-    slot: PlanningProposalSlot,
-    patch: Partial<Pick<PlanningProposalSlot, 'round_candidate_id' | 'slot_type'>>,
+    day: EditableConfirmedPlanDay,
+    slot: EditableConfirmedPlanSlot,
+    patch: Partial<Pick<EditableConfirmedPlanSlot, 'roundCandidateId' | 'slotType'>>,
   ): void {
     if (this.isLocked(day) || this.isDemo()) return;
     this.update((proposal) => {
-      const target = proposal.exam_days.find((item) => item.id === day.id);
+      const target = proposal.days.find((item) => item.id === day.id);
       const existing = target?.slots.find((item) => item.id === slot.id);
       if (existing) Object.assign(existing, patch);
     });
   }
 
-  protected moveSlot(day: PlanningProposalDay, index: number, direction: -1 | 1): void {
+  protected moveSlot(day: EditableConfirmedPlanDay, index: number, direction: -1 | 1): void {
     if (this.isLocked(day) || this.isDemo()) return;
     this.update((proposal) => {
-      const target = proposal.exam_days.find((item) => item.id === day.id);
+      const target = proposal.days.find((item) => item.id === day.id);
       if (!target) return;
       const next = index + direction;
       if (next < 0 || next >= target.slots.length) return;
       [target.slots[index], target.slots[next]] = [target.slots[next], target.slots[index]];
-      target.slots.forEach((slot, position) => (slot.sequence_number = position + 1));
+      target.slots.forEach((slot, position) => (slot.sequenceNumber = position + 1));
     });
   }
 
   protected updateAssignment(
-    day: PlanningProposalDay,
-    assignment: PlanningProposalAssignment,
+    day: EditableConfirmedPlanDay,
+    assignment: EditableConfirmedPlanAssignment,
     patch: Partial<
-      Pick<PlanningProposalAssignment, 'committee_member_id' | 'assignment_role' | 'day_part'>
+      Pick<EditableConfirmedPlanAssignment, 'committeeMemberId' | 'assignmentRole' | 'dayPart'>
     >,
   ): void {
     if (this.isLocked(day) || this.isDemo()) return;
     this.update((proposal) => {
-      const target = proposal.exam_days.find((item) => item.id === day.id);
+      const target = proposal.days.find((item) => item.id === day.id);
       const existing = target?.assignments.find((item) => item.id === assignment.id);
       if (existing) Object.assign(existing, patch);
     });
   }
 
   protected candidateLabel(id: number): string {
-    const candidate = this.board?.candidates.find(
-      (item) => item.roundCandidate?.id === id,
-    )?.candidate;
+    const candidate = this.board?.candidates.find((item) => item.roundCandidateId === id);
     return candidate
-      ? `${candidate.first_name} ${candidate.last_name} · ${candidate.ihk_exam_number}`
+      ? `${candidate.firstName} ${candidate.lastName} · ${candidate.examNumber}`
       : `Prüfling ${id}`;
   }
 
   protected memberLabel(id: number): string {
     const member = this.board?.members.find((item) => item.id === id);
-    return member ? `${member.first_name} ${member.last_name}` : `Mitglied ${id}`;
+    return member ? `${member.firstName} ${member.lastName}` : `Mitglied ${id}`;
   }
 
   protected locationLabel(id: number): string {
@@ -255,12 +251,12 @@ export class ConfirmedPlanEditorComponent implements OnChanges {
   }
 
   protected revisionLabel(revision: ConfirmedPlanRevision): string {
-    return `Revision ${revision.previous_revision} → ${revision.resulting_revision}`;
+    return `Revision ${revision.previousRevision} → ${revision.resultingRevision}`;
   }
 
   private loadAfterConflict(generation: number, roundId: number): void {
     this.state.set('loading');
-    this.api.getEditableConfirmedPlan(roundId).subscribe({
+    this.confirmedPlans.getEditableConfirmedPlan(roundId).subscribe({
       next: (proposal) => {
         if (!this.isCurrentRequest(generation, roundId)) return;
         this.draft.set(this.clone(proposal));
@@ -281,7 +277,7 @@ export class ConfirmedPlanEditorComponent implements OnChanges {
   }
 
   private loadRevisions(generation: number, roundId: number): void {
-    this.api.getConfirmedPlanRevisions(roundId).subscribe({
+    this.confirmedPlans.getConfirmedPlanRevisions(roundId).subscribe({
       next: (revisions) => {
         if (this.isCurrentRequest(generation, roundId)) this.revisions.set(revisions);
       },
@@ -299,7 +295,20 @@ export class ConfirmedPlanEditorComponent implements OnChanges {
     this.runtimeExperience.getDemoScenarios().subscribe({
       next: (overview) => {
         if (this.isCurrentRequest(generation, roundId)) {
-          this.demoPreparedChange.set(overview.prepared_plan_change);
+          const change = overview.prepared_plan_change;
+          this.demoPreparedChange.set(
+            change
+              ? {
+                  roundId: change.round_id,
+                  dayId: change.day_id,
+                  sourceLocationId: change.source_location_id,
+                  targetLocationId: change.target_location_id,
+                  assignmentId: change.assignment_id,
+                  replacementMemberId: change.replacement_member_id,
+                  reason: change.reason,
+                }
+              : null,
+          );
         }
       },
       error: () => {
@@ -323,15 +332,15 @@ export class ConfirmedPlanEditorComponent implements OnChanges {
     this.demoPreparedChange.set(null);
   }
 
-  private updateDay(day: PlanningProposalDay, patch: Partial<PlanningProposalDay>): void {
+  private updateDay(day: EditableConfirmedPlanDay, patch: Partial<EditableConfirmedPlanDay>): void {
     if (this.isLocked(day) || this.isDemo()) return;
     this.update((proposal) => {
-      const target = proposal.exam_days.find((item) => item.id === day.id);
+      const target = proposal.days.find((item) => item.id === day.id);
       if (target) Object.assign(target, patch);
     });
   }
 
-  private update(mutator: (proposal: EditablePlanningProposal) => void): void {
+  private update(mutator: (proposal: EditableConfirmedPlan) => void): void {
     const current = this.draft();
     if (!current) return;
     const copy = this.clone(current);
@@ -340,7 +349,7 @@ export class ConfirmedPlanEditorComponent implements OnChanges {
     this.dirty.set(true);
   }
 
-  private clone(proposal: EditablePlanningProposal): EditablePlanningProposal {
+  private clone(proposal: EditableConfirmedPlan): EditableConfirmedPlan {
     return structuredClone(proposal);
   }
 }
