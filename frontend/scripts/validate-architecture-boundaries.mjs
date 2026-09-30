@@ -207,6 +207,94 @@ assert.equal(
   'composition root binds the workspace port to its HTTP adapter',
 );
 
+const halfYearsComponentPath = path.join(root, 'exam-half-years', 'exam-half-years.component.ts');
+const halfYearsWorkflowPath = path.join(
+  root,
+  'exam-half-years',
+  'exam-half-years-workflow.service.ts',
+);
+const halfYearsPortPath = path.join(root, 'exam-half-years', 'exam-half-years.port.ts');
+const halfYearsSpecPath = path.join(root, 'exam-half-years', 'exam-half-years.component.spec.ts');
+const halfYearsAdapterPath = path.join(root, 'api', 'http-exam-half-years.adapter.ts');
+const halfYearsAdapterSpecPath = path.join(root, 'api', 'http-exam-half-years.adapter.spec.ts');
+const [
+  halfYearsComponent,
+  halfYearsWorkflow,
+  halfYearsPort,
+  halfYearsSpec,
+  halfYearsAdapter,
+  halfYearsAdapterSpec,
+] = await Promise.all(
+  [
+    halfYearsComponentPath,
+    halfYearsWorkflowPath,
+    halfYearsPortPath,
+    halfYearsSpecPath,
+    halfYearsAdapterPath,
+    halfYearsAdapterSpecPath,
+  ].map((file) => readFile(file, 'utf8')),
+);
+
+assert.deepEqual(
+  relativeImportsOf(halfYearsComponent),
+  [
+    '../app-icon.directive',
+    '../app-icons',
+    './exam-half-years-workflow.service',
+    './exam-half-years.models',
+  ],
+  'half-year component imports only its workflow and feature models',
+);
+assert.doesNotMatch(
+  importsOf(halfYearsComponent),
+  /@angular\/common\/http|(?:^|\/)(?:api|adapters?)(?:\/|$)/,
+  'half-year component imports below its workflow boundary',
+);
+assert.doesNotMatch(
+  halfYearsComponent,
+  /['"]\/api\//,
+  'half-year component does not construct backend URLs',
+);
+assert.deepEqual(relativeImportsOf(halfYearsWorkflow), ['./exam-half-years.port']);
+assert.doesNotMatch(
+  importsOf(halfYearsWorkflow),
+  /@angular\/common\/http|(?:^|\/)(?:api|adapters?)(?:\/|$)/,
+  'half-year workflow depends only on its feature port',
+);
+assert.deepEqual(relativeImportsOf(halfYearsPort), ['./exam-half-years.models']);
+assert.doesNotMatch(
+  importsOf(halfYearsPort),
+  /@angular\/common\/http|(?:^|\/)(?:api|adapters?)(?:\/|$)/,
+  'half-year port exposes no transport implementation',
+);
+assert.deepEqual(
+  importModulesOf(halfYearsAdapter).sort(),
+  [
+    '../exam-half-years/exam-half-years.models',
+    '../exam-half-years/exam-half-years.port',
+    './exam-round-api.service',
+    './planning.models',
+    '@angular/common/http',
+    '@angular/core',
+    'rxjs',
+  ].sort(),
+  'half-year HTTP adapter owns transport and maps to feature contracts',
+);
+assert.match(halfYearsAdapter, /exam-half-years\/exam-half-years\.models/);
+assert.match(halfYearsAdapterSpec, /HttpExamHalfYearsAdapter/);
+assert.match(halfYearsAdapterSpec, /exportLifecycle/);
+assert.match(halfYearsSpec, /EXAM_HALF_YEARS_PORT/);
+assert.doesNotMatch(
+  halfYearsSpec,
+  /HttpTestingController|provideHttpClientTesting/,
+  'half-year feature tests use application-boundary doubles',
+);
+assert.equal(
+  hasProviderBinding(config, 'EXAM_HALF_YEARS_PORT', 'HttpExamHalfYearsAdapter'),
+  true,
+  'composition root binds the half-year port to its HTTP adapter',
+);
+
 function importModulesOf(source) {
   const file = ts.createSourceFile('boundary.ts', source, ts.ScriptTarget.Latest, true);
   const modules = [];

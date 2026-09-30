@@ -1,37 +1,54 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
-import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { Observable, of, throwError } from 'rxjs';
 import { provideTaiga } from '@taiga-ui/core';
 
 import { ExamHalfYearsComponent } from './exam-half-years.component';
+import { EXAM_HALF_YEARS_PORT, type ExamHalfYearsPort } from './exam-half-years.port';
+import type { ExamHalfYear, ExamRound, RoundLifecycle } from './exam-half-years.models';
 import { athenCommitteeFixture, committeesFixture } from '../testing/fixtures';
 
 describe('ExamHalfYearsComponent', () => {
   let fixture: ComponentFixture<ExamHalfYearsComponent>;
-  let http: HttpTestingController;
+  let port: ExamHalfYearsPort;
 
   beforeEach(async () => {
+    port = {
+      listHalfYears: vi.fn((): Observable<ExamHalfYear[]> => of([])),
+      listRounds: vi.fn((): Observable<ExamRound[]> => of([])),
+      createRound: vi.fn((): Observable<ExamRound> => of(roundFixture())),
+      getRoundLifecycle: vi.fn((): Observable<RoundLifecycle> => of(lifecycleFixture())),
+      closeRound: vi.fn((): Observable<RoundLifecycle> => of(lifecycleFixture('closed'))),
+      cancelRound: vi.fn((): Observable<RoundLifecycle> => of(lifecycleFixture('cancelled'))),
+      reopenRound: vi.fn((): Observable<RoundLifecycle> => of(lifecycleFixture('open'))),
+      deleteEmptyRound: vi.fn((): Observable<void> => of(undefined)),
+      setCandidateTerminalStatus: vi.fn((): Observable<RoundLifecycle> => of(lifecycleFixture())),
+      documentIhkStatus: vi.fn((): Observable<RoundLifecycle> => of(lifecycleFixture())),
+      exportLifecycle: vi.fn(() =>
+        of({
+          content: '{}',
+          mediaType: 'application/json; charset=utf-8',
+          fileName: 'pruefungsrunde-1-nachweis.json',
+        }),
+      ),
+    };
     await TestBed.configureTestingModule({
       imports: [ExamHalfYearsComponent],
-      providers: [provideHttpClient(), provideHttpClientTesting(), provideTaiga({})],
+      providers: [provideTaiga({}), { provide: EXAM_HALF_YEARS_PORT, useValue: port }],
     }).compileComponents();
 
     fixture = TestBed.createComponent(ExamHalfYearsComponent);
-    fixture.componentRef.setInput('committees', committeesFixture);
-    http = TestBed.inject(HttpTestingController);
+    fixture.componentRef.setInput(
+      'committees',
+      committeesFixture.map(({ id, name }) => ({ id, name })),
+    );
   });
 
-  afterEach(() => http.verify());
-
   it('loads terms and creates a committee-specific round', () => {
+    vi.mocked(port.listHalfYears).mockReturnValue(of([halfYearFixture()]));
+    vi.mocked(port.listRounds).mockReturnValue(of([]));
     const selection = vi
       .spyOn(fixture.componentInstance.roundSelected, 'emit')
       .mockReturnValue(undefined);
-    fixture.detectChanges();
-    flushInitialLoad(http, [
-      { id: 1, season: 'winter', year: 2026, status: 'active' },
-      { id: 2, season: 'summer', year: 2027, status: 'draft' },
-    ]);
     fixture.detectChanges();
 
     const host = fixture.nativeElement as HTMLElement;
@@ -44,34 +61,16 @@ describe('ExamHalfYearsComponent', () => {
     fixture.detectChanges();
     roundForm.dispatchEvent(new Event('submit'));
 
-    const request = http.expectOne('/api/exam-rounds');
-    expect(request.request.method).toBe('POST');
-    expect(request.request.body).toEqual({
-      exam_half_year_id: 1,
-      committee_id: 1,
+    expect(port.createRound).toHaveBeenCalledWith({
+      halfYearId: 1,
+      committeeId: 1,
       name: `Winter 2026 · ${athenCommitteeFixture.name}`,
     });
-    request.flush({
-      id: 2,
-      exam_half_year_id: 1,
-      committee_id: 1,
-      name: `Winter 2026 · ${athenCommitteeFixture.name}`,
-      status: 'draft',
-      availability_deadline: null,
-      availability_reminder_at: null,
-    });
-    expect(selection).toHaveBeenCalledWith(2);
-    flushInitialLoad(http, [
-      { id: 1, season: 'winter', year: 2026, status: 'active' },
-      { id: 2, season: 'summer', year: 2027, status: 'draft' },
-    ]);
+    expect(selection).toHaveBeenCalledWith(1);
   });
 
-  it('creates a round and half-year context atomically from the form values', () => {
+  it('creates a half-year context and its committee-specific round atomically', () => {
     fixture.detectChanges();
-    flushInitialLoad(http, []);
-    fixture.detectChanges();
-
     const host = fixture.nativeElement as HTMLElement;
     const halfYearForm = host.querySelector<HTMLFormElement>('form')!;
     halfYearForm.querySelector<HTMLSelectElement>('#examHalfYearSeason')!.value = 'summer';
@@ -79,40 +78,22 @@ describe('ExamHalfYearsComponent', () => {
     halfYearForm.querySelector<HTMLSelectElement>('#newRoundCommittee')!.value = '1';
     halfYearForm.dispatchEvent(new Event('submit'));
 
-    const request = http.expectOne('/api/exam-rounds');
-    expect(request.request.method).toBe('POST');
-    expect(request.request.body).toEqual({
+    expect(port.createRound).toHaveBeenCalledWith({
       season: 'summer',
       year: 2027,
-      committee_id: 1,
+      committeeId: 1,
       name: `Sommer 2027 · ${athenCommitteeFixture.name}`,
     });
-    request.flush({
-      id: 2,
-      exam_half_year_id: 2,
-      committee_id: 1,
-      name: `Sommer 2027 · ${athenCommitteeFixture.name}`,
-      status: 'draft',
-    });
-    flushInitialLoad(http, [{ id: 2, season: 'summer', year: 2027, status: 'active' }]);
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      'Prüfungsrunde und gemeinsamer Halbjahreskontext wurden angelegt.',
+    );
   });
 
   it('keeps every half-year entry and detail read-only in the demo', () => {
+    vi.mocked(port.listHalfYears).mockReturnValue(of([halfYearFixture()]));
+    vi.mocked(port.listRounds).mockReturnValue(of([roundFixture()]));
     fixture.componentRef.setInput('readOnly', true);
-    fixture.detectChanges();
-    flushInitialLoad(
-      http,
-      [{ id: 1, season: 'winter', year: 2026, status: 'active' }],
-      [
-        {
-          id: 1,
-          exam_half_year_id: 1,
-          committee_id: 1,
-          name: 'Winter 2026 · Prüfungsausschuss Teststadt 1',
-          status: 'draft',
-        },
-      ],
-    );
     fixture.detectChanges();
 
     const element = fixture.nativeElement as HTMLElement;
@@ -125,8 +106,7 @@ describe('ExamHalfYearsComponent', () => {
   });
 
   it('keeps readable native required selections free of clear actions', () => {
-    fixture.detectChanges();
-    flushInitialLoad(http, [{ id: 1, season: 'winter', year: 2026, status: 'active' }]);
+    vi.mocked(port.listHalfYears).mockReturnValue(of([halfYearFixture()]));
     fixture.detectChanges();
 
     const element = fixture.nativeElement as HTMLElement;
@@ -138,50 +118,15 @@ describe('ExamHalfYearsComponent', () => {
     }
   });
 
-  it('shows master-detail counts and progress for the selected half-year', () => {
-    fixture.componentRef.setInput('candidateAssignments', [
-      {
-        id: 1,
-        candidate_id: 1,
-        exam_half_year_id: 1,
-        exam_round_id: 1,
-        round_candidate_id: 1,
-        assigned_at: '2026-07-01 09:00:00',
-        ended_at: null,
-        change_reason: null,
-      },
-      {
-        id: 2,
-        candidate_id: 2,
-        exam_half_year_id: 1,
-        exam_round_id: 1,
-        round_candidate_id: 2,
-        assigned_at: '2026-06-01 09:00:00',
-        ended_at: '2026-07-01 09:00:00',
-        change_reason: 'Ausschusswechsel',
-      },
-    ]);
-    fixture.detectChanges();
-    flushInitialLoad(
-      http,
-      [{ id: 1, season: 'winter', year: 2026, status: 'active' }],
-      [
-        {
-          id: 1,
-          exam_half_year_id: 1,
-          committee_id: 1,
-          name: 'Winter 2026 · Prüfungsausschuss Teststadt 1',
-          status: 'plan_confirmed',
-        },
-        {
-          id: 2,
-          exam_half_year_id: 1,
-          committee_id: 2,
-          name: 'Winter 2026 · Prüfungsausschuss Teststadt 2',
-          status: 'draft',
-        },
-      ],
+  it('shows candidate counts and progress for the selected half-year', () => {
+    vi.mocked(port.listHalfYears).mockReturnValue(of([halfYearFixture()]));
+    vi.mocked(port.listRounds).mockReturnValue(
+      of([roundFixture(), { ...roundFixture(), id: 2, committeeId: 2, status: 'draft' }]),
     );
+    fixture.componentRef.setInput('candidateAssignments', [
+      { halfYearId: 1, candidateId: 1, endedAt: null },
+      { halfYearId: 1, candidateId: 2, endedAt: '2026-07-01 09:00:00' },
+    ]);
     fixture.detectChanges();
 
     const element = fixture.nativeElement as HTMLElement;
@@ -193,21 +138,9 @@ describe('ExamHalfYearsComponent', () => {
   });
 
   it('closes a ready round with its current revision and explicit confirmation', () => {
-    fixture.detectChanges();
-    flushInitialLoad(
-      http,
-      [{ id: 1, season: 'winter', year: 2026, status: 'active' }],
-      [
-        {
-          id: 1,
-          exam_half_year_id: 1,
-          committee_id: 1,
-          name: 'Winter 2026 · Prüfungsausschuss Teststadt 1',
-          status: 'plan_confirmed',
-        },
-      ],
-      true,
-    );
+    vi.mocked(port.listHalfYears).mockReturnValue(of([halfYearFixture()]));
+    vi.mocked(port.listRounds).mockReturnValue(of([roundFixture()]));
+    vi.mocked(port.getRoundLifecycle).mockReturnValue(of(lifecycleFixture('open', true)));
     fixture.detectChanges();
 
     const element = fixture.nativeElement as HTMLElement;
@@ -217,42 +150,36 @@ describe('ExamHalfYearsComponent', () => {
     confirmation.checked = true;
     buttonByText(element, 'Runde abschließen')?.click();
 
-    const request = http.expectOne('/api/exam-rounds/1/closure');
-    expect(request.request.method).toBe('POST');
-    expect(request.request.body).toEqual({ revision: 1, confirmed: true });
-    request.flush(lifecycleFixture('closed', true));
+    expect(port.closeRound).toHaveBeenCalledWith(1, 1);
     fixture.detectChanges();
     expect(element.textContent).toContain('Abgeschlossen');
   });
 
-  it('saves terminal candidate states and later IHK document statuses', () => {
-    const round = roundFixture();
+  it('keeps candidate terminal status and IHK actions behind editable role state', () => {
+    vi.mocked(port.listHalfYears).mockReturnValue(of([halfYearFixture()]));
+    vi.mocked(port.listRounds).mockReturnValue(of([roundFixture()]));
+    vi.mocked(port.getRoundLifecycle).mockReturnValue(
+      of({
+        ...lifecycleFixture(),
+        candidates: [{ roundCandidateId: 11, candidateId: 7, terminalStatus: 'open' }],
+      }),
+    );
     fixture.componentRef.setInput('candidates', [
-      {
-        candidate: {
-          id: 7,
-          first_name: 'Ada',
-          last_name: 'Lovelace',
-          ihk_exam_number: 'IHK-7',
-          specialization: 'Anwendungsentwicklung',
-          training_company: 'Analytical Engines GmbH',
-        },
-      },
+      { id: 7, firstName: 'Ada', lastName: 'Lovelace' },
     ]);
     fixture.detectChanges();
-    flushInitialLoad(http, [halfYearFixture()], [round]);
 
     const component = fixture.componentInstance as unknown as {
       candidateName(candidateId: number): string;
       setCandidateTerminalStatus(
-        round: object,
+        round: ExamRound,
         roundCandidateId: number,
         terminalStatus: string,
         reason: string,
         detail: string,
       ): void;
       documentIhkStatus(
-        round: object,
+        round: ExamRound,
         resultId: number,
         documentStatus: string,
         reference: string,
@@ -262,61 +189,47 @@ describe('ExamHalfYearsComponent', () => {
     expect(component.candidateName(8)).toBe('Prüfling 8');
 
     component.setCandidateTerminalStatus(
-      round,
+      roundFixture(),
       11,
       'postponed',
       '  verbindliche Nachplanung  ',
       '2027-12-01',
     );
-    const terminalRequest = http.expectOne('/api/exam-rounds/1/candidates/11/terminal-status');
-    expect(terminalRequest.request.method).toBe('PUT');
-    expect(terminalRequest.request.body).toEqual({
+    expect(port.setCandidateTerminalStatus).toHaveBeenCalledWith(1, 11, {
       revision: 1,
-      terminal_status: 'postponed',
+      terminalStatus: 'postponed',
       reason: 'verbindliche Nachplanung',
-      postponed_until: '2027-12-01',
+      postponedUntil: '2027-12-01',
     });
-    terminalRequest.flush(lifecycleFixture('open', false));
 
-    component.setCandidateTerminalStatus(round, 11, 'transferred', ' Ausschusswechsel ', '2');
-    const transferRequest = http.expectOne('/api/exam-rounds/1/candidates/11/terminal-status');
-    expect(transferRequest.request.body).toEqual({
-      revision: 1,
-      terminal_status: 'transferred',
-      reason: 'Ausschusswechsel',
-      effective_new_round_id: 2,
-    });
-    transferRequest.flush(lifecycleFixture('open', false));
-
-    component.setCandidateTerminalStatus(round, 11, 'ihk_terminated', ' Entscheidung ', 'IHK-B-89');
-    const terminationRequest = http.expectOne('/api/exam-rounds/1/candidates/11/terminal-status');
-    expect(terminationRequest.request.body).toEqual({
-      revision: 1,
-      terminal_status: 'ihk_terminated',
-      reason: 'Entscheidung',
-      ihk_decision_reference: 'IHK-B-89',
-    });
-    terminationRequest.flush(lifecycleFixture('open', false));
-
-    component.documentIhkStatus(round, 21, ' Zugestellt ', ' IHK-89 ');
-    const ihkRequest = http.expectOne('/api/exam-rounds/1/results/21/ihk-status');
-    expect(ihkRequest.request.method).toBe('PUT');
-    expect(ihkRequest.request.body).toEqual({
-      document_status: 'Zugestellt',
-      document_reference: 'IHK-89',
-    });
-    ihkRequest.flush(lifecycleFixture('open', false));
+    component.documentIhkStatus(roundFixture(), 21, ' Zugestellt ', ' IHK-89 ');
+    expect(port.documentIhkStatus).toHaveBeenCalledWith(1, 21, 'Zugestellt', 'IHK-89');
   });
 
   it('cancels, reopens and deletes a round through revision-bound commands', () => {
-    const round = roundFixture();
+    vi.mocked(port.listHalfYears).mockReturnValue(of([halfYearFixture()]));
+    vi.mocked(port.listRounds).mockReturnValue(of([roundFixture()]));
+    vi.mocked(port.getRoundLifecycle).mockReturnValue(
+      of({
+        ...lifecycleFixture(),
+        permissions: { ...lifecycleFixture().permissions, delete: true },
+      }),
+    );
+    vi.mocked(port.reopenRound).mockReturnValue(
+      of({
+        ...lifecycleFixture('open'),
+        permissions: { ...lifecycleFixture().permissions, delete: true },
+      }),
+    );
+    vi.mocked(port.deleteEmptyRound)
+      .mockReturnValueOnce(throwError(() => new Error('conflict')))
+      .mockReturnValueOnce(of(undefined));
     fixture.detectChanges();
-    flushInitialLoad(http, [halfYearFixture()], [round]);
 
     const component = fixture.componentInstance as unknown as {
-      cancelRound(round: object, reason: string, confirmed: boolean): void;
+      cancelRound(round: ExamRound, reason: string, confirmed: boolean): void;
       reopenRound(
-        round: object,
+        round: ExamRound,
         occasion: string,
         source: string,
         reason: string,
@@ -324,19 +237,13 @@ describe('ExamHalfYearsComponent', () => {
         scopeId: number,
         confirmed: boolean,
       ): void;
-      deleteRound(round: object, confirmed: boolean): void;
+      deleteRound(round: ExamRound, confirmed: boolean): void;
     };
-    component.cancelRound(round, ' Vollständige Absage ', true);
-    const cancellation = http.expectOne('/api/exam-rounds/1/cancellation');
-    expect(cancellation.request.body).toEqual({
-      revision: 1,
-      confirmed: true,
-      reason: 'Vollständige Absage',
-    });
-    cancellation.flush(lifecycleFixture('closed', false));
+    component.cancelRound(roundFixture(), ' Vollständige Absage ', true);
+    expect(port.cancelRound).toHaveBeenCalledWith(1, 1, 'Vollständige Absage');
 
     component.reopenRound(
-      round,
+      roundFixture(),
       ' Berichtigungsantrag ',
       ' IHK-Vorgang 89 ',
       ' Bezeichnung korrigieren ',
@@ -344,36 +251,26 @@ describe('ExamHalfYearsComponent', () => {
       1,
       true,
     );
-    const reopening = http.expectOne('/api/exam-rounds/1/reopenings');
-    expect(reopening.request.body).toEqual({
+    expect(port.reopenRound).toHaveBeenCalledWith(1, {
       revision: 2,
       occasion: 'Berichtigungsantrag',
       source: 'IHK-Vorgang 89',
       reason: 'Bezeichnung korrigieren',
-      scope: [{ kind: 'planning', entity_id: 1 }],
+      scope: [{ kind: 'planning', entityId: 1 }],
     });
-    const reopened = lifecycleFixture('open', false);
-    reopened.permissions.delete = true;
-    reopening.flush(reopened);
 
-    component.deleteRound(round, true);
-    const rejectedDeletion = http.expectOne('/api/exam-rounds/1');
-    rejectedDeletion.flush({}, { status: 409, statusText: 'Conflict' });
+    component.deleteRound(roundFixture(), true);
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).textContent).toContain(
       'Nur eine vollständig leere Entwurfsrunde kann gelöscht werden.',
     );
-
-    component.deleteRound(round, true);
-    const acceptedDeletion = http.expectOne('/api/exam-rounds/1');
-    expect(acceptedDeletion.request.method).toBe('DELETE');
-    acceptedDeletion.flush(null);
-    flushInitialLoad(http, [halfYearFixture()], []);
+    component.deleteRound(roundFixture(), true);
+    fixture.detectChanges();
+    expect(port.deleteEmptyRound).toHaveBeenCalledWith(1);
   });
 
-  it('resets creation state and reports load failures', () => {
-    fixture.detectChanges();
-    http.expectOne('/api/exam-half-years').flush({}, { status: 503, statusText: 'Unavailable' });
+  it('reports load failures and resets creation state', () => {
+    vi.mocked(port.listHalfYears).mockReturnValueOnce(throwError(() => new Error('unavailable')));
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).textContent).toContain(
       'Prüfungshalbjahre konnten nicht geladen werden.',
@@ -390,60 +287,37 @@ describe('ExamHalfYearsComponent', () => {
   });
 });
 
-function halfYearFixture() {
+function halfYearFixture(): ExamHalfYear {
   return { id: 1, season: 'winter', year: 2026, status: 'active' };
 }
 
-function roundFixture() {
+function roundFixture(): ExamRound {
   return {
     id: 1,
-    exam_half_year_id: 1,
-    committee_id: 1,
+    halfYearId: 1,
+    committeeId: 1,
     name: 'Winter 2026 · Prüfungsausschuss Teststadt 1',
-    status: 'draft',
-    availability_deadline: null,
-    availability_reminder_at: null,
+    status: 'plan_confirmed',
   };
 }
 
-function flushInitialLoad(
-  http: HttpTestingController,
-  halfYears: object[],
-  rounds: object[] = [],
-  ready = false,
-): void {
-  http.expectOne('/api/exam-half-years').flush({ items: halfYears, _links: {} });
-  http.expectOne('/api/exam-rounds').flush({ items: rounds, _links: {} });
-  for (const round of rounds as Array<{ id: number }>) {
-    http.expectOne(`/api/exam-rounds/${round.id}/lifecycle`).flush(lifecycleFixture('open', ready));
-  }
-}
-
-function lifecycleFixture(status: 'open' | 'closed', ready: boolean) {
+function lifecycleFixture(status = 'open', ready = false): RoundLifecycle {
   return {
-    round_id: 1,
+    roundId: 1,
     revision: status === 'open' ? 1 : 2,
     status,
-    legacy_status: null,
-    historical_without_formal_evidence: false,
+    historicalWithoutFormalEvidence: false,
     evaluation: { ready, items: [{ code: 'ready', label: 'Alle Voraussetzungen', ok: ready }] },
     candidates: [],
-    current_decision: null,
-    decisions: [],
-    reopenings: [],
-    history: [],
-    tasks: [],
-    exports: [],
-    ihk_statuses: [],
-    retention: { retain_until: null, legal_hold: false, sources: [] },
+    retention: { retainUntil: null, legalHold: false },
+    ihkStatuses: [],
     permissions: {
       close: status === 'open',
       cancel: status === 'open',
       reopen: status === 'closed',
       delete: false,
-      export: true,
     },
-    _links: {},
+    history: [],
   };
 }
 
