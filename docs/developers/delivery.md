@@ -169,6 +169,14 @@ Aus der geprüften Revision entstehen:
 - Provenance-Attestations für den OCI-Digest und die CLI-Archive sowie eine
   SBOM-Attestation für das veröffentlichte OCI-Image.
 
+Die SBOM des stabilen Produkt-Images wird mit dem gepinnten Syft-Aufruf
+und `.syft.yaml` erzeugt.
+Der Snapshot-Job in `product-publish.yml` verwendet dagegen Buildx
+(`sbom: true`); er lädt Syft zwar herunter, ruft es für diese SBOM aber nicht
+auf und lädt `.syft.yaml` nicht.
+Diese Produkt-Snapshot-Ausnahme ist in
+[ADR-0040](decisions/0040-buildx-sbom-produkt-snapshots.md) festgehalten.
+
 Es gibt keine Dependency-, native CLI- oder aggregierte Release-SBOM und kein
 separates sichtbares SBOM-Release-Asset.
 Der GitHub Release bleibt Draft, bis alle sechs CLI-Archive hochgeladen sind,
@@ -321,7 +329,7 @@ Sie bildet weder eine zweite Handbuchquelle noch ein dauerhaft gepflegtes Migrat
 | Betreiber-CLI | Falsche Befehlssemantik oder fehlerhaftes Archiv | Go-Tests/Vet und GoReleaser-Konfiguration; nachts zwei Builds mit Archivvergleich |
 | CLI / Produktimage | Inkompatibles Admin-Protokoll, fehlerhafter Upgrade-/Restore-Pfad | Nächtlicher CLI-Container- und unterstützter v0.6.0-Kompatibilitäts-Smoke |
 | Demo-App / Seed | Fehlender Overlay-Code, falsche Assembly oder persistenter Besucherzustand nach Reset | Ein tatsächlicher App-/Seed-Build und Paar-Smoke; Snapshot-/Release-Tags als schnelle Identitäts- und Manifesttests |
-| SBOM für OCI-Images | Fehlende oder unerwartete Image-Komponente | Das lokale Quality-Image, stabile Produkt-Releases und Demo-Images verwenden den direkten gepinnten Syft-Aufruf mit `.syft.yaml`; Produkt-Snapshots verwenden Buildx-SBOM-Erzeugung (`sbom: true`), obwohl Syft heruntergeladen, aber für diese SBOM nicht aufgerufen wird und `.syft.yaml` nicht geladen wird; keine Repository-Dependency- oder CLI-Binary-SBOM |
+| SBOM für OCI-Images | Fehlende oder unerwartete Image-Komponente | Das lokale Quality-Image, stabile Produkt-Releases und Demo-Images verwenden den direkten gepinnten Syft-Aufruf mit `.syft.yaml`; Produkt-Snapshots verwenden die in [ADR-0040](decisions/0040-buildx-sbom-produkt-snapshots.md) dokumentierte Buildx-SBOM-Erzeugung (`sbom: true`), obwohl Syft heruntergeladen, aber für diese SBOM nicht aufgerufen wird und `.syft.yaml` nicht geladen wird; keine Repository-Dependency- oder CLI-Binary-SBOM |
 | Infrastruktur | Ungültiger Ressourcenvertrag oder unerwartete Planänderung | OpenTofu-Format, Validierung und Mock-Plan ohne Cloudänderung |
 | Demo-Deployment | Fremde Herkunft / unpassendes Paar / falsche aktive Revision / defekter öffentlicher Ablauf | Provenance / Manifestbindung / Azure-Revision / Application-Smoke, jeweils an ihrer eigenen Grenze |
 | Dokumentation / Site | Ungültige Referenz, Assembly, Navigation oder Builddrift | Strukturcheck und strikter Generator; Site-Browser und geplante Byte-Reproduktion |
