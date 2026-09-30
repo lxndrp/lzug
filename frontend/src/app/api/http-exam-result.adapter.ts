@@ -212,13 +212,17 @@ function fromApiResult(value: ApiExamResult): ExamResult {
   } as ExamResult;
 }
 
-function camelize<T>(value: T): Camelized<T> {
-  if (Array.isArray(value)) return value.map((item) => camelize(item)) as Camelized<T>;
+function camelize<T>(value: T, preserveRecordKeys = false): Camelized<T> {
+  if (Array.isArray(value)) {
+    return value.map((item) => camelize(item, preserveRecordKeys)) as Camelized<T>;
+  }
   if (value && typeof value === 'object') {
     return Object.fromEntries(
       Object.entries(value).map(([key, item]) => [
-        key.replace(/_([a-z])/g, (_match, letter: string) => letter.toUpperCase()),
-        camelize(item),
+        preserveRecordKeys
+          ? key
+          : key.replace(/_([a-z])/g, (_match, letter: string) => letter.toUpperCase()),
+        camelize(item, key === 'component_minima' || key === 'external_minima'),
       ]),
     ) as Camelized<T>;
   }

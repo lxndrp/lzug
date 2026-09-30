@@ -40,6 +40,10 @@ describe('HttpExamResultAdapter', () => {
               criteria: [{ key: 'clarity', rawMin: '0', rawMax: '100' }],
             },
           ],
+          passing: {
+            componentMinima: { technical_discussion: '50' },
+            externalMinima: { written_exam: '40' },
+          },
         },
       },
       individualAssessments: [{ componentKey: 'documentation', rawPoints: '82' }],
@@ -288,7 +292,11 @@ function apiResult(): ApiExamResult {
           threshold_basis: 'unrounded',
         },
         grades: [{ label: 'Gut', min_points: '80' }],
-        passing: { overall_min: '50', component_minima: {}, external_minima: {} },
+        passing: {
+          overall_min: '50',
+          component_minima: { technical_discussion: '50' },
+          external_minima: { written_exam: '40' },
+        },
         quorum: { minimum_members: 2, majority: 'simple' },
       },
       retention_rule_reference: 'Prüfungsordnung',
