@@ -28,11 +28,14 @@ import { PLANNING_PORT } from './planning/planning.port';
 import { HttpPlanningAdapter } from './planning/http-planning.adapter';
 import { CONFIRMED_PLANS_PORT } from './confirmed-plans/confirmed-plans.port';
 import { HttpConfirmedPlansAdapter } from './api/http-confirmed-plans.adapter';
+import { EXAM_HALF_YEARS_PORT } from './exam-half-years/exam-half-years.port';
+import { HttpExamHalfYearsAdapter } from './api/http-exam-half-years.adapter';
 
 export const appConfig: ApplicationConfig = {
   providers: [
     { provide: SCHEDULING_OVERVIEW_PORT, useClass: HttpSchedulingOverviewAdapter },
     { provide: PLANNING_PORT, useClass: HttpPlanningAdapter },
+    { provide: EXAM_HALF_YEARS_PORT, useClass: HttpExamHalfYearsAdapter },
     { provide: WORKSPACE_PORT, useClass: HttpWorkspaceAdapter },
     { provide: CONFIRMED_PLANS_PORT, useClass: HttpConfirmedPlansAdapter },
     { provide: AUTHENTICATION_PORT, useExisting: AuthService },
