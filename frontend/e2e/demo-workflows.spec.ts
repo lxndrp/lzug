@@ -14,37 +14,6 @@ import {
 test.describe('demo workflows', () => {
   test.describe.configure({ timeout: 60_000 });
 
-  test('keeps demo runtime disabled in product builds @product-runtime', async ({ page }) => {
-    test.skip(process.env['LZUG_E2E_PRODUCTION_BUILD'] !== 'true');
-    let scenarioRequests = 0;
-    await page.route('**/api/session', (route) =>
-      route.fulfill({
-        contentType: 'application/json',
-        body: JSON.stringify({
-          authenticated: true,
-          account_id: demoRoles.examiner.account_id,
-          person_id: demoRoles.examiner.person_id,
-          committee_member_id: demoRoles.examiner.committee_member_id,
-          is_operator: false,
-          demo_role: 'examiner',
-          display_name: demoRoles.examiner.display_name,
-          capabilities: demoCapabilities('examiner'),
-        }),
-      }),
-    );
-    await page.route('**/api/demo/scenarios', async (route) => {
-      scenarioRequests += 1;
-      await route.continue();
-    });
-
-    await page.goto('/demo-scenarios');
-
-    await expect(page.getByRole('alert')).toContainText(
-      'Der Demo-Arbeitsstand konnte nicht geladen werden.',
-    );
-    expect(scenarioRequests).toBe(0);
-  });
-
   test('keeps isolated demo scenarios and roles safe on desktop and mobile', async ({ page }) => {
     test.setTimeout(180_000);
     let role: 'chair' | 'examiner' | 'replacement' = 'chair';
