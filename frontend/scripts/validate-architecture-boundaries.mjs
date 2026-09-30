@@ -1,0 +1,171 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import ts from 'typescript';
+
+const root = path.resolve(import.meta.dirname, '..', 'src', 'app');
+const componentPath = path.join(root, 'scheduling-overview', 'scheduling-overview.component.ts');
+const componentSpecPath = path.join(
+  root,
+  'scheduling-overview',
+  'scheduling-overview.component.spec.ts',
+);
+const facadePath = path.join(root, 'scheduling-overview', 'scheduling-overview.facade.ts');
+const applicationPath = path.join(
+  root,
+  'scheduling-overview',
+  'application',
+  'scheduling-overview.application.ts',
+);
+const portPath = path.join(
+  root,
+  'scheduling-overview',
+  'application',
+  'scheduling-overview.port.ts',
+);
+const adapterPath = path.join(
+  root,
+  'scheduling-overview',
+  'adapters',
+  'http-scheduling-overview.adapter.ts',
+);
+const configPath = path.join(root, 'app.config.ts');
+
+const [component, facade, componentSpec, application, port, adapter, config] = await Promise.all(
+  [
+    componentPath,
+    facadePath,
+    componentSpecPath,
+    applicationPath,
+    portPath,
+    adapterPath,
+    configPath,
+  ].map((file) => readFile(file, 'utf8')),
+);
+
+assert.deepEqual(
+  relativeImportsOf(component),
+  ['./scheduling-overview.facade', './scheduling-overview.models'],
+  'feature component imports only its facade and feature models',
+);
+assert.doesNotMatch(
+  importsOf(component),
+  /@angular\/common\/http|(?:^|\/)(?:application|adapters?|api)(?:\/|$)/,
+  'feature component imports below the facade boundary',
+);
+assert.doesNotMatch(
+  component,
+  /\bHttpClient\b|\bfetch\s*\(/,
+  'feature component performs HTTP directly',
+);
+assert.deepEqual(
+  relativeImportsOf(facade),
+  ['./application/scheduling-overview.application', './scheduling-overview.models'],
+  'feature facade imports only its application operation and feature models',
+);
+assert.doesNotMatch(
+  importsOf(facade),
+  /@angular\/common\/http|(?:^|\/)(?:adapters?|api)(?:\/|$)/,
+  'feature facade imports a transport implementation',
+);
+assert.doesNotMatch(facade, /\bHttpClient\b|\bfetch\s*\(/, 'feature facade performs HTTP directly');
+assert.deepEqual(
+  relativeImportsOf(application),
+  ['./scheduling-overview.port'],
+  'application depends only on its port',
+);
+assert.doesNotMatch(
+  importsOf(application),
+  /@angular\/common\/http|(?:^|\/)(?:adapters?|api)(?:\/|$)/,
+  'application imports a transport implementation',
+);
+assert.doesNotMatch(
+  application,
+  /\bHttpClient\b|\bfetch\s*\(/,
+  'application performs HTTP directly',
+);
+assert.deepEqual(relativeImportsOf(port), ['../scheduling-overview.models']);
+assert.doesNotMatch(
+  importsOf(port),
+  /@angular\/common\/http|(?:^|\/)(?:adapters?|api)(?:\/|$)/,
+  'port imports a transport implementation',
+);
+assert.deepEqual(
+  importModulesOf(adapter).sort(),
+  [
+    '../../api/planning-api.service',
+    '../application/scheduling-overview.port',
+    '@angular/core',
+    'rxjs',
+  ].sort(),
+  'HTTP adapter imports only its API client, port and framework dependencies',
+);
+assert.equal(
+  hasProviderBinding(config, 'SCHEDULING_OVERVIEW_PORT', 'HttpSchedulingOverviewAdapter'),
+  true,
+  'composition root binds the scheduling port to its HTTP adapter',
+);
+assert.doesNotMatch(componentSpec, /HttpTestingController|provideHttpClientTesting/);
+assert.match(componentSpec, /SCHEDULING_OVERVIEW_PORT/);
+
+function importModulesOf(source) {
+  const file = ts.createSourceFile('boundary.ts', source, ts.ScriptTarget.Latest, true);
+  const modules = [];
+  for (const statement of file.statements) {
+    if (ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier)) {
+      modules.push(statement.moduleSpecifier.text);
+    }
+  }
+  return modules;
+}
+
+function importsOf(source) {
+  return importModulesOf(source).join('\n');
+}
+
+function relativeImportsOf(source) {
+  return importModulesOf(source)
+    .filter((module) => module.startsWith('.'))
+    .sort();
+}
+
+function hasProviderBinding(source, tokenName, adapterName) {
+  const file = ts.createSourceFile('app.config.ts', source, ts.ScriptTarget.Latest, true);
+  for (const statement of file.statements) {
+    if (!ts.isVariableStatement(statement)) continue;
+    for (const declaration of statement.declarationList.declarations) {
+      if (
+        !ts.isIdentifier(declaration.name) ||
+        declaration.name.text !== 'appConfig' ||
+        !declaration.initializer ||
+        !ts.isObjectLiteralExpression(declaration.initializer)
+      ) {
+        continue;
+      }
+      const providers = propertyInitializer(declaration.initializer, 'providers');
+      if (!providers || !ts.isArrayLiteralExpression(providers)) return false;
+      return providers.elements.some((provider) => {
+        if (!ts.isObjectLiteralExpression(provider)) return false;
+        const token = propertyInitializer(provider, 'provide');
+        const adapter = propertyInitializer(provider, 'useClass');
+        return (
+          ts.isIdentifier(token) &&
+          token.text === tokenName &&
+          ts.isIdentifier(adapter) &&
+          adapter.text === adapterName
+        );
+      });
+    }
+  }
+  return false;
+}
+
+function propertyInitializer(object, name) {
+  const property = object.properties.find(
+    (candidate) =>
+      ts.isPropertyAssignment(candidate) &&
+      ts.isIdentifier(candidate.name) &&
+      candidate.name.text === name,
+  );
+  return property && ts.isPropertyAssignment(property) ? property.initializer : undefined;
+}

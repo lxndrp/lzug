@@ -1,34 +1,30 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
-import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { Observable, of, throwError } from 'rxjs';
 import { provideTaiga } from '@taiga-ui/core';
 
+import { SCHEDULING_OVERVIEW_PORT } from './application/scheduling-overview.port';
 import { SchedulingOverviewComponent } from './scheduling-overview.component';
+import { SchedulingOverviewItem } from './scheduling-overview.models';
 
 describe('SchedulingOverviewComponent', () => {
   let fixture: ComponentFixture<SchedulingOverviewComponent>;
-  let http: HttpTestingController;
+  let getOverview: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
+    getOverview = vi.fn((): Observable<readonly SchedulingOverviewItem[]> => of(overviewItems()));
     await TestBed.configureTestingModule({
       imports: [SchedulingOverviewComponent],
       providers: [
-        provideHttpClient(),
-        provideHttpClientTesting(),
         provideTaiga({ scrollbars: 'native' }),
+        { provide: SCHEDULING_OVERVIEW_PORT, useValue: { getOverview } },
       ],
     }).compileComponents();
     fixture = TestBed.createComponent(SchedulingOverviewComponent);
-    http = TestBed.inject(HttpTestingController);
   });
-
-  afterEach(() => http.verify());
 
   it('groups entries and exposes exactly the status-specific primary action', () => {
     const component = fixture.componentInstance;
     const openSpy = vi.spyOn(component.openRound, 'emit');
-    fixture.detectChanges();
-    http.expectOne('/api/scheduling-overview').flush({ items: overviewItems(), _links: {} });
     fixture.detectChanges();
 
     const element = fixture.nativeElement as HTMLElement;
@@ -48,8 +44,7 @@ describe('SchedulingOverviewComponent', () => {
   });
 
   it('renders a readable empty state', () => {
-    fixture.detectChanges();
-    http.expectOne('/api/scheduling-overview').flush({ items: [], _links: {} });
+    getOverview.mockReturnValueOnce(of([]));
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).textContent).toContain(
       'Keine laufenden Terminorganisationen',
@@ -57,15 +52,14 @@ describe('SchedulingOverviewComponent', () => {
   });
 
   it('renders a retryable error state', () => {
-    fixture.detectChanges();
-    http
-      .expectOne('/api/scheduling-overview')
-      .flush({}, { status: 500, statusText: 'Server Error' });
+    getOverview.mockReturnValueOnce(throwError(() => new Error('offline')));
     fixture.detectChanges();
     const element = fixture.nativeElement as HTMLElement;
     expect(element.textContent).toContain('Übersicht nicht verfügbar');
     click(element, 'Erneut versuchen');
-    http.expectOne('/api/scheduling-overview').flush({ items: [], _links: {} });
+    fixture.detectChanges();
+    expect(getOverview).toHaveBeenCalledTimes(2);
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Entwurf');
   });
 });
 
@@ -77,46 +71,35 @@ function click(element: HTMLElement, label: string): void {
   button?.click();
 }
 
-function overviewItems() {
+function overviewItems(): SchedulingOverviewItem[] {
   const shared = {
-    committee_name: 'Prüfungsausschuss Teststadt 1',
-    exam_half_year: { id: 1, season: 'winter', year: 2026, status: 'active' },
-    calendar_week_from: '2026-W47',
-    calendar_week_to: '2026-W49',
-    _links: {},
+    committeeName: 'Prüfungsausschuss Teststadt 1',
+    examHalfYear: { season: 'winter' as const, year: 2026 },
+    calendarWeekFrom: '2026-W47',
+    calendarWeekTo: '2026-W49',
   };
   return [
-    {
-      ...shared,
-      id: 1,
-      name: 'Offene Runde',
-      status: 'draft',
-      status_group: 'draft',
-      can_continue: true,
-    },
+    { ...shared, id: 1, name: 'Offene Runde', status: 'draft', statusGroup: 'draft' },
     {
       ...shared,
       id: 2,
       name: 'Abstimmung',
       status: 'availability_requested',
-      status_group: 'coordination',
-      can_continue: true,
+      statusGroup: 'coordination',
     },
     {
       ...shared,
       id: 3,
       name: 'Vorschlag',
       status: 'plan_proposed',
-      status_group: 'planning',
-      can_continue: true,
+      statusGroup: 'planning',
     },
     {
       ...shared,
       id: 4,
       name: 'Bestätigt',
       status: 'plan_confirmed',
-      status_group: 'confirmed',
-      can_continue: false,
+      statusGroup: 'confirmed',
     },
   ];
 }
