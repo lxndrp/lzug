@@ -4,12 +4,12 @@ import { signal } from '@angular/core';
 import { of, Subject } from 'rxjs';
 
 import type { ExamRound } from '../api/api.models';
-import { ApiClient } from '../api/api-client.service';
 import { RoundContextService } from '../api/round-context.service';
 import { AuthService } from '../auth/auth.service';
 import { ApplicationWorkspaceService } from '../shell/application-workspace.service';
 import { UiFeedbackService } from '../shell/ui-feedback.service';
 import type { PlanningComponent } from './planning.component';
+import { PLANNING_PORT } from './planning.port';
 import { PlanningWorkflowService } from './planning-workflow.service';
 
 describe('PlanningWorkflowService', () => {
@@ -22,8 +22,8 @@ describe('PlanningWorkflowService', () => {
       actionBusy: signal(false),
       refresh: vi.fn(),
     };
-    const apiClient = {
-      patch: vi.fn(() => of({ id: 2, name: 'Runde B aktualisiert' })),
+    const planning = {
+      updateExamRound: vi.fn(() => of({ id: 2, name: 'Runde B aktualisiert' })),
     };
     const feedback = { notify: vi.fn(), roleRestriction: vi.fn() };
 
@@ -31,7 +31,7 @@ describe('PlanningWorkflowService', () => {
       providers: [
         provideRouter([]),
         { provide: ApplicationWorkspaceService, useValue: workspace },
-        { provide: ApiClient, useValue: apiClient },
+        { provide: PLANNING_PORT, useValue: planning },
         { provide: AuthService, useValue: { hasCapability: () => true, session: () => null } },
         { provide: UiFeedbackService, useValue: feedback },
       ],
@@ -47,7 +47,7 @@ describe('PlanningWorkflowService', () => {
     };
 
     workflow.saveExamRound(roundBValues);
-    expect(apiClient.patch).not.toHaveBeenCalled();
+    expect(planning.updateExamRound).not.toHaveBeenCalled();
 
     displayedRound.set({
       id: 2,
@@ -61,7 +61,7 @@ describe('PlanningWorkflowService', () => {
     loading.set(false);
     workflow.saveExamRound(roundBValues);
 
-    expect(apiClient.patch).toHaveBeenCalledWith('/api/exam-rounds/2', roundBValues);
+    expect(planning.updateExamRound).toHaveBeenCalledWith(roundBValues, 2);
     expect(context.roundId()).toBe(displayedRound()?.id);
     expect(feedback.notify).toHaveBeenCalledWith(
       'success',
@@ -85,14 +85,14 @@ describe('PlanningWorkflowService', () => {
       actionBusy: signal(false),
       refresh: vi.fn(),
     };
-    const apiClient = { patch: vi.fn(() => of({})) };
+    const planning = { updateExamRound: vi.fn(() => of({})) };
     const feedback = { notify: vi.fn(), roleRestriction: vi.fn() };
 
     TestBed.configureTestingModule({
       providers: [
         provideRouter([]),
         { provide: ApplicationWorkspaceService, useValue: workspace },
-        { provide: ApiClient, useValue: apiClient },
+        { provide: PLANNING_PORT, useValue: planning },
         { provide: AuthService, useValue: { hasCapability: () => true, session: () => null } },
         { provide: UiFeedbackService, useValue: feedback },
       ],
@@ -106,7 +106,7 @@ describe('PlanningWorkflowService', () => {
       availability_reminder_at: null,
     });
 
-    expect(apiClient.patch).not.toHaveBeenCalled();
+    expect(planning.updateExamRound).not.toHaveBeenCalled();
     expect(feedback.notify).toHaveBeenCalledWith(
       'error',
       'Prüfungsrunde wird aktualisiert',
@@ -131,8 +131,8 @@ describe('PlanningWorkflowService', () => {
       refresh: vi.fn(),
       board: signal(null),
     };
-    const apiClient = {
-      post: vi.fn(() => of({})),
+    const planning = {
+      saveMemberAvailability: vi.fn(() => of({})),
     };
     const feedback = { notify: vi.fn(), roleRestriction: vi.fn() };
 
@@ -140,7 +140,7 @@ describe('PlanningWorkflowService', () => {
       providers: [
         provideRouter([]),
         { provide: ApplicationWorkspaceService, useValue: workspace },
-        { provide: ApiClient, useValue: apiClient },
+        { provide: PLANNING_PORT, useValue: planning },
         { provide: AuthService, useValue: { hasCapability: () => true, session: () => null } },
         { provide: UiFeedbackService, useValue: feedback },
       ],
@@ -159,7 +159,7 @@ describe('PlanningWorkflowService', () => {
 
     workflow.saveAvailability(payload);
 
-    expect(apiClient.post).not.toHaveBeenCalled();
+    expect(planning.saveMemberAvailability).not.toHaveBeenCalled();
     expect(markAvailabilityError).toHaveBeenCalledWith(payload, true);
   });
 
@@ -186,13 +186,13 @@ describe('PlanningWorkflowService', () => {
       board,
       refresh: vi.fn(),
     };
-    const apiClient = { post: vi.fn(() => availabilityResponse) };
+    const planning = { saveMemberAvailability: vi.fn(() => availabilityResponse) };
     const feedback = { notify: vi.fn(), roleRestriction: vi.fn() };
     TestBed.configureTestingModule({
       providers: [
         provideRouter([]),
         { provide: ApplicationWorkspaceService, useValue: workspace },
-        { provide: ApiClient, useValue: apiClient },
+        { provide: PLANNING_PORT, useValue: planning },
         { provide: AuthService, useValue: { hasCapability: () => true, session: () => null } },
         { provide: UiFeedbackService, useValue: feedback },
       ],
@@ -214,10 +214,7 @@ describe('PlanningWorkflowService', () => {
     };
     workflow.saveAvailability(payload);
 
-    expect(apiClient.post).toHaveBeenCalledWith('/api/member-availabilities', {
-      ...payload,
-      exam_round_id: 1,
-    });
+    expect(planning.saveMemberAvailability).toHaveBeenCalledWith(payload, 1);
     context.select(2);
     availabilityResponse.next({ id: 7, ...payload });
     availabilityResponse.complete();
@@ -229,11 +226,8 @@ describe('PlanningWorkflowService', () => {
   });
 
   it('keeps availability request steps on the validated round if selection changes mid-request', () => {
-    const patchResponse = new Subject<ExamRound>();
-    const apiClient = {
-      patch: vi.fn(() => patchResponse),
-      post: vi.fn(() => of({})),
-    };
+    const requestResponse = new Subject<ExamRound>();
+    const planning = { requestAvailabilities: vi.fn(() => requestResponse) };
     const workspace = {
       round: signal<ExamRound | null>({
         id: 1,
@@ -252,7 +246,7 @@ describe('PlanningWorkflowService', () => {
       providers: [
         provideRouter([]),
         { provide: ApplicationWorkspaceService, useValue: workspace },
-        { provide: ApiClient, useValue: apiClient },
+        { provide: PLANNING_PORT, useValue: planning },
         { provide: AuthService, useValue: { hasCapability: () => true, session: () => null } },
         { provide: UiFeedbackService, useValue: { notify: vi.fn(), roleRestriction: vi.fn() } },
       ],
@@ -267,26 +261,20 @@ describe('PlanningWorkflowService', () => {
       availability_reminder_at: null,
     });
 
-    expect(apiClient.patch).toHaveBeenCalledWith('/api/exam-rounds/1', expect.any(Object));
-    context.select(2);
-    patchResponse.next({} as ExamRound);
-    patchResponse.complete();
-
-    expect(apiClient.post).toHaveBeenCalledWith('/api/exam-rounds/1/request-availabilities', {});
-    expect(apiClient.post).not.toHaveBeenCalledWith(
-      '/api/exam-rounds/2/request-availabilities',
-      {},
+    expect(planning.requestAvailabilities).toHaveBeenCalledWith(
+      { name: 'Runde A', availability_deadline: null, availability_reminder_at: null },
+      1,
     );
+    context.select(2);
+    requestResponse.next({} as ExamRound);
+    requestResponse.complete();
   });
 
   it('keeps candidate-day generation on the validated round if selection changes while saving settings', () => {
     const settingsResponse = new Subject<unknown>();
-    const apiClient = {
-      post: vi.fn((url: string) =>
-        url === '/api/planning-settings'
-          ? settingsResponse
-          : of({ counts: { created: 1, existing: 0 } }),
-      ),
+    const planning = {
+      savePlanningSettings: vi.fn(() => settingsResponse),
+      generateCandidateExamDays: vi.fn(() => of({ counts: { created: 1, existing: 0 } })),
     };
     const workspace = {
       round: signal<ExamRound | null>({
@@ -307,7 +295,7 @@ describe('PlanningWorkflowService', () => {
       providers: [
         provideRouter([]),
         { provide: ApplicationWorkspaceService, useValue: workspace },
-        { provide: ApiClient, useValue: apiClient },
+        { provide: PLANNING_PORT, useValue: planning },
         {
           provide: AuthService,
           useValue: {
@@ -324,20 +312,12 @@ describe('PlanningWorkflowService', () => {
     const workflow = TestBed.inject(PlanningWorkflowService);
     workflow.generateCandidateDays({} as never);
 
-    expect(apiClient.post).toHaveBeenCalledWith(
-      '/api/planning-settings',
-      expect.objectContaining({ exam_round_id: 1 }),
-    );
+    expect(planning.savePlanningSettings).toHaveBeenCalledWith({}, 1);
     context.select(2);
     settingsResponse.next({});
     settingsResponse.complete();
 
-    expect(apiClient.post).toHaveBeenCalledWith('/api/candidate-exam-days/generate', {
-      round_id: 1,
-    });
-    expect(apiClient.post).not.toHaveBeenCalledWith('/api/candidate-exam-days/generate', {
-      round_id: 2,
-    });
+    expect(planning.generateCandidateExamDays).toHaveBeenCalledWith(1);
     expect(workflow.candidateDayGeneration()).toBeNull();
     expect(feedback.notify).not.toHaveBeenCalled();
     expect(workspace.refresh).not.toHaveBeenCalled();

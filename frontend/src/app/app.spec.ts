@@ -22,6 +22,8 @@ import {
 import { RoundContextService } from './api/round-context.service';
 import { routes } from './app.routes';
 import { PlanningWorkflowService } from './planning/planning-workflow.service';
+import { HttpPlanningAdapter } from './planning/http-planning.adapter';
+import { PLANNING_PORT } from './planning/planning.port';
 import { LocationsRouteComponent } from './routes/locations-route.component';
 import { ApplicationWorkspaceService } from './shell/application-workspace.service';
 import { UiFeedbackService } from './shell/ui-feedback.service';
@@ -65,6 +67,7 @@ describe('App', () => {
         provideRouter(routes),
         provideHttpClient(),
         provideHttpClientTesting(),
+        { provide: PLANNING_PORT, useClass: HttpPlanningAdapter },
         provideTaiga({ scrollbars: 'native' }),
         TuiConfirmService,
         { provide: LifecycleService, useValue: { ready: signal(true), check: () => of(true) } },

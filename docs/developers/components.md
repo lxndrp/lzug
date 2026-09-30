@@ -574,6 +574,8 @@ HTTP-Fehlergrenzen ist in #908 nachgewiesen.
 
 `ApplicationWorkspaceService` hält ausschließlich den fachübergreifenden
 Lesezustand des gewählten Prüfungskontexts.
+`PlanningWorkflowService` koordiniert Planungsbefehle über `PlanningPort`;
+`HttpPlanningAdapter` übersetzt diese Aufrufe in den vorhandenen API-Client.
 Planungs-, Stammdaten- und Ortsbefehle liegen in den zuständigen
 Workflow-Services.
 `App` besitzt nur Rahmen, Authentisierung, globale Runtimezustände,

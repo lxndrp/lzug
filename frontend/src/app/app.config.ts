@@ -22,10 +22,13 @@ import { lifecycleInterceptor, withSessionCredentials } from './api/http-interce
 import { providePrivacyPreservingErrorHandler } from './observability/error-reporter';
 import { FRONTEND_ERROR_REPORTER_PORT } from './observability/frontend-error.port';
 import { HttpFrontendErrorReporter } from './api/frontend-error-api.adapter';
+import { PLANNING_PORT } from './planning/planning.port';
+import { HttpPlanningAdapter } from './planning/http-planning.adapter';
 
 export const appConfig: ApplicationConfig = {
   providers: [
     { provide: SCHEDULING_OVERVIEW_PORT, useClass: HttpSchedulingOverviewAdapter },
+    { provide: PLANNING_PORT, useClass: HttpPlanningAdapter },
     { provide: AUTHENTICATION_PORT, useExisting: AuthService },
     { provide: LIFECYCLE_AVAILABILITY_PORT, useExisting: LifecycleService },
     { provide: FRONTEND_ERROR_REPORTER_PORT, useClass: HttpFrontendErrorReporter },
