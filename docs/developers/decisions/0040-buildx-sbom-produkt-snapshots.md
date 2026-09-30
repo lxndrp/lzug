@@ -8,8 +8,9 @@
 
 Akzeptiert in [PR #805](https://github.com/lxndrp/lzug/pull/805).
 Rückwirkend dokumentiert.
-Supersedes [ADR-0038](0038-syft-standardaufrufe-fuer-sbom-erzeugung.md)
-ausschließlich für SBOMs des Produkt-Snapshot-Images.
+Ergänzt [ADR-0038](0038-syft-standardaufrufe-fuer-sbom-erzeugung.md)
+um den bereits vor dessen Entscheidungsdatum bestehenden Produkt-Snapshot-Pfad.
+Keine spätere Ablösung von ADR-0038.
 
 ## Kontext
 
@@ -18,9 +19,10 @@ etablieren einen eigenen Snapshot-Kanal für unveränderliche, attestierte
 Produktkandidaten ohne GitHub Release oder stabile Produktreferenz.
 Der eingeführte Workflow erzeugt für das Produkt-Snapshot-Image eine SBOM
 über `docker/build-push-action`.
-Die bereits geltende
+Die später am 2026-09-17 dokumentierte
 [Syft-Entscheidung in ADR-0038](0038-syft-standardaufrufe-fuer-sbom-erzeugung.md)
-beschreibt dagegen direkte, gepinnte Syft-Aufrufe mit `.syft.yaml`.
+beschreibt dagegen direkte, gepinnte Syft-Aufrufe mit `.syft.yaml`,
+ohne den bereits bestehenden Buildx-Pfad ausdrücklich abzugrenzen.
 Die beiden Veröffentlichungskanäle besitzen damit unterschiedliche
 SBOM-Erzeugungspfade.
 
@@ -44,8 +46,9 @@ SBOM-Inventare wie der Syft-Pfad.
   Workflow dafür den Syft-Aufruf aus ADR-0038 verwendet.
 - Die scannerweite Policy aus `.syft.yaml` gilt für diesen Snapshot-Pfad nicht.
 - Ein späterer Wechsel des Snapshot-Pfads zu Syft oder einer anderen
-  Erzeugungsart benötigt eine eigene Verhaltensänderung und eine Aktualisierung
-  dieses ADRs.
+  Erzeugungsart benötigt eine eigene Verhaltensentscheidung in einem
+  Nachfolge-ADR sowie wechselseitige Statusverweise und einen Registerabgleich.
+  Der akzeptierte Entscheidungstext dieses ADRs bleibt erhalten.
 - Der aktuelle Ablauf und seine Artefaktnachweise stehen unter
   [Delivery und Veröffentlichung](../delivery.md#release-und-artefakte).
 

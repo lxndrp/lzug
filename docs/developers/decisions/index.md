@@ -72,6 +72,6 @@ sichern Verständlichkeit und Auffindbarkeit.
 | [0035](0035-getrennte-publikations-und-versionsarchitektur.md) | Getrennte Publikations- und Versionsarchitektur | Akzeptiert |
 | [0036](0036-powershell-adapter-fuer-werkzeuggrenzen.md) | PowerShell-Adapter für portable Werkzeuggrenzen | Akzeptiert |
 | [0037](0037-powershell-pester-testharness.md) | PowerShell/Pester-Testharness | Akzeptiert |
-| [0038](0038-syft-standardaufrufe-fuer-sbom-erzeugung.md) | SBOM-Erzeugung als direkte Syft-Standardaufrufe | Teilweise abgelöst für Produkt-Snapshots durch ADR-0040; Syft-Pfade gelten fort |
+| [0038](0038-syft-standardaufrufe-fuer-sbom-erzeugung.md) | SBOM-Erzeugung als direkte Syft-Standardaufrufe | Akzeptiert; ADR-0040 ergänzt den bereits zuvor bestehenden Buildx-Pfad für Produkt-Snapshots |
 | [0039](0039-deklarative-toolchain-zustaendigkeiten.md) | Deklarative Toolchain-Zuständigkeiten | Akzeptiert |
-| [0040](0040-buildx-sbom-produkt-snapshots.md) | Buildx-SBOM für Produkt-Snapshots | Akzeptiert in PR #805; rückwirkend dokumentiert; supersedes ADR-0038 für Produkt-Snapshot-SBOMs |
+| [0040](0040-buildx-sbom-produkt-snapshots.md) | Buildx-SBOM für Produkt-Snapshots | Akzeptiert in PR #805; rückwirkend dokumentiert; ergänzt ADR-0038 um den früheren Produkt-Snapshot-Pfad |

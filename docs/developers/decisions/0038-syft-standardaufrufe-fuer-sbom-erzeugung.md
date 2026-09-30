@@ -6,9 +6,12 @@
 
 ## Status
 
-Teilweise abgelöst für SBOMs von Produkt-Snapshots durch
-[ADR-0040](0040-buildx-sbom-produkt-snapshots.md).
-Die Syft-Entscheidung gilt für das lokale Quality-Image, stabile Produkt-Releases und Demo-Images fort.
+Akzeptiert.
+Der bereits seit PR #805 vom 2026-09-13 bestehende Buildx-Pfad für
+Produkt-Snapshots ist im nachstehenden Entscheidungstext nicht abgegrenzt.
+[ADR-0040](0040-buildx-sbom-produkt-snapshots.md) dokumentiert diesen früheren
+Pfad ergänzend, nicht als spätere Ablösung dieser Entscheidung.
+Die Syft-Entscheidung gilt für das lokale Quality-Image, stabile Produkt-Releases und Demo-Images.
 Die aktuelle Erzeugung und ihre Grenze beschreibt der
 [Delivery-Vertrag](../delivery.md#release-und-artefakte).
 
