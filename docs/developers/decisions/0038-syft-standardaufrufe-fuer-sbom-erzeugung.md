@@ -10,8 +10,8 @@ Akzeptiert.
 
 ## Kontext
 
-Für Quality-Läufe, stabile Produkt-Releases und Demo-Images erzeugt Syft
-die kanonischen CycloneDX-1.6-Inventare der OCI-Images.
+Für das lokale Quality-Image, stabile Produkt-Releases und Demo-Images
+erzeugt Syft die kanonischen CycloneDX-1.6-Inventare der OCI-Images.
 Der Produkt-Snapshot-Publish erzeugt seine SBOM dagegen über Buildx
 (`sbom: true`), nicht durch Aufruf des gepinnten Syft-Binaries.
 Bislang orchestrierte `scripts/sbom.py` die Befehlszusammenstellung, die Binary-Auswahl, die Offline-Konfiguration und den `subprocess`-Start von Syft sowie eigene Detail- und Release-SBOM-Verträge.
@@ -20,9 +20,9 @@ Issue [#811](https://github.com/lxndrp/lzug/issues/811) und der zugehörige Revi
 
 ## Entscheidung
 
-Image-SBOMs für Quality-Läufe, stabile Produkt-Releases und Demo-Images
-werden als direkte, gepinnte Syft-Aufrufe in `Taskfile.yml` sowie in den
-Quality- und Publish-Workflows erzeugt.
+Image-SBOMs für das lokale Quality-Image, stabile Produkt-Releases und
+Demo-Images werden als direkte, gepinnte Syft-Aufrufe in `Taskfile.yml` sowie
+in den Quality- und Publish-Workflows erzeugt.
 `scripts/sbom.py` entfällt vollständig.
 Die stabile scannerweite Policy liegt deklarativ in `.syft.yaml` und wird bei
 jedem Syft-Aufruf explizit über `--config .syft.yaml` geladen.

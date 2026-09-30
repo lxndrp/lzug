@@ -83,8 +83,9 @@ manuellem Dispatch vollständig ohne Pfadauswahl.
 Ein Push oder Dependabot-Merge startet keine zweite Integrationskette.
 Der Workflow umfasst Fixtures, Brand, alle Komponenten- und Deliverytests,
 Backend, Frontend und npm-Sicherheitsgate, Dokumentation, CLI-Artefakte,
-Infrastruktur, Container/Compose, Demo, SBOMs der veröffentlichten OCI-Images,
-Browser-E2E, Accessibility und die vollständige visuelle Matrix.
+Infrastruktur, Container/Compose, Demo, die SBOM des lokal gebauten
+Quality-Images, Browser-E2E, Accessibility und die vollständige visuelle
+Matrix.
 
 Für einen Release wird zuerst die aktuelle `master`-SHA ermittelt.
 Fehlt dafür ein erfolgreicher nächtlicher Lauf, startet der Maintainer
@@ -320,7 +321,7 @@ Sie bildet weder eine zweite Handbuchquelle noch ein dauerhaft gepflegtes Migrat
 | Betreiber-CLI | Falsche Befehlssemantik oder fehlerhaftes Archiv | Go-Tests/Vet und GoReleaser-Konfiguration; nachts zwei Builds mit Archivvergleich |
 | CLI / Produktimage | Inkompatibles Admin-Protokoll, fehlerhafter Upgrade-/Restore-Pfad | Nächtlicher CLI-Container- und unterstützter v0.6.0-Kompatibilitäts-Smoke |
 | Demo-App / Seed | Fehlender Overlay-Code, falsche Assembly oder persistenter Besucherzustand nach Reset | Ein tatsächlicher App-/Seed-Build und Paar-Smoke; Snapshot-/Release-Tags als schnelle Identitäts- und Manifesttests |
-| SBOM für OCI-Images | Fehlende oder unerwartete Image-Komponente | Quality-, stabile Produkt- und Demo-Scans verwenden den direkten gepinnten Syft-Aufruf mit `.syft.yaml`; Produkt-Snapshots verwenden Buildx-SBOM-Erzeugung (`sbom: true`), obwohl Syft heruntergeladen, aber für diese SBOM nicht aufgerufen wird und `.syft.yaml` nicht geladen wird; keine Repository-Dependency- oder CLI-Binary-SBOM |
+| SBOM für OCI-Images | Fehlende oder unerwartete Image-Komponente | Das lokale Quality-Image, stabile Produkt-Releases und Demo-Images verwenden den direkten gepinnten Syft-Aufruf mit `.syft.yaml`; Produkt-Snapshots verwenden Buildx-SBOM-Erzeugung (`sbom: true`), obwohl Syft heruntergeladen, aber für diese SBOM nicht aufgerufen wird und `.syft.yaml` nicht geladen wird; keine Repository-Dependency- oder CLI-Binary-SBOM |
 | Infrastruktur | Ungültiger Ressourcenvertrag oder unerwartete Planänderung | OpenTofu-Format, Validierung und Mock-Plan ohne Cloudänderung |
 | Demo-Deployment | Fremde Herkunft / unpassendes Paar / falsche aktive Revision / defekter öffentlicher Ablauf | Provenance / Manifestbindung / Azure-Revision / Application-Smoke, jeweils an ihrer eigenen Grenze |
 | Dokumentation / Site | Ungültige Referenz, Assembly, Navigation oder Builddrift | Strukturcheck und strikter Generator; Site-Browser und geplante Byte-Reproduktion |
