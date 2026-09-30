@@ -61,7 +61,10 @@ class QualityWorkflowContractTests(unittest.TestCase):
                 self.assertIn(f"gomod:version-update:{update_type}", classification)
         self.assertIn("github.actor == 'dependabot[bot]'", self.dependabot)
         self.assertIn("pull_request.user.login == 'dependabot[bot]'", self.dependabot)
-        self.assertIn("pull_request.base.ref == github.event.repository.default_branch", self.dependabot)
+        self.assertIn(
+            "pull_request.base.ref == github.event.repository.default_branch",
+            self.dependabot,
+        )
         self.assertIn("gh pr merge --auto --squash", self.dependabot)
         self.assertIn("permissions: {}", self.dependabot)
         self.assertNotIn("actions/checkout", self.dependabot)
