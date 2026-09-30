@@ -13,9 +13,10 @@ import {
   ExecutionStatusSummary,
   ExamDayReopeningImpact,
   ExamDayReopeningScope,
-} from '../api/api.models';
+  ExamDayReopeningScopeKind,
+} from './exam-day.models';
 import { ApplicationError } from '../application/application-error';
-import { ExamDayApiService } from '../api/exam-day-api.service';
+import { ExamDayFacade } from './exam-day.facade';
 import { PersonalFacade } from '../personal/personal.facade';
 import { AuthService } from '../auth/auth.service';
 import { ExamProtocolComponent } from '../exam-protocol/exam-protocol.component';
@@ -30,7 +31,7 @@ export type ExamDayViewState = 'loading' | 'ready' | 'error' | 'not-found';
   styleUrl: './exam-day.component.css',
 })
 export class ExamDayComponent implements OnInit, OnChanges {
-  private readonly api = inject(ExamDayApiService);
+  private readonly examDay = inject(ExamDayFacade);
   private readonly personal = inject(PersonalFacade);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
@@ -91,7 +92,7 @@ export class ExamDayComponent implements OnInit, OnChanges {
     }
 
     this.state.set('loading');
-    this.api.getConfirmedPlanDay(requestedDayId).subscribe({
+    this.examDay.getConfirmedPlanDay(requestedDayId).subscribe({
       next: (view) => {
         if (
           requestSequence !== this.requestSequence ||
@@ -126,21 +127,21 @@ export class ExamDayComponent implements OnInit, OnChanges {
   protected attendanceDraft(key: string, attendance: Attendance | undefined): AttendanceDraft {
     const existing = this.drafts.get(key);
     if (existing) return existing;
-    const current = attendance ?? { status: 'open', arrived_at: null };
+    const current = attendance ?? { status: 'open', arrivedAt: null };
     const draft = {
       status: current.status as AttendanceStatus,
-      arrivedAt: this.datetimeLocalValue(current.arrived_at),
+      arrivedAt: this.datetimeLocalValue(current.arrivedAt),
     };
     this.drafts.set(key, draft);
     return draft;
   }
 
   protected candidateAttendanceFor(slot: ConfirmedPlanDay['slots'][number]): Attendance {
-    return slot.candidate_attendance ?? { status: 'open', arrived_at: null };
+    return slot.candidateAttendance ?? { status: 'open', arrivedAt: null };
   }
 
   protected memberAttendanceFor(assignment: ConfirmedPlanDay['assignments'][number]): Attendance {
-    return assignment.attendance ?? { status: 'open', arrived_at: null };
+    return assignment.attendance ?? { status: 'open', arrivedAt: null };
   }
 
   protected assignmentsForCurrentRole(): ConfirmedPlanDay['assignments'] {
@@ -158,13 +159,13 @@ export class ExamDayComponent implements OnInit, OnChanges {
     if (dayId === undefined) return;
     this.saveAction(
       `candidate-${slotId}`,
-      this.api.saveCandidateAttendance(
+      this.examDay.saveCandidateAttendance({
         dayId,
-        slotId,
-        draft.status,
-        this.apiDateTimeValue(draft.arrivedAt),
-        this.view()?.day.revision,
-      ),
+        entityId: slotId,
+        status: draft.status,
+        arrivedAt: this.apiDateTimeValue(draft.arrivedAt),
+        dayRevision: this.view()?.day.revision,
+      }),
     );
   }
 
@@ -181,13 +182,13 @@ export class ExamDayComponent implements OnInit, OnChanges {
     if (dayId === undefined) return;
     this.saveAction(
       `member-${assignmentId}`,
-      this.api.saveMemberAttendance(
+      this.examDay.saveMemberAttendance({
         dayId,
-        assignmentId,
-        draft.status,
-        this.apiDateTimeValue(draft.arrivedAt),
-        this.view()?.day.revision,
-      ),
+        entityId: assignmentId,
+        status: draft.status,
+        arrivedAt: this.apiDateTimeValue(draft.arrivedAt),
+        dayRevision: this.view()?.day.revision,
+      }),
     );
   }
 
@@ -197,7 +198,12 @@ export class ExamDayComponent implements OnInit, OnChanges {
     if (dayId === undefined) return;
     this.saveAction(
       `start-${slotId}`,
-      this.api.startExamSlot(dayId, slotId, new Date().toISOString(), this.view()?.day.revision),
+      this.examDay.startExamSlot(
+        dayId,
+        slotId,
+        new Date().toISOString(),
+        this.view()?.day.revision,
+      ),
     );
   }
 
@@ -245,10 +251,10 @@ export class ExamDayComponent implements OnInit, OnChanges {
     const existing = this.executionDrafts.get(slot.id);
     if (existing) return existing;
     const draft = {
-      status: slot.execution_status,
-      reason: slot.status_reason ?? '',
-      actualStartedAt: this.datetimeLocalValue(slot.actual_started_at),
-      actualCompletedAt: this.datetimeLocalValue(slot.actual_completed_at),
+      status: slot.executionStatus,
+      reason: slot.statusReason ?? '',
+      actualStartedAt: this.datetimeLocalValue(slot.actualStartedAt),
+      actualCompletedAt: this.datetimeLocalValue(slot.actualCompletedAt),
     };
     this.executionDrafts.set(slot.id, draft);
     return draft;
@@ -303,19 +309,19 @@ export class ExamDayComponent implements OnInit, OnChanges {
     }
     this.saveAction(
       `execution-${slotId}`,
-      this.api.updateExamSlotStatus(
+      this.examDay.updateExamSlotStatus({
         dayId,
         slotId,
-        draft.status,
-        draft.reason.trim(),
-        this.view()?.day.revision,
-        this.isReopenedScope('slot_status', slotId)
+        status: draft.status,
+        reason: draft.reason.trim(),
+        dayRevision: this.view()?.day.revision,
+        actualStartedAt: this.isReopenedScope('slot_status', slotId)
           ? this.apiDateTimeValue(draft.actualStartedAt)
           : undefined,
-        this.isReopenedScope('slot_status', slotId)
+        actualCompletedAt: this.isReopenedScope('slot_status', slotId)
           ? this.apiDateTimeValue(draft.actualCompletedAt)
           : undefined,
-      ),
+      }),
     );
   }
 
@@ -331,13 +337,13 @@ export class ExamDayComponent implements OnInit, OnChanges {
     }
     this.runClosureAction(
       'day-close',
-      this.api.closeExamDay(
-        day.id,
-        day.revision,
-        this.closureType,
-        this.closureReason,
-        this.clarificationAttempts,
-      ),
+      this.examDay.closeExamDay({
+        dayId: day.id,
+        revision: day.revision,
+        closureType: this.closureType,
+        reason: this.closureReason,
+        clarificationAttempts: this.clarificationAttempts,
+      }),
       'Prüfungstag formal abgeschlossen.',
     );
   }
@@ -355,7 +361,7 @@ export class ExamDayComponent implements OnInit, OnChanges {
     }
     this.savingKeys.set(new Set(['day-reopening-impact']));
     this.actionError.set(null);
-    this.api.previewExamDayReopening(day.id, [scope]).subscribe({
+    this.examDay.previewExamDayReopening(day.id, [scope]).subscribe({
       next: (impact) => {
         this.savingKeys.set(new Set());
         this.reopeningImpact.set(impact);
@@ -386,14 +392,14 @@ export class ExamDayComponent implements OnInit, OnChanges {
     }
     this.runClosureAction(
       'day-reopen',
-      this.api.reopenExamDay(
-        day.id,
-        day.revision,
-        this.reopeningOccasion,
-        this.reopeningSource,
-        this.reopeningReason,
-        [scope],
-      ),
+      this.examDay.reopenExamDay({
+        dayId: day.id,
+        revision: day.revision,
+        occasion: this.reopeningOccasion,
+        source: this.reopeningSource,
+        reason: this.reopeningReason,
+        scope: [scope],
+      }),
       'Prüfungstag zielgerichtet wieder geöffnet.',
     );
   }
@@ -402,7 +408,7 @@ export class ExamDayComponent implements OnInit, OnChanges {
     const closure = this.view()?.day.closure;
     if (!closure || closure.status === 'open') return true;
     if (closure.status !== 'reopening') return false;
-    const scope = closure.active_reopening?.['expanded_scope'];
+    const scope = closure.activeReopening?.expandedScope;
     return Array.isArray(scope) && scope.includes(`${kind}:${entityId}`);
   }
 
@@ -442,14 +448,14 @@ export class ExamDayComponent implements OnInit, OnChanges {
         { value: `staffing:${assignment.id}`, label: `Besetzung ${assignment.id}: Zuordnung` },
       ]),
     );
-    for (const reference of day.closure.evaluation.protocol_references) {
-      const id = reference['exam_protocol_id'];
+    for (const reference of day.closure.evaluation.protocolReferences) {
+      const id = reference.protocolId;
       if (typeof id === 'number') {
         options.push({ value: `exam_protocol:${id}`, label: `Prüfungsprotokoll ${id}` });
       }
     }
-    for (const reference of day.closure.evaluation.result_references) {
-      const id = reference['exam_result_id'];
+    for (const reference of day.closure.evaluation.resultReferences) {
+      const id = reference.resultId;
       if (typeof id === 'number') {
         options.push({ value: `exam_result:${id}`, label: `Bewertung und Ergebnis ${id}` });
       }
@@ -533,7 +539,7 @@ export class ExamDayComponent implements OnInit, OnChanges {
 
   private saveAction(
     key: string,
-    request: ReturnType<ExamDayApiService['saveCandidateAttendance']>,
+    request: ReturnType<ExamDayFacade['saveCandidateAttendance']>,
   ): void {
     if (this.hasSavingAction()) return;
     const actionSequence = this.requestSequence;
@@ -562,12 +568,12 @@ export class ExamDayComponent implements OnInit, OnChanges {
     const [kind, rawId] = this.reopeningToken.split(':');
     const entityId = Number(rawId);
     if (!kind || !Number.isInteger(entityId) || entityId < 1) return null;
-    return { kind: kind as ExamDayReopeningScope['kind'], entity_id: entityId };
+    return { kind: kind as ExamDayReopeningScopeKind, entityId };
   }
 
   private runClosureAction(
     key: string,
-    request: ReturnType<ExamDayApiService['closeExamDay']>,
+    request: ReturnType<ExamDayFacade['closeExamDay']>,
     successMessage: string,
   ): void {
     if (this.hasSavingAction()) return;
@@ -585,7 +591,7 @@ export class ExamDayComponent implements OnInit, OnChanges {
                 day: {
                   ...current.day,
                   revision: closure.revision,
-                  closure_status: closure.status,
+                  closureStatus: closure.status,
                   closure,
                 },
               }
@@ -672,7 +678,7 @@ export class ExamDayComponent implements OnInit, OnChanges {
   }
 
   protected fallbackStatusLabel(
-    status: ConfirmedPlanDay['assignments'][number]['fallback_status'],
+    status: ConfirmedPlanDay['assignments'][number]['fallbackStatus'],
   ): string {
     if (status === 'confirmed') return 'Bestätigt';
     if (status === 'proposed') return 'Vorgesehen';
