@@ -83,8 +83,8 @@ manuellem Dispatch vollständig ohne Pfadauswahl.
 Ein Push oder Dependabot-Merge startet keine zweite Integrationskette.
 Der Workflow umfasst Fixtures, Brand, alle Komponenten- und Deliverytests,
 Backend, Frontend und npm-Sicherheitsgate, Dokumentation, CLI-Artefakte,
-Infrastruktur, Container/Compose, Demo, SBOM, Browser-E2E, Accessibility und
-die vollständige visuelle Matrix.
+Infrastruktur, Container/Compose, Demo, SBOMs der veröffentlichten OCI-Images,
+Browser-E2E, Accessibility und die vollständige visuelle Matrix.
 
 Für einen Release wird zuerst die aktuelle `master`-SHA ermittelt.
 Fehlt dafür ein erfolgreicher nächtlicher Lauf, startet der Maintainer
@@ -165,13 +165,13 @@ Aus der geprüften Revision entstehen:
   denselben Registry-Digest, aber ohne `latest`;
 - sechs portable `lzug-admin`-Archive für Linux, macOS und Windows auf amd64
   und arm64;
-- genau eine aggregierte CycloneDX-Release-SBOM als siebtes sichtbares
-  GitHub-Release-Asset;
-- Provenance-Attestations für OCI-Digest, CLI-Archive und SBOM sowie eine
-  detaillierte Image-SBOM als Attestation.
+- Provenance-Attestations für den OCI-Digest und die CLI-Archive sowie eine
+  SBOM-Attestation für das veröffentlichte OCI-Image.
 
-Der GitHub Release bleibt Draft, bis alle sieben Assets hochgeladen sind, und
-wird zuletzt veröffentlicht.
+Es gibt keine Dependency-, native CLI- oder aggregierte Release-SBOM und kein
+separates sichtbares SBOM-Release-Asset.
+Der GitHub Release bleibt Draft, bis alle sechs CLI-Archive hochgeladen sind,
+und wird zuletzt veröffentlicht.
 Ein vorhandener Tag darf nur wiederverwendet werden, wenn er annotiert und an
 dieselbe vorgeprüfte SHA gebunden ist.
 Veröffentlichte Tags und Releases werden nicht verschoben.
@@ -320,7 +320,7 @@ Sie bildet weder eine zweite Handbuchquelle noch ein dauerhaft gepflegtes Migrat
 | Betreiber-CLI | Falsche Befehlssemantik oder fehlerhaftes Archiv | Go-Tests/Vet und GoReleaser-Konfiguration; nachts zwei Builds mit Archivvergleich |
 | CLI / Produktimage | Inkompatibles Admin-Protokoll, fehlerhafter Upgrade-/Restore-Pfad | Nächtlicher CLI-Container- und unterstützter v0.6.0-Kompatibilitäts-Smoke |
 | Demo-App / Seed | Fehlender Overlay-Code, falsche Assembly oder persistenter Besucherzustand nach Reset | Ein tatsächlicher App-/Seed-Build und Paar-Smoke; Snapshot-/Release-Tags als schnelle Identitäts- und Manifesttests |
-| Dependency-, Image- und CLI-SBOM | Fehlende installierte Abhängigkeit, OS-Paket oder einkompiliertes Go-Modul | Je ein Scan des unterschiedlichen Eingabeartefakts samt CycloneDX-/Identitätsprüfung; Release scannt seine sechs tatsächlich gelieferten CLI-Binaries |
+| SBOM für OCI-Images | Fehlende oder unerwartete Image-Komponente | Direkter gepinnter Syft-Aufruf mit `.syft.yaml`; keine Repository-Dependency- oder CLI-Binary-SBOM |
 | Infrastruktur | Ungültiger Ressourcenvertrag oder unerwartete Planänderung | OpenTofu-Format, Validierung und Mock-Plan ohne Cloudänderung |
 | Demo-Deployment | Fremde Herkunft / unpassendes Paar / falsche aktive Revision / defekter öffentlicher Ablauf | Provenance / Manifestbindung / Azure-Revision / Application-Smoke, jeweils an ihrer eigenen Grenze |
 | Dokumentation / Site | Ungültige Referenz, Assembly, Navigation oder Builddrift | Strukturcheck und strikter Generator; Site-Browser und geplante Byte-Reproduktion |
