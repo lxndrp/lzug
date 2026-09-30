@@ -670,9 +670,9 @@ assert.deepEqual(
   importModulesOf(demoScenariosAdapter).sort(),
   [
     './api.models',
-    './runtime-experience-api.service',
     '../demo-scenarios/application/demo-scenarios.port',
     '../demo-scenarios/demo-scenarios.models',
+    '../runtime/runtime-experience.service',
     '@angular/core',
     'rxjs',
   ].sort(),

@@ -2,21 +2,21 @@ import { Injectable, inject } from '@angular/core';
 import { map } from 'rxjs';
 
 import type { DemoScenarioOverview as ApiDemoScenarioOverview } from './api.models';
-import { RuntimeExperienceApiService } from './runtime-experience-api.service';
+import { RuntimeExperienceService } from '../runtime/runtime-experience.service';
 import type { DemoScenariosPort } from '../demo-scenarios/application/demo-scenarios.port';
 import type { DemoScenarioOverview } from '../demo-scenarios/demo-scenarios.models';
 
 /** HTTP/OpenAPI adapter for the transport-neutral demo-scenarios port. */
 @Injectable({ providedIn: 'root' })
 export class HttpDemoScenariosAdapter implements DemoScenariosPort {
-  private readonly api = inject(RuntimeExperienceApiService);
+  private readonly runtime = inject(RuntimeExperienceService);
 
   getOverview() {
-    return this.api.getDemoScenarios().pipe(map(fromApiOverview));
+    return this.runtime.getDemoScenarios().pipe(map(fromApiOverview));
   }
 
   reset() {
-    return this.api.resetDemoScenarios().pipe(map(() => undefined));
+    return this.runtime.resetDemoScenarios().pipe(map(() => undefined));
   }
 }
 
