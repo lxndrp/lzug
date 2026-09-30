@@ -114,7 +114,10 @@ Nach Änderungen an Runtime, Lockdateien, Toolchain oder Workflow die betroffene
 Audits, Builds und Vertragstests ausführen; in der Regel ist `task quality`
 angebracht.
 Die automatische Update-Gruppierung steht in `.github/dependabot.yml`,
-die Mergegrenze in `AGENTS.md`.
+die Mergegrenze in `AGENTS.md`. Verifizierte Dependabot-Patch- und
+Minor-Version-Updates für npm, uv und Go werden bei erfüllten Branch-Regeln
+als Squash-Auto-Merge angemeldet. Major-, Actions-, konfliktäre und unbekannte
+Updates bleiben manuell.
 
 ## Synthetische Fixtures
 
