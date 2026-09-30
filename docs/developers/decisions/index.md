@@ -56,7 +56,7 @@ sichern Verständlichkeit und Auffindbarkeit.
 | [0021](0021-goreleaser-fuer-die-betreiber-cli.md) | GoReleaser für die Betreiber-CLI | Paketierungsentscheidung gilt; aktuelle Konfiguration/Tasks maßgeblich |
 | [0022](0022-tag-gebundene-demo-assembly-und-seed.md) | Tag-gebundene Demo-Assembly und inhaltsadressierter Seed | Akzeptiert |
 | [0023](0023-oeffentliche-web-und-dokumentationspublikation.md) | Öffentliche Web- und Dokumentationspublikation | Historisch; Plattformwahl durch ADR-0032, geltender Publikationsvertrag durch ADR-0035 abgelöst |
-| [0024](0024-manuell-promotete-demo-snapshots.md) | Manuell promotete Demo-Snapshots | Akzeptiert |
+| [0024](0024-manuell-promotete-demo-snapshots.md) | Manuell promotete Demo-Snapshots | Teilweise abgelöst: Snapshot-Regeln gelten; gemeinsame Gates und Abnahme durch ADR-0026 ersetzt |
 | [0025](0025-kein-inspec-infrastruktur-harness.md) | Kein InSpec-Infrastruktur-Harness | Entscheidung gegen InSpec gilt; Orchestrierung teilweise durch ADR-0037 abgelöst |
 | [0026](0026-automatische-demo-promotion-stabiler-releases.md) | Automatische Demo-Promotion stabiler Releases | Akzeptiert |
 | [0027](0027-synchroner-fastapi-migrationskern.md) | Synchroner FastAPI-Kern für die schrittweise HTTP-Migration | Akzeptiert |
@@ -70,5 +70,5 @@ sichern Verständlichkeit und Auffindbarkeit.
 | [0035](0035-getrennte-publikations-und-versionsarchitektur.md) | Getrennte Publikations- und Versionsarchitektur | Akzeptiert |
 | [0036](0036-powershell-adapter-fuer-werkzeuggrenzen.md) | PowerShell-Adapter für portable Werkzeuggrenzen | Akzeptiert |
 | [0037](0037-powershell-pester-testharness.md) | PowerShell/Pester-Testharness | Akzeptiert |
-| [0038](0038-syft-standardaufrufe-fuer-sbom-erzeugung.md) | SBOM-Erzeugung als direkte Syft-Standardaufrufe | Akzeptiert |
+| [0038](0038-syft-standardaufrufe-fuer-sbom-erzeugung.md) | SBOM-Erzeugung als direkte Syft-Standardaufrufe | Teilweise fortgeltend: Syft für Quality/stabile Releases/Demo; Snapshot-Ausnahme siehe Delivery |
 | [0039](0039-deklarative-toolchain-zustaendigkeiten.md) | Deklarative Toolchain-Zuständigkeiten | Akzeptiert |
