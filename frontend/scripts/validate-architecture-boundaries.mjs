@@ -10,6 +10,7 @@ const componentSpecPath = path.join(
   'scheduling-overview',
   'scheduling-overview.component.spec.ts',
 );
+const facadePath = path.join(root, 'scheduling-overview', 'scheduling-overview.facade.ts');
 const applicationPath = path.join(
   root,
   'scheduling-overview',
@@ -30,13 +31,24 @@ const adapterPath = path.join(
 );
 const configPath = path.join(root, 'app.config.ts');
 
-const [component, componentSpec, application, port, adapter, config] = await Promise.all(
-  [componentPath, componentSpecPath, applicationPath, portPath, adapterPath, configPath].map(
-    (file) => readFile(file, 'utf8'),
-  ),
+const [component, facade, componentSpec, application, port, adapter, config] = await Promise.all(
+  [
+    componentPath,
+    facadePath,
+    componentSpecPath,
+    applicationPath,
+    portPath,
+    adapterPath,
+    configPath,
+  ].map((file) => readFile(file, 'utf8')),
 );
 
 assert.doesNotMatch(importsOf(component), /\.\.\/api\//, 'feature component imports API transport');
+assert.doesNotMatch(
+  importsOf(facade),
+  /(?:api\/|HttpClient|http-scheduling-overview\.adapter)/,
+  'feature facade imports a transport implementation',
+);
 assert.doesNotMatch(
   importsOf(application),
   /\.\.\/\.\.\/api\//,
