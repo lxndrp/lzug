@@ -43,20 +43,49 @@ const [component, facade, componentSpec, application, port, adapter, config] = a
   ].map((file) => readFile(file, 'utf8')),
 );
 
-assert.doesNotMatch(importsOf(component), /\.\.\/api\//, 'feature component imports API transport');
+assert.deepEqual(
+  relativeImportsOf(component),
+  ['./scheduling-overview.facade', './scheduling-overview.models'],
+  'feature component imports only its facade and feature models',
+);
+assert.doesNotMatch(
+  importsOf(component),
+  /@angular\/common\/http|(?:^|\/)(?:application|adapters?|api)(?:\/|$)/,
+  'feature component imports below the facade boundary',
+);
+assert.doesNotMatch(component, /\bHttpClient\b/, 'feature component refers to HttpClient directly');
+assert.deepEqual(
+  relativeImportsOf(facade),
+  ['./application/scheduling-overview.application', './scheduling-overview.models'],
+  'feature facade imports only its application operation and feature models',
+);
 assert.doesNotMatch(
   importsOf(facade),
-  /(?:api\/|@angular\/common\/http|http-scheduling-overview\.adapter)/,
+  /@angular\/common\/http|(?:^|\/)(?:adapters?|api)(?:\/|$)/,
   'feature facade imports a transport implementation',
 );
 assert.doesNotMatch(facade, /\bHttpClient\b/, 'feature facade refers to HttpClient directly');
+assert.deepEqual(
+  relativeImportsOf(application),
+  ['./scheduling-overview.port'],
+  'application depends only on its port',
+);
 assert.doesNotMatch(
   importsOf(application),
-  /\.\.\/\.\.\/api\//,
-  'application imports API transport',
+  /@angular\/common\/http|(?:^|\/)(?:adapters?|api)(?:\/|$)/,
+  'application imports a transport implementation',
 );
-assert.doesNotMatch(application, /HttpClient|fetch\s*\(/, 'application performs HTTP directly');
-assert.doesNotMatch(importsOf(port), /\.\.\/\.\.\/api\//, 'port imports API transport');
+assert.doesNotMatch(
+  application,
+  /\bHttpClient\b|\bfetch\s*\(/,
+  'application performs HTTP directly',
+);
+assert.deepEqual(relativeImportsOf(port), ['../scheduling-overview.models']);
+assert.doesNotMatch(
+  importsOf(port),
+  /@angular\/common\/http|(?:^|\/)(?:adapters?|api)(?:\/|$)/,
+  'port imports a transport implementation',
+);
 assert.match(
   importsOf(adapter),
   /\.\.\/\.\.\/api\/planning-api\.service/,
@@ -67,7 +96,7 @@ assert.match(config, /HttpSchedulingOverviewAdapter/);
 assert.doesNotMatch(componentSpec, /HttpTestingController|provideHttpClientTesting/);
 assert.match(componentSpec, /SCHEDULING_OVERVIEW_PORT/);
 
-function importsOf(source) {
+function importModulesOf(source) {
   const file = ts.createSourceFile('boundary.ts', source, ts.ScriptTarget.Latest, true);
   const modules = [];
   for (const statement of file.statements) {
@@ -75,5 +104,15 @@ function importsOf(source) {
       modules.push(statement.moduleSpecifier.text);
     }
   }
-  return modules.join('\n');
+  return modules;
+}
+
+function importsOf(source) {
+  return importModulesOf(source).join('\n');
+}
+
+function relativeImportsOf(source) {
+  return importModulesOf(source)
+    .filter((module) => module.startsWith('.'))
+    .sort();
 }
