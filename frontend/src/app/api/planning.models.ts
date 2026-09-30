@@ -15,7 +15,7 @@ export type RoundSummary = {
   };
   settings: PlanningSettings | null;
   availability: AvailabilityCount[];
-  _links: Record<string, ApiLink>;
+  _links?: Record<string, ApiLink>;
 };
 
 export type ExamRound = {

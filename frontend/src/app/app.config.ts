@@ -13,6 +13,8 @@ import { TUI_GERMAN_LANGUAGE } from '@taiga-ui/i18n/languages/german';
 
 import { SCHEDULING_OVERVIEW_PORT } from './scheduling-overview/application/scheduling-overview.port';
 import { HttpSchedulingOverviewAdapter } from './scheduling-overview/adapters/http-scheduling-overview.adapter';
+import { WORKSPACE_PORT } from './shell/workspace.port';
+import { HttpWorkspaceAdapter } from './api/http-workspace.adapter';
 import { routes } from './app.routes';
 import { AUTHENTICATION_PORT } from './auth/auth.models';
 import { AuthService } from './auth/auth.service';
@@ -26,6 +28,7 @@ import { HttpFrontendErrorReporter } from './api/frontend-error-api.adapter';
 export const appConfig: ApplicationConfig = {
   providers: [
     { provide: SCHEDULING_OVERVIEW_PORT, useClass: HttpSchedulingOverviewAdapter },
+    { provide: WORKSPACE_PORT, useClass: HttpWorkspaceAdapter },
     { provide: AUTHENTICATION_PORT, useExisting: AuthService },
     { provide: LIFECYCLE_AVAILABILITY_PORT, useExisting: LifecycleService },
     { provide: FRONTEND_ERROR_REPORTER_PORT, useClass: HttpFrontendErrorReporter },

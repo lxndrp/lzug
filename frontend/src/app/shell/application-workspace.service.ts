@@ -2,26 +2,25 @@ import { Injectable, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { finalize } from 'rxjs';
 
-import type { ExamRound, MasterData, PlanningBoard, RoundSummary } from '../api/api.models';
-import { ApplicationError } from '../api/application-error';
-import { PlanningApiService } from '../api/planning-api.service';
+import { ApplicationError } from '../application/application-error';
 import { RoundContextService } from '../api/round-context.service';
 import { AuthService } from '../auth/auth.service';
 import { UiFeedbackService } from './ui-feedback.service';
+import { WORKSPACE_PORT, type WorkspaceSnapshot } from './workspace.port';
 
 /** Coherent application-wide read state shared by shell and feature coordinators. */
 @Injectable({ providedIn: 'root' })
 export class ApplicationWorkspaceService {
-  private readonly api = inject(PlanningApiService);
+  private readonly workspacePort = inject(WORKSPACE_PORT);
   private readonly auth = inject(AuthService);
   private readonly feedback = inject(UiFeedbackService);
   private readonly roundContext = inject(RoundContextService);
   private readonly router = inject(Router);
 
-  readonly round = signal<ExamRound | null>(null);
-  readonly summary = signal<RoundSummary | null>(null);
-  readonly board = signal<PlanningBoard | null>(null);
-  readonly masterData = signal<MasterData | null>(null);
+  readonly round = signal<WorkspaceSnapshot['round'] | null>(null);
+  readonly summary = signal<WorkspaceSnapshot['summary'] | null>(null);
+  readonly board = signal<WorkspaceSnapshot['board'] | null>(null);
+  readonly masterData = signal<WorkspaceSnapshot['masterData'] | null>(null);
   readonly selectedCommitteeId = signal<number | null>(null);
   readonly message = signal('Bereit');
   readonly loading = signal(false);
@@ -42,20 +41,20 @@ export class ApplicationWorkspaceService {
     }
     this.masterDataError.set(false);
     this.loading.set(true);
-    this.api
-      .refreshDashboard(roundId)
+    this.workspacePort
+      .loadDashboard(roundId)
       .pipe(
         finalize(() => {
           if (generation === this.refreshGeneration) this.loading.set(false);
         }),
       )
       .subscribe({
-        next: ({ root, round, summary, board, masterData }) => {
+        next: ({ applicationVersion, round, summary, board, masterData }) => {
           if (generation !== this.refreshGeneration || this.roundContext.roundId() !== roundId) {
             return;
           }
           this.masterDataError.set(false);
-          this.applicationVersion.set(root.version);
+          this.applicationVersion.set(applicationVersion);
           this.round.set(round);
           this.summary.set(summary);
           this.board.set(board);
