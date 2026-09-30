@@ -578,6 +578,8 @@ Lesezustand des gewählten Prüfungskontexts und hängt dafür an
 `HttpWorkspaceAdapter` übersetzt das Dashboard-Transportmodell in einen
 Snapshot ohne HAL-Links; die anwendungsweite Bindung liegt in
 `app.config.ts`.
+`PlanningWorkflowService` koordiniert Planungsbefehle über `PlanningPort`;
+`HttpPlanningAdapter` übersetzt diese Aufrufe in den vorhandenen API-Client.
 Planungs-, Stammdaten- und Ortsbefehle liegen in den zuständigen
 Workflow-Services.
 `App` besitzt nur Rahmen, Authentisierung, globale Runtimezustände,

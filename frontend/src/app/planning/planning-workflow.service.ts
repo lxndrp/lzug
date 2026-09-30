@@ -12,7 +12,6 @@ import type {
   PlanningValidationViolation,
 } from '../api/api.models';
 import { ApplicationError } from '../application/application-error';
-import { PlanningApiService } from '../api/planning-api.service';
 import { RoundContextService } from '../api/round-context.service';
 import { AuthService } from '../auth/auth.service';
 import type {
@@ -24,11 +23,12 @@ import type {
 import type { ProposalEditorState } from './planning-proposal-editor.component';
 import { ApplicationWorkspaceService } from '../shell/application-workspace.service';
 import { UiFeedbackService } from '../shell/ui-feedback.service';
+import { PLANNING_PORT } from './planning.port';
 
 /** Planning commands and editor state for the selected examination round. */
 @Injectable({ providedIn: 'root' })
 export class PlanningWorkflowService {
-  private readonly api = inject(PlanningApiService);
+  private readonly planning = inject(PLANNING_PORT);
   private readonly auth = inject(AuthService);
   private readonly feedback = inject(UiFeedbackService);
   private readonly roundContext = inject(RoundContextService);
@@ -88,7 +88,7 @@ export class PlanningWorkflowService {
     }
     const roundId = this.roundContext.roundId();
     this.workspace.actionBusy.set(true);
-    this.api
+    this.planning
       .savePlanningSettings(payload, roundId)
       .pipe(finalize(() => this.workspace.actionBusy.set(false)))
       .subscribe({
@@ -120,7 +120,7 @@ export class PlanningWorkflowService {
     }
     const roundId = this.roundContext.roundId();
     this.workspace.actionBusy.set(true);
-    this.api
+    this.planning
       .updateExamRound(payload, roundId)
       .pipe(finalize(() => this.workspace.actionBusy.set(false)))
       .subscribe({
@@ -152,7 +152,7 @@ export class PlanningWorkflowService {
     }
     const roundId = this.roundContext.roundId();
     this.workspace.actionBusy.set(true);
-    this.api
+    this.planning
       .requestAvailabilities(payload, roundId)
       .pipe(finalize(() => this.workspace.actionBusy.set(false)))
       .subscribe({
@@ -186,7 +186,7 @@ export class PlanningWorkflowService {
     }
     const roundId = this.roundContext.roundId();
     this.workspace.actionBusy.set(true);
-    this.api
+    this.planning
       .createCandidateExamDay(payload, roundId)
       .pipe(finalize(() => this.workspace.actionBusy.set(false)))
       .subscribe({
@@ -215,10 +215,10 @@ export class PlanningWorkflowService {
     }
     const roundId = this.roundContext.roundId();
     this.workspace.actionBusy.set(true);
-    this.api
+    this.planning
       .savePlanningSettings(payload, roundId)
       .pipe(
-        switchMap(() => this.api.generateCandidateExamDays(roundId)),
+        switchMap(() => this.planning.generateCandidateExamDays(roundId)),
         finalize(() => this.workspace.actionBusy.set(false)),
       )
       .subscribe({
@@ -252,7 +252,7 @@ export class PlanningWorkflowService {
     const roundId = this.roundContext.roundId();
     const nextActive = day.is_active ? 0 : 1;
     this.workspace.actionBusy.set(true);
-    this.api
+    this.planning
       .updateCandidateExamDay(day.id, { is_active: nextActive })
       .pipe(finalize(() => this.workspace.actionBusy.set(false)))
       .subscribe({
@@ -292,7 +292,7 @@ export class PlanningWorkflowService {
       this.planningComponent?.markAvailabilityError(payload);
       return;
     }
-    this.api.saveMemberAvailability(payload, roundId).subscribe({
+    this.planning.saveMemberAvailability(payload, roundId).subscribe({
       next: (availability) => {
         if (!this.isSelectedRound(roundId)) return;
         this.workspace.board.update((board) =>
@@ -332,7 +332,7 @@ export class PlanningWorkflowService {
     }
     const roundId = this.roundContext.roundId();
     this.workspace.actionBusy.set(true);
-    this.api
+    this.planning
       .generateProposal()
       .pipe(finalize(() => this.workspace.actionBusy.set(false)))
       .subscribe({
@@ -363,7 +363,7 @@ export class PlanningWorkflowService {
     }
     const roundId = this.roundContext.roundId();
     this.workspace.actionBusy.set(true);
-    this.api
+    this.planning
       .confirmPlan()
       .pipe(finalize(() => this.workspace.actionBusy.set(false)))
       .subscribe({
@@ -393,7 +393,7 @@ export class PlanningWorkflowService {
     this.editorState.set('loading');
     this.editorError.set(null);
     this.editorViolations.set([]);
-    this.api.getPlanningProposal().subscribe({
+    this.planning.getPlanningProposal().subscribe({
       next: (proposal) => {
         if (!this.isSelectedRound(roundId)) return;
         this.proposal.set(proposal);
@@ -421,7 +421,7 @@ export class PlanningWorkflowService {
     this.editorState.set('saving');
     this.editorError.set(null);
     this.editorViolations.set([]);
-    this.api.savePlanningProposal(proposal).subscribe({
+    this.planning.savePlanningProposal(proposal).subscribe({
       next: (saved) => {
         if (!this.isSelectedRound(roundId)) return;
         this.proposal.set(saved);

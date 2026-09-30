@@ -127,6 +127,36 @@ assert.equal(
 assert.doesNotMatch(componentSpec, /HttpTestingController|provideHttpClientTesting/);
 assert.match(componentSpec, /SCHEDULING_OVERVIEW_PORT/);
 
+const planningWorkflowPath = path.join(root, 'planning', 'planning-workflow.service.ts');
+const planningPortPath = path.join(root, 'planning', 'planning.port.ts');
+const planningAdapterPath = path.join(root, 'planning', 'http-planning.adapter.ts');
+const planningSpecPath = path.join(root, 'planning', 'planning-workflow.service.spec.ts');
+const [planningWorkflow, planningPort, planningAdapter, planningSpec] = await Promise.all(
+  [planningWorkflowPath, planningPortPath, planningAdapterPath, planningSpecPath].map((file) =>
+    readFile(file, 'utf8'),
+  ),
+);
+
+assert.match(planningWorkflow, /PLANNING_PORT/);
+assert.doesNotMatch(
+  importsOf(planningWorkflow),
+  /PlanningApiService|ApiClient|api-client\.service|planning-api\.service/,
+  'planning workflows must not depend directly on transport services',
+);
+assert.doesNotMatch(planningPort, /HttpClient|fetch\s*\(|types\.gen|['"]\/api\//);
+assert.match(planningAdapter, /PlanningApiService/);
+assert.match(planningSpec, /PLANNING_PORT/);
+assert.doesNotMatch(
+  planningSpec,
+  /ApiClient|HttpTestingController|provideHttpClientTesting/,
+  'planning workflow tests must use the application port',
+);
+assert.equal(
+  hasProviderBinding(config, 'PLANNING_PORT', 'HttpPlanningAdapter'),
+  true,
+  'composition root binds the planning port to its HTTP adapter',
+);
+
 const workspaceServicePath = path.join(root, 'shell', 'application-workspace.service.ts');
 const workspacePortPath = path.join(root, 'shell', 'workspace.port.ts');
 const workspaceSpecPath = path.join(root, 'shell', 'application-workspace.service.spec.ts');
