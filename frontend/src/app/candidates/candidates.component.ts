@@ -30,20 +30,19 @@ import { TuiBadge, TuiSelect } from '@taiga-ui/kit';
 import { TuiTable } from '@taiga-ui/addon-table';
 import { TuiForm, TuiHeader } from '@taiga-ui/layout';
 
-import {
+import type {
   Candidate,
-  CandidateCommitteeAssignment,
-  CandidateCreateCommand,
+  CandidateCommand,
+  CandidateExamRound,
   CandidateUpdate as CandidateUpdateCommandWithId,
   CandidateView,
-  ExamRound,
-  MasterData,
-} from '../api/api.models';
+  CandidateWorkspace,
+} from '../master-data/master-data.models';
 import { appIcons } from '../app-icons';
 import { AppIconDirective } from '../app-icon.directive';
 import { type SelectOption, selectLabel, selectStringify, selectValues } from '../select-options';
 
-export type CandidatePayload = CandidateCreateCommand;
+export type CandidatePayload = CandidateCommand;
 export type CandidateUpdate = CandidateUpdateCommandWithId;
 
 type CandidateFormModel = {
@@ -93,8 +92,8 @@ export class CandidatesComponent {
   @ViewChild('candidateCreateFormElement', { read: ElementRef })
   private candidateCreateFormElement?: ElementRef<HTMLFormElement>;
 
-  @Input() masterData: MasterData | null = null;
-  @Input() activeRound: ExamRound | null = null;
+  @Input() masterData: CandidateWorkspace | null = null;
+  @Input() activeRound: CandidateWorkspace['activeRound'] = null;
   @Input() actionBusy = false;
 
   @Output() createCandidate = new EventEmitter<CandidatePayload>();
@@ -133,7 +132,7 @@ export class CandidatesComponent {
 
   protected mepCount(): number {
     return (
-      this.masterData?.candidates.filter((item) => item.roundCandidate?.requires_mep).length ?? 0
+      this.masterData?.candidates.filter((item) => item.roundCandidate?.requiresMep).length ?? 0
     );
   }
 
@@ -162,12 +161,12 @@ export class CandidatesComponent {
       const candidate = item.candidate;
       const matchesSpecialization = !specialization || candidate.specialization === specialization;
       const haystack = [
-        candidate.first_name,
-        candidate.last_name,
-        candidate.ihk_exam_number,
+        candidate.firstName,
+        candidate.lastName,
+        candidate.examNumber,
         candidate.specialization,
         this.specializationLabel(candidate.specialization),
-        candidate.training_company,
+        candidate.trainingCompany,
       ]
         .join(' ')
         .toLocaleLowerCase('de-DE');
@@ -180,7 +179,7 @@ export class CandidatesComponent {
   }
 
   protected candidateLabel(candidate: Candidate): string {
-    return `${candidate.first_name} ${candidate.last_name}`;
+    return `${candidate.firstName} ${candidate.lastName}`;
   }
 
   protected submitCandidate(): void {
@@ -256,14 +255,14 @@ export class CandidatesComponent {
     this.editingCandidateId.set(item.candidate.id);
     this.editForm.set(
       this.createForm({
-        first_name: item.candidate.first_name,
-        last_name: item.candidate.last_name,
-        ihk_exam_number: item.candidate.ihk_exam_number,
+        first_name: item.candidate.firstName,
+        last_name: item.candidate.lastName,
+        ihk_exam_number: item.candidate.examNumber,
         specialization: item.candidate.specialization,
-        training_company: item.candidate.training_company,
-        attempt_number: item.roundCandidate?.attempt_number ?? 1,
-        requires_mep: Boolean(item.roundCandidate?.requires_mep),
-        exam_round_id: activeAssignment?.exam_round_id ?? this.activeRound?.id ?? null,
+        training_company: item.candidate.trainingCompany,
+        attempt_number: item.roundCandidate?.attemptNumber ?? 1,
+        requires_mep: item.roundCandidate?.requiresMep ?? false,
+        exam_round_id: activeAssignment?.examRoundId ?? this.activeRound?.id ?? null,
         assignment_change_reason: '',
       }),
     );
@@ -294,41 +293,39 @@ export class CandidatesComponent {
     }
   }
 
-  protected eligibleRounds(): ExamRound[] {
-    const halfYearId = this.activeRound?.exam_half_year_id;
+  protected eligibleRounds(): CandidateExamRound[] {
+    const halfYearId = this.activeRound?.halfYearId;
     if (!halfYearId) {
       return [];
     }
-    return (
-      this.masterData?.examRounds.filter((round) => round.exam_half_year_id === halfYearId) ?? []
-    );
+    return this.masterData?.examRounds.filter((round) => round.halfYearId === halfYearId) ?? [];
   }
 
   protected eligibleRoundIds(): readonly number[] {
     return selectValues(this.eligibleRoundSelectOptions());
   }
 
-  protected assignmentHistory(candidateId: number): CandidateCommitteeAssignment[] {
-    return (this.masterData?.candidateAssignments ?? [])
-      .filter((assignment) => assignment.candidate_id === candidateId)
-      .sort((left, right) => right.assigned_at.localeCompare(left.assigned_at));
+  protected assignmentHistory(candidateId: number) {
+    return (this.masterData?.assignments ?? [])
+      .filter((assignment) => assignment.candidateId === candidateId)
+      .sort((left, right) => right.assignedAt.localeCompare(left.assignedAt));
   }
 
-  protected activeAssignment(candidateId: number): CandidateCommitteeAssignment | undefined {
-    return this.assignmentHistory(candidateId).find((assignment) => assignment.ended_at === null);
+  protected activeAssignment(candidateId: number) {
+    return this.assignmentHistory(candidateId).find((assignment) => assignment.endedAt === null);
   }
 
-  protected assignmentLabel(assignment: CandidateCommitteeAssignment): string {
-    const round = this.masterData?.examRounds.find((item) => item.id === assignment.exam_round_id);
-    return round ? this.roundLabel(round) : `Prüfungsrunde #${assignment.exam_round_id}`;
+  protected assignmentLabel(assignment: CandidateWorkspace['assignments'][number]): string {
+    const round = this.masterData?.examRounds.find((item) => item.id === assignment.examRoundId);
+    return round ? this.roundLabel(round) : `Prüfungsrunde #${assignment.examRoundId}`;
   }
 
-  protected assignmentStateLabel(assignment: CandidateCommitteeAssignment): string {
-    return assignment.ended_at ? 'beendet' : 'aktuell';
+  protected assignmentStateLabel(assignment: CandidateWorkspace['assignments'][number]): string {
+    return assignment.endedAt ? 'beendet' : 'aktuell';
   }
 
   protected needsChangeReason(candidateId: number, targetRoundId?: number): boolean {
-    const currentRoundId = this.activeAssignment(candidateId)?.exam_round_id;
+    const currentRoundId = this.activeAssignment(candidateId)?.examRoundId;
     return (
       currentRoundId !== undefined &&
       targetRoundId !== undefined &&
@@ -336,8 +333,8 @@ export class CandidatesComponent {
     );
   }
 
-  private roundLabel(round: ExamRound): string {
-    const committee = this.masterData?.committees.find((item) => item.id === round.committee_id);
+  private roundLabel(round: CandidateExamRound): string {
+    const committee = this.masterData?.committees.find((item) => item.id === round.committeeId);
     return committee ? `${committee.name} · ${round.name}` : round.name;
   }
 
@@ -436,15 +433,15 @@ export class CandidatesComponent {
   private toPayload(form: FormGroup<CandidateFormModel>): CandidatePayload {
     const value = form.getRawValue();
     return {
-      first_name: value.first_name.trim(),
-      last_name: value.last_name.trim(),
-      ihk_exam_number: value.ihk_exam_number.trim(),
+      firstName: value.first_name.trim(),
+      lastName: value.last_name.trim(),
+      examNumber: value.ihk_exam_number.trim(),
       specialization: value.specialization,
-      training_company: value.training_company.trim(),
-      attempt_number: Number(value.attempt_number) || 1,
-      requires_mep: value.requires_mep ? 1 : 0,
-      exam_round_id: value.exam_round_id ?? undefined,
-      assignment_change_reason: value.assignment_change_reason.trim() || undefined,
+      trainingCompany: value.training_company.trim(),
+      attemptNumber: Number(value.attempt_number) || 1,
+      requiresMep: value.requires_mep,
+      examRoundId: value.exam_round_id ?? undefined,
+      assignmentChangeReason: value.assignment_change_reason.trim() || undefined,
     };
   }
 }

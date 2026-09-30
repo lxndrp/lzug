@@ -12,12 +12,19 @@ import {
   tap,
 } from 'rxjs';
 
-import type { Candidate, CandidateCreateCommand, CommitteeMember } from '../api/api.models';
-import { MasterDataApiService } from '../api/master-data-api.service';
-import type { CandidateUpdate } from '../api/master-data.models';
 import { RoundContextService } from '../api/round-context.service';
-import type { CommitteeMemberPayload } from '../committee/committee.component';
 import { ApplicationWorkspaceService } from '../shell/application-workspace.service';
+import { MASTER_DATA_PORT } from './master-data.port';
+import type {
+  Candidate,
+  CandidateCommand,
+  CandidateUpdate,
+  CandidateWorkspace,
+  CommitteeMember,
+  CommitteeMemberCommand,
+  CommitteeMemberUpdate,
+  CommitteeWorkspace,
+} from './master-data.models';
 
 export type MasterDataWorkflowResult<T> =
   | { ok: true; value: T; requestId: number; contextKey: string; current: boolean }
@@ -32,7 +39,7 @@ export type MasterDataRequestState =
 /** Candidate and committee-member commands owned outside the application shell. */
 @Injectable({ providedIn: 'root' })
 export class MasterDataWorkflowService {
-  private readonly api = inject(MasterDataApiService);
+  private readonly port = inject(MASTER_DATA_PORT);
   private readonly roundContext = inject(RoundContextService);
   private readonly workspace = inject(ApplicationWorkspaceService);
   private readonly requestCounter = signal(0);
@@ -40,27 +47,111 @@ export class MasterDataWorkflowService {
 
   readonly requestState = this.state.asReadonly();
   readonly actionBusy = computed(() => this.state().status === 'pending');
+  readonly candidateWorkspace = computed<CandidateWorkspace | null>(() => {
+    const source = this.workspace.masterData();
+    const activeRound = this.workspace.round();
+    if (!source) return null;
+    return {
+      candidates: source.candidates.map(({ candidate, roundCandidate }) => ({
+        candidate: {
+          id: candidate.id,
+          firstName: candidate.first_name,
+          lastName: candidate.last_name,
+          examNumber: candidate.ihk_exam_number,
+          specialization: candidate.specialization,
+          trainingCompany: candidate.training_company,
+        },
+        ...(roundCandidate
+          ? {
+              roundCandidate: {
+                attemptNumber: roundCandidate.attempt_number,
+                requiresMep: Boolean(roundCandidate.requires_mep),
+              },
+            }
+          : {}),
+      })),
+      assignments: source.candidateAssignments.map((assignment) => ({
+        id: assignment.id,
+        candidateId: assignment.candidate_id,
+        examRoundId: assignment.exam_round_id,
+        assignedAt: assignment.assigned_at,
+        endedAt: assignment.ended_at,
+        changeReason: assignment.change_reason,
+      })),
+      examRounds: source.examRounds.map((round) => ({
+        id: round.id,
+        name: round.name,
+        halfYearId: round.exam_half_year_id,
+        committeeId: round.committee_id,
+      })),
+      committees: source.committees.map(({ id, name, occupation, ihk }) => ({
+        id,
+        name,
+        occupation,
+        ihk,
+      })),
+      activeRound: activeRound
+        ? {
+            id: activeRound.id,
+            name: activeRound.name,
+            halfYearId: activeRound.exam_half_year_id,
+            committeeId: activeRound.committee_id,
+            status: activeRound.status,
+          }
+        : null,
+    };
+  });
+  readonly committeeWorkspace = computed<CommitteeWorkspace | null>(() => {
+    const source = this.workspace.masterData();
+    if (!source) return null;
+    return {
+      committees: source.committees.map(({ id, name, occupation, ihk }) => ({
+        id,
+        name,
+        occupation,
+        ihk,
+      })),
+      members: source.members.map((member) => ({
+        id: member.id,
+        personId: member.person_id,
+        committeeId: member.committee_id,
+        firstName: member.first_name,
+        lastName: member.last_name,
+        memberStatus: member.member_status,
+        committeeRole: member.committee_role,
+        representingSide: member.representing_side,
+        email: member.email,
+        emailVerifiedAt: member.email_verified_at ?? null,
+        mobile: member.mobile,
+        isActive: Boolean(member.is_active),
+      })),
+      persons: source.persons.map((person) => ({
+        id: person.id,
+        firstName: person.first_name,
+        lastName: person.last_name,
+        email: person.email,
+      })),
+    };
+  });
 
   createMember(
-    payload: CommitteeMemberPayload,
+    payload: CommitteeMemberCommand,
   ): Observable<MasterDataWorkflowResult<CommitteeMember>> {
     const selectedCommitteeId = this.workspace.selectedCommitteeId();
     return this.run(
-      `committee:${payload.committee_id}`,
-      () => this.api.createMember(payload),
+      `committee:${payload.committeeId}`,
+      () => this.port.createCommitteeMember(payload),
       () =>
-        selectedCommitteeId === payload.committee_id &&
+        selectedCommitteeId === payload.committeeId &&
         this.workspace.selectedCommitteeId() === selectedCommitteeId,
     );
   }
 
-  createCandidate(
-    payload: CandidateCreateCommand,
-  ): Observable<MasterDataWorkflowResult<Candidate>> {
+  createCandidate(payload: CandidateCommand): Observable<MasterDataWorkflowResult<Candidate>> {
     const roundId = this.roundContext.roundId();
     return this.run(
       `candidate:${roundId}:create`,
-      () => this.api.createCandidate(payload),
+      () => this.port.createCandidate({ ...payload, examRoundId: payload.examRoundId ?? roundId }),
       () => this.roundContext.roundId() === roundId,
     );
   }
@@ -69,7 +160,7 @@ export class MasterDataWorkflowService {
     const roundId = this.roundContext.roundId();
     return this.run(
       `candidate:${roundId}:${id}`,
-      () => this.api.deleteCandidate(id),
+      () => this.port.deleteCandidate(id),
       () => this.roundContext.roundId() === roundId,
     );
   }
@@ -78,19 +169,23 @@ export class MasterDataWorkflowService {
     const roundId = this.roundContext.roundId();
     return this.run(
       `candidate:${roundId}:${update.id}`,
-      () => this.api.updateCandidate(update.id, update.payload),
+      () =>
+        this.port.updateCandidate({
+          ...update,
+          payload: { ...update.payload, examRoundId: update.payload.examRoundId ?? roundId },
+        }),
       () => this.roundContext.roundId() === roundId,
     );
   }
 
   toggleMember(member: CommitteeMember): Observable<MasterDataWorkflowResult<CommitteeMember>> {
-    const nextActive = member.is_active ? 0 : 1;
+    const update: CommitteeMemberUpdate = { isActive: !member.isActive };
     const selectedCommitteeId = this.workspace.selectedCommitteeId();
     return this.run(
-      `committee:${member.committee_id}`,
-      () => this.api.updateMember(member.id, { is_active: nextActive }),
+      `committee:${member.committeeId}`,
+      () => this.port.updateCommitteeMember(member.id, update),
       () =>
-        selectedCommitteeId === member.committee_id &&
+        selectedCommitteeId === member.committeeId &&
         this.workspace.selectedCommitteeId() === selectedCommitteeId,
     );
   }

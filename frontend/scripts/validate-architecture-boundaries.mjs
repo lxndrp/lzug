@@ -498,6 +498,110 @@ assert.equal(
   'composition root binds the protocol port to its HTTP adapter',
 );
 
+const masterDataWorkflowPath = path.join(root, 'master-data', 'master-data-workflow.service.ts');
+const masterDataPortPath = path.join(root, 'master-data', 'master-data.port.ts');
+const masterDataModelsPath = path.join(root, 'master-data', 'master-data.models.ts');
+const masterDataWorkflowSpecPath = path.join(
+  root,
+  'master-data',
+  'master-data-workflow.service.spec.ts',
+);
+const masterDataAdapterPath = path.join(root, 'api', 'http-master-data.adapter.ts');
+const masterDataAdapterSpecPath = path.join(root, 'api', 'http-master-data.adapter.spec.ts');
+const candidatesComponentPath = path.join(root, 'candidates', 'candidates.component.ts');
+const candidatesComponentSpecPath = path.join(root, 'candidates', 'candidates.component.spec.ts');
+const candidatesRoutePath = path.join(root, 'routes', 'candidates-route.component.ts');
+const committeeComponentPath = path.join(root, 'committee', 'committee.component.ts');
+const committeeComponentSpecPath = path.join(root, 'committee', 'committee.component.spec.ts');
+const committeeRoutePath = path.join(root, 'routes', 'committee-route.component.ts');
+const [
+  masterDataWorkflow,
+  masterDataPort,
+  masterDataModels,
+  masterDataWorkflowSpec,
+  masterDataAdapter,
+  masterDataAdapterSpec,
+  candidatesComponent,
+  candidatesComponentSpec,
+  candidatesRoute,
+  committeeComponent,
+  committeeComponentSpec,
+  committeeRoute,
+] = await Promise.all(
+  [
+    masterDataWorkflowPath,
+    masterDataPortPath,
+    masterDataModelsPath,
+    masterDataWorkflowSpecPath,
+    masterDataAdapterPath,
+    masterDataAdapterSpecPath,
+    candidatesComponentPath,
+    candidatesComponentSpecPath,
+    candidatesRoutePath,
+    committeeComponentPath,
+    committeeComponentSpecPath,
+    committeeRoutePath,
+  ].map((file) => readFile(file, 'utf8')),
+);
+
+for (const [name, source] of [
+  ['candidate component', candidatesComponent],
+  ['committee component', committeeComponent],
+  ['candidate route', candidatesRoute],
+  ['committee route', committeeRoute],
+]) {
+  assert.doesNotMatch(
+    importsOf(source),
+    /(?:^|\/)(?:api\.models|master-data-api\.service|api-client\.service|generated\/types\.gen)(?:$|\n)|@angular\/common\/http/,
+    `${name} must not depend on transport contracts or HTTP`,
+  );
+}
+assert.match(importsOf(candidatesComponent), /master-data\.models/);
+assert.match(importsOf(committeeComponent), /master-data\.models/);
+assert.match(importsOf(candidatesRoute), /master-data\.models/);
+assert.match(importsOf(committeeRoute), /master-data\.models/);
+assert.match(masterDataWorkflow, /MASTER_DATA_PORT/);
+assert.doesNotMatch(
+  importsOf(masterDataWorkflow),
+  /MasterDataApiService|master-data-api\.service|ApiClient|api-client\.service/,
+  'master-data workflow depends on its port rather than the HTTP service',
+);
+assert.deepEqual(relativeImportsOf(masterDataPort), ['./master-data.models']);
+assert.doesNotMatch(
+  importsOf(masterDataPort),
+  /@angular\/common\/http|(?:^|\/)(?:api|adapters?)(?:\/|$)|types\.gen|['"]\/api\//,
+  'master-data port exposes transport-neutral contracts',
+);
+assert.doesNotMatch(
+  importsOf(masterDataModels),
+  /(?:^|\/)api\.models(?:$|\n)|types\.gen/,
+  'master-data contracts are owned by the feature',
+);
+assert.match(masterDataAdapter, /MasterDataApiService/);
+assert.match(masterDataAdapter, /master-data\.port/);
+assert.match(masterDataAdapterSpec, /HttpTestingController/);
+assert.match(masterDataWorkflowSpec, /MASTER_DATA_PORT/);
+assert.doesNotMatch(
+  masterDataWorkflowSpec,
+  /HttpTestingController|provideHttpClientTesting/,
+  'master-data workflow tests use application-boundary doubles',
+);
+for (const [name, source] of [
+  ['candidate component tests', candidatesComponentSpec],
+  ['committee component tests', committeeComponentSpec],
+]) {
+  assert.doesNotMatch(
+    source,
+    /HttpTestingController|provideHttpClientTesting/,
+    `${name} use feature inputs and outputs rather than HTTP`,
+  );
+}
+assert.equal(
+  hasProviderBinding(config, 'MASTER_DATA_PORT', 'HttpMasterDataAdapter'),
+  true,
+  'composition root binds the master-data port to its HTTP adapter',
+);
+
 function importModulesOf(source) {
   const file = ts.createSourceFile('boundary.ts', source, ts.ScriptTarget.Latest, true);
   const modules = [];

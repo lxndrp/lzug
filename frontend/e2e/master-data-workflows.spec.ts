@@ -132,6 +132,42 @@ test.describe('master data workflows', () => {
     await expect(row).toHaveCount(0);
   });
 
+  test('creates and deactivates a committee member through the browser', async ({ page }) => {
+    await useDraftRound(page);
+    await page.goto('/committee');
+    await page.getByRole('button', { name: 'Prüfer hinzufügen', exact: true }).click();
+
+    const email = `codex-e2e-${Date.now()}@example.invalid`;
+    await page.locator('#memberFirstName').fill('Testperson');
+    await page.locator('#memberLastName').fill('E2E');
+    await page.locator('#memberEmail').fill(email);
+    const createResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        new URL(response.url()).pathname === '/api/members',
+    );
+    await page.getByRole('button', { name: 'Prüfer speichern', exact: true }).click();
+    const response = await createResponse;
+    expect(response.status()).toBe(201);
+
+    const row = page.locator('tr').filter({ hasText: email });
+    await expect(row).toBeVisible();
+    await expect(row.getByText('Aktiv', { exact: true })).toBeVisible();
+    await row.getByRole('button', { name: 'Testperson E2E deaktivieren' }).click();
+    await expect(row.getByText('Inaktiv', { exact: true })).toBeVisible();
+    await expect(row.getByRole('button', { name: 'Testperson E2E aktivieren' })).toBeVisible();
+  });
+
+  test('keeps candidate and committee management accessible @a11y', async ({ page }) => {
+    await page.goto('/candidates');
+    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+
+    await page.goto('/committee');
+    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+    await page.getByRole('button', { name: 'Prüfer hinzufügen', exact: true }).click();
+    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  });
+
   test('shows a readable message when the API becomes unavailable', async ({ page }) => {
     await page.goto('/');
     await page.route('**/api/round-summary*', (route) => route.fulfill({ status: 500 }));

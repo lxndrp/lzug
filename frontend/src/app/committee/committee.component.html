@@ -269,18 +269,18 @@
                   <td>
                     <strong>{{ fullMemberName(member) }}</strong>
                     <span class="app-muted app-block">{{
-                      memberStatusLabel(member.member_status)
+                      memberStatusLabel(member.memberStatus)
                     }}</span>
                   </td>
-                  <td>{{ roleLabel(member.committee_role) }}</td>
+                  <td>{{ roleLabel(member.committeeRole) }}</td>
                   <td>{{ memberSide(member) }}</td>
                   <td class="app-contact">
                     <a [href]="'mailto:' + member.email">{{ member.email }}</a>
                     <span>{{ member.mobile || 'Keine Mobilnummer' }}</span>
                   </td>
                   <td>
-                    <span tuiBadge [appearance]="member.is_active ? 'positive' : 'neutral'">
-                      {{ member.is_active ? 'Aktiv' : 'Inaktiv' }}
+                    <span tuiBadge [appearance]="member.isActive ? 'positive' : 'neutral'">
+                      {{ member.isActive ? 'Aktiv' : 'Inaktiv' }}
                     </span>
                   </td>
                   <td class="app-actions">
@@ -295,15 +295,15 @@
                         [attr.aria-label]="
                           fullMemberName(member) +
                           ' ' +
-                          (member.is_active ? 'deaktivieren' : 'aktivieren')
+                          (member.isActive ? 'deaktivieren' : 'aktivieren')
                         "
                       >
                         <svg
-                          [cIcon]="member.is_active ? icons.deactivate : icons.activate"
+                          [cIcon]="member.isActive ? icons.deactivate : icons.activate"
                           class="app-button-icon"
                           aria-hidden="true"
                         ></svg>
-                        {{ member.is_active ? 'Deaktivieren' : 'Aktivieren' }}
+                        {{ member.isActive ? 'Deaktivieren' : 'Aktivieren' }}
                       </button>
                     </div>
                   </td>

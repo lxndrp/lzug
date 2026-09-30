@@ -14,16 +14,17 @@ import { TuiBadge, TuiSelect } from '@taiga-ui/kit';
 import { TuiTable } from '@taiga-ui/addon-table';
 import { TuiForm, TuiHeader } from '@taiga-ui/layout';
 
-import { Committee, CommitteeMember, MasterData } from '../api/api.models';
+import type {
+  Committee,
+  CommitteeMember,
+  CommitteeMemberCommand,
+  CommitteeWorkspace,
+} from '../master-data/master-data.models';
 import { appIcons } from '../app-icons';
 import { AppIconDirective } from '../app-icon.directive';
 import { type SelectOption, selectLabel, selectStringify, selectValues } from '../select-options';
 
-export type CommitteeMemberPayload = Pick<
-  CommitteeMember,
-  'committee_id' | 'member_status' | 'committee_role' | 'representing_side' | 'is_active'
-> &
-  Partial<Pick<CommitteeMember, 'person_id' | 'first_name' | 'last_name' | 'email' | 'mobile'>>;
+export type CommitteeMemberPayload = CommitteeMemberCommand;
 
 @Component({
   selector: 'app-committee',
@@ -94,9 +95,9 @@ export class CommitteeComponent {
   @Output() createMember = new EventEmitter<CommitteeMemberPayload>();
   @Output() toggleMember = new EventEmitter<CommitteeMember>();
 
-  private readonly masterDataSignal = signal<MasterData | null>(null);
+  private readonly masterDataSignal = signal<CommitteeWorkspace | null>(null);
 
-  @Input() set masterData(value: MasterData | null) {
+  @Input() set masterData(value: CommitteeWorkspace | null) {
     this.masterDataSignal.set(value);
     if (!this.selectedCommitteeId()) {
       this.selectedCommitteeId.set(value?.committees[0]?.id ?? null);
@@ -125,12 +126,12 @@ export class CommitteeComponent {
       return [];
     }
     return (this.masterDataView()?.members ?? []).filter(
-      (member) => member.committee_id === committeeId,
+      (member) => member.committeeId === committeeId,
     );
   });
 
   protected readonly activeMemberCount = computed(
-    () => this.committeeMembers().filter((member) => member.is_active).length,
+    () => this.committeeMembers().filter((member) => member.isActive).length,
   );
 
   protected metrics() {
@@ -173,28 +174,27 @@ export class CommitteeComponent {
   protected saveMember(event: SubmitEvent): void {
     event.preventDefault();
     const form = event.currentTarget as HTMLFormElement;
-    const data = new FormData(form);
     const committeeId = this.selectedCommittee()?.id;
     const personId = this.selectedPersonId();
     if (!committeeId) {
       return;
     }
     const payload: CommitteeMemberPayload = {
-      person_id: personId ?? undefined,
-      committee_id: committeeId,
-      first_name: String(data.get('first_name') ?? '').trim(),
-      last_name: String(data.get('last_name') ?? '').trim(),
-      member_status: String(data.get('member_status') ?? 'ordinary'),
-      committee_role: String(data.get('committee_role') ?? 'member'),
-      representing_side: String(data.get('representing_side') ?? 'employer'),
-      email: String(data.get('email') ?? '').trim(),
-      mobile: String(data.get('mobile') ?? '').trim() || null,
-      is_active: data.get('is_active') === 'on' ? 1 : 0,
+      personId: personId ?? undefined,
+      committeeId,
+      firstName: this.memberDraft.first_name.trim(),
+      lastName: this.memberDraft.last_name.trim(),
+      memberStatus: this.memberDraft.member_status,
+      committeeRole: this.memberDraft.committee_role,
+      representingSide: this.memberDraft.representing_side,
+      email: this.memberDraft.email.trim(),
+      mobile: this.memberDraft.mobile.trim() || null,
+      isActive: this.memberDraft.is_active,
     };
     if (!personId) {
-      delete (payload as Partial<CommitteeMemberPayload>).person_id;
+      delete (payload as Partial<CommitteeMemberPayload>).personId;
     }
-    if (!personId && (!payload.first_name || !payload.last_name || !payload.email)) {
+    if (!personId && (!payload.firstName || !payload.lastName || !payload.email)) {
       return;
     }
     this.pendingMemberForm = form;
@@ -227,7 +227,7 @@ export class CommitteeComponent {
   }
 
   protected fullMemberName(member: CommitteeMember): string {
-    return `${member.first_name} ${member.last_name}`;
+    return `${member.firstName} ${member.lastName}`;
   }
 
   protected roleLabel(value: string): string {
@@ -237,8 +237,8 @@ export class CommitteeComponent {
   protected memberSide(member: CommitteeMember): string {
     return selectLabel(
       this.memberSideSelectOptions,
-      member.representing_side,
-      member.representing_side,
+      member.representingSide,
+      member.representingSide,
     );
   }
 
@@ -249,7 +249,7 @@ export class CommitteeComponent {
   private personSelectOptions(): readonly SelectOption<number>[] {
     return (this.masterDataView()?.persons ?? []).map((person) => ({
       value: person.id,
-      label: `${person.first_name} ${person.last_name} · ${person.email}`,
+      label: `${person.firstName} ${person.lastName} · ${person.email}`,
     }));
   }
 
