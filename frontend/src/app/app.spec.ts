@@ -10,6 +10,7 @@ import { of } from 'rxjs';
 
 import { App } from './app';
 import { ExamRoom, ExamVenue, ExamVenueContact } from './api/api.models';
+import { HttpWorkspaceAdapter } from './api/http-workspace.adapter';
 import { AuthService } from './auth/auth.service';
 import {
   ContactCreate,
@@ -27,6 +28,7 @@ import { PLANNING_PORT } from './planning/planning.port';
 import { LocationsRouteComponent } from './routes/locations-route.component';
 import { ApplicationWorkspaceService } from './shell/application-workspace.service';
 import { UiFeedbackService } from './shell/ui-feedback.service';
+import { WORKSPACE_PORT } from './shell/workspace.port';
 import { VenueWorkflowService } from './locations/venue-workflow.service';
 import { LifecycleService } from './runtime/lifecycle.service';
 import {
@@ -68,6 +70,7 @@ describe('App', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         { provide: PLANNING_PORT, useClass: HttpPlanningAdapter },
+        { provide: WORKSPACE_PORT, useClass: HttpWorkspaceAdapter },
         provideTaiga({ scrollbars: 'native' }),
         TuiConfirmService,
         { provide: LifecycleService, useValue: { ready: signal(true), check: () => of(true) } },
