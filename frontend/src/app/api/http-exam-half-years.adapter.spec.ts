@@ -195,7 +195,7 @@ describe('HttpExamHalfYearsAdapter', () => {
       expect(exported.mediaType).toBe('text/plain; charset=utf-8');
       expect(exported.content).toContain('Prüfungsrundennachweis');
     });
-    http.expectOne('/api/exam-rounds/4/lifecycle/export.text').flush('Prüfungsrundennachweis', {
+    http.expectOne('/api/exam-rounds/4/lifecycle/export.txt').flush('Prüfungsrundennachweis', {
       headers: { 'content-type': 'text/plain; charset=utf-8' },
     });
   });

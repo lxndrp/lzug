@@ -106,7 +106,7 @@ export class HttpExamHalfYearsAdapter implements ExamHalfYearsPort {
 
   exportLifecycle(roundId: number, format: LifecycleExportFormat) {
     return this.http
-      .get(`/api/exam-rounds/${roundId}/lifecycle/export.${format}`, {
+      .get(`/api/exam-rounds/${roundId}/lifecycle/export.${format === 'text' ? 'txt' : format}`, {
         observe: 'response',
         responseType: 'text',
       })
