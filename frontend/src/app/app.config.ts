@@ -32,6 +32,8 @@ import { EXAM_HALF_YEARS_PORT } from './exam-half-years/exam-half-years.port';
 import { HttpExamHalfYearsAdapter } from './api/http-exam-half-years.adapter';
 import { PERSONAL_PORT } from './personal/personal.port';
 import { HttpPersonalAdapter } from './api/http-personal.adapter';
+import { HttpExamProtocolAdapter } from './api/http-exam-protocol.adapter';
+import { EXAM_PROTOCOL_PORT } from './exam-protocol/exam-protocol.port';
 import { LOCATIONS_PORT } from './locations/locations.port';
 import { HttpLocationsAdapter } from './api/http-locations.adapter';
 import { HttpLocationsReadAdapter } from './api/http-locations-read.adapter';
@@ -43,6 +45,7 @@ export const appConfig: ApplicationConfig = {
     { provide: PLANNING_PORT, useClass: HttpPlanningAdapter },
     { provide: EXAM_HALF_YEARS_PORT, useClass: HttpExamHalfYearsAdapter },
     { provide: PERSONAL_PORT, useClass: HttpPersonalAdapter },
+    { provide: EXAM_PROTOCOL_PORT, useClass: HttpExamProtocolAdapter },
     { provide: LOCATIONS_PORT, useClass: HttpLocationsAdapter },
     { provide: LOCATIONS_READ_PORT, useClass: HttpLocationsReadAdapter },
     { provide: WORKSPACE_PORT, useClass: HttpWorkspaceAdapter },

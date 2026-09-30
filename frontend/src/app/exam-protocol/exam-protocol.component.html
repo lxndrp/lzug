@@ -6,7 +6,7 @@
     </div>
     @if (protocol(); as current) {
       <span tuiBadge [appearance]="stateAppearance(current.state)">
-        {{ stateLabel(current.state) }} · Version {{ current.current_version }}
+        {{ stateLabel(current.state) }} · Version {{ current.currentVersion }}
       </span>
     }
   </header>
@@ -34,7 +34,7 @@
     </p>
 
     @if (current.permissions.edit && can('exam-protocol:write')) {
-      <fieldset [disabled]="busy() || current.closing_ready">
+      <fieldset [disabled]="busy() || current.closingReady">
         <legend>Prüfungsverlauf feststellen</legend>
         <label>
           <input
@@ -129,8 +129,8 @@
       @if (
         current.permissions.submit &&
         can('exam-protocol:submit') &&
-        current.current_revision.declaration &&
-        !current.current_revision.submitted_at
+        current.currentRevision.declaration &&
+        !current.currentRevision.submittedAt
       ) {
         <button tuiButton appearance="primary" type="button" [disabled]="busy()" (click)="submit()">
           Zur Bestätigung vorlegen
@@ -139,7 +139,7 @@
       @if (
         current.permissions.respond &&
         can('exam-protocol:respond') &&
-        current.current_revision.submitted_at &&
+        current.currentRevision.submittedAt &&
         !hasResponded(current)
       ) {
         <button
@@ -168,8 +168,8 @@
     </div>
 
     @if (
-      current.closing_ready &&
-      current.permissions.request_correction &&
+      current.closingReady &&
+      current.permissions.requestCorrection &&
       can('exam-protocol:request-correction')
     ) {
       <div class="app-protocol-correction">
@@ -190,7 +190,7 @@
     }
 
     @if (
-      current.permissions.coordinate_correction &&
+      current.permissions.coordinateCorrection &&
       can('exam-protocol:coordinate-correction') &&
       hasPendingCorrection(current)
     ) {
@@ -215,10 +215,33 @@
       </div>
     }
 
-    @if (can('exam-protocol:export')) {
+    @if (
+      can('exam-protocol:export') &&
+      (current.exports.machineReadable || current.exports.humanReadable)
+    ) {
       <nav aria-label="Protokollexporte">
-        <a [href]="current._links['machine_export'].href">Maschinenlesbarer Export</a>
-        <a [href]="current._links['human_export'].href">Lesefassung</a>
+        @if (current.exports.machineReadable) {
+          <button
+            tuiButton
+            appearance="secondary"
+            type="button"
+            [disabled]="exportBusy()"
+            (click)="downloadExport('machine-readable')"
+          >
+            Maschinenlesbarer Export
+          </button>
+        }
+        @if (current.exports.humanReadable) {
+          <button
+            tuiButton
+            appearance="secondary"
+            type="button"
+            [disabled]="exportBusy()"
+            (click)="downloadExport('human-readable')"
+          >
+            Lesefassung
+          </button>
+        }
       </nav>
     }
 
@@ -237,7 +260,7 @@
             }
             <span>
               Reaktionen: {{ revision.responses.length }}; fehlend:
-              {{ revision.missing_response_member_ids.join(', ') || 'keine' }}
+              {{ revision.missingResponseMemberIds.join(', ') || 'keine' }}
             </span>
           </li>
         }

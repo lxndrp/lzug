@@ -1,42 +1,76 @@
-import { provideHttpClient } from '@angular/common/http';
-import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { Observable, of, throwError } from 'rxjs';
 import { provideTaiga } from '@taiga-ui/core';
 
-import { ExamProtocol } from '../api/api.models';
 import { AuthService } from '../auth/auth.service';
+import { EXAM_PROTOCOL_PORT, type ExamProtocolPort } from './exam-protocol.port';
+import type { ExamProtocol, ProtocolRevision, UpdateExamProtocol } from './exam-protocol.models';
 import { ExamProtocolComponent } from './exam-protocol.component';
 
 describe('ExamProtocolComponent', () => {
   let fixture: ComponentFixture<ExamProtocolComponent>;
-  let http: HttpTestingController;
+  let port: ExamProtocolPort;
 
   beforeEach(async () => {
+    port = {
+      get: vi.fn((): Observable<ExamProtocol> => of(protocolFixture())),
+      update: vi.fn((command: UpdateExamProtocol) =>
+        of(
+          protocolFixture({
+            currentVersion: command.version + 1,
+            currentRevision: revisionFixture({
+              version: command.version + 1,
+              declaration: command.declaration,
+              entries: command.entries.map((entry, index) => ({
+                id: index + 1,
+                ...entry,
+                recordedByMemberId: 1,
+                createdAt: '2026-11-16T09:25:00+01:00',
+              })),
+            }),
+          }),
+        ),
+      ),
+      submit: vi.fn(() => of(protocolFixture())),
+      respond: vi.fn(() => of(protocolFixture({ state: 'fully_confirmed' }))),
+      requestCorrection: vi.fn(() => of(protocolFixture())),
+      openCorrection: vi.fn(() => of(protocolFixture())),
+      export: vi.fn(() =>
+        of({ content: '{}', mediaType: 'application/json', fileName: 'protocol.json' }),
+      ),
+    };
     await TestBed.configureTestingModule({
       imports: [ExamProtocolComponent],
-      providers: [
-        provideRouter([]),
-        provideHttpClient(),
-        provideHttpClientTesting(),
-        provideTaiga({ scrollbars: 'native' }),
-      ],
+      providers: [provideTaiga({}), { provide: EXAM_PROTOCOL_PORT, useValue: port }],
     }).compileComponents();
     fixture = TestBed.createComponent(ExamProtocolComponent);
     fixture.componentRef.setInput('dayId', 7);
+    fixture.componentRef.setInput('dayRevision', 4);
     fixture.componentRef.setInput('slotId', 11);
     fixture.componentRef.setInput('ownMemberId', 1);
-    http = TestBed.inject(HttpTestingController);
+    TestBed.inject(AuthService).session.set({
+      authenticated: true,
+      account_id: 2,
+      person_id: 3,
+      committee_member_id: 1,
+      is_operator: false,
+      capabilities: [
+        'exam-protocol:read',
+        'exam-protocol:write',
+        'exam-protocol:submit',
+        'exam-protocol:respond',
+        'exam-protocol:request-correction',
+        'exam-protocol:coordinate-correction',
+        'exam-protocol:export',
+      ],
+    });
   });
 
-  afterEach(() => http.verify());
-
-  it('shows the privacy boundary and persists a structured new version', () => {
+  it('records a structured new protocol version through the feature port', () => {
     fixture.detectChanges();
-    http.expectOne('/api/confirmed-plan-days/7/slots/11/protocol').flush(protocolFixture());
     fixture.detectChanges();
-
     const element = fixture.nativeElement as HTMLElement;
+    expect(port.get).toHaveBeenCalledWith(7, 11);
     expect(element.textContent).toContain('Nur überprüfbare Tatsachen');
     expect(element.textContent).toContain('Keine Bewertungsbegründungen, Diagnosen');
     expect(element.textContent).toContain('Vollständige Versionshistorie (1)');
@@ -51,132 +85,94 @@ describe('ExamProtocolComponent', () => {
       }>;
       save(): void;
     };
-    element.querySelector<HTMLInputElement>('input[value="with_special_occurrences"]')?.click();
-    fixture.detectChanges();
-    const addEntry = Array.from(element.querySelectorAll<HTMLButtonElement>('button')).find(
-      (button) => button.textContent?.trim() === 'Besonderheit hinzufügen',
-    );
-    addEntry?.click();
-    fixture.detectChanges();
-    expect(element.textContent).toContain('Eintrag entfernen');
-    component.entries[0] = {
-      category: 'interruption',
-      statement: 'Die Prüfung wurde für zwei Minuten unterbrochen.',
-      occurredFrom: '2026-11-16T09:20',
-      occurredTo: '2026-11-16T09:22',
-    };
+    component.declaration = 'with_special_occurrences';
+    component.entries = [
+      {
+        category: 'interruption',
+        statement: 'Die Prüfung wurde für zwei Minuten unterbrochen.',
+        occurredFrom: '2026-11-16T09:20',
+        occurredTo: '2026-11-16T09:22',
+      },
+    ];
     component.save();
 
-    const request = http.expectOne('/api/exam-protocols/41');
-    expect(request.request.method).toBe('PATCH');
-    expect(request.request.body).toEqual({
+    expect(port.update).toHaveBeenCalledWith({
+      protocolId: 41,
       version: 1,
       declaration: 'with_special_occurrences',
       entries: [
         {
           category: 'interruption',
           statement: 'Die Prüfung wurde für zwei Minuten unterbrochen.',
-          occurred_from: new Date('2026-11-16T09:20').toISOString(),
-          occurred_to: new Date('2026-11-16T09:22').toISOString(),
+          occurredFrom: new Date('2026-11-16T09:20').toISOString(),
+          occurredTo: new Date('2026-11-16T09:22').toISOString(),
         },
       ],
+      dayRevision: 4,
     });
-    request.flush(
-      protocolFixture({
-        current_version: 2,
-        current_revision: revisionFixture({ version: 2, declaration: 'with_special_occurrences' }),
-        history: [
-          revisionFixture({ obsolete: true }),
-          revisionFixture({ version: 2, declaration: 'with_special_occurrences' }),
-        ],
-      }),
-    );
     fixture.detectChanges();
     expect(element.textContent).toContain('Neuer Protokollstand gespeichert.');
     expect(element.textContent).toContain('Version 2');
   });
 
-  it('offers only the current participant reaction and marks obsolete history', () => {
-    fixture.detectChanges();
-    http.expectOne('/api/confirmed-plan-days/7/slots/11/protocol').flush(
-      protocolFixture({
-        state: 'reaction_missing',
-        current_version: 2,
-        current_revision: revisionFixture({
-          version: 2,
-          declaration: 'without_special_occurrences',
-          workflow_state: 'submitted',
-          submitted_at: '2026-11-16T10:00:00+01:00',
-        }),
-        history: [
-          revisionFixture({
-            declaration: 'without_special_occurrences',
-            obsolete: true,
-            responses: [responseFixture(1)],
-          }),
-          revisionFixture({
+  it('offers participant confirmation only for the active version', () => {
+    vi.mocked(port.get).mockReturnValue(
+      of(
+        protocolFixture({
+          state: 'reaction_missing',
+          currentVersion: 2,
+          currentRevision: revisionFixture({
             version: 2,
             declaration: 'without_special_occurrences',
-            workflow_state: 'submitted',
-            submitted_at: '2026-11-16T10:00:00+01:00',
+            workflowState: 'submitted',
+            submittedAt: '2026-11-16T10:00:00+01:00',
+            entries: [],
+            responses: [],
           }),
-        ],
-      }),
+          history: [
+            revisionFixture({ obsolete: true, responses: [responseFixture(1)] }),
+            revisionFixture({
+              id: 72,
+              version: 2,
+              declaration: 'without_special_occurrences',
+              workflowState: 'submitted',
+              submittedAt: '2026-11-16T10:00:00+01:00',
+            }),
+          ],
+        }),
+      ),
     );
+    fixture.detectChanges();
     fixture.detectChanges();
 
     const element = fixture.nativeElement as HTMLElement;
     expect(element.textContent).toContain('Überholt – Reaktionen ungültig');
-    const confirm = Array.from(element.querySelectorAll<HTMLButtonElement>('button')).find(
-      (button) => button.textContent?.trim() === 'Bestätigen',
-    );
-    expect(confirm).toBeTruthy();
-    confirm?.click();
-    const request = http.expectOne('/api/exam-protocols/41/responses');
-    expect(request.request.body).toEqual({ version: 2, response: 'confirmed' });
-    request.flush(
-      protocolFixture({
-        state: 'fully_confirmed',
-        closing_ready: true,
-        current_version: 2,
-        current_revision: revisionFixture({
-          version: 2,
-          declaration: 'without_special_occurrences',
-          workflow_state: 'submitted',
-          submitted_at: '2026-11-16T10:00:00+01:00',
-          responses: [responseFixture(1), responseFixture(3)],
-          missing_response_member_ids: [],
-        }),
-      }),
-    );
+    buttonByText(element, 'Bestätigen').click();
+    expect(port.respond).toHaveBeenCalledWith(41, 2, 'confirmed', undefined, undefined, 4);
     fixture.detectChanges();
     expect(element.textContent).toContain('Vollständig bestätigt');
   });
 
-  it('hides all mutation and export controls without the matching demo capabilities', () => {
-    TestBed.inject(AuthService).session.set({
-      authenticated: true,
-      account_id: 2,
-      person_id: 3,
-      committee_member_id: 3,
-      is_operator: false,
+  it('hides mutation and export controls without their matching capabilities', () => {
+    TestBed.inject(AuthService).session.update((session) => ({
+      ...session!,
       capabilities: ['exam-protocol:read'],
-    });
+    }));
     fixture.detectChanges();
-    http.expectOne('/api/confirmed-plan-days/7/slots/11/protocol').flush(protocolFixture());
     fixture.detectChanges();
 
-    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
-    expect(text).not.toContain('Neuen Protokollstand speichern');
-    expect(text).not.toContain('Zur Bestätigung vorlegen');
-    expect(text).not.toContain('Maschinenlesbarer Export');
+    const element = fixture.nativeElement as HTMLElement;
+    expect(element.textContent).not.toContain('Neuen Protokollstand speichern');
+    expect(element.textContent).not.toContain('Zur Bestätigung vorlegen');
+    expect(element.textContent).not.toContain('Maschinenlesbarer Export');
   });
 
   it('distinguishes missing protocols from retryable loading failures', () => {
+    vi.mocked(port.get)
+      .mockReturnValueOnce(throwError(() => ({ kind: 'not-found' })))
+      .mockReturnValueOnce(throwError(() => new Error('failed')))
+      .mockReturnValueOnce(of(protocolFixture()));
     fixture.detectChanges();
-    http
-      .expectOne('/api/confirmed-plan-days/7/slots/11/protocol')
-      .flush({}, { status: 404, statusText: 'Not Found' });
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).textContent).toContain(
       'fehlt das verpflichtende Protokoll',
@@ -184,66 +180,54 @@ describe('ExamProtocolComponent', () => {
 
     const component = fixture.componentInstance as unknown as { load(): void };
     component.load();
-    http
-      .expectOne('/api/confirmed-plan-days/7/slots/11/protocol')
-      .flush({}, { status: 500, statusText: 'Internal Server Error' });
     fixture.detectChanges();
-    const element = fixture.nativeElement as HTMLElement;
-    expect(element.textContent).toContain('konnte nicht geladen werden');
-
-    const retry = Array.from(element.querySelectorAll<HTMLButtonElement>('button')).find(
-      (button) => button.textContent?.trim() === 'Erneut versuchen',
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      'konnte nicht geladen werden',
     );
-    retry?.click();
-    http.expectOne('/api/confirmed-plan-days/7/slots/11/protocol').flush(protocolFixture());
+
+    buttonByText(fixture.nativeElement as HTMLElement, 'Erneut versuchen').click();
     fixture.detectChanges();
-    expect(element.textContent).toContain('Vollständige Versionshistorie (1)');
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      'Vollständige Versionshistorie (1)',
+    );
   });
 
-  it('supports correction requests and coordinated reopening', () => {
-    fixture.detectChanges();
+  it('preserves correction requests and coordinated reopening', () => {
     const pendingCorrection = {
       id: 9,
       version: 2,
-      requested_by_member_id: 1,
+      requestedByMemberId: 1,
       reason: 'Zeitangabe ergänzen',
       status: 'pending',
-      reopening_reference: null,
+      reopeningReference: null,
     };
-    http.expectOne('/api/confirmed-plan-days/7/slots/11/protocol').flush(
-      protocolFixture({
-        current_version: 2,
-        state: 'fully_with_reservation',
-        closing_ready: true,
-        current_revision: revisionFixture({
-          version: 2,
-          declaration: 'with_special_occurrences',
-          workflow_state: 'submitted',
-          submitted_at: '2026-11-16T10:00:00+01:00',
-          missing_response_member_ids: [],
-          entries: [
-            {
-              id: 72,
-              category: 'interruption',
-              statement: 'Die Prüfung wurde unterbrochen.',
-              occurred_from: '2026-11-16T09:20:00+01:00',
-              occurred_to: null,
-              recorded_by_member_id: 1,
-              created_at: '2026-11-16T09:25:00+01:00',
-            },
-          ],
+    vi.mocked(port.get).mockReturnValue(
+      of(
+        protocolFixture({
+          currentVersion: 2,
+          state: 'fully_with_reservation',
+          closingReady: true,
+          currentRevision: revisionFixture({
+            version: 2,
+            declaration: 'with_special_occurrences',
+            workflowState: 'submitted',
+            submittedAt: '2026-11-16T10:00:00+01:00',
+            missingResponseMemberIds: [],
+            entries: [entryFixture()],
+          }),
+          correctionRequests: [pendingCorrection],
+          permissions: {
+            edit: false,
+            submit: false,
+            respond: false,
+            requestCorrection: true,
+            coordinateCorrection: true,
+            manageRetention: false,
+          },
         }),
-        correction_requests: [pendingCorrection],
-        permissions: {
-          edit: false,
-          submit: false,
-          respond: false,
-          request_correction: true,
-          coordinate_correction: true,
-          manage_retention: false,
-        },
-      }),
+      ),
     );
+    fixture.detectChanges();
     fixture.detectChanges();
 
     const element = fixture.nativeElement as HTMLElement;
@@ -258,87 +242,108 @@ describe('ExamProtocolComponent', () => {
       requestCorrection(): void;
       openCorrection(): void;
     };
+    vi.mocked(port.requestCorrection).mockReturnValue(
+      of(protocolFixture({ currentVersion: 2, correctionRequests: [pendingCorrection] })),
+    );
     component.correctionReason = 'Zeitangabe ergänzen';
     component.requestCorrection();
-    const request = http.expectOne('/api/exam-protocols/41/correction-requests');
-    expect(request.request.body).toEqual({ version: 2, reason: 'Zeitangabe ergänzen' });
-    request.flush(
-      protocolFixture({
-        current_version: 2,
-        correction_requests: [pendingCorrection],
-      }),
-    );
+    expect(port.requestCorrection).toHaveBeenCalledWith(41, 2, 'Zeitangabe ergänzen', 4);
 
     component.correctionReason = 'Korrektur koordinieren';
     component.reopeningReference = 'REOPEN-36';
     component.openCorrection();
-    const open = http.expectOne('/api/exam-protocols/41/open-correction');
-    expect(open.request.body).toEqual({
-      version: 2,
-      correction_request_id: 9,
-      reason: 'Korrektur koordinieren',
-      reopening_reference: 'REOPEN-36',
-    });
-    open.flush(
-      { error: { message: 'Der Protokollstand wurde zwischenzeitlich geändert.' } },
-      { status: 409, statusText: 'Conflict' },
+    expect(port.openCorrection).toHaveBeenCalledWith(
+      41,
+      2,
+      9,
+      'Korrektur koordinieren',
+      'REOPEN-36',
+      4,
     );
+  });
+
+  it('downloads protocol exports through the feature port', () => {
     fixture.detectChanges();
-    expect(element.textContent).toContain('Der Protokollstand wurde zwischenzeitlich geändert.');
+    fixture.detectChanges();
+    const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:protocol');
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    const component = fixture.componentInstance as unknown as {
+      downloadExport(format: 'machine-readable'): void;
+    };
+    component.downloadExport('machine-readable');
+    expect(port.export).toHaveBeenCalledWith(41, 'machine-readable');
+    expect(createObjectURL).toHaveBeenCalledWith(expect.any(Blob));
+    createObjectURL.mockRestore();
   });
 });
+
+function buttonByText(element: HTMLElement, text: string): HTMLButtonElement {
+  const button = Array.from(element.querySelectorAll<HTMLButtonElement>('button')).find(
+    (candidate) => candidate.textContent?.trim() === text,
+  );
+  if (!button) throw new Error(`Button not found: ${text}`);
+  return button;
+}
 
 function responseFixture(memberId: number) {
   return {
     id: memberId,
-    committee_member_id: memberId,
+    committeeMemberId: memberId,
     response: 'confirmed' as const,
-    entry_id: null,
+    entryId: null,
     statement: null,
-    responded_at: '2026-11-16T10:01:00+01:00',
+    respondedAt: '2026-11-16T10:01:00+01:00',
   };
 }
 
-function revisionFixture(overrides: Partial<ExamProtocol['current_revision']> = {}) {
+function entryFixture() {
+  return {
+    id: 72,
+    category: 'interruption' as const,
+    statement: 'Die Prüfung wurde unterbrochen.',
+    occurredFrom: '2026-11-16T09:20:00+01:00',
+    occurredTo: null,
+    recordedByMemberId: 1,
+    createdAt: '2026-11-16T09:25:00+01:00',
+  };
+}
+
+function revisionFixture(overrides: Partial<ProtocolRevision> = {}): ProtocolRevision {
   return {
     id: 71,
     version: 1,
     declaration: null,
-    workflow_state: 'draft',
-    change_reason: null,
-    submitted_at: null,
+    workflowState: 'draft',
+    changeReason: null,
+    submittedAt: null,
     obsolete: false,
-    missing_response_member_ids: [1, 3],
+    missingResponseMemberIds: [1, 3],
     entries: [],
     responses: [],
     ...overrides,
-  } as ExamProtocol['current_revision'];
+  };
 }
 
 function protocolFixture(overrides: Partial<ExamProtocol> = {}): ExamProtocol {
-  const currentRevision = overrides.current_revision ?? revisionFixture();
+  const currentRevision = overrides.currentRevision ?? revisionFixture();
   return {
     id: 41,
-    exam_slot_id: 11,
-    current_version: 1,
+    examSlotId: 11,
+    currentVersion: 1,
     state: 'in_progress',
-    closing_ready: false,
-    current_revision: currentRevision,
+    closingReady: false,
+    currentRevision,
     history: overrides.history ?? [currentRevision],
-    correction_requests: [],
+    correctionRequests: [],
     permissions: {
       edit: true,
       submit: true,
       respond: true,
-      request_correction: true,
-      coordinate_correction: false,
-      manage_retention: false,
+      requestCorrection: true,
+      coordinateCorrection: false,
+      manageRetention: false,
     },
-    _links: {
-      self: { href: '/api/exam-protocols/41' },
-      machine_export: { href: '/api/exam-protocols/41/export.json' },
-      human_export: { href: '/api/exam-protocols/41/export.txt' },
-    },
+    exports: { machineReadable: true, humanReadable: true },
     ...overrides,
   };
 }

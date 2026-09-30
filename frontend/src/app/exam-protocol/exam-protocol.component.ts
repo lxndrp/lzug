@@ -4,19 +4,20 @@ import { TuiButton } from '@taiga-ui/core';
 import { TuiBadge } from '@taiga-ui/kit';
 import { Observable } from 'rxjs';
 
-import {
-  ExamProtocol,
-  ExamProtocolDeclaration,
-  ExamProtocolEntryCategory,
-} from '../api/api.models';
 import { ApplicationError } from '../application/application-error';
-import { ExamProtocolApiService } from '../api/exam-protocol-api.service';
 import { AuthService } from '../auth/auth.service';
+import { ExamProtocolFacade } from './exam-protocol.facade';
+import type {
+  ExamProtocol,
+  ProtocolDeclaration,
+  ProtocolEntryCategory,
+  ProtocolExportFormat,
+} from './exam-protocol.models';
 
 export type ProtocolState = 'loading' | 'ready' | 'error' | 'not-found';
 
 export type EntryDraft = {
-  category: ExamProtocolEntryCategory;
+  category: ProtocolEntryCategory;
   statement: string;
   occurredFrom: string;
   occurredTo: string;
@@ -29,7 +30,7 @@ export type EntryDraft = {
   styleUrl: './exam-protocol.component.css',
 })
 export class ExamProtocolComponent implements OnChanges {
-  private readonly api = inject(ExamProtocolApiService);
+  private readonly facade = inject(ExamProtocolFacade);
   private readonly auth = inject(AuthService);
 
   @Input({ required: true }) dayId!: number;
@@ -40,16 +41,17 @@ export class ExamProtocolComponent implements OnChanges {
   protected readonly state = signal<ProtocolState>('loading');
   protected readonly protocol = signal<ExamProtocol | null>(null);
   protected readonly busy = signal(false);
+  protected readonly exportBusy = signal(false);
   protected readonly message = signal<string | null>(null);
   protected readonly error = signal<string | null>(null);
-  protected declaration: ExamProtocolDeclaration | '' = '';
+  protected declaration: ProtocolDeclaration | '' = '';
   protected entries: EntryDraft[] = [];
   protected reservationText = '';
   protected correctionReason = '';
   protected reopeningReference = '';
   private requestSequence = 0;
 
-  protected readonly categories: Array<{ value: ExamProtocolEntryCategory; label: string }> = [
+  protected readonly categories: Array<{ value: ProtocolEntryCategory; label: string }> = [
     { value: 'late_start', label: 'Verspäteter Beginn' },
     { value: 'interruption', label: 'Unterbrechung' },
     { value: 'termination', label: 'Abbruch' },
@@ -68,7 +70,7 @@ export class ExamProtocolComponent implements OnChanges {
     this.state.set('loading');
     this.message.set(null);
     this.error.set(null);
-    this.api.getExamProtocol(this.dayId, this.slotId).subscribe({
+    this.facade.get(this.dayId, this.slotId).subscribe({
       next: (protocol) => {
         if (sequence !== this.requestSequence) return;
         this.accept(protocol);
@@ -105,19 +107,20 @@ export class ExamProtocolComponent implements OnChanges {
     if (!protocol || !this.declaration) return;
     const entries = this.declaration === 'without_special_occurrences' ? [] : this.entries;
     this.run(
-      this.api.updateExamProtocol(
-        protocol.id,
-        protocol.current_version,
-        this.declaration,
-        entries.map((entry) => ({
+      this.facade.update({
+        protocolId: protocol.id,
+        version: protocol.currentVersion,
+        declaration: this.declaration,
+        entries: entries.map((entry) => ({
           category: entry.category,
           statement: entry.statement,
-          occurred_from: this.apiDateTimeValue(entry.occurredFrom),
-          occurred_to: entry.occurredTo ? this.apiDateTimeValue(entry.occurredTo) : null,
+          occurredFrom: this.apiDateTimeValue(entry.occurredFrom),
+          occurredTo: entry.occurredTo ? this.apiDateTimeValue(entry.occurredTo) : null,
         })),
-        undefined,
-        protocol.day_revision ?? this.dayRevision ?? undefined,
-      ),
+        ...((protocol.dayRevision ?? this.dayRevision)
+          ? { dayRevision: protocol.dayRevision ?? this.dayRevision! }
+          : {}),
+      }),
       'Neuer Protokollstand gespeichert.',
     );
   }
@@ -126,10 +129,10 @@ export class ExamProtocolComponent implements OnChanges {
     const protocol = this.protocol();
     if (!protocol) return;
     this.run(
-      this.api.submitExamProtocol(
+      this.facade.submit(
         protocol.id,
-        protocol.current_version,
-        protocol.day_revision ?? this.dayRevision ?? undefined,
+        protocol.currentVersion,
+        protocol.dayRevision ?? this.dayRevision ?? undefined,
       ),
       'Protokollstand zur Bestätigung vorgelegt.',
     );
@@ -138,15 +141,15 @@ export class ExamProtocolComponent implements OnChanges {
   protected respond(response: 'confirmed' | 'reservation'): void {
     const protocol = this.protocol();
     if (!protocol) return;
-    const firstEntry = protocol.current_revision.entries[0];
+    const firstEntry = protocol.currentRevision.entries[0];
     this.run(
-      this.api.respondToExamProtocol(
+      this.facade.respond(
         protocol.id,
-        protocol.current_version,
+        protocol.currentVersion,
         response,
         response === 'reservation' ? firstEntry?.id : undefined,
         response === 'reservation' ? this.reservationText : undefined,
-        protocol.day_revision ?? this.dayRevision ?? undefined,
+        protocol.dayRevision ?? this.dayRevision ?? undefined,
       ),
       response === 'confirmed' ? 'Protokollstand bestätigt.' : 'Vorbehalt gespeichert.',
     );
@@ -156,11 +159,11 @@ export class ExamProtocolComponent implements OnChanges {
     const protocol = this.protocol();
     if (!protocol) return;
     this.run(
-      this.api.requestExamProtocolCorrection(
+      this.facade.requestCorrection(
         protocol.id,
-        protocol.current_version,
+        protocol.currentVersion,
         this.correctionReason,
-        protocol.day_revision ?? this.dayRevision ?? undefined,
+        protocol.dayRevision ?? this.dayRevision ?? undefined,
       ),
       'Ergänzungsbedarf gemeldet.',
     );
@@ -168,32 +171,54 @@ export class ExamProtocolComponent implements OnChanges {
 
   protected openCorrection(): void {
     const protocol = this.protocol();
-    const request = protocol?.correction_requests.find((item) => item.status === 'pending');
+    const request = protocol?.correctionRequests.find((item) => item.status === 'pending');
     if (!protocol || !request) return;
     this.run(
-      this.api.openExamProtocolCorrection(
+      this.facade.openCorrection(
         protocol.id,
-        protocol.current_version,
+        protocol.currentVersion,
         request.id,
         this.correctionReason,
         this.reopeningReference,
-        protocol.day_revision ?? this.dayRevision ?? undefined,
+        protocol.dayRevision ?? this.dayRevision ?? undefined,
       ),
       'Korrekturvorgang eröffnet.',
     );
   }
 
+  protected downloadExport(format: ProtocolExportFormat): void {
+    const protocol = this.protocol();
+    if (!protocol || this.exportBusy()) return;
+    this.exportBusy.set(true);
+    this.error.set(null);
+    this.facade.export(protocol.id, format).subscribe({
+      next: ({ content, mediaType, fileName }) => {
+        const url = URL.createObjectURL(new Blob([content], { type: mediaType }));
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileName;
+        link.click();
+        window.setTimeout(() => URL.revokeObjectURL(url), 0);
+        this.exportBusy.set(false);
+      },
+      error: () => {
+        this.error.set('Der Protokollexport konnte nicht geladen werden.');
+        this.exportBusy.set(false);
+      },
+    });
+  }
+
   protected hasResponded(protocol: ExamProtocol): boolean {
     return (
       this.ownMemberId !== null &&
-      protocol.current_revision.responses.some(
-        (response) => response.committee_member_id === this.ownMemberId,
+      protocol.currentRevision.responses.some(
+        (response) => response.committeeMemberId === this.ownMemberId,
       )
     );
   }
 
   protected hasPendingCorrection(protocol: ExamProtocol): boolean {
-    return protocol.correction_requests.some((request) => request.status === 'pending');
+    return protocol.correctionRequests.some((request) => request.status === 'pending');
   }
 
   protected can(capability: string): boolean {
@@ -219,7 +244,7 @@ export class ExamProtocolComponent implements OnChanges {
     return 'neutral';
   }
 
-  protected categoryLabel(category: ExamProtocolEntryCategory): string {
+  protected categoryLabel(category: ProtocolEntryCategory): string {
     return this.categories.find((item) => item.value === category)?.label ?? category;
   }
 
@@ -243,12 +268,12 @@ export class ExamProtocolComponent implements OnChanges {
 
   private accept(protocol: ExamProtocol): void {
     this.protocol.set(protocol);
-    this.declaration = protocol.current_revision.declaration ?? '';
-    this.entries = protocol.current_revision.entries.map((entry) => ({
+    this.declaration = protocol.currentRevision.declaration ?? '';
+    this.entries = protocol.currentRevision.entries.map((entry) => ({
       category: entry.category,
       statement: entry.statement,
-      occurredFrom: this.localDateTimeValue(entry.occurred_from),
-      occurredTo: entry.occurred_to ? this.localDateTimeValue(entry.occurred_to) : '',
+      occurredFrom: this.localDateTimeValue(entry.occurredFrom),
+      occurredTo: entry.occurredTo ? this.localDateTimeValue(entry.occurredTo) : '',
     }));
     this.reservationText = '';
   }
