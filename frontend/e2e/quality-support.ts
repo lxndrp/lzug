@@ -219,7 +219,10 @@ export function confirmedPlan(
           history: [],
           tasks: [],
           permissions: { close: false, reopen: false, export: false },
-          _links: {},
+          _links: {
+            machine_export: { href: `/api/confirmed-plan-days/${id}/closure/export.json` },
+            human_export: { href: `/api/confirmed-plan-days/${id}/closure/export.txt` },
+          },
         },
         location: {
           id: 1,
