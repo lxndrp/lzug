@@ -7,6 +7,9 @@
 ## Status
 
 Akzeptiert.
+Die Trennung von SemVer-Tag, Release-Milestone und GitHub Project gilt fort.
+Die unten dokumentierte Kandidaten- und Release-Issue-Automation ist historisch
+und wurde durch ADR-0020 abgelöst.
 
 ## Kontext
 
@@ -43,17 +46,22 @@ Ein normaler Commit, Branch-Build oder Pull Request besitzt keine geplante Relea
 Die gemeinsame Build-Metadaten-Schnittstelle ersetzt die frühere mehrdeutige `VERSION`-Semantik.
 Entwicklungsidentitäten enthalten den vollständigen Commit und sind als `0.0.0-dev+sha.<Commit-SHA>` eindeutig als Entwicklung markiert.
 
-Ein Kandidat entsteht erst, wenn das letzte reguläre Issue eines Release-Milestones geschlossen ist.
-Die vertrauenswürdige Automation aus #308 legt dann genau ein Release-Issue an und hält darin die vollständige SHA des zu diesem Zeitpunkt geprüften `master`-Commits fest.
-Spätere Merges bewegen diesen Kandidaten nicht.
-Erfordert das Gate eine Korrektur, wird sie über ein zugehöriges Issue umgesetzt und anschließend ein neuer Kandidat bestimmt.
+Historisch sollte das Schließen des letzten regulären Milestone-Issues ein
+Release-Issue mit festgehaltener Kandidaten-SHA erzeugen.
+Diese automatische Release-Issue-Steuerung wurde durch den ausdrücklich
+maintainergestarteten Ablauf in ADR-0020 ersetzt und ist kein geltender
+Releaseauslöser.
 
 Ein Release Candidate ist eine veröffentlichte SemVer-Pre-Release-Version und verwendet einen annotierten Tag `vMAJOR.MINOR.PATCH-rc.N` sowie einen GitHub Pre-Release.
 Er wird nur geplant, wenn dafür ein eigener Milestone und ein konkreter Abnahmezweck bestehen.
 Kandidat-Commit und Release Candidate sind damit ausdrücklich nicht dasselbe.
 `v1.0.0-rc.1` dient der integrierten Wintererprobung; `v1.0.0` folgt erst nach ausgewerteter Pilotnutzung und einem eigenen stabilen Freigabe-Gate.
 
-### Versionsfolge und fachliche Releasegrenzen
+### Historische Versionsplanung bei Beschlussfassung
+
+Die folgende Releasefolge und Pilotplanung halten den Stand zum
+Entscheidungszeitpunkt fest und sind keine aktuelle Release- oder
+Roadmapauskunft.
 
 | Milestone     | Ein erstmals geschlossen nutzbarer Umfang                                                                      |
 | ------------- | -------------------------------------------------------------------------------------------------------------- |
@@ -71,7 +79,7 @@ Eine Minor-Version vor `1.0.0` ist damit kein beliebiger Zwischenstand, sondern 
 Patch-Versionen bleiben rückwärtskompatiblen Korrekturen eines bereits veröffentlichten Umfangs vorbehalten.
 Für `v1.1.0` wird bis zur Verfeinerung von #165 bewusst weder ein Datum noch eine Project-Iteration erfunden.
 
-### Freigabeverfahren
+### Historisches Kandidaten- und Freigabeverfahren (abgelöst durch ADR-0020)
 
 1. Alle regulären Issues des Release-Milestones sind geschlossen.
 2. Die Kandidatenautomation erzeugt das einzige verbleibende Release-Issue,
@@ -84,13 +92,10 @@ Der Veröffentlichungsjob wartet zusätzlich im GitHub-Environment `release` auf
 5. Erst danach erzeugt die Automation den annotierten Tag am unveränderten
 Kandidat-Commit, das GitHub Release und die zusammengehörigen Artefakte.
 
-Manuell angelegte Release-Issues verwenden das standardisierte Issue-Formular `Release-Freigabe`.
-Automatisch erzeugte Release-Issues aus #308 müssen denselben Pflichtumfang abbilden.
-Die stabile Freigabe nach dem Winterpilot ist als reguläres Gate #318 geplant.
-
-#308 setzt dieses Verfahren um.
-Bis #308 abgeschlossen ist, wird kein Release erzeugt.
-Insbesondere ist die vorhandene taggetriebene Automation kein Ersatz für den hier beschlossenen Kandidaten- und Freigabevertrag.
+Die vorstehenden Release-Issue- und Kandidaten-Gates dokumentieren die
+ursprüngliche Planung, nicht den heutigen Ablauf.
+ADR-0020 legt die gültige Freigabegrenze und den Startmechanismus fest.
+Die fachliche Milestone-Semantik aus diesem ADR bleibt davon unberührt.
 
 ### Rückwirkungsfreiheit
 
@@ -99,7 +104,7 @@ Versionsidentität, GitHub Release und veröffentlichte Artefakt-Digests werden 
 Korrekturen erscheinen unter einer neuen höheren SemVer-Version; verworfene oder fehlerhafte Releases bleiben nachvollziehbar dokumentiert.
 Historische thematische Milestones werden nicht rückwirkend zu veröffentlichten Versionen erklärt.
 
-## Milestone-Migration
+## Historische Milestone-Migration
 
 - „Fachlich vollständiger Prototyp“ wurde unter Erhalt seiner Issue-Historie
 zunächst in `v0.1.0` umbenannt.

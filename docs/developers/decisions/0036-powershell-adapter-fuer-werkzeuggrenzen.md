@@ -17,11 +17,13 @@ Temporärdateifehler über Betriebssystemgrenzen.
 
 ## Entscheidung
 
-PowerShell 7.5.3 wird über `mise` gepinnt und lokal sowie in den Build-Images
-verwendet.
-Die Taskfile bleibt die einzige öffentliche Einstiegsschnittstelle.
-Zweckgebundene `scripts/*.ps1`-Adapter rufen Angular, die bestehende
-Transportgenerierung sowie Azure CLI und die Demo-Readiness auf.
+PowerShell wird über `mise` gepinnt und für erforderliche lokale und
+CI-Übergänge verwendet.
+Die konkrete Version steht ausschließlich in `.mise.toml`.
+Die Taskfile bleibt die öffentliche Einstiegsschnittstelle.
+Zweckgebundene `scripts/*.ps1`-Adapter rufen Angular und die bestehende
+Transportgenerierung auf; die Deploygrenze liegt beim zuständigen
+`deployment/demo/deploy.ps1`-Adapter.
 PowerShell besitzt keine Fach-, Persistenz-, Task-Graph- oder
 Komponentenlogik.
 
@@ -36,13 +38,16 @@ und Zuordnung verbleibender Logik ist in
 
 ## Konsequenzen
 
-Frontend-Build, Transportprüfung und Demo-Promotion verwenden denselben
-Adapterpfad auf macOS, Linux und Windows beziehungsweise in CI.
+Lokale Frontend-Builds und Transportgenerierung verwenden die passenden
+Adapter; Container-Builds kopieren die bereits gebauten Frontend-Assets direkt
+und installieren oder rufen dafür PowerShell nicht auf.
+Der Demo-Deployadapter verwendet PowerShell in seinem eigens konfigurierten CI-
+Schritt.
 Die bestehenden Python- und Shell-Verträge für fachliche Prüfungen,
 Container-Smokes und SBOMs bleiben getrennt und werden nicht in PowerShell
 nachgebaut.
-Docker-Frontendstages übernehmen exakt den gepinnten PowerShell-Laufzeitpfad;
-die Runtimeimages enthalten PowerShell nicht.
+PowerShell ist weder eine Abhängigkeit der Frontend-Buildstages noch der
+Runtimeimages.
 
 ## Abgrenzung
 

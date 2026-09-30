@@ -26,14 +26,33 @@ Er startet genau den Workflow `.github/workflows/snapshot.yml`; der Workflow erz
 
 Der Preflight akzeptiert ausschließlich einen neu erzeugten annotierten Tag, der auf die zum Prüfzeitpunkt aktuelle `master`-SHA zeigt.
 Der SHA-Suffix muss mit dem vollständigen Commit übereinstimmen.
-Nach diesem günstigen Source- und Policy-Preflight ruft der Snapshot-Workflow den kanonischen vollständigen `Quality`-Workflow als wiederverwendbaren Workflow für exakt diese SHA auf.
-Ein früherer Push-, Pull-Request- oder Dispatch-Lauf ist keine Ersatz-Evidenz; erst der erfolgreiche commit-exakte Aufruf gibt Publish und Deployment frei.
+Nach dem Source-Preflight wählt der Snapshot-Workflow gemäß
+[Quality-Evidenzvertrag](https://github.com/lxndrp/lzug/issues/854) einen
+jüngsten erfolgreichen vollständigen `Quality`-Lauf für exakt dieselbe
+`master`-SHA und dessen vollständige, nicht abgelaufene Artefaktmenge aus.
+Die maßgebliche Evidenz muss höchstens 24 Stunden alt und an den
+Ursprungsrun gebunden sein; aktive Vorgänger, neueste fehlgeschlagene Audits,
+fehlende oder mehrdeutige Artefakte, fremde Ereignisse und abgelaufene
+Nachweise erlauben keine Wiederverwendung.
+Fehlt ein gültiger Nachweis, wird nicht veröffentlicht.
+Ein erneuter Quality-Lauf ist eine getrennte Ausführung und kein stiller
+Publish-Fallback.
 Die Zielversion muss einen einzelnen offenen Release-Milestone mit zukünftigem Fälligkeitsdatum bezeichnen, neuer als der letzte stabile Release sein und darf weder als Produkt-Tag noch als Produkt-Release existieren.
 Der Milestone ist damit nur eine semantische Zulässigkeitsprüfung; Tag und Commit bleiben die einzigen Build-Eingaben.
 
 Die sichtbare Identität lautet `vMAJOR.MINOR.PATCH-SNAPSHOT@<kurze SHA>`.
 Der OCI-Tag ersetzt `@` durch eine registry-taugliche Form und ist nur ein unveränderlicher Publikationsname; Deployment und Nachweise verwenden ausschließlich die kanonischen App- und Seed-Digests.
-Beide Images werden aus dem getaggten Stand gebaut, tragen in ihren Manifesten übereinstimmend Kanal, Zielversion, Snapshot-Identität, Tag, vollständige SHA und Schemafingerprint und erhalten jeweils eine eigene CycloneDX-SBOM sowie Provenance-Attestation.
+Der Snapshot-Kanal veröffentlicht sowohl unveränderliche, attestierte
+Produktkandidatenartefakte als auch das Demo-App-/Seed-Paar.
+Das folgt ausdrücklich dem Produktkandidatenvertrag aus
+[#700](https://github.com/lxndrp/lzug/issues/700), umgesetzt mit
+[PR #805](https://github.com/lxndrp/lzug/pull/805); die gegenteilige frühere
+Aussage in diesem ADR ist historisch.
+Produkt- und Demo-Assembly bleiben unterschiedliche Lieferziele.
+Die Demo-App- und Seed-Manifeste binden übereinstimmend Kanal, Zielversion,
+Snapshot-Identität, Tag, vollständige SHA und Schemafingerprint; nur die
+veröffentlichten OCI-Images erhalten gemäß ADR-0038 je eine SBOM und
+Provenance-Attestation.
 Der Seed bindet zusätzlich seine inhaltsadressierte Revision.
 
 Nach erfolgreicher Attestierung deployt derselbe Lauf das vollständige Digestpaar per bestehender GitHub-OIDC-Identität in das Environment `demo`.
@@ -47,7 +66,9 @@ Eine fehlende Policy verhindert damit weiterhin jede Azure-Anmeldung, nicht aber
 
 Der reguläre releasegebundene Demo-Publish bleibt erhalten.
 Er akzeptiert nur veröffentlichte SemVer-Produkt-Releases und nutzt weiterhin sein eigenes `release`-Gate.
-Snapshot-Tags erzeugen weder Produktimage noch Betreiber-CLI, GitHub Release oder Self-Hosting-Artefakt.
+Snapshot-Tags erzeugen Produktkandidatenimages, aber keinen GitHub Release,
+keinen stabilen SemVer-Tag und keine Betreiber-CLI-Auslieferung.
+Sie bleiben vom stabilen Self-Hosting-Release getrennt.
 Ein späterer Nightly-Kanal benötigt einen anderen Namen, einen zeitgesteuerten Auslöser und eine eigene Entscheidung.
 
 ## Konsequenzen
@@ -59,7 +80,10 @@ Ein früheres vollständig geprüftes Digestpaar bleibt ausschließlich als kont
 
 ## Fehler- und Wiederanlaufvertrag
 
-Nicht-`master`- oder überholte SHAs, unvollständige Quality-Evidenz, ungeeignete Milestones und Zielversionen, bewegte Tags sowie bereits belegte OCI-Referenzen brechen vor dem jeweils nächsten irreversiblen Schritt ab.
+Nicht-`master`- oder überholte SHAs, unvollständige oder abgelaufene
+Quality-Evidenz, ungeeignete Milestones und Zielversionen, bewegte Tags sowie
+bereits belegte OCI-Referenzen brechen vor dem jeweils nächsten irreversiblen
+Schritt ab.
 Eine fehlgeschlagene commit-exakte Quality-Prüfung überspringt Publish und Deployment vollständig.
 Snapshot-Tags und OCI-Tags werden nie repariert oder wiederverwendet.
 Scheitert ein Lauf nach einer Teilpublikation, ist der Lauf kein Deploymentnachweis; ein neuer Snapshot benötigt einen neuen aktuellen `master`-Commit und einen neuen Tag.

@@ -7,6 +7,8 @@
 ## Status
 
 Akzeptiert.
+Geltender Releasevertrag; spätere SBOM- und Artefaktänderungen aus ADR-0038
+sowie die aktuellen Workflow- und Delivery-Verträge ergänzen diese Entscheidung.
 
 ## Kontext
 
@@ -51,12 +53,20 @@ Required-Reviewer-Freigabe ist das Maintainer-GO.
 Workflow-Lauf festgehaltenen SHA und pusht ihn.
 3. Der Job checkt den Tag aus. Ab diesem Schritt werden Version, Revision,
 OCI-Referenzen, CLI-Archive, SBOM und Release Notes ausschließlich aus dem Tag und seinem Commit abgeleitet.
-4. Gepinnte Standard-Actions beziehungsweise direkte `gh`-Aufrufe bauen und
-attestieren die Lieferartefakte, erstellen einen Draft-Release, laden die sichtbaren Assets hoch und veröffentlichen den Draft zuletzt.
+4. Die wiederverwendbaren Publish-Workflows bauen und attestieren die für
+den Release freigegebenen Produkt- und CLI-Artefakte und veröffentlichen den
+GitHub Release.
+Die genaue Artefaktmenge und die zugehörigen Attestierungen folgen den
+aktuellen Release-Workflows und [Delivery-Verträgen](../delivery.md#release-und-artefakte).
 
-Damit besteht die nützliche automatische Verbindung nur zwischen dem freigegebenen Tag und seinen OCI-/CLI-/SBOM-/Attestationsartefakten sowie dem GitHub Release.
-Milestone und Project begründen die menschliche Releaseentscheidung, werden aber nicht in eine zweite technische Zustandskette übersetzt.
-Workflow-Lauf, Environment-Deployment, Tag, Attestations und GitHub Release bilden den Audit-Trail der Plattform.
+Der freigegebene Tag bindet die Produktauslieferung und den GitHub Release.
+Milestone und Project begründen die menschliche Releaseentscheidung, werden
+aber nicht in eine zweite technische Zustandskette übersetzt.
+Workflow-Lauf, Environment-Deployment, Tag, Attestations und GitHub Release
+bilden den Audit-Trail der Plattform.
+SBOMs werden ausschließlich für ausgelieferte OCI-Images erzeugt.
+Es gibt keine Dependency-, native CLI- oder aggregierte Release-SBOM und keine
+separate sichtbare SBOM als Produktrelease-Asset.
 
 ### Kleiner, fail-closed Wiederanlauf
 
@@ -73,7 +83,11 @@ Ein bereits veröffentlichter Release ist ein terminaler Zustand und wird weder 
 manuelle Wiederherstellung werden nicht im Workflow modelliert.
 Ein Fehler nach einer sichtbaren Veröffentlichung wird als eigener Vorfall bewertet und grundsätzlich durch eine neue Version korrigiert.
 
-### Abgrenzung für #347
+### Historische Umsetzungsvorgaben für #347 (abgeschlossen)
+
+Die folgende Tabelle dokumentiert den ursprünglichen Implementierungsauftrag.
+Sie ist keine Liste offener Arbeiten oder ein Ersatz für die geltenden
+Workflow- und Artefaktverträge.
 
 | Bestandteil | Entscheidung für die Folgeumsetzung |
 | --- | --- |
@@ -84,26 +98,32 @@ Ein Fehler nach einer sichtbaren Veröffentlichung wird als eigener Vorfall bewe
 | `v0.1.0`-Sonderpfade für vorhandene Releases und OCI-Images | Entfernen; `v0.1.0` bleibt außerhalb des neuen Ablaufs unverändert |
 | `tests/delivery/test_release_process.py` | Verdrahtungs- und Sonderfalltests entfernen; nur wenige Verhaltensinvarianten des Zielvertrags prüfen |
 | Release-Anteile in `tests/delivery/test_sbom.py` | Auf den verbleibenden sichtbaren SBOM-Vertrag begrenzen; keine Workflow- oder Retry-Steuerung testen |
-| `scripts/sbom.py` | Lokale/CI-SBOM-Verträge und eine nötige deterministische Zusammenführung zur einzigen sichtbaren CycloneDX-SBOM behalten, release-spezifische Subject- und Attestation-Orchestrierung zugunsten von Syft/Anchore und GitHub Attestations entfernen |
-| `scripts/build_metadata.py` | Behalten; der gemeinsame Tag-, Versions- und Revisionsvertrag ist Produktmetadatenlogik |
-| CLI-Verpackung | Nach der positiven Entscheidung in [ADR-0021](0021-goreleaser-fuer-die-betreiber-cli.md) mit GoReleaser bauen; Release, Attestations und aggregierte SBOM bleiben bei #347 |
+| SBOM-Erzeugung | Direkte, gepinnte Syft-Aufrufe erzeugen nur SBOMs veröffentlichter OCI-Images; siehe ADR-0038 |
+| Build-Identität | Das Backend-Modul `backend.version` besitzt den komponenteneigenen Metadatenvertrag; kein separates `scripts/build_metadata.py` |
+| CLI-Verpackung | Nach der positiven Entscheidung in [ADR-0021](0021-goreleaser-fuer-die-betreiber-cli.md) mit GoReleaser bauen; Release und Attestations wurden integriert. Die damalige aggregierte SBOM-Erwartung ist durch ADR-0038 abgelöst. |
 
-Release-Notes-Extraktion, OCI-Tag-Semantik, der Vertrag aus sechs nativen CLI-Archiven und genau einer sichtbaren aggregierten CycloneDX-SBOM bleiben projektspezifische Lieferverträge.
-Die Erzeugung und Signierung stützt sich so weit wie möglich auf gepinnte Actions, Syft/Anchore, GitHub Attestations und `gh`; eigene Logik darf diese Verträge abbilden, aber keine parallele Release-Zustandsmaschine mehr aufbauen.
+Release-Notes-Extraktion, OCI-Tag-Semantik und die deklarativ beschriebene
+CLI-Paketierung bleiben den dafür zuständigen Komponenten- und Lieferverträgen
+zugeordnet.
+Die Syft-Auswahl und der Umfang der SBOMs folgen ADR-0038.
+Eigene Release-Logik darf konkrete Verträge abbilden, aber keine parallele
+Release-Zustandsmaschine aufbauen.
 
 ## Konsequenzen
 
 - Die Releasebereitschaft wird nicht mehr indirekt durch das Schließen eines
 beliebigen letzten Issues signalisiert.
 Der manuelle Start und das Environment-GO sind zwei sichtbare, absichtliche Maintainer-Aktionen.
-- #344 muss vor #347 einen eindeutig identifizierbaren vollständigen
-`master`-Workflow bereitstellen.
-Interne Jobnamen dieses Workflows sind kein Releasevertrag.
+- Die in der damaligen Umsetzungsvorbereitung genannte Reihenfolge #344 vor
+#347 ist abgeschlossen; sie ist historische Umsetzungskontext, kein offener
+Voraussetzungsauftrag.
 - [ADR-0021](0021-goreleaser-fuer-die-betreiber-cli.md) führt GoReleaser nur
 für Build und Verpackung der Betreiber-CLI ein.
 Das Ergebnis ändert weder Auslöser noch Freigabe- und Taggrenze dieses ADRs.
-- #347 implementiert und bereinigt den Zielablauf; mit dessen Merge ersetzt der
-manuell gestartete Workflow die Issue-gesteuerte Automation vollständig.
+- #347 hat den Zielablauf implementiert; die issuegesteuerte Automation ist
+entfernt.
+Die aktuellen wiederverwendbaren Release- und Publish-Workflows sind der
+maßgebliche ausführbare Vertrag.
 - Milestone-Zuordnungen und Releasefolge aus ADR-0018 bleiben unverändert; sie
 werden lediglich nicht mehr von der Veröffentlichungsautomation gelesen.
 

@@ -41,14 +41,23 @@ Erst daraus wird der versionierte Seed-Paketname abgeleitet und ebenfalls auf ei
 Ab dann werden ausschließlich die beiden Digestreferenzen verwendet.
 Ein separates Pair-Deskriptor-Artefakt ist nicht erforderlich.
 
-Vor Azure bleiben die Provenance beider Digests, GitHub OIDC, die atomare ACA-
-Revision, Azure-Readiness, Application-Readiness und der abschließende
-öffentliche Smoke verpflichtend.
-SBOM-Attestierungen werden weiterhin für beide Images erzeugt, sind aber kein zusätzliches Deployment-Gate.
-Der finale Smoke umfasst `/api/health`; ein separates vorgelagertes Health-Polling entfällt.
+Vor Azure werden die Provenance beider Digests und GitHub OIDC geprüft.
+Der Deploymentadapter wartet auf die neue Azure-Revision im Zustand `Running`
+und ruft anschließend genau einmal den öffentlichen Endpunkt `/api/ready` ab.
+Dieser Aufruf muss `ready: true` liefern.
+Ein weiteres Health-Polling oder ein nachgelagerter `/api/health`-Smoke ist
+nicht Teil der Abnahme.
+SBOM-Attestierungen werden für beide veröffentlichten OCI-Images erzeugt,
+sind aber kein zusätzliches Deployment-Gate.
 
 Der Snapshotpfad startet keine zweite vollständige Quality-Pipeline.
-Er akzeptiert nur vorhandene erfolgreiche vollständige Quality-Evidenz für dieselbe aktuelle `master`-SHA und verwendet danach den gemeinsamen Deploymentworkflow.
+Er verwendet den in ADR-0024 und #854 festgelegten Selektor für höchstens
+24 Stunden alte, erfolgreiche und vollständige Quality-Evidenz auf derselben
+aktuellen `master`-SHA.
+Der Nachweis muss an den Ursprungsrun gebunden sein; ein fehlender oder
+fehlgeschlagener aktueller Audit sowie unvollständige, mehrdeutige oder
+abgelaufene Artefakte verhindern die Promotion.
+Danach verwendet der Snapshotpfad den gemeinsamen Deploymentworkflow.
 Milestone-, Release- und GitHub-Environment-Policy-Abfragen gehören nicht in seinen Laufzeitpfad.
 Die Environment-Regeln für `master`, `snapshot/v*-SNAPSHOT.*` und stabile `v*`-Tags bleiben deklarativ in OpenTofu; ihre reale Aktivierung erfordert weiterhin ein gesondertes Maintainer-GO.
 

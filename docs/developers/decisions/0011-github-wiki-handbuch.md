@@ -6,8 +6,10 @@
 
 ## Status
 
-Akzeptiert.
-Superseded by: ADR-0032.
+Historische Entscheidung.
+Die laufende Publikationsentscheidung wurde durch ADR-0032 ersetzt und
+anschließend in Quelle und Zielgruppe durch ADR-0035 weiterentwickelt.
+Für den geltenden Stand siehe ADR-0035.
 
 ## Kontext
 

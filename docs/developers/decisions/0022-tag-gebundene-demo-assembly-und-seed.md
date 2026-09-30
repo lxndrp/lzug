@@ -7,7 +7,12 @@
 ## Status
 
 Akzeptiert.
-Konkretisiert [ADR-0015](0015-fluechtige-azure-demo.md) und grenzt die Demo vom persistenten Produktimage aus [ADR-0014](0014-oci-einzelcontainer-und-persistentes-data.md) ab.
+Konkretisiert [ADR-0015](0015-fluechtige-azure-demo.md) hinsichtlich Demo-
+Assembly, Persistenz und Besuchsisolation und grenzt sie vom persistenten
+Produktimage aus [ADR-0014](0014-oci-einzelcontainer-und-persistentes-data.md)
+ab.
+Snapshot-/Stable-Promotion und Deploymentabnahme sind getrennte Entscheidungen
+in ADR-0024 und ADR-0026.
 
 ## Kontext
 
@@ -63,10 +68,10 @@ beendet sämtliche laufenden Sitzungen.
 - Zwei GHCR-Pakete und zwei Attestationsketten müssen gemeinsam kuratiert
 werden.
 Ein separates Controller-Image ist nicht erforderlich.
-- #125 bleibt als abgeschlossene generische ACA-Grundlage unverändert. Ein
-enges Infrastruktur-Folgeissue (#358) ergänzt Init Container, `EmptyDir`, Logic App, Managed Identity und RBAC vor #126.
-- Das erste vorgesehene Produkt-Tag ist `v0.1.1`; Veröffentlichung und
-Deployment benötigen weiterhin ihre eigenen Freigaben.
+- Die damalige Folgeplanung über #125 und #358 sowie das für den ersten
+Demo-Stand vorgesehene Produkt-Tag `v0.1.1` sind historischer
+Umsetzungskontext, keine aktuelle Release- oder Deploymentplanung.
+Die geltenden Promotion- und Readinessverträge stehen in ADR-0024 und ADR-0026.
 
 ## Alternativen
 
