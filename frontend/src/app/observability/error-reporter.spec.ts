@@ -1,38 +1,45 @@
-import { PrivacyPreservingErrorHandler, reportFrontendError } from './error-reporter';
+import { TestBed } from '@angular/core/testing';
+
+import { HttpFrontendErrorReporter } from '../api/frontend-error-api.adapter';
+import { FRONTEND_ERROR_REPORTER_PORT } from './frontend-error.port';
+import { PrivacyPreservingErrorHandler } from './error-reporter';
 
 describe('privacy-preserving frontend error reporting', () => {
-  it('ignores ResizeObserver-loop warnings', () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 202 }));
-    vi.stubGlobal('fetch', fetchMock);
+  const report = vi.fn();
 
-    new PrivacyPreservingErrorHandler().handleError(
+  beforeEach(() => {
+    report.mockClear();
+    TestBed.configureTestingModule({
+      providers: [
+        PrivacyPreservingErrorHandler,
+        { provide: FRONTEND_ERROR_REPORTER_PORT, useValue: { report } },
+      ],
+    });
+  });
+
+  it('ignores ResizeObserver-loop warnings', () => {
+    TestBed.inject(PrivacyPreservingErrorHandler).handleError(
       new Error('ResizeObserver loop completed with undelivered notifications.'),
     );
 
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(report).not.toHaveBeenCalled();
   });
 
-  it('sends only a coarse runtime classification', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 202 }));
-    vi.stubGlobal('fetch', fetchMock);
-
-    new PrivacyPreservingErrorHandler().handleError(
+  it('sends only a coarse runtime classification', () => {
+    TestBed.inject(PrivacyPreservingErrorHandler).handleError(
       new Error('person@example.invalid token=secret request-body'),
     );
 
-    expect(fetchMock).toHaveBeenCalledWith(
-      '/api/observability/frontend-errors',
-      expect.objectContaining({ body: JSON.stringify({ kind: 'runtime' }) }),
-    );
-    expect(JSON.stringify(fetchMock.mock.calls)).not.toContain('person@example.invalid');
-    expect(JSON.stringify(fetchMock.mock.calls)).not.toContain('secret');
+    expect(report).toHaveBeenCalledWith('runtime');
+    expect(JSON.stringify(report.mock.calls)).not.toContain('person@example.invalid');
+    expect(JSON.stringify(report.mock.calls)).not.toContain('secret');
   });
 
-  it('reports only the HTTP status', () => {
+  it('sends only a coarse HTTP classification and status through the adapter', () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 202 }));
     vi.stubGlobal('fetch', fetchMock);
 
-    reportFrontendError('http', 503);
+    new HttpFrontendErrorReporter().report('http', 503);
 
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/observability/frontend-errors',

@@ -33,26 +33,18 @@ import { TuiForm, TuiHeader } from '@taiga-ui/layout';
 import {
   Candidate,
   CandidateCommitteeAssignment,
+  CandidateCreateCommand,
+  CandidateUpdate as CandidateUpdateCommandWithId,
   CandidateView,
   ExamRound,
   MasterData,
 } from '../api/api.models';
-import type {
-  CandidateCreate,
-  CandidateUpdate as GeneratedCandidateUpdate,
-} from '../api/generated/types.gen';
 import { appIcons } from '../app-icons';
 import { AppIconDirective } from '../app-icon.directive';
 import { type SelectOption, selectLabel, selectStringify, selectValues } from '../select-options';
 
-export type CandidatePayload = CandidateCreate & {
-  exam_round_id?: number;
-  assignment_change_reason?: string | null;
-};
-export type CandidateUpdate = {
-  id: number;
-  payload: GeneratedCandidateUpdate;
-};
+export type CandidatePayload = CandidateCreateCommand;
+export type CandidateUpdate = CandidateUpdateCommandWithId;
 
 type CandidateFormModel = {
   first_name: FormControl<string>;

@@ -11,6 +11,7 @@ import type {
   PlanningResult,
   PlanningValidationViolation,
 } from '../api/api.models';
+import { ApplicationError } from '../application/application-error';
 import { PlanningApiService } from '../api/planning-api.service';
 import { RoundContextService } from '../api/round-context.service';
 import { AuthService } from '../auth/auth.service';
@@ -398,7 +399,7 @@ export class PlanningWorkflowService {
         this.proposal.set(proposal);
         this.editorState.set('ready');
       },
-      error: (error: { status?: number; error?: { error?: { message?: string } | string } }) => {
+      error: (error: ApplicationError) => {
         if (!this.isSelectedRound(roundId)) return;
         this.editorState.set('error');
         this.editorError.set(this.proposalErrorMessage(error));
@@ -431,24 +432,16 @@ export class PlanningWorkflowService {
           'Der Planungsvorschlag ist aktualisiert.',
         );
       },
-      error: (error: {
-        status?: number;
-        error?: {
-          error?:
-            | {
-                code?: string;
-                message?: string;
-                violations?: PlanningValidationViolation[];
-              }
-            | string;
-        };
-      }) => {
+      error: (error: ApplicationError) => {
         if (!this.isSelectedRound(roundId)) return;
         this.editorState.set('error');
-        const detail = typeof error.error?.error === 'object' ? error.error.error : undefined;
+        const detail =
+          typeof error.details === 'object' && error.details !== null
+            ? (error.details as { violations?: PlanningValidationViolation[] })
+            : undefined;
         this.editorViolations.set(detail?.violations ?? []);
         this.editorError.set(
-          error.status === 409
+          error.kind === 'conflict'
             ? 'Der Vorschlag wurde zwischenzeitlich geändert. Laden Sie die aktuelle Fassung, bevor Sie erneut speichern.'
             : this.proposalErrorMessage(error),
         );
@@ -479,18 +472,12 @@ export class PlanningWorkflowService {
     return this.roundContext.roundId() === roundId;
   }
 
-  private proposalErrorMessage(error: {
-    status?: number;
-    error?: { error?: { message?: string } | string };
-  }): string {
-    if (error.status === 403) {
+  private proposalErrorMessage(error: ApplicationError): string {
+    if (error.kind === 'forbidden') {
       return 'Sie haben keine Berechtigung, diesen Planungsvorschlag zu bearbeiten.';
     }
-    if (error.status === 404) return 'Der Planungsvorschlag ist nicht mehr verfügbar.';
-    if (typeof error.error?.error === 'object' && error.error.error.message) {
-      return error.error.error.message;
-    }
-    if (typeof error.error?.error === 'string') return error.error.error;
+    if (error.kind === 'not-found') return 'Der Planungsvorschlag ist nicht mehr verfügbar.';
+    if (error.message) return error.message;
     return 'Der Planungsvorschlag konnte nicht geladen werden. Bitte versuchen Sie es erneut.';
   }
 }

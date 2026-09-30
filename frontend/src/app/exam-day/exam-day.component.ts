@@ -1,4 +1,3 @@
-import { HttpErrorResponse } from '@angular/common/http';
 import { Component, Input, OnChanges, OnInit, SimpleChanges, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -15,6 +14,7 @@ import {
   ExamDayReopeningImpact,
   ExamDayReopeningScope,
 } from '../api/api.models';
+import { ApplicationError } from '../application/application-error';
 import { ExamDayApiService } from '../api/exam-day-api.service';
 import { PersonalApiService } from '../api/personal-api.service';
 import { AuthService } from '../auth/auth.service';
@@ -109,7 +109,7 @@ export class ExamDayComponent implements OnInit, OnChanges {
         this.resetDrafts(view);
         this.state.set('ready');
       },
-      error: (error: HttpErrorResponse) => {
+      error: (error: ApplicationError) => {
         if (
           requestSequence !== this.requestSequence ||
           this.dayId !== requestedDayId ||
@@ -118,7 +118,7 @@ export class ExamDayComponent implements OnInit, OnChanges {
           return;
         }
         this.view.set(null);
-        this.state.set(error.status === 404 ? 'not-found' : 'error');
+        this.state.set(error.kind === 'not-found' ? 'not-found' : 'error');
       },
     });
   }
@@ -227,11 +227,11 @@ export class ExamDayComponent implements OnInit, OnChanges {
             this.auth.session()?.demo_role ? '/demo-scenarios' : '/absence-reports',
           );
         },
-        error: (error: HttpErrorResponse) => {
+        error: (error: ApplicationError) => {
           if (actionSequence !== this.requestSequence) return;
           this.savingKeys.set(new Set());
           this.actionError.set(
-            this.httpError(error, 'Die Ausfallmeldung konnte nicht gespeichert werden.'),
+            this.applicationError(error, 'Die Ausfallmeldung konnte nicht gespeichert werden.'),
           );
         },
       });
@@ -356,10 +356,10 @@ export class ExamDayComponent implements OnInit, OnChanges {
         this.savingKeys.set(new Set());
         this.reopeningImpact.set(impact);
       },
-      error: (error: HttpErrorResponse) => {
+      error: (error: ApplicationError) => {
         this.savingKeys.set(new Set());
         this.actionError.set(
-          this.httpError(error, 'Die Auswirkungen konnten nicht ermittelt werden.'),
+          this.applicationError(error, 'Die Auswirkungen konnten nicht ermittelt werden.'),
         );
       },
     });
@@ -544,11 +544,11 @@ export class ExamDayComponent implements OnInit, OnChanges {
         this.savingKeys.set(new Set());
         this.actionMessage.set('Änderung gespeichert.');
       },
-      error: (error: HttpErrorResponse) => {
+      error: (error: ApplicationError) => {
         if (actionSequence !== this.requestSequence) return;
         this.savingKeys.set(new Set());
         this.actionError.set(
-          this.httpError(error, 'Die Änderung konnte nicht gespeichert werden.'),
+          this.applicationError(error, 'Die Änderung konnte nicht gespeichert werden.'),
         );
       },
     });
@@ -589,10 +589,10 @@ export class ExamDayComponent implements OnInit, OnChanges {
         );
         this.actionMessage.set(successMessage);
       },
-      error: (error: HttpErrorResponse) => {
+      error: (error: ApplicationError) => {
         this.savingKeys.set(new Set());
         this.actionError.set(
-          this.httpError(error, 'Die Abschlussaktion konnte nicht ausgeführt werden.'),
+          this.applicationError(error, 'Die Abschlussaktion konnte nicht ausgeführt werden.'),
         );
       },
     });
@@ -618,9 +618,8 @@ export class ExamDayComponent implements OnInit, OnChanges {
     return value ? new Date(value).toISOString() : null;
   }
 
-  private httpError(error: HttpErrorResponse, fallback: string): string {
-    const domainError = error.error?.error;
-    return typeof domainError === 'string' ? domainError : (domainError?.message ?? fallback);
+  private applicationError(error: ApplicationError, fallback: string): string {
+    return error.message || fallback;
   }
 
   protected backHref(): string {

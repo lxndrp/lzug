@@ -8,8 +8,10 @@ import { provideTaiga } from '@taiga-ui/core';
 import { TuiConfirmService } from '@taiga-ui/kit';
 import { of } from 'rxjs';
 import { App } from '../app';
+import { lifecycleInterceptor } from '../api/http-interceptors';
 import { AuthService } from '../auth/auth.service';
-import { LifecycleService, lifecycleInterceptor, lifecycleStates } from './lifecycle.service';
+import { LifecycleService, lifecycleStates } from './lifecycle.service';
+import { LIFECYCLE_AVAILABILITY_PORT } from './lifecycle.port';
 import { LifecycleNoticeComponent } from './lifecycle-notice.component';
 
 describe('public lifecycle', () => {
@@ -24,6 +26,7 @@ describe('public lifecycle', () => {
         provideRouter([]),
         provideHttpClient(withInterceptors([lifecycleInterceptor])),
         provideHttpClientTesting(),
+        { provide: LIFECYCLE_AVAILABILITY_PORT, useExisting: LifecycleService },
         provideTaiga({ scrollbars: 'native' }),
         TuiConfirmService,
         {

@@ -1,9 +1,28 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import ts from 'typescript';
 
 const root = path.resolve(import.meta.dirname, '..', 'src', 'app');
+const appFiles = await typeScriptFiles(root);
+for (const file of appFiles) {
+  const relative = path.relative(root, file).split(path.sep).join('/');
+  if (relative.startsWith('api/')) continue;
+  const source = await readFile(file, 'utf8');
+  assert.doesNotMatch(
+    importsOf(source),
+    /(?:^|\/)generated\/types\.gen(?:$|\n)/,
+    `${relative} imports OpenAPI transport types outside the HTTP adapter`,
+  );
+  if (!relative.endsWith('.spec.ts') && relative !== 'app.config.ts') {
+    assert.doesNotMatch(
+      importsOf(source),
+      /^@angular\/common\/http$/m,
+      `${relative} imports Angular HTTP outside the adapter composition root`,
+    );
+  }
+}
+
 const componentPath = path.join(root, 'scheduling-overview', 'scheduling-overview.component.ts');
 const componentSpecPath = path.join(
   root,
@@ -117,6 +136,17 @@ function importModulesOf(source) {
     }
   }
   return modules;
+}
+
+async function typeScriptFiles(directory) {
+  const entries = await readdir(directory, { withFileTypes: true });
+  const files = await Promise.all(
+    entries.map((entry) => {
+      const entryPath = path.join(directory, entry.name);
+      return entry.isDirectory() ? typeScriptFiles(entryPath) : [entryPath];
+    }),
+  );
+  return files.flat().filter((file) => file.endsWith('.ts'));
 }
 
 function importsOf(source) {

@@ -1,6 +1,7 @@
-import { ErrorHandler, Injectable } from '@angular/core';
+import { ErrorHandler, Injectable, inject } from '@angular/core';
 
-export type FrontendErrorKind = 'bootstrap' | 'http' | 'runtime';
+import { FRONTEND_ERROR_REPORTER_PORT } from './frontend-error.port';
+export type { FrontendErrorKind } from './frontend-error.port';
 
 const RESIZE_OBSERVER_LOOP_PATTERN =
   /ResizeObserver loop completed with undelivered notifications/i;
@@ -19,25 +20,16 @@ function isResizeObserverLoopWarning(error: unknown): boolean {
   return RESIZE_OBSERVER_LOOP_PATTERN.test(getRuntimeErrorMessage(error));
 }
 
-export function reportFrontendError(kind: FrontendErrorKind, status?: number): void {
-  const payload = kind === 'http' ? { kind, status: status ?? 0 } : { kind };
-  void fetch('/api/observability/frontend-errors', {
-    method: 'POST',
-    credentials: 'same-origin',
-    keepalive: true,
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  }).catch(() => undefined);
-}
-
 @Injectable()
 export class PrivacyPreservingErrorHandler implements ErrorHandler {
+  private readonly reporter = inject(FRONTEND_ERROR_REPORTER_PORT);
+
   handleError(error: unknown): void {
     if (isResizeObserverLoopWarning(error)) {
       return;
     }
 
-    reportFrontendError('runtime');
+    this.reporter.report('runtime');
   }
 }
 

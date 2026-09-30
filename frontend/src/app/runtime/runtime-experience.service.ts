@@ -1,24 +1,21 @@
-import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 
-import { DemoRole, DemoScenarioOverview } from '../api/api.models';
+import type { DemoRole } from '../api/api.models';
+import { RuntimeExperienceApiService } from '../api/runtime-experience-api.service';
 
 @Injectable({ providedIn: 'root' })
 export class RuntimeExperienceService {
-  private readonly http = inject(HttpClient);
+  private readonly api = inject(RuntimeExperienceApiService);
 
   startDemoSession(role: DemoRole) {
-    return this.http.post<void>('/api/demo/session', { role });
+    return this.api.startDemoSession(role);
   }
 
   getDemoScenarios() {
-    return this.http.get<DemoScenarioOverview>('/api/demo/scenarios');
+    return this.api.getDemoScenarios();
   }
 
   resetDemoScenarios() {
-    return this.http.post<{ status: 'reset'; role: string; expires_at: string }>(
-      '/api/demo/reset',
-      {},
-    );
+    return this.api.resetDemoScenarios();
   }
 }

@@ -2,6 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { of, throwError } from 'rxjs';
 
+import { ApplicationError } from '../application/application-error';
 import { routes } from '../app.routes';
 import { AuthFlowComponent } from './auth-flow.component';
 import { AuthService } from './auth.service';
@@ -36,7 +37,7 @@ describe('AuthFlowComponent', () => {
 
   it('shows a safe error when login fails and does not expose the submitted values', () => {
     auth.login.mockReturnValue(
-      throwError(() => ({ error: { error: 'Anmeldung nicht möglich.' } })),
+      throwError(() => new ApplicationError('unexpected', 'Anmeldung nicht möglich.')),
     );
     const instance = component as unknown as {
       email: string;

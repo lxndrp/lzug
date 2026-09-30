@@ -6,6 +6,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { AuthService } from './auth.service';
 import type { AuthCompletion, AuthPreparation } from './auth.service';
+import { ApplicationError } from '../application/application-error';
 
 export type AuthScreen = 'login' | 'activate' | 'recover';
 
@@ -116,9 +117,13 @@ export class AuthFlowComponent {
     });
   }
 
-  private fail(error: { error?: { error?: string } }): void {
+  private fail(error: unknown): void {
     this.busy.set(false);
-    this.error.set(error.error?.error ?? 'Der Vorgang konnte nicht abgeschlossen werden.');
+    this.error.set(
+      error instanceof ApplicationError && error.message
+        ? error.message
+        : 'Der Vorgang konnte nicht abgeschlossen werden.',
+    );
   }
 
   private screenFromUrl(url: string): AuthScreen {
