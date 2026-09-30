@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { signal } from '@angular/core';
 import { provideTaiga } from '@taiga-ui/core';
 import { Subject, of, throwError } from 'rxjs';
 
@@ -10,6 +11,7 @@ import {
   PlanningBoard,
 } from '../api/api.models';
 import { AuthService } from '../auth/auth.service';
+import type { AuthSession } from '../auth/auth.service';
 import { RuntimeExperienceService } from '../runtime/runtime-experience.service';
 import { ConfirmedPlansWorkflowService } from './confirmed-plans-workflow.service';
 import { ConfirmedPlanEditorComponent } from './confirmed-plan-editor.component';
@@ -58,6 +60,10 @@ describe('ConfirmedPlanEditorComponent', () => {
       imports: [ConfirmedPlanEditorComponent],
       providers: [
         provideTaiga({ scrollbars: 'native' }),
+        {
+          provide: AuthService,
+          useValue: { session: signal<AuthSession | null>(null) },
+        },
         { provide: ConfirmedPlansWorkflowService, useValue: workflow },
         { provide: RuntimeExperienceService, useValue: runtime },
       ],
