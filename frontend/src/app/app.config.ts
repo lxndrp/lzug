@@ -32,6 +32,8 @@ import { EXAM_HALF_YEARS_PORT } from './exam-half-years/exam-half-years.port';
 import { HttpExamHalfYearsAdapter } from './api/http-exam-half-years.adapter';
 import { LOCATIONS_PORT } from './locations/locations.port';
 import { HttpLocationsAdapter } from './api/http-locations.adapter';
+import { HttpLocationsReadAdapter } from './api/http-locations-read.adapter';
+import { LOCATIONS_READ_PORT } from './locations/locations.port';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -39,6 +41,7 @@ export const appConfig: ApplicationConfig = {
     { provide: PLANNING_PORT, useClass: HttpPlanningAdapter },
     { provide: EXAM_HALF_YEARS_PORT, useClass: HttpExamHalfYearsAdapter },
     { provide: LOCATIONS_PORT, useClass: HttpLocationsAdapter },
+    { provide: LOCATIONS_READ_PORT, useClass: HttpLocationsReadAdapter },
     { provide: WORKSPACE_PORT, useClass: HttpWorkspaceAdapter },
     { provide: CONFIRMED_PLANS_PORT, useClass: HttpConfirmedPlansAdapter },
     { provide: AUTHENTICATION_PORT, useExisting: AuthService },

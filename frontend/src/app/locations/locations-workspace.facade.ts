@@ -1,15 +1,9 @@
-import { Injectable, computed, inject } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 
-import { toLocationSnapshot } from '../api/http-locations.mapper';
-import { ApplicationWorkspaceService } from '../shell/application-workspace.service';
+import { LOCATIONS_READ_PORT } from './locations.port';
 
 /** Feature-facing read model for examination locations in the shared workspace. */
 @Injectable({ providedIn: 'root' })
 export class LocationsWorkspaceFacade {
-  private readonly workspace = inject(ApplicationWorkspaceService);
-
-  readonly snapshot = computed(() => {
-    const masterData = this.workspace.masterData();
-    return masterData ? toLocationSnapshot(masterData) : null;
-  });
+  readonly snapshot = inject(LOCATIONS_READ_PORT).snapshot;
 }

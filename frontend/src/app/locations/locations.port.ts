@@ -1,8 +1,9 @@
-import { InjectionToken } from '@angular/core';
+import { InjectionToken, Signal } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import type {
   GeocodeCandidate,
+  LocationSnapshot,
   Venue,
   VenueChangeImpact,
   VenueContact,
@@ -52,3 +53,10 @@ export interface LocationsPort {
 }
 
 export const LOCATIONS_PORT = new InjectionToken<LocationsPort>('LOCATIONS_PORT');
+
+/** Feature read contract for the current examination-location snapshot. */
+export interface LocationsReadPort {
+  readonly snapshot: Signal<LocationSnapshot | null>;
+}
+
+export const LOCATIONS_READ_PORT = new InjectionToken<LocationsReadPort>('LOCATIONS_READ_PORT');

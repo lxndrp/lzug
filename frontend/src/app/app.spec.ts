@@ -34,6 +34,8 @@ import { CONFIRMED_PLANS_PORT } from './confirmed-plans/confirmed-plans.port';
 import { HttpConfirmedPlansAdapter } from './api/http-confirmed-plans.adapter';
 import { VenueWorkflowService } from './locations/venue-workflow.service';
 import { LocationsWorkspaceFacade } from './locations/locations-workspace.facade';
+import { LOCATIONS_READ_PORT } from './locations/locations.port';
+import { HttpLocationsReadAdapter } from './api/http-locations-read.adapter';
 import { LifecycleService } from './runtime/lifecycle.service';
 import {
   apiRootFixture,
@@ -76,6 +78,7 @@ describe('App', () => {
         provideHttpClientTesting(),
         { provide: PLANNING_PORT, useClass: HttpPlanningAdapter },
         { provide: LOCATIONS_PORT, useValue: locationsPort },
+        { provide: LOCATIONS_READ_PORT, useClass: HttpLocationsReadAdapter },
         { provide: WORKSPACE_PORT, useClass: HttpWorkspaceAdapter },
         { provide: CONFIRMED_PLANS_PORT, useClass: HttpConfirmedPlansAdapter },
         provideTaiga({ scrollbars: 'native' }),
