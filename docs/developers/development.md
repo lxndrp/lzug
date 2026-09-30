@@ -109,6 +109,8 @@ Python-Abhängigkeiten werden mit `uv add` und aktualisierter `uv.lock`
 gepflegt, Frontend-Abhängigkeiten mit npm und
 `frontend/package-lock.json`, Go-Abhängigkeiten mit dem Go-Modul und
 `operator-cli/go.sum`.
+Manifestbereiche können Patch-Updates innerhalb einer Minor-Linie zulassen;
+`uv.lock` hält für lokale Builds und CI weiterhin die konkrete Version fest.
 Versionen der projektweiten Werkzeuge gehören in `.mise.toml`.
 Nach Änderungen an Runtime, Lockdateien, Toolchain oder Workflow die betroffenen
 Audits, Builds und Vertragstests ausführen; in der Regel ist `task quality`
