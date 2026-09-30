@@ -130,10 +130,9 @@
               appearance="primary"
               type="button"
               [disabled]="
-                (closureType === 'regular' &&
-                  !current.day.closure.evaluation.regular_close_ready) ||
+                (closureType === 'regular' && !current.day.closure.evaluation.regularCloseReady) ||
                 (closureType === 'exception' &&
-                  !current.day.closure.evaluation.exception_close_ready) ||
+                  !current.day.closure.evaluation.exceptionCloseReady) ||
                 hasSavingAction()
               "
               (click)="closeDay()"
@@ -183,7 +182,7 @@
               </button>
               @if (reopeningImpact(); as impact) {
                 <p class="app-muted" role="status">
-                  Betroffen: {{ impact.expanded_scope.join(', ') }}
+                  Betroffen: {{ impact.expandedScope.join(', ') }}
                 </p>
                 @if (can('exam-day-closure:reopen')) {
                   <button
@@ -203,18 +202,10 @@
 
         @if (current.day.closure.permissions.export && can('exam-day-closure:export')) {
           <div class="app-exam-day-closure-actions">
-            <a
-              tuiButton
-              appearance="secondary"
-              [href]="current.day.closure._links['machine_export'].href"
-            >
+            <a tuiButton appearance="secondary" [href]="current.day.closure.exportLinks.machine">
               Maschinenlesbaren Nachweis exportieren
             </a>
-            <a
-              tuiButton
-              appearance="secondary"
-              [href]="current.day.closure._links['human_export'].href"
-            >
+            <a tuiButton appearance="secondary" [href]="current.day.closure.exportLinks.human">
               Lesbaren Nachweis exportieren
             </a>
           </div>
@@ -234,7 +225,7 @@
           @for (status of executionSummaryStatuses; track status.value) {
             <div>
               <dt>{{ status.label }}</dt>
-              <dd>{{ executionStatusCount(current.day.status_summary, status.value) }}</dd>
+              <dd>{{ executionStatusCount(current.day.statusSummary, status.value) }}</dd>
             </div>
           }
         </dl>
@@ -263,20 +254,20 @@
                 @let draft = attendanceDraft('candidate-' + slot.id, candidateAttendance);
                 @let executionDraft = executionStatusDraft(slot);
                 <tr>
-                  <td>{{ timeLabel(slot.starts_at) }}–{{ timeLabel(slot.ends_at) }}</td>
+                  <td>{{ timeLabel(slot.startsAt) }}–{{ timeLabel(slot.endsAt) }}</td>
                   <td>
-                    <span tuiBadge [appearance]="slot.slot_type === 'mep' ? 'warning' : 'neutral'">
-                      {{ examLabel(slot.slot_type) }}
+                    <span tuiBadge [appearance]="slot.slotType === 'mep' ? 'warning' : 'neutral'">
+                      {{ examLabel(slot.slotType) }}
                     </span>
                   </td>
-                  <td>{{ slot.candidate.first_name }} {{ slot.candidate.last_name }}</td>
-                  <td>{{ slot.candidate.ihk_exam_number }}</td>
+                  <td>{{ slot.candidate.firstName }} {{ slot.candidate.lastName }}</td>
+                  <td>{{ slot.candidate.examNumber }}</td>
                   <td>
                     <span tuiBadge [appearance]="statusAppearance(candidateAttendance.status)">
                       {{ statusLabel(candidateAttendance.status) }}
                     </span>
                     <span class="app-exam-day-arrival">{{
-                      arrivalLabel(candidateAttendance.arrived_at)
+                      arrivalLabel(candidateAttendance.arrivedAt)
                     }}</span>
                     @if (
                       canCoordinateAttendance && canMutateDayData('candidate_attendance', slot.id)
@@ -304,14 +295,14 @@
                     }
                   </td>
                   <td>
-                    <span tuiBadge [appearance]="executionStatusAppearance(slot.execution_status)">
-                      {{ executionStatusLabel(slot.execution_status) }}
+                    <span tuiBadge [appearance]="executionStatusAppearance(slot.executionStatus)">
+                      {{ executionStatusLabel(slot.executionStatus) }}
                     </span>
                     <span class="app-exam-day-arrival">
-                      Letzte Änderung: {{ arrivalLabel(slot.status_changed_at) }}
+                      Letzte Änderung: {{ arrivalLabel(slot.statusChangedAt) }}
                     </span>
-                    @if (slot.status_reason) {
-                      <span class="app-exam-day-arrival">Begründung: {{ slot.status_reason }}</span>
+                    @if (slot.statusReason) {
+                      <span class="app-exam-day-arrival">Begründung: {{ slot.statusReason }}</span>
                     }
                     @if (canCoordinateAttendance && canMutateDayData('slot_status', slot.id)) {
                       <label class="app-sr-only" [for]="'execution-status-' + slot.id"
@@ -322,12 +313,12 @@
                         [(ngModel)]="executionDraft.status"
                         [disabled]="
                           hasSavingAction() ||
-                          (isTerminalExecutionStatus(slot.execution_status) &&
+                          (isTerminalExecutionStatus(slot.executionStatus) &&
                             !isReopenedScope('slot_status', slot.id))
                         "
                       >
                         @for (
-                          option of executionStatusOptions(slot.execution_status, slot.id);
+                          option of executionStatusOptions(slot.executionStatus, slot.id);
                           track option.value
                         ) {
                           <option [value]="option.value">{{ option.label }}</option>
@@ -342,7 +333,7 @@
                         [required]="requiresExecutionReason(executionDraft.status)"
                         [disabled]="
                           hasSavingAction() ||
-                          (isTerminalExecutionStatus(slot.execution_status) &&
+                          (isTerminalExecutionStatus(slot.executionStatus) &&
                             !isReopenedScope('slot_status', slot.id))
                         "
                         rows="2"
@@ -370,15 +361,15 @@
                   </td>
                   <td>
                     {{
-                      slot.actual_started_at
-                        ? arrivalLabel(slot.actual_started_at)
+                      slot.actualStartedAt
+                        ? arrivalLabel(slot.actualStartedAt)
                         : 'Noch nicht erfasst'
                     }}
                   </td>
                   <td>
                     {{
-                      slot.actual_completed_at
-                        ? arrivalLabel(slot.actual_completed_at)
+                      slot.actualCompletedAt
+                        ? arrivalLabel(slot.actualCompletedAt)
                         : 'Noch nicht erfasst'
                     }}
                   </td>
@@ -395,9 +386,9 @@
                           type="button"
                           [disabled]="hasSavingAction()"
                           [attr.aria-label]="
-                            slot.candidate.first_name +
+                            slot.candidate.firstName +
                             ' ' +
-                            slot.candidate.last_name +
+                            slot.candidate.lastName +
                             ': Anwesenheit speichern'
                           "
                           (click)="saveCandidateAttendance(slot.id, draft)"
@@ -415,17 +406,17 @@
                             tuiButton
                             appearance="primary"
                             type="button"
-                            [disabled]="!!slot.actual_started_at || hasSavingAction()"
+                            [disabled]="!!slot.actualStartedAt || hasSavingAction()"
                             [attr.aria-label]="
-                              slot.candidate.first_name +
+                              slot.candidate.firstName +
                               ' ' +
-                              slot.candidate.last_name +
+                              slot.candidate.lastName +
                               ': ' +
-                              (slot.actual_started_at ? 'Gestartet' : 'Prüfung starten')
+                              (slot.actualStartedAt ? 'Gestartet' : 'Prüfung starten')
                             "
                             (click)="startExamSlot(slot.id)"
                           >
-                            {{ slot.actual_started_at ? 'Gestartet' : 'Prüfung starten' }}
+                            {{ slot.actualStartedAt ? 'Gestartet' : 'Prüfung starten' }}
                           </button>
                         }
                         <button
@@ -433,12 +424,12 @@
                           appearance="secondary"
                           type="button"
                           [disabled]="
-                            executionDraft.status === slot.execution_status || hasSavingAction()
+                            executionDraft.status === slot.executionStatus || hasSavingAction()
                           "
                           [attr.aria-label]="
-                            slot.candidate.first_name +
+                            slot.candidate.firstName +
                             ' ' +
-                            slot.candidate.last_name +
+                            slot.candidate.lastName +
                             ': Status speichern'
                           "
                           (click)="saveExecutionStatus(slot.id, executionDraft)"
@@ -464,7 +455,7 @@
       </section>
 
       @for (slot of current.day.slots; track slot.id) {
-        @if (slot.actual_started_at) {
+        @if (slot.actualStartedAt) {
           <app-exam-protocol
             [dayId]="current.day.id"
             [dayRevision]="current.day.revision"
@@ -504,22 +495,22 @@
                     <span
                       tuiBadge
                       [appearance]="
-                        assignment.assignment_role === 'fallback' ? 'warning' : 'positive'
+                        assignment.assignmentRole === 'fallback' ? 'warning' : 'positive'
                       "
                     >
-                      {{ roleLabel(assignment.assignment_role) }}
+                      {{ roleLabel(assignment.assignmentRole) }}
                     </span>
                   </td>
-                  <td>{{ assignment.member.first_name }} {{ assignment.member.last_name }}</td>
-                  <td>{{ representingSideLabel(assignment.member.representing_side) }}</td>
-                  <td>{{ dayPartLabel(assignment.day_part) }}</td>
-                  <td>{{ fallbackStatusLabel(assignment.fallback_status) }}</td>
+                  <td>{{ assignment.member.firstName }} {{ assignment.member.lastName }}</td>
+                  <td>{{ representingSideLabel(assignment.member.representingSide) }}</td>
+                  <td>{{ dayPartLabel(assignment.dayPart) }}</td>
+                  <td>{{ fallbackStatusLabel(assignment.fallbackStatus) }}</td>
                   <td>
                     <span tuiBadge [appearance]="statusAppearance(memberAttendance.status)">
                       {{ statusLabel(memberAttendance.status) }}
                     </span>
                     <span class="app-exam-day-arrival">{{
-                      arrivalLabel(memberAttendance.arrived_at)
+                      arrivalLabel(memberAttendance.arrivedAt)
                     }}</span>
                     @if (canEditMemberAttendance(assignment)) {
                       <label class="app-sr-only" [for]="'member-status-' + assignment.id"
@@ -550,9 +541,9 @@
                         type="button"
                         [disabled]="hasSavingAction()"
                         [attr.aria-label]="
-                          assignment.member.first_name +
+                          assignment.member.firstName +
                           ' ' +
-                          assignment.member.last_name +
+                          assignment.member.lastName +
                           ': Anwesenheit speichern'
                         "
                         (click)="saveMemberAttendance(assignment.id, draft)"
@@ -571,9 +562,9 @@
                         type="button"
                         [disabled]="hasSavingAction()"
                         [attr.aria-label]="
-                          assignment.member.first_name +
+                          assignment.member.firstName +
                           ' ' +
-                          assignment.member.last_name +
+                          assignment.member.lastName +
                           ': Ausfall melden'
                         "
                         (click)="reportAbsence(assignment.id)"
