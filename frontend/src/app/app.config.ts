@@ -38,6 +38,8 @@ import { LOCATIONS_PORT } from './locations/locations.port';
 import { HttpLocationsAdapter } from './api/http-locations.adapter';
 import { HttpLocationsReadAdapter } from './api/http-locations-read.adapter';
 import { LOCATIONS_READ_PORT } from './locations/locations.port';
+import { EXAM_RESULT_PORT } from './exam-result/exam-result.port';
+import { HttpExamResultAdapter } from './api/http-exam-result.adapter';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -46,6 +48,7 @@ export const appConfig: ApplicationConfig = {
     { provide: EXAM_HALF_YEARS_PORT, useClass: HttpExamHalfYearsAdapter },
     { provide: PERSONAL_PORT, useClass: HttpPersonalAdapter },
     { provide: EXAM_PROTOCOL_PORT, useClass: HttpExamProtocolAdapter },
+    { provide: EXAM_RESULT_PORT, useClass: HttpExamResultAdapter },
     { provide: LOCATIONS_PORT, useClass: HttpLocationsAdapter },
     { provide: LOCATIONS_READ_PORT, useClass: HttpLocationsReadAdapter },
     { provide: WORKSPACE_PORT, useClass: HttpWorkspaceAdapter },

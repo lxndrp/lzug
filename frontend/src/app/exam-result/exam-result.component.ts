@@ -4,10 +4,10 @@ import { TuiButton } from '@taiga-ui/core';
 import { TuiBadge } from '@taiga-ui/kit';
 import { Observable } from 'rxjs';
 
-import { AssessmentComponent, AssessmentCriterion, ExamResult } from '../api/api.models';
+import type { AssessmentComponent, AssessmentCriterion, ExamResult } from './exam-result.models';
 import { ApplicationError } from '../application/application-error';
-import { ExamResultApiService } from '../api/exam-result-api.service';
 import { AuthService } from '../auth/auth.service';
+import { ExamResultFacade } from './exam-result.facade';
 
 export type ResultViewState = 'loading' | 'ready' | 'error' | 'not-found';
 
@@ -24,7 +24,7 @@ export type CriterionDraft = {
   styleUrl: './exam-result.component.css',
 })
 export class ExamResultComponent implements OnChanges {
-  private readonly api = inject(ExamResultApiService);
+  private readonly facade = inject(ExamResultFacade);
   private readonly auth = inject(AuthService);
 
   @Input({ required: true }) dayId!: number;
@@ -70,7 +70,7 @@ export class ExamResultComponent implements OnChanges {
     this.state.set('loading');
     this.message.set(null);
     this.error.set(null);
-    this.api.getExamResult(this.dayId, this.slotId).subscribe({
+    this.facade.get(this.dayId, this.slotId).subscribe({
       next: (result) => {
         if (sequence !== this.requestSequence) return;
         this.accept(result);
@@ -89,17 +89,17 @@ export class ExamResultComponent implements OnChanges {
     let draft = this.drafts.get(key);
     if (!draft) {
       const result = this.result();
-      const current = result?.individual_assessments
+      const current = result?.individualAssessments
         .filter(
           (item) =>
-            item.component_key === component.key &&
-            item.criterion_key === criterion.key &&
-            item.assessor_member_id === this.ownMemberId &&
+            item.componentKey === component.key &&
+            item.criterionKey === criterion.key &&
+            item.assessorMemberId === this.ownMemberId &&
             item.status !== 'superseded',
         )
         .at(-1);
       draft = {
-        rawPoints: current?.raw_points ?? '',
+        rawPoints: current?.rawPoints ?? '',
         rationale: current?.rationale ?? '',
         changeReason: '',
       };
@@ -117,17 +117,17 @@ export class ExamResultComponent implements OnChanges {
     if (!result) return;
     const draft = this.draftFor(component, criterion);
     this.run(
-      this.api.saveIndividualAssessment(
-        result.id,
-        result.version,
-        component.key,
-        criterion.key,
-        draft.rawPoints,
-        draft.rationale,
+      this.facade.saveIndividualAssessment({
+        resultId: result.id,
+        version: result.version,
+        componentKey: component.key,
+        criterionKey: criterion.key,
+        rawPoints: draft.rawPoints,
+        rationale: draft.rationale,
         submitted,
-        draft.changeReason,
-        result.day_revisions ?? this.inputDayRevisions(),
-      ),
+        changeReason: draft.changeReason,
+        dayRevisions: result.dayRevisions ?? this.inputDayRevisions(),
+      }),
       submitted ? 'Eigene Bewertung abgegeben.' : 'Bewertungsentwurf gespeichert.',
     );
   }
@@ -138,12 +138,12 @@ export class ExamResultComponent implements OnChanges {
     const reason = this.draftFor(component, criterion).changeReason;
     if (!result || !current || !reason.trim()) return;
     this.run(
-      this.api.withdrawIndividualAssessment(
+      this.facade.withdrawIndividualAssessment(
         result.id,
         result.version,
         current.id,
         reason,
-        result.day_revisions ?? this.inputDayRevisions(),
+        result.dayRevisions ?? this.inputDayRevisions(),
       ),
       'Eigene Bewertung zurückgezogen.',
     );
@@ -153,11 +153,11 @@ export class ExamResultComponent implements OnChanges {
     const result = this.result();
     if (!result) return;
     this.run(
-      this.api.discloseAssessments(
+      this.facade.discloseAssessments(
         result.id,
         result.version,
         componentKey,
-        result.day_revisions ?? this.inputDayRevisions(),
+        result.dayRevisions ?? this.inputDayRevisions(),
       ),
       'Einzelbewertungen kontrolliert offengelegt.',
     );
@@ -167,16 +167,16 @@ export class ExamResultComponent implements OnChanges {
     const result = this.result();
     if (!result) return;
     this.run(
-      this.api.determineComponent(
-        result.id,
-        result.version,
+      this.facade.determineComponent({
+        resultId: result.id,
+        version: result.version,
         componentKey,
-        this.componentPoints.get(componentKey) ?? '',
-        this.componentReasons.get(componentKey) ?? '',
-        result.participants,
-        this.dissent(),
-        result.day_revisions ?? this.inputDayRevisions(),
-      ),
+        points: this.componentPoints.get(componentKey) ?? '',
+        rationale: this.componentReasons.get(componentKey) ?? '',
+        participants: result.participants,
+        dissent: this.dissent(),
+        dayRevisions: result.dayRevisions ?? this.inputDayRevisions(),
+      }),
       'Gemeinsame Ausschussbewertung festgestellt.',
     );
   }
@@ -185,20 +185,18 @@ export class ExamResultComponent implements OnChanges {
     const result = this.result();
     if (!result) return;
     this.run(
-      this.api.recordExternalResult(
-        result.id,
-        result.version,
-        {
-          area_key: this.externalAreaKey,
-          points: this.externalPoints,
-          grade: this.externalGrade || undefined,
-          professional_status: this.externalStatus,
-          determining_authority: this.externalAuthority,
-          source_reference: this.externalSource,
-          correction_reason: this.externalCorrectionReason || undefined,
-        },
-        result.day_revisions ?? this.inputDayRevisions(),
-      ),
+      this.facade.recordExternalResult({
+        resultId: result.id,
+        version: result.version,
+        areaKey: this.externalAreaKey,
+        points: this.externalPoints,
+        grade: this.externalGrade || undefined,
+        professionalStatus: this.externalStatus,
+        determiningAuthority: this.externalAuthority,
+        sourceReference: this.externalSource,
+        correctionReason: this.externalCorrectionReason || undefined,
+        dayRevisions: result.dayRevisions ?? this.inputDayRevisions(),
+      }),
       'Externes Eingangsergebnis unbestätigt erfasst.',
     );
   }
@@ -207,11 +205,11 @@ export class ExamResultComponent implements OnChanges {
     const result = this.result();
     if (!result) return;
     this.run(
-      this.api.confirmExternalResult(
+      this.facade.confirmExternalResult(
         result.id,
         result.version,
         externalResultId,
-        result.day_revisions ?? this.inputDayRevisions(),
+        result.dayRevisions ?? this.inputDayRevisions(),
       ),
       'Externes Eingangsergebnis unabhängig bestätigt.',
     );
@@ -221,13 +219,13 @@ export class ExamResultComponent implements OnChanges {
     const result = this.result();
     if (!result) return;
     this.run(
-      this.api.determineExamResult(
-        result.id,
-        result.version,
-        result.participants,
-        this.dissent(),
-        result.day_revisions ?? this.inputDayRevisions(),
-      ),
+      this.facade.determineExamResult({
+        resultId: result.id,
+        version: result.version,
+        participants: result.participants,
+        dissent: this.dissent(),
+        dayRevisions: result.dayRevisions ?? this.inputDayRevisions(),
+      }),
       'Gesamtergebnis ordnungsgemäß festgestellt.',
     );
   }
@@ -236,10 +234,10 @@ export class ExamResultComponent implements OnChanges {
     const result = this.result();
     if (!result) return;
     this.run(
-      this.api.confirmResultRecord(
+      this.facade.confirmResultRecord(
         result.id,
         result.version,
-        result.day_revisions ?? this.inputDayRevisions(),
+        result.dayRevisions ?? this.inputDayRevisions(),
       ),
       'Ergebnisniederschrift bestätigt.',
     );
@@ -249,12 +247,12 @@ export class ExamResultComponent implements OnChanges {
     const result = this.result();
     if (!result) return;
     this.run(
-      this.api.openResultCorrection(
+      this.facade.openResultCorrection(
         result.id,
         result.version,
         this.correctionReason,
         this.reopeningReference,
-        result.day_revisions ?? this.inputDayRevisions(),
+        result.dayRevisions ?? this.inputDayRevisions(),
       ),
       'Korrekturvorgang eröffnet; der bisherige Feststellungsstand bleibt erhalten.',
     );
@@ -264,13 +262,13 @@ export class ExamResultComponent implements OnChanges {
     const result = this.result();
     if (!result || !this.communicationAt) return;
     this.run(
-      this.api.communicateExamResult(
+      this.facade.communicateExamResult(
         result.id,
         result.version,
         this.communicationMethod,
         this.communicationAt,
         this.externalDocumentReference,
-        result.day_revisions ?? this.inputDayRevisions(),
+        result.dayRevisions ?? this.inputDayRevisions(),
       ),
       'Ergebnismitteilung dokumentiert.',
     );
@@ -280,52 +278,48 @@ export class ExamResultComponent implements OnChanges {
     const result = this.result();
     if (!result) return;
     this.run(
-      this.api.setExamResultRetention(
-        result.id,
-        result.version,
-        {
-          ...(this.retentionPeriodStart ? { period_start: this.retentionPeriodStart } : {}),
-          ...(this.retentionUntil ? { retain_until: this.retentionUntil } : {}),
-          legal_hold: this.retentionLegalHold,
-          ...(this.retentionHoldReason.trim()
-            ? { hold_reason: this.retentionHoldReason.trim() }
-            : {}),
-          ...(this.retentionReleaseReason.trim()
-            ? { release_reason: this.retentionReleaseReason.trim() }
-            : {}),
-        },
-        result.day_revisions ?? this.inputDayRevisions(),
-      ),
+      this.facade.setExamResultRetention({
+        resultId: result.id,
+        version: result.version,
+        ...(this.retentionPeriodStart ? { periodStart: this.retentionPeriodStart } : {}),
+        ...(this.retentionUntil ? { retainUntil: this.retentionUntil } : {}),
+        legalHold: this.retentionLegalHold,
+        ...(this.retentionHoldReason.trim() ? { holdReason: this.retentionHoldReason.trim() } : {}),
+        ...(this.retentionReleaseReason.trim()
+          ? { releaseReason: this.retentionReleaseReason.trim() }
+          : {}),
+        dayRevisions: result.dayRevisions ?? this.inputDayRevisions(),
+      }),
       'Aufbewahrungsregel gespeichert.',
     );
   }
 
   protected latestOwn(result: ExamResult | null, componentKey: string, criterionKey: string) {
-    return result?.individual_assessments
+    return result?.individualAssessments
       .filter(
         (item) =>
-          item.component_key === componentKey &&
-          item.criterion_key === criterionKey &&
-          item.assessor_member_id === this.ownMemberId &&
+          item.componentKey === componentKey &&
+          item.criterionKey === criterionKey &&
+          item.assessorMemberId === this.ownMemberId &&
           item.status !== 'superseded',
       )
       .at(-1);
   }
 
   protected disclosed(result: ExamResult, componentKey: string): boolean {
-    return result.disclosures.some((item) => item.component_key === componentKey);
+    return result.disclosures.some((item) => item.componentKey === componentKey);
   }
 
   protected currentCommittee(result: ExamResult, componentKey: string) {
-    return result.committee_assessments.find(
-      (item) => item.component_key === componentKey && item.status === 'current',
+    return result.committeeAssessments.find(
+      (item) => item.componentKey === componentKey && item.status === 'current',
     );
   }
 
   protected hasConfirmedRecord(result: ExamResult): boolean {
     return (
       this.ownMemberId !== null &&
-      Boolean(result.current_determination?.confirmation_member_ids.includes(this.ownMemberId))
+      Boolean(result.currentDetermination?.confirmationMemberIds.includes(this.ownMemberId))
     );
   }
 
@@ -350,9 +344,9 @@ export class ExamResultComponent implements OnChanges {
     return 'neutral';
   }
 
-  private dissent(): Array<{ member_id: number; statement: string }> {
+  private dissent(): Array<{ memberId: number; statement: string }> {
     return this.dissentMemberId && this.dissentStatement.trim()
-      ? [{ member_id: this.dissentMemberId, statement: this.dissentStatement.trim() }]
+      ? [{ memberId: this.dissentMemberId, statement: this.dissentStatement.trim() }]
       : [];
   }
 
@@ -380,15 +374,15 @@ export class ExamResultComponent implements OnChanges {
 
   private accept(result: ExamResult): void {
     this.result.set(result);
-    for (const component of result.model_version.rules.components) {
+    for (const component of result.modelVersion.rules.components) {
       const current = this.currentCommittee(result, component.key);
       if (current) this.componentPoints.set(component.key, current.points);
     }
-    this.externalAreaKey ||= result.model_version.rules.external_areas[0]?.key ?? '';
-    this.retentionPeriodStart = result.retention?.period_start ?? this.retentionPeriodStart;
-    this.retentionUntil = result.retention?.retain_until ?? this.retentionUntil;
-    this.retentionLegalHold = result.retention?.legal_hold ?? this.retentionLegalHold;
-    this.retentionHoldReason = result.retention?.hold_reason ?? this.retentionHoldReason;
+    this.externalAreaKey ||= result.modelVersion.rules.externalAreas[0]?.key ?? '';
+    this.retentionPeriodStart = result.retention?.periodStart ?? this.retentionPeriodStart;
+    this.retentionUntil = result.retention?.retainUntil ?? this.retentionUntil;
+    this.retentionLegalHold = result.retention?.legalHold ?? this.retentionLegalHold;
+    this.retentionHoldReason = result.retention?.holdReason ?? this.retentionHoldReason;
     if (!this.communicationAt) {
       const now = new Date();
       now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
