@@ -57,7 +57,10 @@ Der Seed bindet zusätzlich seine inhaltsadressierte Revision.
 
 Nach erfolgreicher Attestierung deployt derselbe Lauf das vollständige Digestpaar per bestehender GitHub-OIDC-Identität in das Environment `demo`.
 Nach dem autorisierten Tag-Push gibt es keinen weiteren manuellen Dispatch und kein Required-Reviewer-Gate.
-Atomare Azure-Revision, Readiness, Liveness, Anwendungs-Readiness und der vollständige Smoke-Vertrag bleiben unverändert.
+Für die gemeinsame Abnahme von Snapshot und stabilem Release gelten die
+[Deploymentprüfungen in ADR-0026](0026-automatische-demo-promotion-stabiler-releases.md):
+Der Adapter wartet auf den Zustand `Running` der neuen Azure-Revision und
+ruft anschließend einmal `/api/ready` auf.
 Ein Rückfall verwendet weiterhin ausschließlich ein früheres, vollständig geprüftes Digestpaar über den bestehenden manuellen Rollback-Pfad.
 
 Das bestehende Environment verwendet dafür ausgewählte Branch-/Tag-Regeln: `master` bleibt für den manuellen Release-/Rollback-Pfad erlaubt, `snapshot/v*-SNAPSHOT.*` ausschließlich für die Snapshot-Tags.
