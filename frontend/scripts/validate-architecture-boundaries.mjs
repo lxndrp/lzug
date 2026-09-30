@@ -46,9 +46,10 @@ const [component, facade, componentSpec, application, port, adapter, config] = a
 assert.doesNotMatch(importsOf(component), /\.\.\/api\//, 'feature component imports API transport');
 assert.doesNotMatch(
   importsOf(facade),
-  /(?:api\/|HttpClient|http-scheduling-overview\.adapter)/,
+  /(?:api\/|@angular\/common\/http|http-scheduling-overview\.adapter)/,
   'feature facade imports a transport implementation',
 );
+assert.doesNotMatch(facade, /\bHttpClient\b/, 'feature facade refers to HttpClient directly');
 assert.doesNotMatch(
   importsOf(application),
   /\.\.\/\.\.\/api\//,
