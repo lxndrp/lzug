@@ -407,6 +407,78 @@ assert.equal(
   'composition root binds the half-year port to its HTTP adapter',
 );
 
+const examDayFeaturePath = path.join(root, 'exam-day', 'exam-day.component.ts');
+const examDayFacadePath = path.join(root, 'exam-day', 'exam-day.facade.ts');
+const examDayApplicationPath = path.join(root, 'exam-day', 'exam-day.application.ts');
+const examDayPortPath = path.join(root, 'exam-day', 'exam-day.port.ts');
+const examDayModelsPath = path.join(root, 'exam-day', 'exam-day.models.ts');
+const examDaySpecPath = path.join(root, 'exam-day', 'exam-day.component.spec.ts');
+const examDayAdapterPath = path.join(root, 'api', 'http-exam-day.adapter.ts');
+const examDayAdapterSpecPath = path.join(root, 'api', 'http-exam-day.adapter.spec.ts');
+const [
+  examDayFeature,
+  examDayFacade,
+  examDayApplication,
+  examDayPort,
+  examDayModels,
+  examDaySpec,
+  examDayAdapter,
+  examDayAdapterSpec,
+] = await Promise.all(
+  [
+    examDayFeaturePath,
+    examDayFacadePath,
+    examDayApplicationPath,
+    examDayPortPath,
+    examDayModelsPath,
+    examDaySpecPath,
+    examDayAdapterPath,
+    examDayAdapterSpecPath,
+  ].map((file) => readFile(file, 'utf8')),
+);
+assert.match(importsOf(examDayFeature), /exam-day\.facade/);
+assert.match(importsOf(examDayFeature), /exam-day\.models/);
+assert.doesNotMatch(
+  importsOf(examDayFeature),
+  /ExamDayApiService|exam-day-api\.service|ApiClient|api-client\.service|api\.models/,
+  'exam-day feature uses its facade and feature-owned models',
+);
+assert.doesNotMatch(
+  examDayFeature,
+  /\bHttpClient\b|\bfetch\s*\(/,
+  'exam-day feature performs no HTTP directly',
+);
+assert.match(examDayFacade, /ExamDayApplication/);
+assert.deepEqual(relativeImportsOf(examDayApplication), ['./exam-day.port']);
+assert.deepEqual(relativeImportsOf(examDayPort), ['./exam-day.models']);
+assert.doesNotMatch(
+  importsOf(examDayPort),
+  /@angular\/common\/http|(?:^|\/)(?:api|adapters?)(?:\/|$)|types\.gen|['"]\/api\//,
+  'exam-day port exposes no transport details',
+);
+assert.doesNotMatch(
+  importsOf(examDayModels),
+  /(?:^|\/)api\.models(?:$|\n)|execution\.models|types\.gen/,
+  'exam-day models are owned by the feature',
+);
+assert.match(examDayAdapter, /ExamDayApiService/);
+assert.match(examDayAdapter, /exam-day\.port/);
+assert.match(examDaySpec, /EXAM_DAY_PORT/);
+assert.match(examDaySpec, /PERSONAL_PORT/);
+assert.doesNotMatch(
+  examDaySpec,
+  /HttpTestingController|provideHttpClientTesting/,
+  'exam-day feature tests use application-boundary doubles',
+);
+assert.match(examDayAdapterSpec, /HttpExamDayAdapter/);
+assert.match(examDayAdapterSpec, /exam_day_id/);
+assert.match(examDayAdapterSpec, /dayId/);
+assert.equal(
+  hasProviderBinding(config, 'EXAM_DAY_PORT', 'HttpExamDayAdapter'),
+  true,
+  'composition root binds the exam-day port to its HTTP adapter',
+);
+
 function importModulesOf(source) {
   const file = ts.createSourceFile('boundary.ts', source, ts.ScriptTarget.Latest, true);
   const modules = [];
