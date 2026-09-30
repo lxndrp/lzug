@@ -2,11 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { catchError, map, throwError } from 'rxjs';
 
-import type {
-  ExamProtocol as ApiExamProtocol,
-  ExamProtocolDeclaration as ApiProtocolDeclaration,
-  ExamProtocolEntryCategory as ApiProtocolEntryCategory,
-} from './execution.models';
+import type { ExamProtocol as ApiExamProtocol } from './execution.models';
 import type { DomainResourceWrite, ExamProtocolContentRequest } from './generated/types.gen';
 import { ApiClient } from './api-client.service';
 import { toApplicationError } from './application-error';
@@ -35,7 +31,7 @@ export class HttpExamProtocolAdapter implements ExamProtocolPort {
       version: command.version,
       declaration: command.declaration,
       entries: command.entries.map((entry) => ({
-        category: entry.category as ApiProtocolEntryCategory,
+        category: entry.category,
         statement: entry.statement,
         occurred_from: entry.occurredFrom,
         occurred_to: entry.occurredTo,
@@ -172,7 +168,7 @@ function fromApiRevision(
   return {
     id: value.id,
     version: value.version,
-    declaration: value.declaration as ApiProtocolDeclaration | null,
+    declaration: value.declaration,
     workflowState: value.workflow_state,
     changeReason: value.change_reason,
     submittedAt: value.submitted_at,
@@ -180,7 +176,7 @@ function fromApiRevision(
     missingResponseMemberIds: [...value.missing_response_member_ids],
     entries: value.entries.map((entry) => ({
       id: entry.id,
-      category: entry.category as ApiProtocolEntryCategory,
+      category: entry.category,
       statement: entry.statement,
       occurredFrom: entry.occurred_from,
       occurredTo: entry.occurred_to,
