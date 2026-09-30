@@ -21,10 +21,11 @@ import {
   PlanningProposalDay,
   PlanningProposalSlot,
 } from '../api/api.models';
-import { ConfirmedPlanApiService } from '../api/confirmed-plan-api.service';
 import { ApplicationError } from '../application/application-error';
 import { AuthService } from '../auth/auth.service';
 import { RuntimeExperienceService } from '../runtime/runtime-experience.service';
+import type { WithoutHttpLinks } from '../application/without-http-links';
+import { ConfirmedPlansWorkflowService } from './confirmed-plans-workflow.service';
 
 /** Lifecycle states exposed by the confirmed-plan editor. */
 export type EditorState = 'loading' | 'ready' | 'saving' | 'error';
@@ -41,7 +42,7 @@ export type EditorState = 'loading' | 'ready' | 'saving' | 'error';
   styleUrl: './confirmed-plan-editor.component.css',
 })
 export class ConfirmedPlanEditorComponent implements OnChanges {
-  private readonly api = inject(ConfirmedPlanApiService);
+  private readonly confirmedPlans = inject(ConfirmedPlansWorkflowService);
   private readonly auth = inject(AuthService);
   private readonly runtimeExperience = inject(RuntimeExperienceService);
 
@@ -50,7 +51,7 @@ export class ConfirmedPlanEditorComponent implements OnChanges {
   @Input() board: PlanningBoard | null = null;
 
   protected readonly state = signal<EditorState>('loading');
-  protected readonly draft = signal<EditablePlanningProposal | null>(null);
+  protected readonly draft = signal<WithoutHttpLinks<EditablePlanningProposal> | null>(null);
   protected readonly revisions = signal<ConfirmedPlanRevision[]>([]);
   protected readonly errorMessage = signal<string | null>(null);
   protected readonly reason = signal('');
@@ -98,7 +99,7 @@ export class ConfirmedPlanEditorComponent implements OnChanges {
     const roundId = this.roundId;
     this.state.set('loading');
     this.errorMessage.set(null);
-    this.api.getEditableConfirmedPlan(roundId).subscribe({
+    this.confirmedPlans.getEditableConfirmedPlan(roundId).subscribe({
       next: (proposal) => {
         if (!this.isCurrentRequest(generation, roundId)) return;
         this.draft.set(this.clone(proposal));
@@ -123,7 +124,7 @@ export class ConfirmedPlanEditorComponent implements OnChanges {
     const roundId = this.roundId;
     this.state.set('saving');
     this.errorMessage.set(null);
-    this.api.saveEditableConfirmedPlan(roundId, proposal, this.reason()).subscribe({
+    this.confirmedPlans.saveEditableConfirmedPlan(roundId, proposal, this.reason()).subscribe({
       next: (saved) => {
         if (!this.isCurrentRequest(generation, roundId)) return;
         this.draft.set(this.clone(saved));
@@ -260,7 +261,7 @@ export class ConfirmedPlanEditorComponent implements OnChanges {
 
   private loadAfterConflict(generation: number, roundId: number): void {
     this.state.set('loading');
-    this.api.getEditableConfirmedPlan(roundId).subscribe({
+    this.confirmedPlans.getEditableConfirmedPlan(roundId).subscribe({
       next: (proposal) => {
         if (!this.isCurrentRequest(generation, roundId)) return;
         this.draft.set(this.clone(proposal));
@@ -281,7 +282,7 @@ export class ConfirmedPlanEditorComponent implements OnChanges {
   }
 
   private loadRevisions(generation: number, roundId: number): void {
-    this.api.getConfirmedPlanRevisions(roundId).subscribe({
+    this.confirmedPlans.getConfirmedPlanRevisions(roundId).subscribe({
       next: (revisions) => {
         if (this.isCurrentRequest(generation, roundId)) this.revisions.set(revisions);
       },
@@ -340,7 +341,9 @@ export class ConfirmedPlanEditorComponent implements OnChanges {
     this.dirty.set(true);
   }
 
-  private clone(proposal: EditablePlanningProposal): EditablePlanningProposal {
+  private clone(
+    proposal: WithoutHttpLinks<EditablePlanningProposal>,
+  ): WithoutHttpLinks<EditablePlanningProposal> {
     return structuredClone(proposal);
   }
 }

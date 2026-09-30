@@ -13,7 +13,7 @@ import { TuiButton } from '@taiga-ui/core';
 import { TuiBadge } from '@taiga-ui/kit';
 
 import { ConfirmedPlan, PlanningBoard } from '../api/api.models';
-import { ConfirmedPlanApiService } from '../api/confirmed-plan-api.service';
+import { ConfirmedPlansWorkflowService } from './confirmed-plans-workflow.service';
 import { ConfirmedPlanEditorComponent } from './confirmed-plan-editor.component';
 
 export type ViewState = 'loading' | 'ready' | 'error';
@@ -25,7 +25,7 @@ export type ViewState = 'loading' | 'ready' | 'error';
   styleUrl: './confirmed-plans.component.css',
 })
 export class ConfirmedPlansComponent implements OnInit, OnChanges {
-  private readonly api = inject(ConfirmedPlanApiService);
+  private readonly confirmedPlans = inject(ConfirmedPlansWorkflowService);
   private readonly router = inject(Router);
 
   @Input() roundId: number | null = null;
@@ -71,7 +71,7 @@ export class ConfirmedPlansComponent implements OnInit, OnChanges {
 
   protected load(): void {
     this.state.set('loading');
-    this.api.getConfirmedPlans().subscribe({
+    this.confirmedPlans.getConfirmedPlans().subscribe({
       next: (plans) => {
         this.plans.set(plans);
         this.selectFirstVisibleCommittee();

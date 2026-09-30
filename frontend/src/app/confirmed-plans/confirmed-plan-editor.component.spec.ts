@@ -1,33 +1,72 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
-import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideTaiga } from '@taiga-ui/core';
+import { Subject, of, throwError } from 'rxjs';
 
-import { ConfirmedPlanEditorComponent } from './confirmed-plan-editor.component';
-import { ConfirmedPlan, PlanningBoard } from '../api/api.models';
+import { ApplicationError } from '../application/application-error';
+import {
+  ConfirmedPlan,
+  ConfirmedPlanRevision,
+  EditablePlanningProposal,
+  PlanningBoard,
+} from '../api/api.models';
 import { AuthService } from '../auth/auth.service';
+import { RuntimeExperienceService } from '../runtime/runtime-experience.service';
+import { ConfirmedPlansWorkflowService } from './confirmed-plans-workflow.service';
+import { ConfirmedPlanEditorComponent } from './confirmed-plan-editor.component';
 
 describe('ConfirmedPlanEditorComponent', () => {
   let fixture: ComponentFixture<ConfirmedPlanEditorComponent>;
-  let http: HttpTestingController;
+  let loads: Array<{
+    roundId: number;
+    subject: Subject<EditablePlanningProposal>;
+    settled: boolean;
+  }>;
+  let saves: Array<Subject<EditablePlanningProposal>>;
+  let workflow: {
+    getEditableConfirmedPlan: ReturnType<typeof vi.fn>;
+    saveEditableConfirmedPlan: ReturnType<typeof vi.fn>;
+    getConfirmedPlanRevisions: ReturnType<typeof vi.fn>;
+  };
+  let runtime: { getDemoScenarios: ReturnType<typeof vi.fn> };
+  let nextSaveError: Error | null;
 
   beforeEach(async () => {
+    loads = [];
+    saves = [];
+    nextSaveError = null;
+    workflow = {
+      getEditableConfirmedPlan: vi.fn((roundId: number) => {
+        const subject = new Subject<EditablePlanningProposal>();
+        loads.push({ roundId, subject, settled: false });
+        return subject;
+      }),
+      saveEditableConfirmedPlan: vi.fn(() => {
+        if (nextSaveError) {
+          const error = nextSaveError;
+          nextSaveError = null;
+          return throwError(() => error);
+        }
+        const subject = new Subject<EditablePlanningProposal>();
+        saves.push(subject);
+        return subject;
+      }),
+      getConfirmedPlanRevisions: vi.fn(() => of([] as ConfirmedPlanRevision[])),
+    };
+    runtime = { getDemoScenarios: vi.fn(() => of({ prepared_plan_change: null })) };
+
     await TestBed.configureTestingModule({
       imports: [ConfirmedPlanEditorComponent],
       providers: [
-        provideHttpClient(),
-        provideHttpClientTesting(),
         provideTaiga({ scrollbars: 'native' }),
+        { provide: ConfirmedPlansWorkflowService, useValue: workflow },
+        { provide: RuntimeExperienceService, useValue: runtime },
       ],
     }).compileComponents();
     fixture = TestBed.createComponent(ConfirmedPlanEditorComponent);
-    http = TestBed.inject(HttpTestingController);
     fixture.componentRef.setInput('roundId', 1);
     fixture.componentRef.setInput('plan', plan());
     fixture.componentRef.setInput('board', board());
   });
-
-  afterEach(() => http.verify());
 
   it('requires a reason and persists an allowed reordered day as a revision', () => {
     loadEditor();
@@ -43,28 +82,27 @@ describe('ConfirmedPlanEditorComponent', () => {
     fixture.detectChanges();
 
     button(element, 'Änderung mit Grund speichern').click();
-    const request = http.expectOne('/api/exam-rounds/1/confirmed-plan');
-    expect(request.request.method).toBe('PUT');
-    expect(request.request.body.reason).toBe('Reihenfolge nach Rücksprache korrigiert');
-    expect(request.request.body.exam_days[0].slots.map((slot: { id: number }) => slot.id)).toEqual([
-      2, 1,
-    ]);
-    request.flush({ ...editablePlan(), revision: 2, latest_revision: { id: 1 } });
-    http.expectOne('/api/exam-rounds/1/confirmed-plan/revisions').flush({
-      items: [
+    expect(workflow.saveEditableConfirmedPlan).toHaveBeenCalledTimes(1);
+    const [roundId, saved, changeReason] = workflow.saveEditableConfirmedPlan.mock.calls[0];
+    expect(roundId).toBe(1);
+    expect(changeReason).toBe('Reihenfolge nach Rücksprache korrigiert');
+    expect(saved.exam_days[0].slots.map((slot: { id: number }) => slot.id)).toEqual([2, 1]);
+
+    workflow.getConfirmedPlanRevisions.mockReturnValueOnce(
+      of([
         {
           id: 1,
           previous_revision: 1,
           resulting_revision: 2,
-          reason: 'Reihenfolge nach Rücksprache korrigiert',
+          reason: changeReason,
           actor_member_id: 1,
           created_at: '2026-08-30T12:00:00Z',
           before: editablePlan(),
           after: { ...editablePlan(), revision: 2 },
-        },
-      ],
-      _links: {},
-    });
+        } satisfies ConfirmedPlanRevision,
+      ]),
+    );
+    resolveSave({ ...editablePlan(), revision: 2 });
     fixture.detectChanges();
     expect(element.textContent).toContain('Die Änderung wurde als neue Planrevision gespeichert.');
     expect(element.textContent).toContain('Revision 1 → 2');
@@ -81,8 +119,8 @@ describe('ConfirmedPlanEditorComponent', () => {
 
     fixture.componentRef.setInput('plan', plan());
     fixture.detectChanges();
-    http.expectOne('/api/exam-rounds/1/confirmed-plan').flush(editablePlan());
-    http.expectOne('/api/exam-rounds/1/confirmed-plan/revisions').flush({ items: [], _links: {} });
+    resolveLoad(1, editablePlan());
+    fixture.detectChanges();
     button(element, 'Termin 2 nach oben verschieben').click();
     const reason = element.querySelector<HTMLTextAreaElement>('#confirmedPlanChangeReason')!;
     reason.value = 'Aktuelle Planung anpassen';
@@ -90,15 +128,9 @@ describe('ConfirmedPlanEditorComponent', () => {
     fixture.detectChanges();
     const saveButton = button(element, 'Änderung mit Grund speichern');
     expect(saveButton.disabled).toBe(false);
+    nextSaveError = new ApplicationError('conflict', 'conflict');
     saveButton.click();
-    http
-      .expectOne('/api/exam-rounds/1/confirmed-plan')
-      .flush(
-        { error: { code: 'confirmed_plan_conflict' } },
-        { status: 409, statusText: 'Conflict' },
-      );
-    http.expectOne('/api/exam-rounds/1/confirmed-plan').flush({ ...editablePlan(), revision: 3 });
-    http.expectOne('/api/exam-rounds/1/confirmed-plan/revisions').flush({ items: [], _links: {} });
+    resolveLoad(1, { ...editablePlan(), revision: 3 });
     fixture.detectChanges();
     expect(element.textContent).toContain('Der Plan wurde inzwischen geändert.');
     expect(element.textContent).toContain('Revision 3');
@@ -106,12 +138,9 @@ describe('ConfirmedPlanEditorComponent', () => {
 
   it('ignores late responses from the previous round and preserves the current draft', () => {
     fixture.detectChanges();
-    const staleLoad = http.expectOne('/api/exam-rounds/1/confirmed-plan');
-
     fixture.componentRef.setInput('roundId', 2);
     fixture.detectChanges();
-    http.expectOne('/api/exam-rounds/2/confirmed-plan').flush({ ...editablePlan(), round_id: 2 });
-    http.expectOne('/api/exam-rounds/2/confirmed-plan/revisions').flush({ items: [], _links: {} });
+    resolveLoad(2, { ...editablePlan(), round_id: 2 });
     fixture.detectChanges();
 
     const element = fixture.nativeElement as HTMLElement;
@@ -121,21 +150,16 @@ describe('ConfirmedPlanEditorComponent', () => {
     reason.dispatchEvent(new Event('input'));
     fixture.detectChanges();
 
-    staleLoad.flush(
-      { error: { message: 'alte Runde nicht erreichbar' } },
-      { status: 500, statusText: 'Error' },
-    );
+    rejectLoad(1, new Error('alte Runde nicht erreichbar'));
     fixture.detectChanges();
     expect(button(element, 'Änderung mit Grund speichern').disabled).toBe(false);
     expect(element.textContent).not.toContain('Der bestätigte Plan konnte nicht geladen werden.');
 
     button(element, 'Änderung mit Grund speichern').click();
-    const staleSave = http.expectOne('/api/exam-rounds/2/confirmed-plan');
     fixture.componentRef.setInput('roundId', 3);
     fixture.detectChanges();
-    http.expectOne('/api/exam-rounds/3/confirmed-plan').flush({ ...editablePlan(), round_id: 3 });
-    http.expectOne('/api/exam-rounds/3/confirmed-plan/revisions').flush({ items: [], _links: {} });
-    staleSave.flush({ ...editablePlan(), round_id: 2, revision: 2 });
+    resolveLoad(3, { ...editablePlan(), round_id: 3 });
+    resolveSave({ ...editablePlan(), round_id: 2, revision: 2 });
     fixture.detectChanges();
 
     expect(element.textContent).not.toContain(
@@ -146,12 +170,9 @@ describe('ConfirmedPlanEditorComponent', () => {
 
   it('ignores a late successful load from the previous round after the current draft changes', () => {
     fixture.detectChanges();
-    const staleLoad = http.expectOne('/api/exam-rounds/1/confirmed-plan');
-
     fixture.componentRef.setInput('roundId', 2);
     fixture.detectChanges();
-    http.expectOne('/api/exam-rounds/2/confirmed-plan').flush({ ...editablePlan(), round_id: 2 });
-    http.expectOne('/api/exam-rounds/2/confirmed-plan/revisions').flush({ items: [], _links: {} });
+    resolveLoad(2, { ...editablePlan(), round_id: 2 });
     fixture.detectChanges();
 
     const element = fixture.nativeElement as HTMLElement;
@@ -161,7 +182,7 @@ describe('ConfirmedPlanEditorComponent', () => {
     reason.dispatchEvent(new Event('input'));
     fixture.detectChanges();
 
-    staleLoad.flush({ ...editablePlan(), revision: 7 });
+    resolveLoad(1, { ...editablePlan(), revision: 7 });
     fixture.detectChanges();
 
     const firstCandidate = element.querySelector<HTMLSelectElement>(
@@ -179,8 +200,7 @@ describe('ConfirmedPlanEditorComponent', () => {
 
   it('hides the previous round editor while the newly selected round loads', () => {
     fixture.detectChanges();
-    http.expectOne('/api/exam-rounds/1/confirmed-plan').flush(editablePlan());
-    http.expectOne('/api/exam-rounds/1/confirmed-plan/revisions').flush({ items: [], _links: {} });
+    resolveLoad(1, editablePlan());
     fixture.detectChanges();
 
     const element = fixture.nativeElement as HTMLElement;
@@ -188,14 +208,11 @@ describe('ConfirmedPlanEditorComponent', () => {
 
     fixture.componentRef.setInput('roundId', 2);
     fixture.detectChanges();
-    const roundBRequest = http.expectOne('/api/exam-rounds/2/confirmed-plan');
-
     expect(element.textContent).toContain('Bearbeitbarer Plan wird geladen');
     expect(element.textContent).not.toContain('Bestätigten Plan ändern');
     expect(element.querySelector('.app-confirmed-editor-slots')).toBeNull();
 
-    roundBRequest.flush({ ...editablePlan(), round_id: 2 });
-    http.expectOne('/api/exam-rounds/2/confirmed-plan/revisions').flush({ items: [], _links: {} });
+    resolveLoad(2, { ...editablePlan(), round_id: 2 });
     fixture.detectChanges();
     expect(element.textContent).toContain('Bestätigten Plan ändern');
   });
@@ -210,20 +227,21 @@ describe('ConfirmedPlanEditorComponent', () => {
       demo_role: 'chair',
       capabilities: ['confirmed-plan:revise'],
     });
+    runtime.getDemoScenarios.mockReturnValueOnce(
+      of({
+        prepared_plan_change: {
+          round_id: 1,
+          day_id: 1,
+          source_location_id: 1,
+          target_location_id: 2,
+          assignment_id: 1,
+          replacement_member_id: 2,
+          reason: 'Synthetischer Ortswechsel mit gleichseitiger Ersatzbesetzung',
+        },
+      }),
+    );
     fixture.detectChanges();
-    http.expectOne('/api/exam-rounds/1/confirmed-plan').flush(editablePlan());
-    http.expectOne('/api/demo/scenarios').flush({
-      prepared_plan_change: {
-        round_id: 1,
-        day_id: 1,
-        source_location_id: 1,
-        target_location_id: 2,
-        assignment_id: 1,
-        replacement_member_id: 2,
-        reason: 'Synthetischer Ortswechsel mit gleichseitiger Ersatzbesetzung',
-      },
-    });
-    http.expectOne('/api/exam-rounds/1/confirmed-plan/revisions').flush({ items: [], _links: {} });
+    resolveLoad(1, editablePlan());
     fixture.detectChanges();
 
     const element = fixture.nativeElement as HTMLElement;
@@ -240,25 +258,47 @@ describe('ConfirmedPlanEditorComponent', () => {
     button(element, 'Änderung vorbereiten').click();
     fixture.detectChanges();
     button(element, 'Änderung mit Grund speichern').click();
-    const request = http.expectOne('/api/exam-rounds/1/confirmed-plan');
-    expect(request.request.body.reason).toBe(
-      'Synthetischer Ortswechsel mit gleichseitiger Ersatzbesetzung',
-    );
-    expect(request.request.body.exam_days[0].room_id).toBe(2);
-    expect(request.request.body.exam_days[0].location_id).toBe(2);
-    expect(request.request.body.exam_days[0].assignments[0].committee_member_id).toBe(2);
-    expect(request.request.body._links).toBeUndefined();
-    request.flush({ ...editablePlan(), revision: 2 });
-    http.expectOne('/api/exam-rounds/1/confirmed-plan/revisions').flush({ items: [], _links: {} });
+    const [roundId, saved, reason] = workflow.saveEditableConfirmedPlan.mock.calls[0];
+    expect(roundId).toBe(1);
+    expect(reason).toBe('Synthetischer Ortswechsel mit gleichseitiger Ersatzbesetzung');
+    expect(saved.exam_days[0].room_id).toBe(2);
+    expect(saved.exam_days[0].location_id).toBe(2);
+    expect(saved.exam_days[0].assignments[0].committee_member_id).toBe(2);
+    expect(saved._links).toBeUndefined();
+    resolveSave({ ...editablePlan(), revision: 2 });
     fixture.detectChanges();
     expect(element.textContent).toContain('Öffnen Sie die Demo-Szenarien');
   });
 
   function loadEditor(): void {
     fixture.detectChanges();
-    http.expectOne('/api/exam-rounds/1/confirmed-plan').flush(editablePlan());
-    http.expectOne('/api/exam-rounds/1/confirmed-plan/revisions').flush({ items: [], _links: {} });
+    resolveLoad(1, editablePlan());
     fixture.detectChanges();
+  }
+
+  function resolveLoad(roundId: number, value: ReturnType<typeof editablePlan>): void {
+    const request = [...loads].reverse().find((item) => item.roundId === roundId && !item.settled);
+    expect(request).toBeDefined();
+    if (!request) throw new Error(`No pending confirmed-plan request for round ${roundId}`);
+    request.settled = true;
+    request.subject.next(value as EditablePlanningProposal);
+    request.subject.complete();
+  }
+
+  function rejectLoad(roundId: number, error: Error): void {
+    const request = [...loads].reverse().find((item) => item.roundId === roundId && !item.settled);
+    expect(request).toBeDefined();
+    if (!request) throw new Error(`No pending confirmed-plan request for round ${roundId}`);
+    request.settled = true;
+    request.subject.error(error);
+  }
+
+  function resolveSave(value: ReturnType<typeof editablePlan>): void {
+    const request = saves.find((item) => !item.closed);
+    expect(request).toBeDefined();
+    if (!request) throw new Error('No pending confirmed-plan save request');
+    request.next(value as EditablePlanningProposal);
+    request.complete();
   }
 });
 
@@ -270,7 +310,7 @@ function button(element: HTMLElement, label: string): HTMLButtonElement {
   return found!;
 }
 
-function editablePlan() {
+function editablePlan(): EditablePlanningProposal {
   return {
     round_id: 1,
     revision: 1,
@@ -319,7 +359,6 @@ function editablePlan() {
         ],
       },
     ],
-    _links: {},
   };
 }
 

@@ -29,6 +29,8 @@ import { LocationsRouteComponent } from './routes/locations-route.component';
 import { ApplicationWorkspaceService } from './shell/application-workspace.service';
 import { UiFeedbackService } from './shell/ui-feedback.service';
 import { WORKSPACE_PORT } from './shell/workspace.port';
+import { CONFIRMED_PLANS_PORT } from './confirmed-plans/confirmed-plans.port';
+import { HttpConfirmedPlansAdapter } from './api/http-confirmed-plans.adapter';
 import { VenueWorkflowService } from './locations/venue-workflow.service';
 import { LifecycleService } from './runtime/lifecycle.service';
 import {
@@ -71,6 +73,7 @@ describe('App', () => {
         provideHttpClientTesting(),
         { provide: PLANNING_PORT, useClass: HttpPlanningAdapter },
         { provide: WORKSPACE_PORT, useClass: HttpWorkspaceAdapter },
+        { provide: CONFIRMED_PLANS_PORT, useClass: HttpConfirmedPlansAdapter },
         provideTaiga({ scrollbars: 'native' }),
         TuiConfirmService,
         { provide: LifecycleService, useValue: { ready: signal(true), check: () => of(true) } },

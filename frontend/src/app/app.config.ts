@@ -26,12 +26,15 @@ import { FRONTEND_ERROR_REPORTER_PORT } from './observability/frontend-error.por
 import { HttpFrontendErrorReporter } from './api/frontend-error-api.adapter';
 import { PLANNING_PORT } from './planning/planning.port';
 import { HttpPlanningAdapter } from './planning/http-planning.adapter';
+import { CONFIRMED_PLANS_PORT } from './confirmed-plans/confirmed-plans.port';
+import { HttpConfirmedPlansAdapter } from './api/http-confirmed-plans.adapter';
 
 export const appConfig: ApplicationConfig = {
   providers: [
     { provide: SCHEDULING_OVERVIEW_PORT, useClass: HttpSchedulingOverviewAdapter },
     { provide: PLANNING_PORT, useClass: HttpPlanningAdapter },
     { provide: WORKSPACE_PORT, useClass: HttpWorkspaceAdapter },
+    { provide: CONFIRMED_PLANS_PORT, useClass: HttpConfirmedPlansAdapter },
     { provide: AUTHENTICATION_PORT, useExisting: AuthService },
     { provide: LIFECYCLE_AVAILABILITY_PORT, useExisting: LifecycleService },
     { provide: FRONTEND_ERROR_REPORTER_PORT, useClass: HttpFrontendErrorReporter },

@@ -207,6 +207,94 @@ assert.equal(
   'composition root binds the workspace port to its HTTP adapter',
 );
 
+const confirmedPlansPath = path.join(root, 'confirmed-plans', 'confirmed-plans.component.ts');
+const confirmedEditorPath = path.join(
+  root,
+  'confirmed-plans',
+  'confirmed-plan-editor.component.ts',
+);
+const confirmedWorkflowPath = path.join(
+  root,
+  'confirmed-plans',
+  'confirmed-plans-workflow.service.ts',
+);
+const confirmedPortPath = path.join(root, 'confirmed-plans', 'confirmed-plans.port.ts');
+const confirmedPlansSpecPath = path.join(
+  root,
+  'confirmed-plans',
+  'confirmed-plans.component.spec.ts',
+);
+const confirmedEditorSpecPath = path.join(
+  root,
+  'confirmed-plans',
+  'confirmed-plan-editor.component.spec.ts',
+);
+const confirmedAdapterPath = path.join(root, 'api', 'http-confirmed-plans.adapter.ts');
+const confirmedAdapterSpecPath = path.join(root, 'api', 'http-confirmed-plans.adapter.spec.ts');
+const [
+  confirmedPlans,
+  confirmedEditor,
+  confirmedWorkflow,
+  confirmedPort,
+  confirmedPlansSpec,
+  confirmedEditorSpec,
+  confirmedAdapter,
+  confirmedAdapterSpec,
+] = await Promise.all(
+  [
+    confirmedPlansPath,
+    confirmedEditorPath,
+    confirmedWorkflowPath,
+    confirmedPortPath,
+    confirmedPlansSpecPath,
+    confirmedEditorSpecPath,
+    confirmedAdapterPath,
+    confirmedAdapterSpecPath,
+  ].map((file) => readFile(file, 'utf8')),
+);
+
+for (const [name, component] of [
+  ['confirmed plans', confirmedPlans],
+  ['confirmed-plan editor', confirmedEditor],
+]) {
+  assert.match(importsOf(component), /confirmed-plans-workflow\.service/);
+  assert.doesNotMatch(
+    importsOf(component),
+    /ConfirmedPlanApiService|confirmed-plan-api\.service|ApiClient|api-client\.service/,
+    `${name} must not depend directly on a transport service`,
+  );
+}
+assert.match(confirmedWorkflow, /CONFIRMED_PLANS_PORT/);
+assert.doesNotMatch(
+  importsOf(confirmedWorkflow),
+  /ConfirmedPlanApiService|confirmed-plan-api\.service|ApiClient|api-client\.service/,
+  'confirmed-plan application operations must depend on their port',
+);
+assert.doesNotMatch(
+  confirmedPort,
+  /HttpClient|fetch\s*\(|types\.gen|['"]\/api\//,
+  'confirmed-plan port must not expose transport details',
+);
+assert.match(confirmedAdapter, /ConfirmedPlanApiService/);
+assert.match(confirmedAdapter, /withoutHttpLinks/);
+for (const [name, spec] of [
+  ['confirmed-plan list', confirmedPlansSpec],
+  ['confirmed-plan editor', confirmedEditorSpec],
+]) {
+  assert.doesNotMatch(
+    spec,
+    /HttpTestingController|provideHttpClientTesting/,
+    `${name} behavior tests must use application-boundary doubles`,
+  );
+}
+assert.match(confirmedAdapterSpec, /HttpConfirmedPlansAdapter/);
+assert.match(confirmedAdapterSpec, /_links/);
+assert.equal(
+  hasProviderBinding(config, 'CONFIRMED_PLANS_PORT', 'HttpConfirmedPlansAdapter'),
+  true,
+  'composition root binds the confirmed-plans port to its HTTP adapter',
+);
+
 function importModulesOf(source) {
   const file = ts.createSourceFile('boundary.ts', source, ts.ScriptTarget.Latest, true);
   const modules = [];

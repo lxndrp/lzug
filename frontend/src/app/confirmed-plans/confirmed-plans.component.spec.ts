@@ -1,34 +1,29 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
-import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
 import { provideTaiga } from '@taiga-ui/core';
+import { of, throwError } from 'rxjs';
 
+import { ConfirmedPlansWorkflowService } from './confirmed-plans-workflow.service';
 import { ConfirmedPlansComponent } from './confirmed-plans.component';
 
 describe('ConfirmedPlansComponent', () => {
   let fixture: ComponentFixture<ConfirmedPlansComponent>;
-  let http: HttpTestingController;
+  let workflow: { getConfirmedPlans: ReturnType<typeof vi.fn> };
 
   beforeEach(async () => {
+    workflow = { getConfirmedPlans: vi.fn(() => of(plans())) };
     await TestBed.configureTestingModule({
       imports: [ConfirmedPlansComponent],
       providers: [
         provideRouter([]),
-        provideHttpClient(),
-        provideHttpClientTesting(),
+        { provide: ConfirmedPlansWorkflowService, useValue: workflow },
         provideTaiga({ scrollbars: 'native' }),
       ],
     }).compileComponents();
     fixture = TestBed.createComponent(ConfirmedPlansComponent);
-    http = TestBed.inject(HttpTestingController);
   });
 
-  afterEach(() => http.verify());
-
   it('shows robust local times and German labels in committee tabs', () => {
-    fixture.detectChanges();
-    http.expectOne('/api/confirmed-plans').flush({ items: plans(), _links: {} });
     fixture.detectChanges();
     const element = fixture.nativeElement as HTMLElement;
     expect(element.textContent).toContain('Prüfungsausschuss Plan Alpha');
@@ -66,8 +61,6 @@ describe('ConfirmedPlansComponent', () => {
 
   it('links tabs to their panel and supports arrow-key selection', () => {
     fixture.detectChanges();
-    http.expectOne('/api/confirmed-plans').flush({ items: plans(), _links: {} });
-    fixture.detectChanges();
 
     const element = fixture.nativeElement as HTMLElement;
     const tabs = element.querySelectorAll<HTMLButtonElement>('[role="tab"]');
@@ -90,8 +83,6 @@ describe('ConfirmedPlansComponent', () => {
   it('opens a round-specific confirmed plan without exposing other rounds', () => {
     fixture.componentRef.setInput('roundId', 2);
     fixture.detectChanges();
-    http.expectOne('/api/confirmed-plans').flush({ items: plans(), _links: {} });
-    fixture.detectChanges();
 
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('Prüfling Plan-Beta');
@@ -104,8 +95,6 @@ describe('ConfirmedPlansComponent', () => {
     fixture.componentRef.setInput('editRoundId', 1);
     fixture.componentRef.setInput('canEdit', false);
     fixture.detectChanges();
-    http.expectOne('/api/confirmed-plans').flush({ items: plans(), _links: {} });
-    fixture.detectChanges();
 
     const element = fixture.nativeElement as HTMLElement;
     expect(element.querySelector('app-confirmed-plan-editor')).toBeNull();
@@ -113,8 +102,10 @@ describe('ConfirmedPlansComponent', () => {
   });
 
   it('renders empty and retryable error states', () => {
-    fixture.detectChanges();
-    http.expectOne('/api/confirmed-plans').flush({ items: [], _links: {} });
+    workflow.getConfirmedPlans
+      .mockReturnValueOnce(of([]))
+      .mockReturnValueOnce(throwError(() => new Error('unavailable')))
+      .mockReturnValueOnce(of([]));
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).textContent).toContain(
       'Keine bestätigten Prüfungspläne',
@@ -122,15 +113,12 @@ describe('ConfirmedPlansComponent', () => {
 
     fixture = TestBed.createComponent(ConfirmedPlansComponent);
     fixture.detectChanges();
-    http.expectOne('/api/confirmed-plans').flush({}, { status: 500, statusText: 'Server Error' });
-    fixture.detectChanges();
     click(fixture.nativeElement as HTMLElement, 'Erneut versuchen');
-    http.expectOne('/api/confirmed-plans').flush({ items: [], _links: {} });
+    fixture.detectChanges();
+    expect(workflow.getConfirmedPlans).toHaveBeenCalledTimes(3);
   });
 
   it('keeps modified day-link clicks as native navigation', () => {
-    fixture.detectChanges();
-    http.expectOne('/api/confirmed-plans').flush({ items: plans(), _links: {} });
     fixture.detectChanges();
 
     const link = (fixture.nativeElement as HTMLElement).querySelector<HTMLAnchorElement>(
