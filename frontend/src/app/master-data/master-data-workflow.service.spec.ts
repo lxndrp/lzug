@@ -3,7 +3,12 @@ import { of, Subject, throwError } from 'rxjs';
 
 import { RoundContextService } from '../api/round-context.service';
 import { ApplicationWorkspaceService } from '../shell/application-workspace.service';
-import type { Candidate, CommitteeMember } from './master-data.models';
+import type {
+  Candidate,
+  CandidateWorkspace,
+  CommitteeMember,
+  CommitteeWorkspace,
+} from './master-data.models';
 import { MASTER_DATA_PORT } from './master-data.port';
 import { MasterDataWorkflowService } from './master-data-workflow.service';
 
@@ -17,8 +22,8 @@ describe('MasterDataWorkflowService', () => {
     updateCommitteeMember: ReturnType<typeof vi.fn>;
   };
   let workspace: {
-    round: ReturnType<typeof vi.fn>;
-    masterData: ReturnType<typeof vi.fn>;
+    candidateWorkspace: ReturnType<typeof vi.fn>;
+    committeeWorkspace: ReturnType<typeof vi.fn>;
     selectedCommitteeId: ReturnType<typeof vi.fn>;
     refresh: ReturnType<typeof vi.fn>;
   };
@@ -63,14 +68,8 @@ describe('MasterDataWorkflowService', () => {
       updateCommitteeMember: vi.fn(),
     };
     workspace = {
-      round: vi.fn(() => ({
-        id: 12,
-        name: 'Winter 2026',
-        exam_half_year_id: 4,
-        committee_id: 3,
-        status: 'planning',
-      })),
-      masterData: vi.fn(() => null),
+      candidateWorkspace: vi.fn(() => null),
+      committeeWorkspace: vi.fn(() => null),
       selectedCommitteeId: vi.fn(() => 3),
       refresh: vi.fn(),
     };
@@ -86,53 +85,41 @@ describe('MasterDataWorkflowService', () => {
     service = TestBed.inject(MasterDataWorkflowService);
   });
 
-  it('projects shared backend data into feature-owned candidate and committee views', () => {
-    workspace.masterData.mockReturnValue({
+  it('exposes feature-owned candidate and committee workspace projections', () => {
+    const candidateWorkspace: CandidateWorkspace = {
       candidates: [
         {
-          candidate: {
-            id: 7,
-            first_name: 'Ada',
-            last_name: 'Lovelace',
-            ihk_exam_number: 'EX-7',
-            specialization: 'application_development',
-            training_company: 'Testbetrieb',
-          },
-          roundCandidate: { attempt_number: 2, requires_mep: 1 },
+          candidate,
+          roundCandidate: { attemptNumber: 2, requiresMep: true },
         },
       ],
-      candidateAssignments: [
+      assignments: [
         {
           id: 1,
-          candidate_id: 7,
-          exam_round_id: 12,
-          assigned_at: '2026-01-01',
-          ended_at: null,
-          change_reason: null,
+          candidateId: 7,
+          examRoundId: 12,
+          assignedAt: '2026-01-01T00:00:00Z',
+          endedAt: null,
+          changeReason: null,
         },
       ],
-      examRounds: [{ id: 12, name: 'Winter 2026', exam_half_year_id: 4, committee_id: 3 }],
+      examRounds: [{ id: 12, name: 'Winter 2026', halfYearId: 4, committeeId: 3 }],
+      committees: [{ id: 3, name: 'Prüfungsausschuss' }],
+      activeRound: {
+        id: 12,
+        name: 'Winter 2026',
+        halfYearId: 4,
+        committeeId: 3,
+        status: 'planning',
+      },
+    };
+    const committeeWorkspace: CommitteeWorkspace = {
       committees: [{ id: 3, name: 'Prüfungsausschuss', occupation: 'IT', ihk: 'IHK' }],
-      members: [
-        {
-          id: 8,
-          person_id: 9,
-          committee_id: 3,
-          first_name: 'Grace',
-          last_name: 'Hopper',
-          member_status: 'ordinary',
-          committee_role: 'member',
-          representing_side: 'employer',
-          email: 'grace@example.invalid',
-          email_verified_at: null,
-          mobile: null,
-          is_active: 1,
-        },
-      ],
-      persons: [
-        { id: 9, first_name: 'Grace', last_name: 'Hopper', email: 'grace@example.invalid' },
-      ],
-    });
+      members: [member],
+      persons: [{ id: 9, firstName: 'Grace', lastName: 'Hopper', email: 'grace@example.invalid' }],
+    };
+    workspace.candidateWorkspace.mockReturnValue(candidateWorkspace);
+    workspace.committeeWorkspace.mockReturnValue(committeeWorkspace);
 
     expect(service.candidateWorkspace()).toMatchObject({
       candidates: [

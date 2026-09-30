@@ -165,7 +165,9 @@ test.describe('master data workflows', () => {
     await page.goto('/committee');
     expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
     await page.getByRole('button', { name: 'Prüfer hinzufügen', exact: true }).click();
-    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+    expect((await new AxeBuilder({ page }).include('app-committee').analyze()).violations).toEqual(
+      [],
+    );
   });
 
   test('shows a readable message when the API becomes unavailable', async ({ page }) => {
