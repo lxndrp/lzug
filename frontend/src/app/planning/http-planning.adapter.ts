@@ -11,7 +11,7 @@ export class HttpPlanningAdapter implements PlanningPort {
   private readonly api = inject(PlanningApiService);
 
   savePlanningSettings(...args: Parameters<PlanningPort['savePlanningSettings']>) {
-    return this.api.savePlanningSettings(...args);
+    return this.api.savePlanningSettings(...args).pipe(map(withoutHttpLinks));
   }
 
   updateExamRound(...args: Parameters<PlanningPort['updateExamRound']>) {
@@ -23,7 +23,7 @@ export class HttpPlanningAdapter implements PlanningPort {
   }
 
   createCandidateExamDay(...args: Parameters<PlanningPort['createCandidateExamDay']>) {
-    return this.api.createCandidateExamDay(...args);
+    return this.api.createCandidateExamDay(...args).pipe(map(withoutHttpLinks));
   }
 
   generateCandidateExamDays(...args: Parameters<PlanningPort['generateCandidateExamDays']>) {
@@ -31,11 +31,11 @@ export class HttpPlanningAdapter implements PlanningPort {
   }
 
   updateCandidateExamDay(...args: Parameters<PlanningPort['updateCandidateExamDay']>) {
-    return this.api.updateCandidateExamDay(...args);
+    return this.api.updateCandidateExamDay(...args).pipe(map(withoutHttpLinks));
   }
 
   saveMemberAvailability(...args: Parameters<PlanningPort['saveMemberAvailability']>) {
-    return this.api.saveMemberAvailability(...args);
+    return this.api.saveMemberAvailability(...args).pipe(map(withoutHttpLinks));
   }
 
   generateProposal() {

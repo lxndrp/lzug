@@ -140,7 +140,7 @@ const [planningWorkflow, planningPort, planningAdapter, planningSpec] = await Pr
 assert.match(planningWorkflow, /PLANNING_PORT/);
 assert.doesNotMatch(
   importsOf(planningWorkflow),
-  /PlanningApiService|ApiClient|api-client\.service/,
+  /PlanningApiService|ApiClient|api-client\.service|planning-api\.service/,
   'planning workflows must not depend directly on transport services',
 );
 assert.doesNotMatch(planningPort, /HttpClient|fetch\s*\(|types\.gen|['"]\/api\//);
