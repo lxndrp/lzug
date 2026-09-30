@@ -18,7 +18,9 @@ Die vollständige Statuszuordnung folgt in der unveränderten Nummernfolge.
 - **Anwendung, Fachlichkeit und Vertrauensgrenzen:** [Persistenz und Backend](0001-lokale-relationale-persistenz.md), [Frontend und API](0004-angular-rest-integration.md), [Instanz- und Datenverantwortung](0013-dezentrale-instanzen-je-ausschuss.md), [Runtime, Admin und Lifecycle](0033-aio-betrieb-admintransport-und-lifecycle.md) sowie [geschützte Artefakte](0031-age-huelle-in-der-betreiber-cli.md).
 - **Persistenz, Administration und Betrieb:** [SQLite und SQLAlchemy](0001-lokale-relationale-persistenz.md), [Self-Hosting](0014-oci-einzelcontainer-und-persistentes-data.md), [Betriebszielbilder](0015-fluechtige-azure-demo.md), [Lifecycle](0033-aio-betrieb-admintransport-und-lifecycle.md) und [Versionen/Digests](0034-versionsbindung-und-unveraenderliche-referenzen.md).
 - **Release, Artefakte und Demo:** [SemVer, Milestones und Project](0018-semver-release-und-milestones.md), [geltender Releaseablauf](0020-minimaler-releaseablauf-mit-github-bordmitteln.md), [Demo-Assembly und Seed](0022-tag-gebundene-demo-assembly-und-seed.md), [Snapshot-Promotion](0024-manuell-promotete-demo-snapshots.md) und [stabile Demo-Promotion](0026-automatische-demo-promotion-stabiler-releases.md).
-- **Entwicklungstoolchain und Qualität:** [Werkzeugwahl](0003-toolchain-mise-uv-npm.md), [öffentliche Taskgrenze](0009-toolchain-und-entwicklungs-tasks.md), [CLI-Paketierung](0021-goreleaser-fuer-die-betreiber-cli.md), [Pester-Vertrag](0037-powershell-pester-testharness.md), [SBOM-Erzeugung](0038-syft-standardaufrufe-fuer-sbom-erzeugung.md) und [aktuelle Zuständigkeitsregel](0039-deklarative-toolchain-zustaendigkeiten.md).
+- **Entwicklungstoolchain und Qualität:** [Werkzeugwahl](0003-toolchain-mise-uv-npm.md), [öffentliche Taskgrenze](0009-toolchain-und-entwicklungs-tasks.md), [CLI-Paketierung](0021-goreleaser-fuer-die-betreiber-cli.md), [Pester-Vertrag](0037-powershell-pester-testharness.md), [Syft-SBOMs](0038-syft-standardaufrufe-fuer-sbom-erzeugung.md),
+  [Snapshot-SBOMs mit Buildx](0040-buildx-sbom-produkt-snapshots.md) und
+  [aktuelle Zuständigkeitsregel](0039-deklarative-toolchain-zustaendigkeiten.md).
 - **Dokumentation und Publikation:** [Dokumentationsgeneratoren](0007-dokumentation-und-code-referenz.md), [geltende Quellen- und Zielgruppentrennung](0035-getrennte-publikations-und-versionsarchitektur.md) und [ADR-Format](0029-einheitliches-nygard-format.md).
 - **Künftige Architektur und offene Entscheidungen:** [getrennte Mandantenflotte als Zielbild](0016-spaetere-mandantenflotte.md).
   Browseridentität, vertraulicher Browserzustand und Relay bleiben in den offenen [Issues #904](https://github.com/lxndrp/lzug/issues/904), [#906](https://github.com/lxndrp/lzug/issues/906), [#909](https://github.com/lxndrp/lzug/issues/909), [#912](https://github.com/lxndrp/lzug/issues/912), [#913](https://github.com/lxndrp/lzug/issues/913) und [#914](https://github.com/lxndrp/lzug/issues/914) zu entscheiden; kein ADR hier erklärt sie vorzeitig für akzeptiert.
@@ -56,7 +58,7 @@ sichern Verständlichkeit und Auffindbarkeit.
 | [0021](0021-goreleaser-fuer-die-betreiber-cli.md) | GoReleaser für die Betreiber-CLI | Paketierungsentscheidung gilt; aktuelle Konfiguration/Tasks maßgeblich |
 | [0022](0022-tag-gebundene-demo-assembly-und-seed.md) | Tag-gebundene Demo-Assembly und inhaltsadressierter Seed | Akzeptiert |
 | [0023](0023-oeffentliche-web-und-dokumentationspublikation.md) | Öffentliche Web- und Dokumentationspublikation | Historisch; Plattformwahl durch ADR-0032, geltender Publikationsvertrag durch ADR-0035 abgelöst |
-| [0024](0024-manuell-promotete-demo-snapshots.md) | Manuell promotete Demo-Snapshots | Akzeptiert |
+| [0024](0024-manuell-promotete-demo-snapshots.md) | Manuell promotete Demo-Snapshots | Teilweise abgelöst: Snapshot-Regeln gelten; gemeinsame Gates und Abnahme durch ADR-0026 ersetzt |
 | [0025](0025-kein-inspec-infrastruktur-harness.md) | Kein InSpec-Infrastruktur-Harness | Entscheidung gegen InSpec gilt; Orchestrierung teilweise durch ADR-0037 abgelöst |
 | [0026](0026-automatische-demo-promotion-stabiler-releases.md) | Automatische Demo-Promotion stabiler Releases | Akzeptiert |
 | [0027](0027-synchroner-fastapi-migrationskern.md) | Synchroner FastAPI-Kern für die schrittweise HTTP-Migration | Akzeptiert |
@@ -70,5 +72,6 @@ sichern Verständlichkeit und Auffindbarkeit.
 | [0035](0035-getrennte-publikations-und-versionsarchitektur.md) | Getrennte Publikations- und Versionsarchitektur | Akzeptiert |
 | [0036](0036-powershell-adapter-fuer-werkzeuggrenzen.md) | PowerShell-Adapter für portable Werkzeuggrenzen | Akzeptiert |
 | [0037](0037-powershell-pester-testharness.md) | PowerShell/Pester-Testharness | Akzeptiert |
-| [0038](0038-syft-standardaufrufe-fuer-sbom-erzeugung.md) | SBOM-Erzeugung als direkte Syft-Standardaufrufe | Akzeptiert |
+| [0038](0038-syft-standardaufrufe-fuer-sbom-erzeugung.md) | SBOM-Erzeugung als direkte Syft-Standardaufrufe | Akzeptiert; ADR-0040 ergänzt den bereits zuvor bestehenden Buildx-Pfad für Produkt-Snapshots |
 | [0039](0039-deklarative-toolchain-zustaendigkeiten.md) | Deklarative Toolchain-Zuständigkeiten | Akzeptiert |
+| [0040](0040-buildx-sbom-produkt-snapshots.md) | Buildx-SBOM für Produkt-Snapshots | Akzeptiert in PR #805; rückwirkend dokumentiert; ergänzt ADR-0038 um den früheren Produkt-Snapshot-Pfad |
