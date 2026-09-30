@@ -52,6 +52,33 @@ class QualityWorkflowContractTests(unittest.TestCase):
         self.assertIn("golang-x-security:", self.dependabot_config)
         self.assertIn("directory: /operator-cli", self.dependabot_config)
 
+    def test_dependabot_auto_merge_allows_go_patch_and_minor(self) -> None:
+        classification = self.dependabot.split('case "${PACKAGE_ECOSYSTEM}:${UPDATE_TYPE}" in', 1)[
+            1
+        ].split("esac", 1)[0]
+        for update_type in ("semver-patch", "semver-minor"):
+            with self.subTest(update_type=update_type):
+                self.assertIn(f"go_modules:version-update:{update_type}", classification)
+        self.assertIn("github.actor == 'dependabot[bot]'", self.dependabot)
+        self.assertIn("pull_request.user.login == 'dependabot[bot]'", self.dependabot)
+        self.assertIn(
+            "pull_request.base.ref == github.event.repository.default_branch",
+            self.dependabot,
+        )
+        self.assertIn("gh pr merge --auto --squash", self.dependabot)
+        self.assertIn("permissions: {}", self.dependabot)
+        self.assertNotIn("actions/checkout", self.dependabot)
+        self.assertNotIn("workflow_run:", self.dependabot)
+
+    def test_dependabot_auto_merge_leaves_major_actions_and_unknown_manual(self) -> None:
+        classification = self.dependabot.split('case "${PACKAGE_ECOSYSTEM}:${UPDATE_TYPE}" in', 1)[
+            1
+        ].split("esac", 1)[0]
+        self.assertNotIn("semver-major", classification)
+        self.assertNotIn("github-actions:version-update", classification)
+        self.assertIn("*)", classification)
+        self.assertIn('echo "eligible=false"', classification)
+
     def test_hosted_runner_images_are_versioned(self) -> None:
         for path in sorted(Path(".github/workflows").glob("*.yml")):
             with self.subTest(path=path):
