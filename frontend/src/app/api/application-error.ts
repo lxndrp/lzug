@@ -65,7 +65,7 @@ export function toApplicationError(error: unknown): ApplicationError {
   const message =
     (typeof detail?.message === 'string' && detail.message) ||
     (typeof nestedError === 'string' && nestedError) ||
-    'The operation could not be completed.';
+    '';
 
   return new ApplicationError(
     kindForStatus(error.status),

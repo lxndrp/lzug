@@ -48,12 +48,13 @@ describe('HTTP error translation', () => {
     expect(error.message).toBe('Ungültige Auswahl.');
   });
 
-  it('does not expose Angular transport messages when the backend supplies no message', () => {
-    const error = toApplicationError(
-      new HttpErrorResponse({ status: 503, statusText: 'Unavailable', url: '/api/session' }),
-    );
+  it.each([
+    new HttpErrorResponse({ status: 503, statusText: 'Unavailable', url: '/api/session' }),
+    new HttpErrorResponse({ status: 0, statusText: 'Unknown Error', url: '/api/session' }),
+  ])('leaves the message empty when the backend supplies none', (response) => {
+    const error = toApplicationError(response);
 
-    expect(error.message).toBe('The operation could not be completed.');
+    expect(error.message).toBe('');
     expect(error.message).not.toContain('/api/session');
   });
 });
