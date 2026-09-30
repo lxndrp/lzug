@@ -10,16 +10,28 @@ Akzeptiert.
 
 ## Kontext
 
-Syft erzeugt die kanonischen CycloneDX-1.6-Inventare für die veröffentlichten OCI-Images.
+Für Quality-Läufe, stabile Produkt-Releases und Demo-Images erzeugt Syft
+die kanonischen CycloneDX-1.6-Inventare der OCI-Images.
+Der Produkt-Snapshot-Publish erzeugt seine SBOM dagegen über Buildx
+(`sbom: true`), nicht durch Aufruf des gepinnten Syft-Binaries.
 Bislang orchestrierte `scripts/sbom.py` die Befehlszusammenstellung, die Binary-Auswahl, die Offline-Konfiguration und den `subprocess`-Start von Syft sowie eigene Detail- und Release-SBOM-Verträge.
 Diese rein generische Erzeugung ist keine projektspezifische Grenze.
 Issue [#811](https://github.com/lxndrp/lzug/issues/811) und der zugehörige Review fordern, dass Standardwerkzeuge alle generischen Build-, SBOM-, Dokumentations- und Paketprüfungen direkt übernehmen und Eigenlogik nur für konkrete lzug-Verträge bleibt.
 
 ## Entscheidung
 
-Image-SBOMs werden als direkte, gepinnte Syft-Aufrufe in `Taskfile.yml` sowie in den Quality- und Publish-Workflows erzeugt.
+Image-SBOMs für Quality-Läufe, stabile Produkt-Releases und Demo-Images
+werden als direkte, gepinnte Syft-Aufrufe in `Taskfile.yml` sowie in den
+Quality- und Publish-Workflows erzeugt.
 `scripts/sbom.py` entfällt vollständig.
-Die stabile scannerweite Policy liegt deklarativ in `.syft.yaml` und wird bei jedem Aufruf explizit über `--config .syft.yaml` geladen.
+Die stabile scannerweite Policy liegt deklarativ in `.syft.yaml` und wird bei
+jedem Syft-Aufruf explizit über `--config .syft.yaml` geladen.
+Der Produkt-Snapshot-Publish ist eine bestehende Ausnahme:
+`product-publish.yml` aktiviert für diesen Pfad die Buildx-SBOM-Erzeugung mit
+`sbom: true`.
+Der Workflow lädt zwar das gepinnte Syft-Binary herunter, ruft es für diese
+SBOM aber nicht auf und lädt `.syft.yaml` nicht explizit.
+Diese Ausnahme behauptet keine Gleichwertigkeit mit der Syft-Policy.
 Die allgemeine Trennung aus nativer Werkzeug-Policy und dynamischen
 Aufrufdaten folgt [ADR-0039](0039-deklarative-toolchain-zustaendigkeiten.md).
 
@@ -34,7 +46,10 @@ Der direkte Syft-Aufruf:
 
 ## Konsequenzen
 
-- Die OCI-Image-SBOMs bleiben bei unverändertem Syft, Quellen, Flaggen und Umgebung inhaltsgleich.
+- Syft-generierte OCI-Image-SBOMs bleiben bei unverändertem Syft, Quellen,
+  Flaggen und Umgebung inhaltsgleich.
+- Die Buildx-SBOM-Erzeugung des Produkt-Snapshots bleibt auf ihren bestehenden
+  Workflowpfad begrenzt und beansprucht nicht, die Syft-Policy zu erfüllen.
 - Die Erzeugung bleibt in Taskfile und Workflows sichtbar wie die übrigen Standardwerkzeug-Aufrufe.
 - `.syft.yaml` bündelt nur die portable, scannerweite Policy; sie enthält weder Artefaktpfade noch Quellidentität, Zielauswahl oder einen benutzerspezifischen Cachepfad.
 - Repository-Dependency-, native CLI- und aggregierte Release-SBOMs entfallen, weil sie keinen eigenständigen Vulnerability-Management-Verbraucher bedienen.
