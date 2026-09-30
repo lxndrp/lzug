@@ -5,14 +5,16 @@ import { TuiBadge } from '@taiga-ui/kit';
 import { TuiForm, TuiHeader } from '@taiga-ui/layout';
 
 import {
-  CandidateCommitteeAssignment,
-  CandidateView,
-  Committee,
+  CandidateAssignment,
+  CandidateOption,
+  CommitteeOption,
   ExamHalfYear,
   ExamRound,
-  ExamRoundLifecycle,
-} from '../api/api.models';
-import { ExamRoundApiService } from '../api/exam-round-api.service';
+  LifecycleExportFormat,
+  RoundCandidateTerminalStatus,
+  RoundLifecycle,
+} from './exam-half-years.models';
+import { ExamHalfYearsWorkflowService } from './exam-half-years-workflow.service';
 import { appIcons } from '../app-icons';
 import { AppIconDirective } from '../app-icon.directive';
 
@@ -36,12 +38,12 @@ export type HalfYearDraft = Pick<ExamHalfYear, 'season' | 'year'>;
   styleUrl: './exam-half-years.component.css',
 })
 export class ExamHalfYearsComponent implements OnInit {
-  private readonly api = inject(ExamRoundApiService);
+  private readonly workflow = inject(ExamHalfYearsWorkflowService);
 
   protected readonly icons = appIcons;
   protected readonly halfYears = signal<ExamHalfYear[]>([]);
   protected readonly rounds = signal<ExamRound[]>([]);
-  protected readonly lifecycles = signal<Record<number, ExamRoundLifecycle>>({});
+  protected readonly lifecycles = signal<Record<number, RoundLifecycle>>({});
   protected readonly selectedHalfYearId = signal<number | null>(null);
   protected readonly creatingHalfYear = signal(false);
   protected readonly loading = signal(false);
@@ -53,9 +55,9 @@ export class ExamHalfYearsComponent implements OnInit {
     year: new Date().getFullYear(),
   };
 
-  @Input() committees: Committee[] = [];
-  @Input() candidates: CandidateView[] = [];
-  @Input() candidateAssignments: CandidateCommitteeAssignment[] = [];
+  @Input() committees: CommitteeOption[] = [];
+  @Input() candidates: CandidateOption[] = [];
+  @Input() candidateAssignments: CandidateAssignment[] = [];
   @Input() activeRoundId: number | null = null;
   @Input() readOnly = false;
   @Output() roundSelected = new EventEmitter<number>();
@@ -67,10 +69,10 @@ export class ExamHalfYearsComponent implements OnInit {
   protected load(): void {
     this.loading.set(true);
     this.error.set(null);
-    this.api.listExamHalfYears().subscribe({
+    this.workflow.listHalfYears().subscribe({
       next: (halfYears) => {
         this.halfYears.set(halfYears);
-        this.api.listExamRounds().subscribe({
+        this.workflow.listRounds().subscribe({
           next: (rounds) => {
             this.rounds.set(rounds);
             this.ensureSelectedHalfYear(halfYears, rounds);
@@ -109,11 +111,11 @@ export class ExamHalfYearsComponent implements OnInit {
       return;
     }
     this.loading.set(true);
-    this.api
-      .createExamRound({
+    this.workflow
+      .createRound({
         season,
         year,
-        committee_id: committee.id,
+        committeeId: committee.id,
         name: `${season === 'summer' ? 'Sommer' : 'Winter'} ${year} · ${committee.name}`,
       })
       .subscribe({
@@ -144,10 +146,10 @@ export class ExamHalfYearsComponent implements OnInit {
       return;
     }
     this.loading.set(true);
-    this.api
-      .createExamRound({
-        exam_half_year_id: halfYear.id,
-        committee_id: committeeId,
+    this.workflow
+      .createRound({
+        halfYearId: halfYear.id,
+        committeeId,
         name: `${this.halfYearLabel(halfYear)} · ${committee.name}`,
       })
       .subscribe({
@@ -202,22 +204,22 @@ export class ExamHalfYearsComponent implements OnInit {
     return this.halfYears().find((halfYear) => halfYear.id === selectedId) ?? null;
   }
 
-  protected roundsFor(halfYear: ExamHalfYear): Array<{ round: ExamRound; committee?: Committee }> {
+  protected roundsFor(
+    halfYear: ExamHalfYear,
+  ): Array<{ round: ExamRound; committee?: CommitteeOption }> {
     return this.rounds()
-      .filter((round) => round.exam_half_year_id === halfYear.id)
+      .filter((round) => round.halfYearId === halfYear.id)
       .map((round) => ({
         round,
-        committee: this.committees.find((committee) => committee.id === round.committee_id),
+        committee: this.committees.find((committee) => committee.id === round.committeeId),
       }));
   }
 
   protected candidateCountFor(halfYear: ExamHalfYear): number {
     return new Set(
       this.candidateAssignments
-        .filter(
-          (assignment) => assignment.exam_half_year_id === halfYear.id && !assignment.ended_at,
-        )
-        .map((assignment) => assignment.candidate_id),
+        .filter((assignment) => assignment.halfYearId === halfYear.id && !assignment.endedAt)
+        .map((assignment) => assignment.candidateId),
     ).size;
   }
 
@@ -231,7 +233,7 @@ export class ExamHalfYearsComponent implements OnInit {
   }
 
   protected committeeCountFor(halfYear: ExamHalfYear): number {
-    return new Set(this.roundsFor(halfYear).map((entry) => entry.round.committee_id)).size;
+    return new Set(this.roundsFor(halfYear).map((entry) => entry.round.committeeId)).size;
   }
 
   protected canManageRounds(halfYear: ExamHalfYear): boolean {
@@ -239,17 +241,17 @@ export class ExamHalfYearsComponent implements OnInit {
   }
 
   protected selectRound(round: ExamRound): void {
-    this.selectedHalfYearId.set(round.exam_half_year_id);
+    this.selectedHalfYearId.set(round.halfYearId);
     this.roundSelected.emit(round.id);
   }
 
-  protected lifecycleFor(roundId: number): ExamRoundLifecycle | null {
+  protected lifecycleFor(roundId: number): RoundLifecycle | null {
     return this.lifecycles()[roundId] ?? null;
   }
 
   protected candidateName(candidateId: number): string {
-    const candidate = this.candidates.find((item) => item.candidate.id === candidateId)?.candidate;
-    return candidate ? `${candidate.first_name} ${candidate.last_name}` : `Prüfling ${candidateId}`;
+    const candidate = this.candidates.find((item) => item.id === candidateId);
+    return candidate ? `${candidate.firstName} ${candidate.lastName}` : `Prüfling ${candidateId}`;
   }
 
   protected setCandidateTerminalStatus(
@@ -261,20 +263,16 @@ export class ExamHalfYearsComponent implements OnInit {
   ): void {
     const lifecycle = this.lifecycleFor(round.id);
     if (this.readOnly || !lifecycle || !terminalStatus) return;
-    const payload: {
-      revision: number;
-      terminal_status: string;
-      reason?: string;
-      effective_new_round_id?: number;
-      postponed_until?: string;
-      ihk_decision_reference?: string;
-    } = { revision: lifecycle.revision, terminal_status: terminalStatus };
+    const payload: RoundCandidateTerminalStatus = {
+      revision: lifecycle.revision,
+      terminalStatus,
+    };
     if (reason.trim()) payload.reason = reason.trim();
-    if (terminalStatus === 'transferred') payload.effective_new_round_id = Number(detail);
-    if (terminalStatus === 'postponed') payload.postponed_until = detail.trim();
-    if (terminalStatus === 'ihk_terminated') payload.ihk_decision_reference = detail.trim();
+    if (terminalStatus === 'transferred') payload.effectiveNewRoundId = Number(detail);
+    if (terminalStatus === 'postponed') payload.postponedUntil = detail.trim();
+    if (terminalStatus === 'ihk_terminated') payload.ihkDecisionReference = detail.trim();
     this.loading.set(true);
-    this.api.setRoundCandidateTerminalStatus(round.id, roundCandidateId, payload).subscribe({
+    this.workflow.setCandidateTerminalStatus(round.id, roundCandidateId, payload).subscribe({
       next: (updated) =>
         this.lifecycleSaved(round.id, updated, 'Abschließender Prüflingsstatus gespeichert.'),
       error: () => this.saveError('Der Prüflingsstatus ist unvollständig oder widersprüchlich.'),
@@ -296,8 +294,8 @@ export class ExamHalfYearsComponent implements OnInit {
       return;
     }
     this.loading.set(true);
-    this.api
-      .documentExamRoundIhkStatus(round.id, resultId, documentStatus.trim(), reference.trim())
+    this.workflow
+      .documentIhkStatus(round.id, resultId, documentStatus.trim(), reference.trim())
       .subscribe({
         next: (updated) =>
           this.lifecycleSaved(round.id, updated, 'Förmlicher IHK-Status dokumentiert.'),
@@ -309,7 +307,7 @@ export class ExamHalfYearsComponent implements OnInit {
     const lifecycle = this.lifecycleFor(round.id);
     if (this.readOnly || !lifecycle || !confirmed) return;
     this.loading.set(true);
-    this.api.closeExamRound(round.id, lifecycle.revision).subscribe({
+    this.workflow.closeRound(round.id, lifecycle.revision).subscribe({
       next: (updated) => this.lifecycleSaved(round.id, updated, 'Prüfungsrunde abgeschlossen.'),
       error: () => this.saveError('Die Prüfungsrunde konnte nicht abgeschlossen werden.'),
     });
@@ -319,7 +317,7 @@ export class ExamHalfYearsComponent implements OnInit {
     const lifecycle = this.lifecycleFor(round.id);
     if (this.readOnly || !lifecycle || !confirmed || !reason.trim()) return;
     this.loading.set(true);
-    this.api.cancelExamRound(round.id, lifecycle.revision, reason.trim()).subscribe({
+    this.workflow.cancelRound(round.id, lifecycle.revision, reason.trim()).subscribe({
       next: (updated) => this.lifecycleSaved(round.id, updated, 'Prüfungsrunde abgesagt.'),
       error: () => this.saveError('Die Prüfungsrunde konnte nicht abgesagt werden.'),
     });
@@ -348,13 +346,13 @@ export class ExamHalfYearsComponent implements OnInit {
       return;
     }
     this.loading.set(true);
-    this.api
-      .reopenExamRound(round.id, {
+    this.workflow
+      .reopenRound(round.id, {
         revision: lifecycle.revision,
         occasion: occasion.trim(),
         source: source.trim(),
         reason: reason.trim(),
-        scope: [{ kind: scopeKind, entity_id: scopeId }],
+        scope: [{ kind: scopeKind, entityId: scopeId }],
       })
       .subscribe({
         next: (updated) =>
@@ -367,7 +365,7 @@ export class ExamHalfYearsComponent implements OnInit {
     const lifecycle = this.lifecycleFor(round.id);
     if (this.readOnly || !lifecycle?.permissions.delete || !confirmed) return;
     this.loading.set(true);
-    this.api.deleteEmptyExamRound(round.id).subscribe({
+    this.workflow.deleteEmptyRound(round.id).subscribe({
       next: () => {
         this.success.set('Leere Entwurfsrunde gelöscht.');
         this.load();
@@ -376,28 +374,42 @@ export class ExamHalfYearsComponent implements OnInit {
     });
   }
 
+  protected downloadLifecycleExport(round: ExamRound, format: LifecycleExportFormat): void {
+    this.loading.set(true);
+    this.workflow.exportLifecycle(round.id, format).subscribe({
+      next: ({ content, mediaType, fileName }) => {
+        this.loading.set(false);
+        const url = URL.createObjectURL(new Blob([content], { type: mediaType }));
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileName;
+        link.click();
+        window.setTimeout(() => URL.revokeObjectURL(url), 0);
+      },
+      error: () => this.saveError('Der Prüfungsrundennachweis konnte nicht geladen werden.'),
+    });
+  }
+
   private ensureSelectedHalfYear(halfYears: ExamHalfYear[], rounds: ExamRound[]): void {
     const currentSelection = this.selectedHalfYearId();
     if (currentSelection && halfYears.some((halfYear) => halfYear.id === currentSelection)) {
       return;
     }
-    const activeHalfYearId = rounds.find(
-      (round) => round.id === this.activeRoundId,
-    )?.exam_half_year_id;
+    const activeHalfYearId = rounds.find((round) => round.id === this.activeRoundId)?.halfYearId;
     this.selectedHalfYearId.set(activeHalfYearId ?? halfYears[0]?.id ?? null);
   }
 
   private loadLifecycles(rounds: ExamRound[]): void {
     this.lifecycles.set({});
     for (const round of rounds) {
-      this.api.getExamRoundLifecycle(round.id).subscribe({
+      this.workflow.getRoundLifecycle(round.id).subscribe({
         next: (lifecycle) =>
           this.lifecycles.update((current) => ({ ...current, [round.id]: lifecycle })),
       });
     }
   }
 
-  private lifecycleSaved(roundId: number, lifecycle: ExamRoundLifecycle, message: string): void {
+  private lifecycleSaved(roundId: number, lifecycle: RoundLifecycle, message: string): void {
     this.lifecycles.update((current) => ({ ...current, [roundId]: lifecycle }));
     this.loading.set(false);
     this.success.set(message);

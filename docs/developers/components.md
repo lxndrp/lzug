@@ -582,6 +582,10 @@ Snapshot ohne HAL-Links; die anwendungsweite Bindung liegt in
 `HttpPlanningAdapter` übersetzt diese Aufrufe in den vorhandenen API-Client.
 Planungs-, Stammdaten- und Ortsbefehle liegen in den zuständigen
 Workflow-Services.
+Die Verwaltung der Prüfungshalbjahre verwendet eigene Featuremodelle und den
+`ExamHalfYearsWorkflowService`; `HttpExamHalfYearsAdapter` übersetzt
+Runden- und Lebenszyklusverträge einschließlich der Nachweisexporte an der
+HTTP-Grenze.
 `App` besitzt nur Rahmen, Authentisierung, globale Runtimezustände,
 Navigationsdarstellung und die gemeinsame Zugriffsansicht.
 Die Hauptpfade in `app.routes.ts` aktivieren über `loadComponent` jeweils einen

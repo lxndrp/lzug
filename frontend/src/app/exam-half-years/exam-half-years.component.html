@@ -284,7 +284,7 @@
                         </span>
                       </header>
 
-                      @if (lifecycle.historical_without_formal_evidence) {
+                      @if (lifecycle.historicalWithoutFormalEvidence) {
                         <div tuiNotification appearance="warning" role="status">
                           Historischer Altstand ohne nachträglich erfundene Abschlussnachweise.
                         </div>
@@ -297,26 +297,32 @@
                       </ul>
 
                       <div class="app-form-action-buttons">
-                        <a
+                        <button
                           tuiButton
                           appearance="secondary"
                           size="s"
-                          [href]="'/api/exam-rounds/' + entry.round.id + '/lifecycle/export.json'"
-                          >JSON-Nachweis</a
+                          type="button"
+                          [disabled]="loading()"
+                          (click)="downloadLifecycleExport(entry.round, 'json')"
                         >
-                        <a
+                          JSON-Nachweis
+                        </button>
+                        <button
                           tuiButton
                           appearance="secondary"
                           size="s"
-                          [href]="'/api/exam-rounds/' + entry.round.id + '/lifecycle/export.txt'"
-                          >Lesbarer Nachweis</a
+                          type="button"
+                          [disabled]="loading()"
+                          (click)="downloadLifecycleExport(entry.round, 'text')"
                         >
+                          Lesbarer Nachweis
+                        </button>
                       </div>
 
                       <p class="app-muted">
                         Aufbewahrung bis:
-                        {{ lifecycle.retention.retain_until || 'keine Frist hinterlegt' }}
-                        @if (lifecycle.retention.legal_hold) {
+                        {{ lifecycle.retention.retainUntil || 'keine Frist hinterlegt' }}
+                        @if (lifecycle.retention.legalHold) {
                           · Aufbewahrungssperre aktiv
                         }
                       </p>
@@ -360,12 +366,12 @@
                         </form>
                       }
 
-                      @if (lifecycle.ihk_statuses.length) {
+                      @if (lifecycle.ihkStatuses.length) {
                         <ul>
-                          @for (ihkStatus of lifecycle.ihk_statuses; track ihkStatus.id) {
+                          @for (ihkStatus of lifecycle.ihkStatuses; track ihkStatus.id) {
                             <li>
-                              Ergebnis {{ ihkStatus.exam_result_id }}:
-                              {{ ihkStatus.document_status }} · {{ ihkStatus.document_reference }}
+                              Ergebnis {{ ihkStatus.examResultId }}:
+                              {{ ihkStatus.documentStatus }} · {{ ihkStatus.documentReference }}
                             </li>
                           }
                         </ul>
@@ -482,21 +488,18 @@
 
                       @if (!readOnly && lifecycle.candidates.length) {
                         <h3>Abschließende Prüflingsstatus</h3>
-                        @for (
-                          candidate of lifecycle.candidates;
-                          track candidate.round_candidate_id
-                        ) {
+                        @for (candidate of lifecycle.candidates; track candidate.roundCandidateId) {
                           <form tuiForm="s" class="app-form-grid app-compact-form">
                             <strong class="app-field-full">{{
-                              candidateName(candidate.candidate_id)
+                              candidateName(candidate.candidateId)
                             }}</strong>
                             <div class="app-field-half">
-                              <label [for]="'terminalStatus-' + candidate.round_candidate_id"
+                              <label [for]="'terminalStatus-' + candidate.roundCandidateId"
                                 >Status</label
                               >
                               <select
                                 #terminalStatus
-                                [id]="'terminalStatus-' + candidate.round_candidate_id"
+                                [id]="'terminalStatus-' + candidate.roundCandidateId"
                               >
                                 <option value="open">Offen</option>
                                 <option value="result_communicated">Ergebnis mitgeteilt</option>
@@ -506,21 +509,21 @@
                               </select>
                             </div>
                             <div class="app-field-half">
-                              <label [for]="'terminalReason-' + candidate.round_candidate_id"
+                              <label [for]="'terminalReason-' + candidate.roundCandidateId"
                                 >Grund</label
                               >
                               <input
                                 #terminalReason
-                                [id]="'terminalReason-' + candidate.round_candidate_id"
+                                [id]="'terminalReason-' + candidate.roundCandidateId"
                               />
                             </div>
                             <div class="app-field-full">
-                              <label [for]="'terminalDetail-' + candidate.round_candidate_id">
+                              <label [for]="'terminalDetail-' + candidate.roundCandidateId">
                                 Neue Runden-ID, Termin oder IHK-Referenz
                               </label>
                               <input
                                 #terminalDetail
-                                [id]="'terminalDetail-' + candidate.round_candidate_id"
+                                [id]="'terminalDetail-' + candidate.roundCandidateId"
                               />
                             </div>
                             <button
@@ -530,7 +533,7 @@
                               (click)="
                                 setCandidateTerminalStatus(
                                   entry.round,
-                                  candidate.round_candidate_id,
+                                  candidate.roundCandidateId,
                                   terminalStatus.value,
                                   terminalReason.value,
                                   terminalDetail.value
@@ -562,8 +565,8 @@
                         <ol>
                           @for (event of lifecycle.history; track event.id) {
                             <li>
-                              Revision {{ event.round_revision }}:
-                              {{ statusLabel(event.event_type) }}
+                              Revision {{ event.roundRevision }}:
+                              {{ statusLabel(event.eventType) }}
                             </li>
                           }
                         </ol>
