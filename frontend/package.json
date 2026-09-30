@@ -12,6 +12,7 @@
     "test": "ng test",
     "test:ci": "pwsh -NoProfile -File ../scripts/build-frontend.ps1 -Test",
     "test:coverage": "pwsh -NoProfile -File ../scripts/build-frontend.ps1 -Test -Coverage",
+    "architecture:check": "node scripts/validate-architecture-boundaries.mjs",
     "test:e2e": "npm run test:e2e:development && npm run build:ci && npm run test:e2e:production",
     "test:e2e:development": "node e2e/run-playwright.mjs --project=chromium --grep-invert '@a11y|@ui-review'",
     "test:e2e:production": "LZUG_E2E_PRODUCTION_BUILD=true node e2e/run-playwright.mjs production-build.spec.ts",

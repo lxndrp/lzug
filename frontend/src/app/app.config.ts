@@ -19,6 +19,8 @@ import { TuiConfirmService } from '@taiga-ui/kit';
 import { TUI_LANGUAGE } from '@taiga-ui/i18n';
 import { TUI_GERMAN_LANGUAGE } from '@taiga-ui/i18n/languages/german';
 
+import { SCHEDULING_OVERVIEW_PORT } from './scheduling-overview/application/scheduling-overview.port';
+import { HttpSchedulingOverviewAdapter } from './scheduling-overview/adapters/http-scheduling-overview.adapter';
 import { routes } from './app.routes';
 import { AuthService } from './auth/auth.service';
 import { lifecycleInterceptor } from './runtime/lifecycle.service';
@@ -49,6 +51,7 @@ const withSessionCredentials: HttpInterceptorFn = (request, next) => {
 
 export const appConfig: ApplicationConfig = {
   providers: [
+    { provide: SCHEDULING_OVERVIEW_PORT, useClass: HttpSchedulingOverviewAdapter },
     provideBrowserGlobalErrorListeners(),
     providePrivacyPreservingErrorHandler(),
     provideZoneChangeDetection({ eventCoalescing: true }),
