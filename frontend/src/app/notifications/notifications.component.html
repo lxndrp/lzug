@@ -41,7 +41,7 @@
       <p role="status">Kalendereinstellungen werden geladen.</p>
     } @else {
       @if (calendar()?.active) {
-        <p role="status">Der persönliche Feed ist aktiv (Zeitzone {{ calendar()?.time_zone }}).</p>
+        <p role="status">Der persönliche Feed ist aktiv (Zeitzone {{ calendar()?.timeZone }}).</p>
         @if (canManageCalendarFeed()) {
           <div class="calendar-actions">
             <button
@@ -105,14 +105,22 @@
           @for (event of calendarEvents(); track event.id) {
             <li>
               <span>
-                <strong>{{ event.date }} · {{ event.round_name }}</strong>
-                <small>{{ event.starts_at }}–{{ event.ends_at }} · {{ event.role }}</small>
+                <strong>{{ event.date }} · {{ event.roundName }}</strong>
+                <small>{{ event.startsAt }}–{{ event.endsAt }} · {{ event.role }}</small>
                 <small>
                   {{ calendarStatusLabel(event) }} · Version {{ event.version }} · Ereignis-ID
-                  <code>{{ event.external_event_id }}</code>
+                  <code>{{ event.externalEventId }}</code>
                 </small>
               </span>
-              <a tuiButton appearance="secondary" [href]="event.download_url">Datei laden</a>
+              <button
+                tuiButton
+                appearance="secondary"
+                type="button"
+                [disabled]="calendarEventBusy() !== null"
+                (click)="downloadCalendarEvent(event.id)"
+              >
+                Datei laden
+              </button>
             </li>
           }
         </ul>
@@ -135,13 +143,13 @@
             <article>
               <div>
                 <h3>{{ notification.title }}</h3>
-                <time [attr.datetime]="notification.created_at">
-                  {{ notification.created_at | date: 'dd.MM.yyyy, HH:mm' }}
+                <time [attr.datetime]="notification.createdAt">
+                  {{ notification.createdAt | date: 'dd.MM.yyyy, HH:mm' }}
                 </time>
               </div>
               <p>{{ notification.message }}</p>
-              <small class="app-muted">Ursprung: {{ notification.event_type }}</small>
-              <a tuiButton appearance="secondary" [href]="notification.action_path"
+              <small class="app-muted">Ursprung: {{ notification.eventType }}</small>
+              <a tuiButton appearance="secondary" [href]="notification.actionPath"
                 >Details öffnen</a
               >
             </article>
@@ -172,13 +180,13 @@
             </tr>
           </thead>
           <tbody>
-            @for (problem of problems(); track problem.notification_id + '-' + problem.channel) {
+            @for (problem of problems(); track problem.notificationId + '-' + problem.channel) {
               <tr>
-                <td>{{ problem.event_type }}</td>
-                <td>{{ problem.recipient_member_id }}</td>
+                <td>{{ problem.eventType }}</td>
+                <td>{{ problem.recipientMemberId }}</td>
                 <td>{{ problem.channel }}</td>
                 <td>{{ statusLabel(problem.status) }}</td>
-                <td>{{ problem.attempt_count }}</td>
+                <td>{{ problem.attemptCount }}</td>
               </tr>
             }
           </tbody>

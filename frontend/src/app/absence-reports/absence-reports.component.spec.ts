@@ -1,26 +1,26 @@
-import { provideHttpClient } from '@angular/common/http';
-import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { provideTaiga } from '@taiga-ui/core';
+import { of, throwError } from 'rxjs';
+import { vi } from 'vitest';
 
 import { AuthService } from '../auth/auth.service';
+import { PERSONAL_PORT, type PersonalPort } from '../personal/personal.port';
 import { AbsenceReportsComponent } from './absence-reports.component';
 
 describe('AbsenceReportsComponent', () => {
-  let http: HttpTestingController;
+  let personal: PersonalPort;
 
   beforeEach(async () => {
+    personal = createPersonalPort();
     await TestBed.configureTestingModule({
       imports: [AbsenceReportsComponent],
       providers: [
         provideRouter([]),
-        provideHttpClient(),
-        provideHttpClientTesting(),
+        { provide: PERSONAL_PORT, useValue: personal },
         provideTaiga({ scrollbars: 'native' }),
       ],
     }).compileComponents();
-    http = TestBed.inject(HttpTestingController);
     TestBed.inject(AuthService).session.set({
       authenticated: true,
       account_id: 1,
@@ -30,12 +30,10 @@ describe('AbsenceReportsComponent', () => {
     });
   });
 
-  afterEach(() => http.verify());
-
   it('renders an own pending replacement response and audit history', () => {
+    personal.listAbsenceReports = vi.fn().mockReturnValue(of([report()]));
     const fixture = TestBed.createComponent(AbsenceReportsComponent);
     fixture.detectChanges();
-    http.expectOne('/api/absence-reports').flush({ items: [report()], _links: {} });
     fixture.detectChanges();
 
     const element = fixture.nativeElement as HTMLElement;
@@ -51,9 +49,9 @@ describe('AbsenceReportsComponent', () => {
       demo_role: 'examiner',
       capabilities: ['absence:read-own'],
     }));
+    personal.listAbsenceReports = vi.fn().mockReturnValue(of([report()]));
     const fixture = TestBed.createComponent(AbsenceReportsComponent);
     fixture.detectChanges();
-    http.expectOne('/api/absence-reports').flush({ items: [report()], _links: {} });
     fixture.detectChanges();
 
     const element = fixture.nativeElement as HTMLElement;
@@ -62,15 +60,14 @@ describe('AbsenceReportsComponent', () => {
   });
 
   it('persists an available answer and updates the report', () => {
+    personal.listAbsenceReports = vi.fn().mockReturnValue(of([report()]));
+    personal.answerReplacement = vi.fn().mockReturnValue(of(report({ response: 'available' })));
     const fixture = TestBed.createComponent(AbsenceReportsComponent);
     fixture.detectChanges();
-    http.expectOne('/api/absence-reports').flush({ items: [report()], _links: {} });
     fixture.detectChanges();
 
     (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('button')?.click();
-    const request = http.expectOne('/api/replacement-responses/5');
-    expect(request.request.body).toEqual({ response: 'available' });
-    request.flush(report({ response: 'available' }));
+    expect(personal.answerReplacement).toHaveBeenCalledWith(5, 'available');
     fixture.detectChanges();
 
     expect((fixture.nativeElement as HTMLElement).textContent).toContain(
@@ -89,9 +86,10 @@ describe('AbsenceReportsComponent', () => {
       demo_role: 'replacement',
       capabilities: ['absence:respond-own'],
     });
+    personal.listAbsenceReports = vi.fn().mockReturnValue(of([report()]));
+    personal.answerReplacement = vi.fn().mockReturnValue(of(report({ response: 'available' })));
     const fixture = TestBed.createComponent(AbsenceReportsComponent);
     fixture.detectChanges();
-    http.expectOne('/api/absence-reports').flush({ items: [report()], _links: {} });
     fixture.detectChanges();
 
     const buttons = Array.from(
@@ -103,7 +101,7 @@ describe('AbsenceReportsComponent', () => {
     );
 
     buttons[0].click();
-    http.expectOne('/api/replacement-responses/5').flush(report({ response: 'available' }));
+    expect(personal.answerReplacement).toHaveBeenCalledWith(5, 'available');
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).textContent).toContain(
       'Öffnen Sie die Demo-Szenarien für den nächsten Schritt.',
@@ -120,12 +118,12 @@ describe('AbsenceReportsComponent', () => {
       demo_role: 'chair',
       capabilities: ['absence:coordinate'],
     });
+    personal.listAbsenceReports = vi.fn().mockReturnValue(of([report({ response: 'available' })]));
+    personal.selectReplacement = vi
+      .fn()
+      .mockReturnValue(of(report({ response: 'available', selected: true })));
     const fixture = TestBed.createComponent(AbsenceReportsComponent);
     fixture.detectChanges();
-    http.expectOne('/api/absence-reports').flush({
-      items: [report({ response: 'available' })],
-      _links: {},
-    });
     fixture.detectChanges();
 
     const button = (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>(
@@ -133,14 +131,7 @@ describe('AbsenceReportsComponent', () => {
     );
     expect(button?.textContent).toContain('Vorgegebenen Ersatz auswählen');
     button?.click();
-    const request = http.expectOne('/api/absence-reports/1/select-replacement');
-    expect(request.request.body).toEqual({ committee_member_id: 7, version: 1 });
-    request.flush({
-      ...report({ response: 'available' }),
-      status: 'replacement_selected',
-      selected_replacement_member_id: 7,
-      version: 2,
-    });
+    expect(personal.selectReplacement).toHaveBeenCalledWith(1, 7, 1);
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('Ersatz ausgewählt.');
     expect((fixture.nativeElement as HTMLElement).textContent).toContain(
@@ -149,24 +140,21 @@ describe('AbsenceReportsComponent', () => {
   });
 
   it('reports answer and loading failures to the user', () => {
+    personal.listAbsenceReports = vi.fn().mockReturnValue(of([report()]));
+    personal.answerReplacement = vi.fn().mockReturnValue(throwError(() => new Error()));
     const fixture = TestBed.createComponent(AbsenceReportsComponent);
     fixture.detectChanges();
-    http.expectOne('/api/absence-reports').flush({ items: [report()], _links: {} });
     fixture.detectChanges();
     (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button')[1].click();
-    http
-      .expectOne('/api/replacement-responses/5')
-      .flush({ error: 'failed' }, { status: 500, statusText: 'Server Error' });
+    expect(personal.answerReplacement).toHaveBeenCalledWith(5, 'unavailable');
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).textContent).toContain(
       'Ersatzantwort konnte nicht gespeichert werden.',
     );
 
     const failedFixture = TestBed.createComponent(AbsenceReportsComponent);
+    personal.listAbsenceReports = vi.fn().mockReturnValue(throwError(() => new Error()));
     failedFixture.detectChanges();
-    http
-      .expectOne('/api/absence-reports')
-      .flush({ error: 'failed' }, { status: 500, statusText: 'Server Error' });
     failedFixture.detectChanges();
     expect((failedFixture.nativeElement as HTMLElement).textContent).toContain(
       'Ausfallprozesse konnten nicht geladen werden.',
@@ -174,41 +162,91 @@ describe('AbsenceReportsComponent', () => {
   });
 });
 
-function report(overrides: { response?: 'available' | 'pending' } = {}) {
+function report(overrides: { response?: 'available' | 'pending'; selected?: boolean } = {}) {
   return {
     id: 1,
-    exam_day_id: 7,
-    exam_day_assignment_id: 8,
-    committee_member_id: 3,
-    reported_by_member_id: 3,
-    reported_at: '2026-11-01T09:00:00+00:00',
+    examDayId: 7,
+    examDayAssignmentId: 8,
+    committeeMemberId: 3,
+    reportedByMemberId: 3,
+    reportedAt: '2026-11-01T09:00:00+00:00',
     reason: null,
-    status: 'replacement_requested',
-    selected_replacement_member_id: null,
+    status: overrides.selected ? 'replacement_selected' : 'replacement_requested',
+    selectedReplacementMemberId: overrides.selected ? 7 : null,
     version: 1,
-    created_at: '2026-11-01T09:00:00+00:00',
-    updated_at: '2026-11-01T09:00:00+00:00',
+    createdAt: '2026-11-01T09:00:00+00:00',
+    updatedAt: '2026-11-01T09:00:00+00:00',
     responses: [
       {
         id: 5,
-        committee_member_id: 7,
+        committeeMemberId: 7,
         response: overrides.response ?? 'pending',
-        requested_at: '2026-11-01T09:00:00+00:00',
-        expires_at: null,
+        requestedAt: '2026-11-01T09:00:00+00:00',
+        expiresAt: null,
         urgent: true,
-        responded_at: null,
+        respondedAt: null,
       },
     ],
     audit: [
       {
         id: 1,
-        actor_member_id: 3,
-        event_type: 'reported',
-        from_status: null,
-        to_status: 'replacement_requested',
+        actorMemberId: 3,
+        eventType: 'reported',
+        fromStatus: null,
+        toStatus: 'replacement_requested',
         details: null,
-        created_at: '2026-11-01T09:00:00+00:00',
+        createdAt: '2026-11-01T09:00:00+00:00',
       },
     ],
+  };
+}
+
+function createPersonalPort(): PersonalPort {
+  return {
+    listNotifications: vi.fn().mockReturnValue(of([])),
+    listNotificationProblems: vi.fn().mockReturnValue(of([])),
+    listNotificationOverview: vi.fn().mockReturnValue(of([])),
+    getNotificationChannels: vi.fn().mockReturnValue(
+      of({
+        webPush: { available: false, publicKey: null },
+        emailFallbackConfigured: false,
+        sinkEnabled: false,
+      }),
+    ),
+    getCalendarStatus: vi
+      .fn()
+      .mockReturnValue(
+        of({ active: false, activatedAt: null, revokedAt: null, timeZone: 'Europe/Berlin' }),
+      ),
+    listCalendarEvents: vi.fn().mockReturnValue(of([])),
+    downloadCalendarEvent: vi
+      .fn()
+      .mockReturnValue(
+        of({ content: 'BEGIN:VCALENDAR', mediaType: 'text/calendar', fileName: 'calendar.ics' }),
+      ),
+    activateCalendarFeed: vi.fn().mockReturnValue(
+      of({
+        active: true,
+        activatedAt: null,
+        revokedAt: null,
+        timeZone: 'Europe/Berlin',
+        feedUrl: '/api/calendar/feed/test.ics',
+        notice: 'activated',
+      }),
+    ),
+    revokeCalendarFeed: vi.fn().mockReturnValue(
+      of({
+        active: false,
+        activatedAt: null,
+        revokedAt: null,
+        timeZone: 'Europe/Berlin',
+        notice: 'revoked',
+      }),
+    ),
+    listAbsenceReports: vi.fn().mockReturnValue(of([])),
+    createAbsenceReport: vi.fn().mockReturnValue(of(report())),
+    answerReplacement: vi.fn().mockReturnValue(of(report())),
+    selectReplacement: vi.fn().mockReturnValue(of(report())),
+    registerPushSubscription: vi.fn().mockReturnValue(of(undefined)),
   };
 }

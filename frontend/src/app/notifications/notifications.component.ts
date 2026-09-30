@@ -3,15 +3,15 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { forkJoin } from 'rxjs';
 import { TuiButton } from '@taiga-ui/core';
 
-import {
-  CalendarEvent,
-  CalendarFeedActivation,
-  CalendarStatus,
-  NotificationChannels,
-  NotificationItem,
-  NotificationProblem,
-} from '../api/api.models';
-import { PersonalApiService } from '../api/personal-api.service';
+import type {
+  PersonalCalendarEvent,
+  PersonalCalendarFeedActivation,
+  PersonalCalendarStatus,
+  PersonalNotification,
+  PersonalNotificationChannels,
+  PersonalNotificationProblem,
+} from '../personal/personal.models';
+import { PersonalFacade } from '../personal/personal.facade';
 import { AuthService } from '../auth/auth.service';
 
 @Component({
@@ -21,28 +21,29 @@ import { AuthService } from '../auth/auth.service';
   styleUrl: './notifications.component.css',
 })
 export class NotificationsComponent implements OnInit {
-  private readonly api = inject(PersonalApiService);
+  private readonly personal = inject(PersonalFacade);
   private readonly auth = inject(AuthService);
 
-  protected readonly notifications = signal<NotificationItem[]>([]);
-  protected readonly problems = signal<NotificationProblem[]>([]);
-  protected readonly channels = signal<NotificationChannels | null>(null);
+  protected readonly notifications = signal<PersonalNotification[]>([]);
+  protected readonly problems = signal<PersonalNotificationProblem[]>([]);
+  protected readonly channels = signal<PersonalNotificationChannels | null>(null);
   protected readonly loading = signal(true);
   protected readonly pushBusy = signal(false);
   protected readonly pushMessage = signal<string | null>(null);
-  protected readonly calendar = signal<CalendarStatus | null>(null);
-  protected readonly calendarEvents = signal<CalendarEvent[]>([]);
+  protected readonly calendar = signal<PersonalCalendarStatus | null>(null);
+  protected readonly calendarEvents = signal<PersonalCalendarEvent[]>([]);
   protected readonly calendarBusy = signal(false);
+  protected readonly calendarEventBusy = signal<number | null>(null);
   protected readonly calendarMessage = signal<string | null>(null);
   protected readonly feedUrl = signal<string | null>(null);
 
   ngOnInit(): void {
     forkJoin({
-      notifications: this.api.getNotifications(),
-      problems: this.api.getNotificationOverview(),
-      channels: this.api.getNotificationChannels(),
-      calendar: this.api.getCalendarStatus(),
-      calendarEvents: this.api.getCalendarEvents(),
+      notifications: this.personal.listNotifications(),
+      problems: this.personal.listNotificationOverview(),
+      channels: this.personal.getNotificationChannels(),
+      calendar: this.personal.getCalendarStatus(),
+      calendarEvents: this.personal.listCalendarEvents(),
     }).subscribe({
       next: ({ notifications, problems, channels, calendar, calendarEvents }) => {
         this.notifications.set(notifications);
@@ -69,10 +70,10 @@ export class NotificationsComponent implements OnInit {
     }
     this.calendarBusy.set(true);
     this.calendarMessage.set(null);
-    this.api.activateCalendarFeed(rotate).subscribe({
-      next: (result: CalendarFeedActivation) => {
+    this.personal.activateCalendarFeed(rotate).subscribe({
+      next: (result: PersonalCalendarFeedActivation) => {
         this.calendar.set(result);
-        this.feedUrl.set(result.feed_url);
+        this.feedUrl.set(result.feedUrl);
         this.calendarMessage.set(result.notice);
         this.calendarBusy.set(false);
       },
@@ -88,7 +89,7 @@ export class NotificationsComponent implements OnInit {
     if (!window.confirm('Der Kalenderzugang wird sofort ungültig. Fortfahren?')) return;
     this.calendarBusy.set(true);
     this.calendarMessage.set(null);
-    this.api.revokeCalendarFeed().subscribe({
+    this.personal.revokeCalendarFeed().subscribe({
       next: (result) => {
         this.calendar.set(result);
         this.feedUrl.set(null);
@@ -102,7 +103,7 @@ export class NotificationsComponent implements OnInit {
     });
   }
 
-  protected calendarStatusLabel(event: CalendarEvent): string {
+  protected calendarStatusLabel(event: PersonalCalendarEvent): string {
     return event.status === 'cancelled'
       ? 'Storniert'
       : event.status === 'updated'
@@ -110,10 +111,30 @@ export class NotificationsComponent implements OnInit {
         : 'Bestätigt';
   }
 
+  protected downloadCalendarEvent(eventId: number): void {
+    if (this.calendarEventBusy() !== null) return;
+    this.calendarEventBusy.set(eventId);
+    this.personal.downloadCalendarEvent(eventId).subscribe({
+      next: ({ content, mediaType, fileName }) => {
+        const url = URL.createObjectURL(new Blob([content], { type: mediaType }));
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileName;
+        link.click();
+        window.setTimeout(() => URL.revokeObjectURL(url), 0);
+        this.calendarEventBusy.set(null);
+      },
+      error: () => {
+        this.calendarMessage.set('Der Kalendereintrag konnte nicht heruntergeladen werden.');
+        this.calendarEventBusy.set(null);
+      },
+    });
+  }
+
   protected canEnablePush(): boolean {
     return (
       this.canManagePush() &&
-      this.channels()?.web_push.available === true &&
+      this.channels()?.webPush.available === true &&
       typeof navigator !== 'undefined' &&
       'serviceWorker' in navigator &&
       'PushManager' in window
@@ -121,7 +142,7 @@ export class NotificationsComponent implements OnInit {
   }
 
   protected async enablePush(): Promise<void> {
-    const publicKey = this.channels()?.web_push.public_key;
+    const publicKey = this.channels()?.webPush.publicKey;
     if (!publicKey || !this.canEnablePush()) return;
     this.pushBusy.set(true);
     this.pushMessage.set(null);
@@ -137,7 +158,7 @@ export class NotificationsComponent implements OnInit {
         applicationServerKey: this.decodeKey(publicKey),
       });
       await new Promise<void>((resolve, reject) => {
-        this.api.registerPushSubscription(subscription.endpoint).subscribe({
+        this.personal.registerPushSubscription(subscription.endpoint).subscribe({
           next: () => resolve(),
           error: reject,
         });
@@ -158,7 +179,7 @@ export class NotificationsComponent implements OnInit {
     return this.auth.hasCapability('calendar:feed-manage-own');
   }
 
-  protected statusLabel(status: NotificationProblem['status']): string {
+  protected statusLabel(status: PersonalNotificationProblem['status']): string {
     return {
       pending: 'Ausstehend',
       technically_confirmed: 'Technisch bestätigt',

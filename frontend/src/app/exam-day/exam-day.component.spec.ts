@@ -3,17 +3,21 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter, Router } from '@angular/router';
 import { provideTaiga } from '@taiga-ui/core';
+import { of } from 'rxjs';
 import { vi } from 'vitest';
 
 import { ConfirmedPlanDayView, ExecutionStatus } from '../api/api.models';
 import { AuthService } from '../auth/auth.service';
+import { PERSONAL_PORT, type PersonalPort } from '../personal/personal.port';
 import { ExamDayComponent } from './exam-day.component';
 
 describe('ExamDayComponent', () => {
   let fixture: ComponentFixture<ExamDayComponent>;
   let http: HttpTestingController;
+  let personal: Pick<PersonalPort, 'createAbsenceReport'>;
 
   beforeEach(async () => {
+    personal = { createAbsenceReport: vi.fn().mockReturnValue(of({} as never)) };
     await TestBed.configureTestingModule({
       imports: [ExamDayComponent],
       providers: [
@@ -21,6 +25,7 @@ describe('ExamDayComponent', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         provideTaiga({ scrollbars: 'native' }),
+        { provide: PERSONAL_PORT, useValue: personal },
       ],
     }).compileComponents();
     fixture = TestBed.createComponent(ExamDayComponent);
@@ -123,6 +128,7 @@ describe('ExamDayComponent', () => {
   });
 
   it('creates an absence report from a visible assignment', () => {
+    vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
     fixture.detectChanges();
     http.expectOne('/api/confirmed-plan-days/7').flush(dayView());
     fixture.detectChanges();
@@ -133,13 +139,11 @@ describe('ExamDayComponent', () => {
     expect(button).toBeTruthy();
     button?.click();
 
-    const request = http.expectOne('/api/absence-reports');
-    expect(request.request.body).toEqual({
-      exam_day_id: 7,
-      exam_day_assignment_id: 7,
-      day_revision: 1,
+    expect(personal.createAbsenceReport).toHaveBeenCalledWith({
+      examDayId: 7,
+      assignmentId: 7,
+      dayRevision: 1,
     });
-    request.flush({ id: 1 });
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).textContent).toContain(
       'Ausfallmeldung gespeichert.',
@@ -170,7 +174,11 @@ describe('ExamDayComponent', () => {
     ).find((button) => button.textContent?.includes('Ausfall melden'));
     expect(report).toBeDefined();
     report?.click();
-    http.expectOne('/api/absence-reports').flush({ id: 1 });
+    expect(personal.createAbsenceReport).toHaveBeenCalledWith({
+      examDayId: 7,
+      assignmentId: 7,
+      dayRevision: 1,
+    });
 
     expect(navigate).toHaveBeenCalledWith('/demo-scenarios');
   });
@@ -196,7 +204,7 @@ describe('ExamDayComponent', () => {
       reportAbsence(assignmentId: number): void;
     };
     component.reportAbsence(7);
-    http.expectNone('/api/absence-reports');
+    expect(personal.createAbsenceReport).not.toHaveBeenCalled();
   });
 
   it('allows present without arrival and resets feedback when changing days', () => {

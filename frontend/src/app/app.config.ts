@@ -30,6 +30,8 @@ import { CONFIRMED_PLANS_PORT } from './confirmed-plans/confirmed-plans.port';
 import { HttpConfirmedPlansAdapter } from './api/http-confirmed-plans.adapter';
 import { EXAM_HALF_YEARS_PORT } from './exam-half-years/exam-half-years.port';
 import { HttpExamHalfYearsAdapter } from './api/http-exam-half-years.adapter';
+import { PERSONAL_PORT } from './personal/personal.port';
+import { HttpPersonalAdapter } from './api/http-personal.adapter';
 import { LOCATIONS_PORT } from './locations/locations.port';
 import { HttpLocationsAdapter } from './api/http-locations.adapter';
 import { HttpLocationsReadAdapter } from './api/http-locations-read.adapter';
@@ -40,6 +42,7 @@ export const appConfig: ApplicationConfig = {
     { provide: SCHEDULING_OVERVIEW_PORT, useClass: HttpSchedulingOverviewAdapter },
     { provide: PLANNING_PORT, useClass: HttpPlanningAdapter },
     { provide: EXAM_HALF_YEARS_PORT, useClass: HttpExamHalfYearsAdapter },
+    { provide: PERSONAL_PORT, useClass: HttpPersonalAdapter },
     { provide: LOCATIONS_PORT, useClass: HttpLocationsAdapter },
     { provide: LOCATIONS_READ_PORT, useClass: HttpLocationsReadAdapter },
     { provide: WORKSPACE_PORT, useClass: HttpWorkspaceAdapter },
