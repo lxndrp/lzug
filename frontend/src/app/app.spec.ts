@@ -33,6 +33,7 @@ import { WORKSPACE_PORT } from './shell/workspace.port';
 import { CONFIRMED_PLANS_PORT } from './confirmed-plans/confirmed-plans.port';
 import { HttpConfirmedPlansAdapter } from './api/http-confirmed-plans.adapter';
 import { VenueWorkflowService } from './locations/venue-workflow.service';
+import { LocationsWorkspaceFacade } from './locations/locations-workspace.facade';
 import { LifecycleService } from './runtime/lifecycle.service';
 import {
   apiRootFixture,
@@ -557,12 +558,12 @@ describe('App', () => {
     const route = routeComponent(fixture, LocationsRouteComponent) as unknown as {
       openVenue(id: number): void;
       closeDetail(): void;
-      locationSnapshot(): import('./locations/locations.models').LocationSnapshot | null;
     };
 
-    const snapshot = route.locationSnapshot();
+    const locations = TestBed.inject(LocationsWorkspaceFacade);
+    const snapshot = locations.snapshot();
     fixture.detectChanges();
-    expect(route.locationSnapshot()).toBe(snapshot);
+    expect(locations.snapshot()).toBe(snapshot);
     const workspace = TestBed.inject(ApplicationWorkspaceService);
     const currentMasterData = workspace.masterData();
     expect(currentMasterData).not.toBeNull();
@@ -573,7 +574,7 @@ describe('App', () => {
         { ...currentMasterData!.examVenues[0], id: 999 },
       ],
     });
-    expect(route.locationSnapshot()).not.toBe(snapshot);
+    expect(locations.snapshot()).not.toBe(snapshot);
 
     route.openVenue(masterDataFixture.examVenues[0].id);
     await fixture.whenStable();

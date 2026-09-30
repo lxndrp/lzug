@@ -17,15 +17,15 @@ import type {
   VenueContactUpdate,
 } from '../locations/locations.models';
 import { VenueWorkflowService } from '../locations/venue-workflow.service';
+import { LocationsWorkspaceFacade } from '../locations/locations-workspace.facade';
 import { ApplicationWorkspaceService } from '../shell/application-workspace.service';
-import { toLocationSnapshot } from '../api/http-locations.mapper';
 
 /** Route entry and aggregate command boundary for examination venues. */
 @Component({
   imports: [LocationsComponent],
   template: `
     <app-locations
-      [snapshot]="locationSnapshot()"
+      [snapshot]="locations.snapshot()"
       [actionBusy]="workspace.actionBusy()"
       [isOperator]="auth.session()?.is_operator ?? false"
       [readOnly]="demoSession() !== null"
@@ -54,6 +54,7 @@ import { toLocationSnapshot } from '../api/http-locations.mapper';
 })
 export class LocationsRouteComponent {
   protected readonly workspace = inject(ApplicationWorkspaceService);
+  protected readonly locations = inject(LocationsWorkspaceFacade);
   protected readonly workflow = inject(VenueWorkflowService);
   protected readonly auth = inject(AuthService);
   private readonly route = inject(ActivatedRoute);
@@ -73,11 +74,6 @@ export class LocationsRouteComponent {
       (this.auth.session()?.is_operator === true ||
         this.workspace.masterData()?.examVenuesCanCreate === true),
   );
-
-  protected readonly locationSnapshot = computed(() => {
-    const masterData = this.workspace.masterData();
-    return masterData ? toLocationSnapshot(masterData) : null;
-  });
 
   protected openVenue(id: number): void {
     void this.router.navigateByUrl(`/locations/${id}`);
