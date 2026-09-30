@@ -2,17 +2,9 @@ import {
   ApplicationConfig,
   provideBrowserGlobalErrorListeners,
   provideZoneChangeDetection,
-  inject,
-  Injector,
   signal,
 } from '@angular/core';
-import {
-  HttpInterceptorFn,
-  provideHttpClient,
-  withInterceptors,
-  withXsrfConfiguration,
-} from '@angular/common/http';
-import { catchError, throwError } from 'rxjs';
+import { provideHttpClient, withInterceptors, withXsrfConfiguration } from '@angular/common/http';
 import { provideRouter } from '@angular/router';
 import { provideTaiga } from '@taiga-ui/core';
 import { TuiConfirmService } from '@taiga-ui/kit';
@@ -22,36 +14,21 @@ import { TUI_GERMAN_LANGUAGE } from '@taiga-ui/i18n/languages/german';
 import { SCHEDULING_OVERVIEW_PORT } from './scheduling-overview/application/scheduling-overview.port';
 import { HttpSchedulingOverviewAdapter } from './scheduling-overview/adapters/http-scheduling-overview.adapter';
 import { routes } from './app.routes';
+import { AUTHENTICATION_PORT } from './auth/auth.models';
 import { AuthService } from './auth/auth.service';
-import { lifecycleInterceptor } from './runtime/lifecycle.service';
-import {
-  providePrivacyPreservingErrorHandler,
-  reportFrontendError,
-} from './observability/error-reporter';
-
-const withSessionCredentials: HttpInterceptorFn = (request, next) => {
-  const injector = inject(Injector);
-  return next(request.clone({ withCredentials: true })).pipe(
-    catchError((error: { status?: number; error?: { error?: { code?: string } } }) => {
-      if (error.status === 401 && !request.url.endsWith('/api/auth/login')) {
-        injector.get(AuthService).markAnonymous();
-      }
-      if (
-        typeof error.status === 'number' &&
-        error.status >= 500 &&
-        error.error?.error?.code !== 'runtime_not_ready' &&
-        !['/api/lifecycle', '/api/ready'].includes(request.url)
-      ) {
-        reportFrontendError('http', error.status);
-      }
-      return throwError(() => error);
-    }),
-  );
-};
+import { LifecycleService } from './runtime/lifecycle.service';
+import { LIFECYCLE_AVAILABILITY_PORT } from './runtime/lifecycle.port';
+import { lifecycleInterceptor, withSessionCredentials } from './api/http-interceptors';
+import { providePrivacyPreservingErrorHandler } from './observability/error-reporter';
+import { FRONTEND_ERROR_REPORTER_PORT } from './observability/frontend-error.port';
+import { HttpFrontendErrorReporter } from './api/frontend-error-api.adapter';
 
 export const appConfig: ApplicationConfig = {
   providers: [
     { provide: SCHEDULING_OVERVIEW_PORT, useClass: HttpSchedulingOverviewAdapter },
+    { provide: AUTHENTICATION_PORT, useExisting: AuthService },
+    { provide: LIFECYCLE_AVAILABILITY_PORT, useExisting: LifecycleService },
+    { provide: FRONTEND_ERROR_REPORTER_PORT, useClass: HttpFrontendErrorReporter },
     provideBrowserGlobalErrorListeners(),
     providePrivacyPreservingErrorHandler(),
     provideZoneChangeDetection({ eventCoalescing: true }),

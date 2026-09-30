@@ -12,10 +12,10 @@ import {
   tap,
 } from 'rxjs';
 
-import type { Candidate, CommitteeMember } from '../api/api.models';
+import type { Candidate, CandidateCreateCommand, CommitteeMember } from '../api/api.models';
 import { MasterDataApiService } from '../api/master-data-api.service';
+import type { CandidateUpdate } from '../api/master-data.models';
 import { RoundContextService } from '../api/round-context.service';
-import type { CandidatePayload, CandidateUpdate } from '../candidates/candidates.component';
 import type { CommitteeMemberPayload } from '../committee/committee.component';
 import { ApplicationWorkspaceService } from '../shell/application-workspace.service';
 
@@ -54,7 +54,9 @@ export class MasterDataWorkflowService {
     );
   }
 
-  createCandidate(payload: CandidatePayload): Observable<MasterDataWorkflowResult<Candidate>> {
+  createCandidate(
+    payload: CandidateCreateCommand,
+  ): Observable<MasterDataWorkflowResult<Candidate>> {
     const roundId = this.roundContext.roundId();
     return this.run(
       `candidate:${roundId}:create`,

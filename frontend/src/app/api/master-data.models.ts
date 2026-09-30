@@ -156,6 +156,35 @@ export type Candidate = {
   updated_at?: string;
 };
 
+export type CandidateCreateCommand = {
+  attempt_number?: number;
+  exam_round_id?: number | null;
+  first_name: string;
+  ihk_exam_number: string;
+  last_name: string;
+  requires_mep?: boolean | number;
+  specialization: string;
+  training_company: string;
+  assignment_change_reason?: string | null;
+};
+
+export type CandidateUpdateCommand = {
+  assignment_change_reason?: string | null;
+  attempt_number?: number | null;
+  exam_round_id?: number | null;
+  first_name?: string | null;
+  ihk_exam_number?: string | null;
+  last_name?: string | null;
+  requires_mep?: boolean | number | null;
+  specialization?: string | null;
+  training_company?: string | null;
+};
+
+export type CandidateUpdate = {
+  id: number;
+  payload: CandidateUpdateCommand;
+};
+
 export type RoundCandidate = {
   id: number;
   exam_round_id: number;
