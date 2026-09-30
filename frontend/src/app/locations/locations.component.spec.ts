@@ -10,7 +10,10 @@ import {
   VenueCreate,
 } from './locations.component';
 import { masterDataFixture } from '../testing/fixtures';
-import { ExamRoom, ExamVenue, ExamVenueContact } from '../api/api.models';
+import { toLocationSnapshot } from '../api/http-locations.mapper';
+import type { VenueRoom, Venue, VenueContact } from './locations.models';
+
+const locationSnapshotFixture = toLocationSnapshot(masterDataFixture);
 
 type LocationsHarness = LocationsComponent & {
   creating: WritableSignal<boolean>;
@@ -23,20 +26,20 @@ type LocationsHarness = LocationsComponent & {
   decisionVenueId: WritableSignal<number | null>;
   draft: VenueCreate;
   editDraft: VenueCreate | null;
-  roomDraft: { name: string; capacity: number | null; is_active: boolean };
+  roomDraft: { name: string; capacity: number | null; isActive: boolean };
   roomEditDraft: { name: string; capacity: number | null };
   contactDraft: {
     label: string;
     email: string;
     phone: string;
-    availability_notes: string;
-    is_active: boolean;
+    availabilityNotes: string;
+    isActive: boolean;
   };
   contactEditDraft: {
     label: string;
     email: string;
     phone: string;
-    availability_notes: string;
+    availabilityNotes: string;
   };
   promotionReason: string;
   decisionReason: string;
@@ -44,36 +47,36 @@ type LocationsHarness = LocationsComponent & {
   scopeFilter: WritableSignal<'all' | 'global' | 'committee'>;
   statusFilter: WritableSignal<'all' | 'active' | 'inactive' | 'clarification'>;
   accessibilityFilter: WritableSignal<'all' | 'yes' | 'no' | 'unknown'>;
-  venues(): ExamVenue[];
-  filteredVenues(): ExamVenue[];
-  detailVenue(): ExamVenue | null;
-  activeRooms(venue: ExamVenue): ExamRoom[];
-  activeRoomNames(venue: ExamVenue): string;
-  committeeName(venue: ExamVenue): string;
-  scopeLabel(venue: ExamVenue): string;
-  statusLabel(venue: ExamVenue): string;
-  accessibilityLabel(venue: ExamVenue): string;
-  roomLocation(room: ExamRoom): string;
+  venues(): Venue[];
+  filteredVenues(): Venue[];
+  detailVenue(): Venue | null;
+  activeRooms(venue: Venue): VenueRoom[];
+  activeRoomNames(venue: Venue): string;
+  committeeName(venue: Venue): string;
+  scopeLabel(venue: Venue): string;
+  statusLabel(venue: Venue): string;
+  accessibilityLabel(venue: Venue): string;
+  roomLocation(room: VenueRoom): string;
   optional(value: string | null | undefined): string;
-  address(venue: ExamVenue): string;
-  coordinateLabel(venue: ExamVenue): string;
-  mapEmbedUrl(venue: ExamVenue): unknown;
+  address(venue: Venue): string;
+  coordinateLabel(venue: Venue): string;
+  mapEmbedUrl(venue: Venue): unknown;
   clearFilters(): void;
   submitVenue(): void;
   toggleVenueCreation(): void;
-  startEditing(venue: ExamVenue): void;
-  submitVenueUpdate(venue: ExamVenue): void;
-  toggleVenue(venue: ExamVenue): void;
-  submitRoom(venue: ExamVenue): void;
-  toggleRoom(room: ExamRoom): void;
-  startEditingRoom(room: ExamRoom): void;
-  submitRoomUpdate(room: ExamRoom): void;
-  submitContact(venue: ExamVenue): void;
-  toggleContact(contact: ExamVenueContact): void;
-  startEditingContact(contact: ExamVenueContact): void;
-  submitContactUpdate(contact: ExamVenueContact): void;
-  submitPromotion(venue: ExamVenue): void;
-  submitPromotionDecision(venue: ExamVenue, decision: 'approve' | 'reject'): void;
+  startEditing(venue: Venue): void;
+  submitVenueUpdate(venue: Venue): void;
+  toggleVenue(venue: Venue): void;
+  submitRoom(venue: Venue): void;
+  toggleRoom(room: VenueRoom): void;
+  startEditingRoom(room: VenueRoom): void;
+  submitRoomUpdate(room: VenueRoom): void;
+  submitContact(venue: Venue): void;
+  toggleContact(contact: VenueContact): void;
+  startEditingContact(contact: VenueContact): void;
+  submitContactUpdate(contact: VenueContact): void;
+  submitPromotion(venue: Venue): void;
+  submitPromotionDecision(venue: Venue, decision: 'approve' | 'reject'): void;
 };
 
 describe('LocationsComponent', () => {
@@ -82,17 +85,17 @@ describe('LocationsComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({ imports: [LocationsComponent] }).compileComponents();
     fixture = TestBed.createComponent(LocationsComponent);
-    fixture.componentRef.setInput('masterData', masterDataFixture);
+    fixture.componentRef.setInput('snapshot', locationSnapshotFixture);
     fixture.detectChanges();
   });
 
   it('renders the aggregate with rooms and management actions from capabilities', () => {
-    fixture.componentRef.setInput('detailVenueId', masterDataFixture.examVenues[0].id);
+    fixture.componentRef.setInput('detailVenueId', locationSnapshotFixture.venues[0].id);
     fixture.detectChanges();
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
 
-    expect(text).toContain(masterDataFixture.examVenues[0].name);
-    expect(text).toContain(masterDataFixture.examVenues[0].rooms[0].name);
+    expect(text).toContain(locationSnapshotFixture.venues[0].name);
+    expect(text).toContain(locationSnapshotFixture.venues[0].rooms[0].name);
     expect(text).toContain('Global vorschlagen');
     expect(text).toContain('Kontakt anlegen');
   });
@@ -100,17 +103,17 @@ describe('LocationsComponent', () => {
   it('renders a searchable overview with scope and accessibility filters', () => {
     const harness = fixture.componentInstance as unknown as LocationsHarness;
     const secondVenue = {
-      ...masterDataFixture.examVenues[0],
+      ...locationSnapshotFixture.venues[0],
       id: 2,
       name: 'Globaler Saal',
       scope: 'global' as const,
-      committee_id: null,
-      is_accessible: 0,
-      capabilities: { manage: false, request_promotion: false, decide_promotion: false },
+      committeeId: null,
+      isAccessible: false,
+      capabilities: { manage: false, requestPromotion: false, decidePromotion: false },
     };
-    harness.masterData = {
-      ...masterDataFixture,
-      examVenues: [masterDataFixture.examVenues[0], secondVenue],
+    harness.snapshot = {
+      ...locationSnapshotFixture,
+      venues: [locationSnapshotFixture.venues[0], secondVenue],
     };
     harness.searchTerm.set('globaler');
     expect(harness.filteredVenues()).toEqual([secondVenue]);
@@ -133,25 +136,25 @@ describe('LocationsComponent', () => {
 
   it('covers venue labels, filter branches and detail fallbacks', () => {
     const harness = fixture.componentInstance as unknown as LocationsHarness;
-    const baseVenue = masterDataFixture.examVenues[0];
-    const globalVenue: ExamVenue = {
+    const baseVenue = locationSnapshotFixture.venues[0];
+    const globalVenue: Venue = {
       ...baseVenue,
       id: 2,
       scope: 'global',
-      committee_id: null,
+      committeeId: null,
       name: 'Globaler Saal',
       street: '',
-      postal_code: '',
+      postalCode: '',
       city: '',
       country: '',
-      site_name: 'Hauptstandort',
+      siteName: 'Hauptstandort',
       entrance: 'Eingang Ost',
-      travel_directions: 'Vom Bahnhof über die Brücke.',
-      accessibility_notes: 'Aufzug vorhanden.',
-      is_accessible: 0,
-      is_active: 0,
+      travelDirections: 'Vom Bahnhof über die Brücke.',
+      accessibilityNotes: 'Aufzug vorhanden.',
+      isAccessible: false,
+      isActive: false,
       rooms: [
-        { ...baseVenue.rooms[0], id: 2, name: 'Inaktiver Raum', is_active: 0 },
+        { ...baseVenue.rooms[0], id: 2, name: 'Inaktiver Raum', isActive: false },
         {
           ...baseVenue.rooms[0],
           id: 3,
@@ -159,25 +162,25 @@ describe('LocationsComponent', () => {
           building: 'Haus B',
           wing: 'Ost',
           floor: '2',
-          room_number: 'B-202',
-          access_notes: 'Stufenlos erreichbar.',
-          is_active: 1,
+          roomNumber: 'B-202',
+          accessNotes: 'Stufenlos erreichbar.',
+          isActive: true,
         },
       ],
     };
-    const unknownVenue: ExamVenue = {
+    const unknownVenue: Venue = {
       ...baseVenue,
       id: 3,
       name: 'Noch zu prüfender Ort',
-      committee_id: 999,
-      is_accessible: null,
-      accessibility_status: 'needs_clarification',
-      is_active: 0,
+      committeeId: 999,
+      isAccessible: null,
+      accessibilityStatus: 'needs_clarification',
+      isActive: false,
       rooms: [],
     };
-    harness.masterData = {
-      ...masterDataFixture,
-      examVenues: [baseVenue, globalVenue, unknownVenue],
+    harness.snapshot = {
+      ...locationSnapshotFixture,
+      venues: [baseVenue, globalVenue, unknownVenue],
     };
 
     harness.statusFilter.set('active');
@@ -224,7 +227,7 @@ describe('LocationsComponent', () => {
     expect(harness.optional(null)).toBe('Nicht hinterlegt');
     expect(harness.address(globalVenue)).toBe('');
     expect(harness.address(baseVenue)).toContain(baseVenue.city);
-    expect(harness.coordinateLabel({ ...baseVenue, coordinate_status: 'missing' })).toBe(
+    expect(harness.coordinateLabel({ ...baseVenue, coordinateStatus: 'missing' })).toBe(
       'Nicht hinterlegt',
     );
 
@@ -240,7 +243,7 @@ describe('LocationsComponent', () => {
   });
 
   it('renders loading, error and empty overview states', () => {
-    fixture.componentRef.setInput('masterData', null);
+    fixture.componentRef.setInput('snapshot', null);
     fixture.componentRef.setInput('loading', true);
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('Prüfungsorte werden geladen');
@@ -253,21 +256,21 @@ describe('LocationsComponent', () => {
       'Prüfungsorte konnten nicht synchronisiert werden.',
     );
 
-    fixture.componentRef.setInput('masterData', { ...masterDataFixture, examVenues: [] });
+    fixture.componentRef.setInput('snapshot', { ...locationSnapshotFixture, venues: [] });
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('Keine sichtbaren Prüfungsorte.');
   });
 
   it('does not render management actions for a read-only venue', () => {
-    fixture.componentRef.setInput('masterData', {
-      ...masterDataFixture,
-      examVenues: [
+    fixture.componentRef.setInput('snapshot', {
+      ...locationSnapshotFixture,
+      venues: [
         {
-          ...masterDataFixture.examVenues[0],
+          ...locationSnapshotFixture.venues[0],
           capabilities: {
             manage: false,
-            request_promotion: false,
-            decide_promotion: false,
+            requestPromotion: false,
+            decidePromotion: false,
           },
         },
       ],
@@ -282,18 +285,18 @@ describe('LocationsComponent', () => {
 
   it('loads one attributed map only in the selected venue detail', () => {
     const venue = {
-      ...masterDataFixture.examVenues[0],
+      ...locationSnapshotFixture.venues[0],
       latitude: 53.55,
       longitude: 9.99,
-      coordinate_status: 'confirmed' as const,
-      coordinate_source: 'nominatim',
-      map_provider: {
+      coordinateStatus: 'confirmed' as const,
+      coordinateSource: 'nominatim',
+      mapProvider: {
         mode: 'osm' as const,
         attribution: 'OpenStreetMap-Mitwirkende',
-        attribution_url: 'https://www.openstreetmap.org/copyright',
+        attributionUrl: 'https://www.openstreetmap.org/copyright',
       },
     };
-    fixture.componentRef.setInput('masterData', { ...masterDataFixture, examVenues: [venue] });
+    fixture.componentRef.setInput('snapshot', { ...locationSnapshotFixture, venues: [venue] });
     fixture.componentRef.setInput('detailVenueId', null);
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('iframe')).toBeNull();
@@ -315,17 +318,17 @@ describe('LocationsComponent', () => {
     appRoot.setAttribute('data-google-maps-embed-key', 'restricted-browser-key');
     document.body.append(appRoot);
     const venue = {
-      ...masterDataFixture.examVenues[0],
+      ...locationSnapshotFixture.venues[0],
       latitude: 53.55,
       longitude: 9.99,
-      coordinate_status: 'confirmed' as const,
-      map_provider: {
+      coordinateStatus: 'confirmed' as const,
+      mapProvider: {
         mode: 'google' as const,
         attribution: 'Google Maps',
-        attribution_url: 'https://www.google.com/intl/de/help/terms_maps/',
+        attributionUrl: 'https://www.google.com/intl/de/help/terms_maps/',
       },
     };
-    fixture.componentRef.setInput('masterData', { ...masterDataFixture, examVenues: [venue] });
+    fixture.componentRef.setInput('snapshot', { ...locationSnapshotFixture, venues: [venue] });
     fixture.componentRef.setInput('detailVenueId', venue.id);
     fixture.detectChanges();
 
@@ -341,15 +344,15 @@ describe('LocationsComponent', () => {
 
   it('requires explicit confirmation before a geocoding candidate becomes a venue update', () => {
     const venue = {
-      ...masterDataFixture.examVenues[0],
-      coordinate_status: 'needs_review' as const,
-      map_provider: { mode: 'osm' as const },
+      ...locationSnapshotFixture.venues[0],
+      coordinateStatus: 'needs_review' as const,
+      mapProvider: { mode: 'osm' as const },
       capabilities: {
-        ...masterDataFixture.examVenues[0].capabilities,
+        ...locationSnapshotFixture.venues[0].capabilities,
         geocode: true,
       },
     };
-    fixture.componentRef.setInput('masterData', { ...masterDataFixture, examVenues: [venue] });
+    fixture.componentRef.setInput('snapshot', { ...locationSnapshotFixture, venues: [venue] });
     fixture.componentRef.setInput('detailVenueId', venue.id);
     fixture.componentRef.setInput('geocodeCandidate', {
       venueId: venue.id,
@@ -368,11 +371,11 @@ describe('LocationsComponent', () => {
     expect(emit).toHaveBeenCalledWith({
       id: venue.id,
       payload: {
-        expected_revision: venue.revision,
+        expectedRevision: venue.revision,
         latitude: 53.55,
         longitude: 9.99,
-        coordinate_status: 'confirmed',
-        coordinate_source: 'nominatim',
+        coordinateStatus: 'confirmed',
+        coordinateSource: 'nominatim',
       },
     });
   });
@@ -381,24 +384,24 @@ describe('LocationsComponent', () => {
     const component = fixture.componentInstance;
     vi.spyOn(component.updateRoom, 'emit').mockReturnValue(undefined);
     const harness = component as unknown as LocationsHarness;
-    harness.toggleRoom(masterDataFixture.examVenues[0].rooms[0]);
+    harness.toggleRoom(locationSnapshotFixture.venues[0].rooms[0]);
 
     expect(component.updateRoom.emit).toHaveBeenCalledWith({
       id: 1,
-      payload: { expected_revision: 1, is_active: false },
+      payload: { expectedRevision: 1, isActive: false },
     });
   });
 
   it('offers promotion decisions only when the operator capability is present', () => {
-    fixture.componentRef.setInput('masterData', {
-      ...masterDataFixture,
-      examVenues: [
+    fixture.componentRef.setInput('snapshot', {
+      ...locationSnapshotFixture,
+      venues: [
         {
-          ...masterDataFixture.examVenues[0],
+          ...locationSnapshotFixture.venues[0],
           capabilities: {
             manage: false,
-            request_promotion: false,
-            decide_promotion: true,
+            requestPromotion: false,
+            decidePromotion: true,
           },
         },
       ],
@@ -431,10 +434,10 @@ describe('LocationsComponent', () => {
     expect(emit).not.toHaveBeenCalled();
 
     Object.assign(harness.draft, {
-      committee_id: 1,
+      committeeId: 1,
       name: '  Prüfungszentrum West  ',
       street: '  Testweg 2 ',
-      postal_code: ' 20095 ',
+      postalCode: ' 20095 ',
       city: ' Hamburg ',
       country: ' Deutschland ',
     });
@@ -442,10 +445,10 @@ describe('LocationsComponent', () => {
     expect(emit).toHaveBeenLastCalledWith(
       expect.objectContaining({
         scope: 'committee',
-        committee_id: 1,
+        committeeId: 1,
         name: 'Prüfungszentrum West',
         street: 'Testweg 2',
-        postal_code: '20095',
+        postalCode: '20095',
         city: 'Hamburg',
         country: 'Deutschland',
       }),
@@ -454,7 +457,7 @@ describe('LocationsComponent', () => {
     component.isOperator = true;
     harness.submitVenue();
     expect(emit).toHaveBeenLastCalledWith(
-      expect.objectContaining({ scope: 'global', committee_id: null }),
+      expect.objectContaining({ scope: 'global', committeeId: null }),
     );
   });
 
@@ -473,7 +476,7 @@ describe('LocationsComponent', () => {
   it('edits, toggles, and resets a venue with its revision', () => {
     const component = fixture.componentInstance;
     const harness = component as unknown as LocationsHarness;
-    const venue = masterDataFixture.examVenues[0];
+    const venue = locationSnapshotFixture.venues[0];
     const emit = vi.spyOn(component.updateVenue, 'emit').mockReturnValue(undefined);
 
     harness.submitVenueUpdate(venue);
@@ -486,13 +489,13 @@ describe('LocationsComponent', () => {
     harness.submitVenueUpdate(venue);
     expect(emit).toHaveBeenLastCalledWith({
       id: venue.id,
-      payload: expect.objectContaining({ expected_revision: venue.revision, name: 'Neuer Name' }),
+      payload: expect.objectContaining({ expectedRevision: venue.revision, name: 'Neuer Name' }),
     });
 
     harness.toggleVenue(venue);
     expect(emit).toHaveBeenLastCalledWith({
       id: venue.id,
-      payload: { expected_revision: venue.revision, is_active: false },
+      payload: { expectedRevision: venue.revision, isActive: false },
     });
 
     harness.creating.set(true);
@@ -507,24 +510,24 @@ describe('LocationsComponent', () => {
   it('creates, edits, and toggles rooms only with valid names', () => {
     const component = fixture.componentInstance;
     const harness = component as unknown as LocationsHarness;
-    const venue = masterDataFixture.examVenues[0];
+    const venue = locationSnapshotFixture.venues[0];
     const room = venue.rooms[0];
     const create = vi.spyOn(component.createRoom, 'emit').mockReturnValue(undefined);
     const update = vi.spyOn(component.updateRoom, 'emit').mockReturnValue(undefined);
 
     harness.submitRoom(venue);
     expect(create).not.toHaveBeenCalled();
-    harness.roomDraft = { name: '  B-202  ', capacity: 18, is_active: true };
+    harness.roomDraft = { name: '  B-202  ', capacity: 18, isActive: true };
     harness.submitRoom(venue);
     expect(create).toHaveBeenCalledWith({
       venueId: venue.id,
-      payload: expect.objectContaining({ name: 'B-202', capacity: 18, is_active: true }),
+      payload: expect.objectContaining({ name: 'B-202', capacity: 18, isActive: true }),
     } satisfies RoomCreate);
 
     harness.toggleRoom(room);
     expect(update).toHaveBeenLastCalledWith({
       id: room.id,
-      payload: { expected_revision: room.revision, is_active: false },
+      payload: { expectedRevision: room.revision, isActive: false },
     });
     harness.startEditingRoom(room);
     harness.roomEditDraft.name = '   ';
@@ -535,7 +538,7 @@ describe('LocationsComponent', () => {
     expect(update).toHaveBeenLastCalledWith({
       id: room.id,
       payload: expect.objectContaining({
-        expected_revision: room.revision,
+        expectedRevision: room.revision,
         name: 'A-102',
         capacity: 22,
       }),
@@ -545,19 +548,18 @@ describe('LocationsComponent', () => {
   it('creates, edits, and toggles contacts with normalized optional fields', () => {
     const component = fixture.componentInstance;
     const harness = component as unknown as LocationsHarness;
-    const venue = masterDataFixture.examVenues[0];
-    const contact: ExamVenueContact = {
+    const venue = locationSnapshotFixture.venues[0];
+    const contact: VenueContact = {
       id: 4,
-      venue_id: venue.id,
+      venueId: venue.id,
       label: 'Empfang',
       role: null,
       phone: '+49 40 123',
       email: null,
-      availability_notes: null,
-      is_active: 1,
+      availabilityNotes: null,
+      isActive: true,
       revision: 3,
-      room_ids: [],
-      _links: {},
+      roomIds: [],
     };
     const create = vi.spyOn(component.createContact, 'emit').mockReturnValue(undefined);
     const update = vi.spyOn(component.updateContact, 'emit').mockReturnValue(undefined);
@@ -568,8 +570,8 @@ describe('LocationsComponent', () => {
       label: '  Empfang ',
       email: ' info@example.invalid ',
       phone: ' ',
-      availability_notes: ' werktags ',
-      is_active: true,
+      availabilityNotes: ' werktags ',
+      isActive: true,
     };
     harness.submitContact(venue);
     expect(create).toHaveBeenCalledWith({
@@ -578,35 +580,35 @@ describe('LocationsComponent', () => {
         label: 'Empfang',
         email: 'info@example.invalid',
         phone: null,
-        availability_notes: 'werktags',
-        is_active: true,
+        availabilityNotes: 'werktags',
+        isActive: true,
       },
     } satisfies ContactCreate);
 
     harness.toggleContact(contact);
     expect(update).toHaveBeenLastCalledWith({
       id: contact.id,
-      payload: { expected_revision: contact.revision, is_active: false },
+      payload: { expectedRevision: contact.revision, isActive: false },
     });
     harness.startEditingContact(contact);
-    harness.contactEditDraft = { label: ' ', email: '', phone: '', availability_notes: '' };
+    harness.contactEditDraft = { label: ' ', email: '', phone: '', availabilityNotes: '' };
     harness.submitContactUpdate(contact);
     expect(update).toHaveBeenCalledTimes(1);
     harness.contactEditDraft = {
       label: '  Hausmeister ',
       email: '',
       phone: ' +49 40 456 ',
-      availability_notes: '',
+      availabilityNotes: '',
     };
     harness.submitContactUpdate(contact);
     expect(update).toHaveBeenLastCalledWith({
       id: contact.id,
       payload: {
-        expected_revision: contact.revision,
+        expectedRevision: contact.revision,
         label: 'Hausmeister',
         email: null,
         phone: '+49 40 456',
-        availability_notes: null,
+        availabilityNotes: null,
       },
     } satisfies ContactUpdate);
   });
@@ -614,7 +616,7 @@ describe('LocationsComponent', () => {
   it('requires reasons for promotion requests and decisions', () => {
     const component = fixture.componentInstance;
     const harness = component as unknown as LocationsHarness;
-    const venue = masterDataFixture.examVenues[0];
+    const venue = locationSnapshotFixture.venues[0];
     const request = vi.spyOn(component.requestPromotion, 'emit').mockReturnValue(undefined);
     const decide = vi.spyOn(component.decidePromotion, 'emit').mockReturnValue(undefined);
 
@@ -637,25 +639,24 @@ describe('LocationsComponent', () => {
   it('renders every aggregate editor state without losing nested data', () => {
     const harness = fixture.componentInstance as unknown as LocationsHarness;
     const venue = {
-      ...masterDataFixture.examVenues[0],
+      ...locationSnapshotFixture.venues[0],
       contacts: [
         {
           id: 4,
-          venue_id: 1,
+          venueId: 1,
           label: 'Empfang',
           role: null,
           phone: '+49 40 123',
           email: null,
-          availability_notes: 'werktags',
-          is_active: 1,
+          availabilityNotes: 'werktags',
+          isActive: true,
           revision: 1,
-          room_ids: [1],
-          _links: {},
+          roomIds: [1],
         },
       ],
-      capabilities: { manage: true, request_promotion: true, decide_promotion: true },
-    } satisfies ExamVenue;
-    fixture.componentRef.setInput('masterData', { ...masterDataFixture, examVenues: [venue] });
+      capabilities: { manage: true, requestPromotion: true, decidePromotion: true },
+    } satisfies Venue;
+    fixture.componentRef.setInput('snapshot', { ...locationSnapshotFixture, venues: [venue] });
     fixture.componentRef.setInput('detailVenueId', venue.id);
     harness.creating.set(true);
     harness.startEditing(venue);
@@ -673,7 +674,7 @@ describe('LocationsComponent', () => {
     expect(text).toContain('Hochstufen');
     expect(harness.venues()).toEqual([venue]);
 
-    harness.masterData = null;
+    harness.snapshot = null;
     expect(harness.venues()).toEqual([]);
     harness.finishEditing(-1);
     expect(harness.roomVenueId()).toBeNull();
@@ -686,31 +687,31 @@ describe('LocationsComponent', () => {
 
   it('shows retryable venue consequences and emits a controlled retry', () => {
     const venue = {
-      ...masterDataFixture.examVenues[0],
+      ...locationSnapshotFixture.venues[0],
       capabilities: {
-        ...masterDataFixture.examVenues[0].capabilities,
-        retry_consequences: true,
+        ...locationSnapshotFixture.venues[0].capabilities,
+        retryConsequences: true,
       },
-      consequence_problems: [
+      consequenceProblems: [
         {
-          audit_id: 17,
-          venue_id: 1,
-          entity_type: 'venue' as const,
-          entity_id: 1,
-          consequence_type: 'calendar' as const,
+          auditId: 17,
+          venueId: 1,
+          entityType: 'venue' as const,
+          entityId: 1,
+          consequenceType: 'calendar' as const,
           status: 'temporarily_failed' as const,
-          attempt_count: 1,
-          error_code: 'calendar_processing_failed',
-          updated_at: '2026-09-02T20:00:00+00:00',
+          attemptCount: 1,
+          errorCode: 'calendar_processing_failed',
+          updatedAt: '2026-09-02T20:00:00+00:00',
         },
       ],
     };
     const retry = vi
       .spyOn(fixture.componentInstance.retryConsequences, 'emit')
       .mockReturnValue(undefined);
-    fixture.componentRef.setInput('masterData', {
-      ...masterDataFixture,
-      examVenues: [venue],
+    fixture.componentRef.setInput('snapshot', {
+      ...locationSnapshotFixture,
+      venues: [venue],
     });
     fixture.componentRef.setInput('detailVenueId', venue.id);
     fixture.detectChanges();
@@ -722,12 +723,12 @@ describe('LocationsComponent', () => {
     button?.click();
     expect(retry).toHaveBeenCalledWith(17);
 
-    fixture.componentRef.setInput('masterData', {
-      ...masterDataFixture,
-      examVenues: [
+    fixture.componentRef.setInput('snapshot', {
+      ...locationSnapshotFixture,
+      venues: [
         {
           ...venue,
-          capabilities: { ...venue.capabilities, retry_consequences: false },
+          capabilities: { ...venue.capabilities, retryConsequences: false },
         },
       ],
     });

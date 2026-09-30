@@ -3,18 +3,21 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { map } from 'rxjs';
 
-import type { ExamRoom, ExamVenue, ExamVenueContact } from '../api/api.models';
 import { AuthService } from '../auth/auth.service';
-import {
-  ContactCreate,
-  ContactUpdate,
-  LocationsComponent,
-  RoomCreate,
-  RoomUpdate,
+import { LocationsComponent } from '../locations/locations.component';
+import type {
+  Venue,
+  VenueContact,
+  VenueRoom,
   VenueCreate,
   VenueUpdate,
-} from '../locations/locations.component';
+  VenueRoomCreate,
+  VenueRoomUpdate,
+  VenueContactCreate,
+  VenueContactUpdate,
+} from '../locations/locations.models';
 import { VenueWorkflowService } from '../locations/venue-workflow.service';
+import { LocationsWorkspaceFacade } from '../locations/locations-workspace.facade';
 import { ApplicationWorkspaceService } from '../shell/application-workspace.service';
 
 /** Route entry and aggregate command boundary for examination venues. */
@@ -22,7 +25,7 @@ import { ApplicationWorkspaceService } from '../shell/application-workspace.serv
   imports: [LocationsComponent],
   template: `
     <app-locations
-      [masterData]="workspace.masterData()"
+      [snapshot]="locations.snapshot()"
       [actionBusy]="workspace.actionBusy()"
       [isOperator]="auth.session()?.is_operator ?? false"
       [readOnly]="demoSession() !== null"
@@ -51,6 +54,7 @@ import { ApplicationWorkspaceService } from '../shell/application-workspace.serv
 })
 export class LocationsRouteComponent {
   protected readonly workspace = inject(ApplicationWorkspaceService);
+  protected readonly locations = inject(LocationsWorkspaceFacade);
   protected readonly workflow = inject(VenueWorkflowService);
   protected readonly auth = inject(AuthService);
   private readonly route = inject(ActivatedRoute);
@@ -79,7 +83,7 @@ export class LocationsRouteComponent {
     void this.router.navigateByUrl('/locations');
   }
 
-  protected requestVenueDeletion(venue: ExamVenue): void {
+  protected requestVenueDeletion(venue: Venue): void {
     this.connect();
     this.workflow.requestVenueDeletion(venue);
   }
@@ -94,27 +98,27 @@ export class LocationsRouteComponent {
     this.workflow.updateVenue(update);
   }
 
-  protected geocodeVenue(venue: ExamVenue): void {
+  protected geocodeVenue(venue: Venue): void {
     this.connect();
     this.workflow.geocodeVenue(venue);
   }
 
-  protected deleteVenue(venue: ExamVenue): void {
+  protected deleteVenue(venue: Venue): void {
     this.connect();
     this.workflow.deleteVenue(venue);
   }
 
-  protected createRoom(command: RoomCreate): void {
+  protected createRoom(command: VenueRoomCreate): void {
     this.connect();
     this.workflow.createRoom(command);
   }
 
-  protected updateRoom(command: RoomUpdate): void {
+  protected updateRoom(command: VenueRoomUpdate): void {
     this.connect();
     this.workflow.updateRoom(command);
   }
 
-  protected deleteRoom(room: ExamRoom): void {
+  protected deleteRoom(room: VenueRoom): void {
     this.connect();
     this.workflow.deleteRoom(room);
   }
@@ -124,28 +128,28 @@ export class LocationsRouteComponent {
     this.workflow.retryVenueConsequences(auditId);
   }
 
-  protected createContact(command: ContactCreate): void {
+  protected createContact(command: VenueContactCreate): void {
     this.connect();
     this.workflow.createContact(command);
   }
 
-  protected updateContact(command: ContactUpdate): void {
+  protected updateContact(command: VenueContactUpdate): void {
     this.connect();
     this.workflow.updateContact(command);
   }
 
-  protected deleteContact(contact: ExamVenueContact): void {
+  protected deleteContact(contact: VenueContact): void {
     this.connect();
     this.workflow.deleteContact(contact);
   }
 
-  protected requestPromotion(command: { venue: ExamVenue; reason: string }): void {
+  protected requestPromotion(command: { venue: Venue; reason: string }): void {
     this.connect();
     this.workflow.requestPromotion(command);
   }
 
   protected decidePromotion(command: {
-    venue: ExamVenue;
+    venue: Venue;
     decision: 'approve' | 'reject';
     reason: string;
   }): void {
