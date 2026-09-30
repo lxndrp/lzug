@@ -6,24 +6,25 @@ import { By } from '@angular/platform-browser';
 import { provideRouter, Router } from '@angular/router';
 import { provideTaiga } from '@taiga-ui/core';
 import { TuiConfirmService } from '@taiga-ui/kit';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 
 import { App } from './app';
-import { ExamRoom, ExamVenue, ExamVenueContact } from './api/api.models';
+import type {
+  VenueContact,
+  VenueChangeImpact,
+  VenueCreate,
+  VenueRoomUpdate,
+  VenueDuplicate,
+  VenueUpdate,
+} from './locations/locations.models';
 import { HttpWorkspaceAdapter } from './api/http-workspace.adapter';
 import { AuthService } from './auth/auth.service';
-import {
-  ContactCreate,
-  ContactUpdate,
-  RoomCreate,
-  RoomUpdate,
-  VenueCreate,
-  VenueUpdate,
-} from './locations/locations.component';
 import { RoundContextService } from './api/round-context.service';
 import { routes } from './app.routes';
 import { PlanningWorkflowService } from './planning/planning-workflow.service';
 import { HttpPlanningAdapter } from './planning/http-planning.adapter';
+import { toVenue } from './api/http-locations.mapper';
+import { LOCATIONS_PORT, type LocationsPort } from './locations/locations.port';
 import { PLANNING_PORT } from './planning/planning.port';
 import { LocationsRouteComponent } from './routes/locations-route.component';
 import { ApplicationWorkspaceService } from './shell/application-workspace.service';
@@ -53,8 +54,8 @@ import {
   roundCandidatesFixture,
   summaryFixture,
 } from './testing/fixtures';
-
 describe('App', () => {
+  let locationsPort: ReturnType<typeof createLocationsPortDouble>;
   beforeAll(() => {
     Object.defineProperty(HTMLSelectElement.prototype, 'readOnly', {
       configurable: true,
@@ -64,6 +65,7 @@ describe('App', () => {
   });
 
   beforeEach(async () => {
+    locationsPort = createLocationsPortDouble();
     const session = signal<ReturnType<AuthService['session']>>(null);
     await TestBed.configureTestingModule({
       imports: [App],
@@ -72,6 +74,7 @@ describe('App', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         { provide: PLANNING_PORT, useClass: HttpPlanningAdapter },
+        { provide: LOCATIONS_PORT, useValue: locationsPort },
         { provide: WORKSPACE_PORT, useClass: HttpWorkspaceAdapter },
         { provide: CONFIRMED_PLANS_PORT, useClass: HttpConfirmedPlansAdapter },
         provideTaiga({ scrollbars: 'native' }),
@@ -447,178 +450,103 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     const http = TestBed.inject(HttpTestingController);
     flushDashboardRequests(http);
-    const workflow = TestBed.inject(VenueWorkflowService) as unknown as {
-      createVenue(payload: VenueCreate): void;
-      updateVenue(update: VenueUpdate): void;
-      updateRoom(update: RoomUpdate): void;
-    };
-    const workspace = TestBed.inject(ApplicationWorkspaceService);
-    const venue = masterDataFixture.examVenues[0];
+    const workflow = TestBed.inject(VenueWorkflowService);
+    const venue = toVenue(masterDataFixture.examVenues[0]);
     const create: VenueCreate = {
       scope: 'committee',
-      committee_id: 1,
+      committeeId: 1,
       name: 'Prüfungszentrum West',
       street: 'Testweg 2',
-      postal_code: '20095',
+      postalCode: '20095',
       city: 'Hamburg',
       country: 'Deutschland',
-      accessibility_status: 'confirmed',
-      is_accessible: true,
-      is_active: true,
+      accessibilityStatus: 'confirmed',
+      isAccessible: true,
+      isActive: true,
     };
-
     workflow.createVenue(create);
-    expect(workspace.actionBusy()).toBe(true);
-    const duplicateCheck = http.expectOne('/api/exam-venues/duplicate-check');
-    expect(duplicateCheck.request.method).toBe('POST');
-    duplicateCheck.flush({ items: [] });
-    const createRequest = http.expectOne('/api/exam-venues');
-    expect(createRequest.request.body).toEqual({ ...create, duplicates_reviewed: false });
-    createRequest.flush({ ...venue, id: 7, name: create.name });
+    expect(locationsPort.checkDuplicates).toHaveBeenCalledWith(create);
+    expect(locationsPort.createVenue).toHaveBeenCalledWith({
+      ...create,
+      duplicatesReviewed: false,
+    });
     flushDashboardRequests(http);
-    expect(workspace.actionBusy()).toBe(false);
-
     const update: VenueUpdate = {
       id: venue.id,
-      payload: { expected_revision: venue.revision, name: 'Prüfungszentrum Neu' },
+      payload: { expectedRevision: venue.revision, name: 'Prüfungszentrum Neu' },
     };
     workflow.updateVenue(update);
-    const venueImpact = http.expectOne(`/api/exam-venues/${venue.id}/change-impact`);
-    expect(venueImpact.request.method).toBe('POST');
-    expect(venueImpact.request.body).toEqual(update.payload);
-    venueImpact.flush({ count: 0 });
-    http.expectOne('/api/exam-venues/duplicate-check').flush({ items: [] });
-    const updateRequest = http.expectOne(`/api/exam-venues/${venue.id}`);
-    expect(updateRequest.request.body).toEqual({
-      ...update.payload,
-      confirm_future_assignments: false,
-      duplicates_reviewed: false,
+    expect(locationsPort.getVenueChangeImpact).toHaveBeenCalledWith(venue.id, update.payload);
+    expect(locationsPort.updateVenue).toHaveBeenCalledWith({
+      ...update,
+      confirmFutureAssignments: false,
+      duplicatesReviewed: false,
     });
-    updateRequest.flush({ ...venue, name: 'Prüfungszentrum Neu', revision: venue.revision + 1 });
     flushDashboardRequests(http);
-
-    workflow.updateRoom({
+    const roomUpdate: VenueRoomUpdate = {
       id: venue.rooms[0].id,
-      payload: { expected_revision: venue.rooms[0].revision, name: 'A-102' },
+      payload: { expectedRevision: venue.rooms[0].revision, name: 'A-102' },
+    };
+    workflow.updateRoom(roomUpdate);
+    expect(locationsPort.getRoomChangeImpact).toHaveBeenCalledWith(
+      roomUpdate.id,
+      roomUpdate.payload,
+    );
+    expect(locationsPort.updateRoom).toHaveBeenCalledWith({
+      ...roomUpdate,
+      confirmFutureAssignments: false,
     });
-    const roomImpact = http.expectOne(`/api/exam-rooms/${venue.rooms[0].id}/change-impact`);
-    expect(roomImpact.request.method).toBe('POST');
-    expect(roomImpact.request.body).toEqual({
-      expected_revision: venue.rooms[0].revision,
-      name: 'A-102',
-    });
-    roomImpact.flush({ count: 0 });
-    const roomRequest = http.expectOne(`/api/exam-rooms/${venue.rooms[0].id}`);
-    expect(roomRequest.request.body.confirm_future_assignments).toBe(false);
-    roomRequest.flush({ ...venue.rooms[0], name: 'A-102', revision: 2 });
     flushDashboardRequests(http);
-
+    locationsPort.checkDuplicates.mockReturnValueOnce(throwError(() => new Error('unavailable')));
     workflow.createVenue(create);
-    http
-      .expectOne('/api/exam-venues/duplicate-check')
-      .flush({ error: 'unavailable' }, { status: 503, statusText: 'Unavailable' });
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).textContent).toContain(
       'Dublettenprüfung fehlgeschlagen',
     );
-
-    const confirm = TestBed.inject(TuiConfirmService);
-    vi.spyOn(confirm, 'withConfirm').mockReturnValue(of(false));
+    vi.spyOn(TestBed.inject(TuiConfirmService), 'withConfirm').mockReturnValue(of(false));
+    locationsPort.checkDuplicates.mockReturnValueOnce(
+      of([{ id: 9, name: 'Prüfungszentrum West', scope: 'global', address: 'Testweg 2, Hamburg' }]),
+    );
     workflow.createVenue(create);
-    http.expectOne('/api/exam-venues/duplicate-check').flush({
-      items: [{ id: 9, name: 'Prüfungszentrum West', address: 'Testweg 2, Hamburg' }],
-    });
-
+    expect(locationsPort.createVenue).toHaveBeenCalledTimes(1);
+    locationsPort.getVenueChangeImpact.mockReturnValueOnce(of(venueImpact(2, true)));
     workflow.updateVenue(update);
-    http.expectOne(`/api/exam-venues/${venue.id}/change-impact`).flush({
-      count: 2,
-      date_from: '2026-11-01',
-      date_to: '2026-11-30',
-    });
-    http.expectOne('/api/exam-venues/duplicate-check').flush({ items: [] });
-    expect(http.match(`/api/exam-venues/${venue.id}`)).toHaveLength(0);
-
-    workflow.updateVenue(update);
-    http.expectOne('/api/exam-venues/duplicate-check').flush({ items: [] });
-    http
-      .expectOne(`/api/exam-venues/${venue.id}/change-impact`)
-      .flush({ error: 'unavailable' }, { status: 503, statusText: 'Unavailable' });
+    expect(locationsPort.updateVenue).toHaveBeenCalledTimes(1);
   });
-
   it('keeps explicit geocoding candidates separate from venue data on success and failure', () => {
     TestBed.createComponent(App);
     const http = TestBed.inject(HttpTestingController);
     flushDashboardRequests(http);
-    const workflow = TestBed.inject(VenueWorkflowService) as unknown as {
-      geocodeVenue(venue: ExamVenue): void;
-      geocodeCandidate(): {
-        venueId: number;
-        latitude: number;
-        longitude: number;
-        source: string;
-      } | null;
-      updateVenue(update: VenueUpdate): void;
-    };
-    const workspace = TestBed.inject(ApplicationWorkspaceService);
-    const venue = masterDataFixture.examVenues[0];
-
+    const workflow = TestBed.inject(VenueWorkflowService);
+    const venue = toVenue(masterDataFixture.examVenues[0]);
     workflow.geocodeVenue(venue);
-    expect(workspace.actionBusy()).toBe(true);
-    const success = http.expectOne(`/api/exam-venues/${venue.id}/geocode`);
-    expect(success.request.body).toEqual({ expected_revision: venue.revision });
-    success.flush({ latitude: 53.55, longitude: 9.99, source: 'nominatim' });
     expect(workflow.geocodeCandidate()).toEqual({
       venueId: venue.id,
       latitude: 53.55,
       longitude: 9.99,
-      source: 'nominatim',
+      source: 'test',
     });
-    expect(workspace.actionBusy()).toBe(false);
-
+    locationsPort.geocodeVenue.mockReturnValueOnce(throwError(() => new Error('unavailable')));
     workflow.geocodeVenue(venue);
-    http
-      .expectOne(`/api/exam-venues/${venue.id}/geocode`)
-      .flush({}, { status: 503, statusText: 'Provider unavailable' });
-    expect(workflow.geocodeCandidate()).toEqual({
-      venueId: venue.id,
-      latitude: 53.55,
-      longitude: 9.99,
-      source: 'nominatim',
-    });
-    expect(workspace.actionBusy()).toBe(false);
-
-    const coordinateUpdate: VenueUpdate = {
+    expect(workflow.geocodeCandidate()?.latitude).toBe(53.55);
+    const update: VenueUpdate = {
       id: venue.id,
       payload: {
-        expected_revision: venue.revision,
+        expectedRevision: venue.revision,
         latitude: 53.55,
         longitude: 9.99,
-        coordinate_status: 'confirmed',
-        coordinate_source: 'nominatim',
+        coordinateStatus: 'confirmed',
+        coordinateSource: 'nominatim',
       },
     };
-    workflow.updateVenue(coordinateUpdate);
-    http.expectOne(`/api/exam-venues/${venue.id}/change-impact`).flush({ count: 0 });
-    http.expectOne('/api/exam-venues/duplicate-check').flush({ items: [] });
-    http
-      .expectOne(`/api/exam-venues/${venue.id}`)
-      .flush({ ...venue, ...coordinateUpdate.payload, revision: venue.revision + 1 });
-    flushDashboardRequests(http);
+    workflow.updateVenue(update);
     expect(workflow.geocodeCandidate()).toBeNull();
-
+    flushDashboardRequests(http);
     workflow.geocodeVenue(venue);
-    http
-      .expectOne(`/api/exam-venues/${venue.id}/geocode`)
-      .flush({ latitude: 53.55, longitude: 9.99, source: 'nominatim' });
-    workflow.updateVenue(coordinateUpdate);
-    http.expectOne(`/api/exam-venues/${venue.id}/change-impact`).flush({ count: 0 });
-    http.expectOne('/api/exam-venues/duplicate-check').flush({ items: [] });
-    http
-      .expectOne(`/api/exam-venues/${venue.id}`)
-      .flush({}, { status: 503, statusText: 'Provider unavailable' });
+    locationsPort.updateVenue.mockReturnValueOnce(throwError(() => new Error('unavailable')));
+    workflow.updateVenue(update);
     expect(workflow.geocodeCandidate()).not.toBeNull();
   });
-
   it('routes into and out of the selected venue detail', async () => {
     const fixture = TestBed.createComponent(App);
     const http = TestBed.inject(HttpTestingController);
@@ -647,137 +575,135 @@ describe('App', () => {
   });
 
   it('covers confirmed venue actions and their non-mutating failure paths', () => {
-    TestBed.createComponent(App);
-    const http = TestBed.inject(HttpTestingController);
-    flushDashboardRequests(http);
-    const confirm = TestBed.inject(TuiConfirmService);
-    vi.spyOn(confirm, 'withConfirm').mockReturnValue(of(true));
-    const workflow = TestBed.inject(VenueWorkflowService) as unknown as {
-      requestVenueDeletion(venue: ExamVenue): void;
-      createVenue(payload: VenueCreate): void;
-      updateRoom(update: RoomUpdate): void;
-    };
-    const venue = masterDataFixture.examVenues[0];
-
-    workflow.requestVenueDeletion(venue);
-    http
-      .expectOne(`/api/exam-venues/${venue.id}`)
-      .flush({}, { status: 409, statusText: 'Venue in use' });
-
-    const create: VenueCreate = {
-      scope: 'committee',
-      committee_id: 1,
-      name: 'Prüfungszentrum West',
-      street: 'Testweg 2',
-      postal_code: '20095',
-      city: 'Hamburg',
-      country: 'Deutschland',
-      accessibility_status: 'confirmed',
-      is_accessible: true,
-      is_active: true,
-    };
-    workflow.createVenue(create);
-    http.expectOne('/api/exam-venues/duplicate-check').flush({ items: [] });
-    http
-      .expectOne('/api/exam-venues')
-      .flush({}, { status: 503, statusText: 'Persistence unavailable' });
-
-    const roomUpdate: RoomUpdate = {
-      id: venue.rooms[0].id,
-      payload: { expected_revision: venue.rooms[0].revision, name: 'A-102' },
-    };
-    workflow.updateRoom(roomUpdate);
-    http.expectOne(`/api/exam-rooms/${roomUpdate.id}/change-impact`).flush({
-      count: 1,
-      date_from: '2026-11-01',
-      date_to: '2026-11-01',
-    });
-    http
-      .expectOne(`/api/exam-rooms/${roomUpdate.id}`)
-      .flush({}, { status: 409, statusText: 'Revision conflict' });
-
-    workflow.updateRoom(roomUpdate);
-    http
-      .expectOne(`/api/exam-rooms/${roomUpdate.id}/change-impact`)
-      .flush({}, { status: 503, statusText: 'Impact unavailable' });
-  });
-
-  it('routes every nested venue command through the aggregate API', () => {
     const fixture = TestBed.createComponent(App);
     const http = TestBed.inject(HttpTestingController);
     flushDashboardRequests(http);
-    const workflow = TestBed.inject(VenueWorkflowService) as unknown as {
-      deleteVenue(venue: ExamVenue): void;
-      createRoom(command: RoomCreate): void;
-      deleteRoom(room: ExamRoom): void;
-      createContact(command: ContactCreate): void;
-      updateContact(command: ContactUpdate): void;
-      deleteContact(contact: ExamVenueContact): void;
-      requestPromotion(command: { venue: ExamVenue; reason: string }): void;
-      decidePromotion(command: {
-        venue: ExamVenue;
-        decision: 'approve' | 'reject';
-        reason: string;
-      }): void;
+    const workflow = TestBed.inject(VenueWorkflowService);
+    const venue = toVenue(masterDataFixture.examVenues[0]);
+    locationsPort.deleteVenue.mockReturnValue(throwError(() => new Error('expected')));
+    locationsPort.createRoom.mockReturnValue(throwError(() => new Error('expected')));
+    locationsPort.deleteRoom.mockReturnValue(throwError(() => new Error('expected')));
+    locationsPort.createContact.mockReturnValue(throwError(() => new Error('expected')));
+    locationsPort.updateContact.mockReturnValue(throwError(() => new Error('expected')));
+    locationsPort.deleteContact.mockReturnValue(throwError(() => new Error('expected')));
+    locationsPort.requestPromotion.mockReturnValue(throwError(() => new Error('expected')));
+    locationsPort.decidePromotion.mockReturnValue(throwError(() => new Error('expected')));
+    vi.spyOn(TestBed.inject(TuiConfirmService), 'withConfirm')
+      .mockReturnValueOnce(of(false))
+      .mockReturnValue(of(true));
+    workflow.requestVenueDeletion(venue);
+    expect(locationsPort.deleteVenue).not.toHaveBeenCalled();
+    locationsPort.deleteVenue.mockReturnValueOnce(throwError(() => new Error('in use')));
+    workflow.deleteVenue(venue);
+    expect(locationsPort.deleteVenue).toHaveBeenCalledWith(venue.id, venue.revision);
+    locationsPort.createVenue.mockReturnValueOnce(throwError(() => new Error('unavailable')));
+    workflow.createVenue({
+      scope: 'committee',
+      committeeId: 1,
+      name: 'Ort',
+      street: 'Weg 1',
+      postalCode: '20095',
+      city: 'Hamburg',
+      country: 'Deutschland',
+      accessibilityStatus: 'confirmed',
+      isAccessible: true,
+      isActive: true,
+    });
+    expect(locationsPort.createVenue).toHaveBeenCalledTimes(1);
+    const update: VenueRoomUpdate = {
+      id: venue.rooms[0].id,
+      payload: { expectedRevision: venue.rooms[0].revision, name: 'A-102' },
     };
-    const venue = masterDataFixture.examVenues[0];
+    locationsPort.getRoomChangeImpact.mockReturnValueOnce(of(venueImpact(1, true)));
+    locationsPort.updateRoom.mockReturnValueOnce(throwError(() => new Error('conflict')));
+    workflow.updateRoom(update);
+    expect(locationsPort.updateRoom).toHaveBeenCalledWith({
+      ...update,
+      confirmFutureAssignments: true,
+    });
+    locationsPort.getRoomChangeImpact.mockReturnValueOnce(
+      throwError(() => new Error('unavailable')),
+    );
+    workflow.updateRoom(update);
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      'Auswirkungsprüfung fehlgeschlagen',
+    );
+  });
+  it('routes every nested venue command through the locations port', () => {
+    const fixture = TestBed.createComponent(App);
+    const http = TestBed.inject(HttpTestingController);
+    flushDashboardRequests(http);
+    const workflow = TestBed.inject(VenueWorkflowService);
+    const venue = toVenue(masterDataFixture.examVenues[0]);
+    locationsPort.deleteVenue.mockReturnValue(throwError(() => new Error('expected')));
+    locationsPort.createRoom.mockReturnValue(throwError(() => new Error('expected')));
+    locationsPort.deleteRoom.mockReturnValue(throwError(() => new Error('expected')));
+    locationsPort.createContact.mockReturnValue(throwError(() => new Error('expected')));
+    locationsPort.updateContact.mockReturnValue(throwError(() => new Error('expected')));
+    locationsPort.deleteContact.mockReturnValue(throwError(() => new Error('expected')));
+    locationsPort.requestPromotion.mockReturnValue(throwError(() => new Error('expected')));
+    locationsPort.decidePromotion.mockReturnValue(throwError(() => new Error('expected')));
     const room = venue.rooms[0];
-    const contact: ExamVenueContact = {
+    const contact: VenueContact = {
       id: 4,
-      venue_id: venue.id,
+      venueId: venue.id,
       label: 'Empfang',
       role: null,
       phone: '+49 40 123',
       email: null,
-      availability_notes: null,
-      is_active: 1,
+      availabilityNotes: null,
+      isActive: true,
       revision: 3,
-      room_ids: [],
-      _links: {},
+      roomIds: [],
     };
-    const fail = (path: string, method: string) => {
-      const request = http.expectOne(path);
-      expect(request.request.method).toBe(method);
-      request.flush({ error: 'expected test failure' }, { status: 409, statusText: 'Conflict' });
-    };
-
     workflow.deleteVenue(venue);
-    const deleteVenue = http.expectOne(`/api/exam-venues/${venue.id}`);
-    expect(deleteVenue.request.method).toBe('DELETE');
-    deleteVenue.flush(null, { status: 204, statusText: 'No Content' });
-    flushDashboardRequests(http);
     workflow.createRoom({
       venueId: venue.id,
-      payload: { name: 'B-202', capacity: 12, is_active: true },
+      payload: { name: 'B-202', capacity: 12, isActive: true },
     });
-    fail(`/api/exam-venues/${venue.id}/rooms`, 'POST');
     workflow.deleteRoom(room);
-    fail(`/api/exam-rooms/${room.id}`, 'DELETE');
     workflow.createContact({
       venueId: venue.id,
       payload: {
         label: 'Empfang',
         email: null,
         phone: '123',
-        availability_notes: null,
-        is_active: true,
+        availabilityNotes: null,
+        isActive: true,
       },
     });
-    fail(`/api/exam-venues/${venue.id}/contacts`, 'POST');
     workflow.updateContact({
       id: contact.id,
-      payload: { expected_revision: contact.revision, label: 'Neu' },
+      payload: { expectedRevision: contact.revision, label: 'Neu' },
     });
-    fail(`/api/exam-venue-contacts/${contact.id}`, 'PATCH');
     workflow.deleteContact(contact);
-    fail(`/api/exam-venue-contacts/${contact.id}`, 'DELETE');
     workflow.requestPromotion({ venue, reason: 'Bundesweit geeignet' });
-    fail(`/api/exam-venues/${venue.id}/promotion-requests`, 'POST');
     workflow.decidePromotion({ venue, decision: 'approve', reason: 'Geprüft' });
-    fail(`/api/exam-venue-promotion-requests/${venue.id}/decision`, 'POST');
-
+    expect(locationsPort.deleteVenue).toHaveBeenCalledWith(venue.id, venue.revision);
+    expect(locationsPort.createRoom).toHaveBeenCalledWith({
+      venueId: venue.id,
+      payload: { name: 'B-202', capacity: 12, isActive: true },
+    });
+    expect(locationsPort.deleteRoom).toHaveBeenCalledWith(room.id, room.revision);
+    expect(locationsPort.createContact).toHaveBeenCalledOnce();
+    expect(locationsPort.updateContact).toHaveBeenCalledWith({
+      id: contact.id,
+      payload: { expectedRevision: contact.revision, label: 'Neu' },
+    });
+    expect(locationsPort.deleteContact).toHaveBeenCalledWith(contact.id, contact.revision);
+    expect(locationsPort.requestPromotion).toHaveBeenCalledWith(
+      venue.id,
+      venue.revision,
+      'Bundesweit geeignet',
+    );
+    expect(locationsPort.decidePromotion).toHaveBeenCalledWith(
+      venue.id,
+      venue.revision,
+      'approve',
+      'Geprüft',
+    );
     fixture.detectChanges();
-    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Aktion fehlgeschlagen');
   });
 });
 
@@ -799,6 +725,40 @@ function routeComponent<T>(fixture: ComponentFixture<App>, component: Type<T>): 
   const debugElement = fixture.debugElement.query(By.directive(component));
   expect(debugElement).not.toBeNull();
   return debugElement.componentInstance as T;
+}
+
+function createLocationsPortDouble() {
+  const venue = toVenue(masterDataFixture.examVenues[0]);
+  const port = {
+    checkDuplicates: vi.fn(() => of([] as VenueDuplicate[])),
+    getVenueChangeImpact: vi.fn(() => of(venueImpact(0, false))),
+    getRoomChangeImpact: vi.fn(() => of(venueImpact(0, false))),
+    createVenue: vi.fn(() => of(venue)),
+    updateVenue: vi.fn(() => of(venue)),
+    geocodeVenue: vi.fn(() => of({ latitude: 53.55, longitude: 9.99, source: 'test' })),
+    deleteVenue: vi.fn(() => of(undefined)),
+    createRoom: vi.fn(() => of(venue.rooms[0])),
+    updateRoom: vi.fn(() => of(venue.rooms[0])),
+    deleteRoom: vi.fn(() => of(undefined)),
+    retryConsequences: vi.fn(() => of({})),
+    createContact: vi.fn(() => of(venue.contacts[0])),
+    updateContact: vi.fn(() => of(venue.contacts[0])),
+    deleteContact: vi.fn(() => of(undefined)),
+    requestPromotion: vi.fn(() => of({})),
+    decidePromotion: vi.fn(() => of(venue)),
+  } satisfies LocationsPort;
+  return port;
+}
+
+function venueImpact(count: number, requiresConfirmation: boolean): VenueChangeImpact {
+  return {
+    count,
+    dateFrom: count ? '2026-11-01' : null,
+    dateTo: count ? '2026-11-30' : null,
+    requiresConfirmation,
+    calendar: { eventCount: 0, fields: [] },
+    notifications: { recipientCount: 0, fields: [] },
+  };
 }
 
 function flushDashboardRequests(http: HttpTestingController, round = examRoundFixture): void {

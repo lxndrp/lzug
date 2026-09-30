@@ -21,8 +21,8 @@
               </div>
             </div>
             <div class="app-row-actions" aria-label="Ortsstatus">
-              <span tuiBadge [appearance]="venue.is_active ? 'positive' : 'neutral'">
-                {{ venue.is_active ? 'Aktiv' : 'Inaktiv' }}
+              <span tuiBadge [appearance]="venue.isActive ? 'positive' : 'neutral'">
+                {{ venue.isActive ? 'Aktiv' : 'Inaktiv' }}
               </span>
               <span tuiBadge appearance="neutral">
                 Barrierefreiheit: {{ accessibilityLabel(venue) }}
@@ -52,7 +52,7 @@
                 </div>
                 <div>
                   <dt>Bezeichnung des Standorts</dt>
-                  <dd>{{ optional(venue.site_name) }}</dd>
+                  <dd>{{ optional(venue.siteName) }}</dd>
                 </div>
                 <div>
                   <dt>Eingang oder Treffpunkt</dt>
@@ -60,7 +60,7 @@
                 </div>
                 <div>
                   <dt>Anreisehinweise</dt>
-                  <dd class="locations-preserved-text">{{ optional(venue.travel_directions) }}</dd>
+                  <dd class="locations-preserved-text">{{ optional(venue.travelDirections) }}</dd>
                 </div>
               </dl>
             </section>
@@ -71,9 +71,7 @@
                 <div>
                   <dt>Status</dt>
                   <dd>
-                    {{
-                      venue.accessibility_status === 'confirmed' ? 'Bestätigt' : 'Noch zu klären'
-                    }}
+                    {{ venue.accessibilityStatus === 'confirmed' ? 'Bestätigt' : 'Noch zu klären' }}
                   </dd>
                 </div>
                 <div>
@@ -83,7 +81,7 @@
                 <div>
                   <dt>Erläuterung</dt>
                   <dd class="locations-preserved-text">
-                    {{ optional(venue.accessibility_notes) }}
+                    {{ optional(venue.accessibilityNotes) }}
                   </dd>
                 </div>
               </dl>
@@ -101,7 +99,7 @@
                   <dt>Bestätigter Referenzpunkt</dt>
                   <dd>{{ coordinateLabel(venue) }}</dd>
                 </div>
-                @if (venue.coordinate_source) {
+                @if (venue.coordinateSource) {
                   <div>
                     <dt>Quelle der Georeferenz</dt>
                     <dd>
@@ -162,7 +160,7 @@
                 }
                 <p class="locations-map-meta">
                   <a
-                    [href]="mapProvider(venue).attribution_url"
+                    [href]="mapProvider(venue).attributionUrl"
                     target="_blank"
                     rel="noopener noreferrer"
                   >
@@ -191,7 +189,7 @@
                 (click)="toggleVenue(venue)"
                 [disabled]="actionBusy"
               >
-                {{ venue.is_active ? 'Ort deaktivieren' : 'Ort aktivieren' }}
+                {{ venue.isActive ? 'Ort deaktivieren' : 'Ort aktivieren' }}
               </button>
               <button
                 tuiButton
@@ -209,7 +207,7 @@
               >
                 Kontakt anlegen
               </button>
-              @if (venue.capabilities.geocode && venue.coordinate_status !== 'confirmed') {
+              @if (venue.capabilities.geocode && venue.coordinateStatus !== 'confirmed') {
                 <button
                   tuiButton
                   type="button"
@@ -220,7 +218,7 @@
                   Position anhand der Anschrift prüfen
                 </button>
               }
-              @if (venue.capabilities.request_promotion) {
+              @if (venue.capabilities.requestPromotion) {
                 <button
                   tuiButton
                   type="button"
@@ -258,7 +256,7 @@
               </div>
             </section>
           }
-          @if (venue.consequence_problems?.length) {
+          @if (venue.consequenceProblems.length) {
             <section class="locations-consequence-problems">
               <h2>Folgen unvollständig</h2>
               <p>
@@ -266,24 +264,24 @@
                 benötigen einen erneuten Versuch.
               </p>
               @for (
-                problem of venue.consequence_problems;
-                track problem.audit_id + '-' + problem.consequence_type
+                problem of venue.consequenceProblems;
+                track problem.auditId + '-' + problem.consequenceType
               ) {
                 <div class="app-row-actions">
                   <span>{{
-                    problem.consequence_type === 'calendar'
+                    problem.consequenceType === 'calendar'
                       ? 'Kalender'
-                      : problem.consequence_type === 'notification'
+                      : problem.consequenceType === 'notification'
                         ? 'Benachrichtigung'
                         : 'Ableitung'
                   }}</span>
-                  @if (venue.capabilities.retry_consequences) {
+                  @if (venue.capabilities.retryConsequences) {
                     <button
                       tuiButton
                       type="button"
                       appearance="secondary"
                       [disabled]="actionBusy"
-                      (click)="retryConsequences.emit(problem.audit_id)"
+                      (click)="retryConsequences.emit(problem.auditId)"
                     >
                       Erneut versuchen
                     </button>
@@ -292,7 +290,7 @@
               }
             </section>
           }
-          @if (!readOnly && venue.capabilities.decide_promotion) {
+          @if (!readOnly && venue.capabilities.decidePromotion) {
             <div class="app-row-actions locations-management-actions">
               <button
                 tuiButton
@@ -322,7 +320,7 @@
               </tui-textfield>
               <tui-textfield class="app-field-quarter">
                 <label tuiLabel>PLZ</label>
-                <input tuiInput name="editPostalCode" [(ngModel)]="edit.postal_code" />
+                <input tuiInput name="editPostalCode" [(ngModel)]="edit.postalCode" />
               </tui-textfield>
               <tui-textfield class="app-field-third">
                 <label tuiLabel>Ort</label>
@@ -330,7 +328,7 @@
               </tui-textfield>
               <tui-textfield class="app-field-third">
                 <label tuiLabel>Gebäude oder Standort</label>
-                <input tuiInput name="editSiteName" [(ngModel)]="edit.site_name" />
+                <input tuiInput name="editSiteName" [(ngModel)]="edit.siteName" />
               </tui-textfield>
               <tui-textfield class="app-field-third">
                 <label tuiLabel>Eingang oder Treffpunkt</label>
@@ -338,7 +336,7 @@
               </tui-textfield>
               <tui-textfield class="app-field-full">
                 <label tuiLabel>Anreise- und Auffindungshinweis</label>
-                <input tuiInput name="editTravelDirections" [(ngModel)]="edit.travel_directions" />
+                <input tuiInput name="editTravelDirections" [(ngModel)]="edit.travelDirections" />
               </tui-textfield>
               @if (mapIsActive(venue)) {
                 <tui-textfield class="app-field-third">
@@ -351,7 +349,7 @@
                 </tui-textfield>
                 <label class="app-field-third">
                   Position
-                  <select name="editCoordinateStatus" [(ngModel)]="edit.coordinate_status">
+                  <select name="editCoordinateStatus" [(ngModel)]="edit.coordinateStatus">
                     <option value="missing">Nicht hinterlegt</option>
                     <option value="needs_review">Erneut zu prüfen</option>
                     <option value="confirmed">Bestätigt</option>
@@ -359,24 +357,20 @@
                 </label>
                 <tui-textfield class="app-field-third">
                   <label tuiLabel>Herkunft der Position</label>
-                  <input
-                    tuiInput
-                    name="editCoordinateSource"
-                    [(ngModel)]="edit.coordinate_source"
-                  />
+                  <input tuiInput name="editCoordinateSource" [(ngModel)]="edit.coordinateSource" />
                 </tui-textfield>
               }
               <label class="app-field-third">
                 Barrierefreiheit
-                <select name="editAccessibilityStatus" [(ngModel)]="edit.accessibility_status">
+                <select name="editAccessibilityStatus" [(ngModel)]="edit.accessibilityStatus">
                   <option value="needs_clarification">Noch zu klären</option>
                   <option value="confirmed">Geprüft</option>
                 </select>
               </label>
-              @if (edit.accessibility_status === 'confirmed') {
+              @if (edit.accessibilityStatus === 'confirmed') {
                 <label class="app-field-third">
                   Barrierefrei
-                  <select name="editIsAccessible" [(ngModel)]="edit.is_accessible">
+                  <select name="editIsAccessible" [(ngModel)]="edit.isAccessible">
                     <option [ngValue]="true">Ja</option>
                     <option [ngValue]="false">Nein</option>
                   </select>
@@ -387,14 +381,14 @@
                 <input
                   tuiInput
                   name="editAccessibilityNotes"
-                  [(ngModel)]="edit.accessibility_notes"
+                  [(ngModel)]="edit.accessibilityNotes"
                 />
               </tui-textfield>
               <label class="app-field-full">
                 <input
                   type="checkbox"
                   name="editMeaningfulChange"
-                  [(ngModel)]="edit.meaningful_change"
+                  [(ngModel)]="edit.meaningfulChange"
                 />
                 Die Änderung ist inhaltlich relevant und soll betroffene Mitglieder benachrichtigen.
               </label>
@@ -447,11 +441,11 @@
               </tui-textfield>
               <tui-textfield class="app-field-quarter">
                 <label tuiLabel>Raumnummer</label>
-                <input tuiInput name="roomNumber" [(ngModel)]="roomDraft.room_number" />
+                <input tuiInput name="roomNumber" [(ngModel)]="roomDraft.roomNumber" />
               </tui-textfield>
               <tui-textfield class="app-field-full">
                 <label tuiLabel>Zugangs- oder Auffindungshinweis</label>
-                <input tuiInput name="roomAccessNotes" [(ngModel)]="roomDraft.access_notes" />
+                <input tuiInput name="roomAccessNotes" [(ngModel)]="roomDraft.accessNotes" />
               </tui-textfield>
               <div class="app-field-full app-form-actions">
                 <button tuiButton type="submit" [disabled]="actionBusy">Raum anlegen</button>
@@ -636,12 +630,12 @@
           </div>
         }
 
-        @if (loading && !masterData) {
+        @if (loading && !snapshot) {
           <div class="locations-state" role="status" aria-live="polite">
             <strong>Prüfungsorte werden geladen</strong>
             <span>Die sichtbaren Orte und ihre Räume werden synchronisiert.</span>
           </div>
-        } @else if (!masterData) {
+        } @else if (!snapshot) {
           <div class="locations-state locations-state-error" role="alert">
             <strong>Keine Ortsdaten verfügbar</strong>
             <span>Bitte versuchen Sie die Synchronisierung erneut.</span>
@@ -718,10 +712,10 @@
                     <p>{{ scopeLabel(venue) }}</p>
                   </div>
                   <div class="locations-card-status" aria-label="Ortsstatus">
-                    <span tuiBadge [appearance]="venue.is_active ? 'positive' : 'neutral'">
-                      {{ venue.is_active ? 'Aktiv' : 'Inaktiv' }}
+                    <span tuiBadge [appearance]="venue.isActive ? 'positive' : 'neutral'">
+                      {{ venue.isActive ? 'Aktiv' : 'Inaktiv' }}
                     </span>
-                    @if (venue.accessibility_status === 'needs_clarification') {
+                    @if (venue.accessibilityStatus === 'needs_clarification') {
                       <span tuiBadge appearance="warning">Klärung</span>
                     }
                   </div>
@@ -762,7 +756,7 @@
                       Verwalten
                     </button>
                   }
-                  @if (!readOnly && venue.capabilities.decide_promotion) {
+                  @if (!readOnly && venue.capabilities.decidePromotion) {
                     <button
                       tuiButton
                       type="button"
@@ -804,9 +798,9 @@
             } @else {
               <label class="app-field-third">
                 Ausschuss
-                <select name="committee" [(ngModel)]="draft.committee_id" required>
+                <select name="committee" [(ngModel)]="draft.committeeId" required>
                   <option [ngValue]="null">Bitte wählen</option>
-                  @for (committee of masterData?.committees ?? []; track committee.id) {
+                  @for (committee of snapshot?.committees ?? []; track committee.id) {
                     <option [ngValue]="committee.id">{{ committee.name }}</option>
                   }
                 </select>
@@ -826,7 +820,7 @@
                 tuiInput
                 id="locationPostalCode"
                 name="postalCode"
-                [(ngModel)]="draft.postal_code"
+                [(ngModel)]="draft.postalCode"
               />
             </tui-textfield>
             <tui-textfield class="app-field-third">
@@ -835,15 +829,15 @@
             </tui-textfield>
             <label class="app-field-third">
               Barrierefreiheit
-              <select name="accessibilityStatus" [(ngModel)]="draft.accessibility_status">
+              <select name="accessibilityStatus" [(ngModel)]="draft.accessibilityStatus">
                 <option value="needs_clarification">Noch zu klären</option>
                 <option value="confirmed">Geprüft</option>
               </select>
             </label>
-            @if (draft.accessibility_status === 'confirmed') {
+            @if (draft.accessibilityStatus === 'confirmed') {
               <label class="app-field-third">
                 Barrierefrei
-                <select name="isAccessible" [(ngModel)]="draft.is_accessible">
+                <select name="isAccessible" [(ngModel)]="draft.isAccessible">
                   <option [ngValue]="true">Ja</option>
                   <option [ngValue]="false">Nein</option>
                 </select>
@@ -857,7 +851,7 @@
                 tuiInput
                 id="locationDuplicateReason"
                 name="duplicateReason"
-                [(ngModel)]="draft.duplicate_reason"
+                [(ngModel)]="draft.duplicateReason"
               />
             </tui-textfield>
             <div class="app-field-full app-form-actions">

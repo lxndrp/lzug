@@ -4,8 +4,7 @@ import { TuiButton, TuiInput, TuiTextfield } from '@taiga-ui/core';
 import { TuiBadge } from '@taiga-ui/kit';
 import { TuiForm } from '@taiga-ui/layout';
 
-import type { ExamRoom, ExamVenue } from '../api/api.models';
-import type { RoomDraft } from './locations.component';
+import type { VenueRoom, Venue, VenueRoomDraft as RoomDraft } from './locations.models';
 
 /** Room list and inline room editing within one venue detail. */
 @Component({
@@ -15,21 +14,21 @@ import type { RoomDraft } from './locations.component';
   styleUrl: './locations.component.css',
 })
 export class VenueRoomsComponent {
-  @Input({ required: true }) venue!: ExamVenue;
+  @Input({ required: true }) venue!: Venue;
   @Input({ required: true }) roomEditDraft!: RoomDraft;
   @Input() editingRoomId: number | null = null;
   @Input() readOnly = false;
   @Input() actionBusy = false;
 
-  @Output() startEditing = new EventEmitter<ExamRoom>();
-  @Output() toggle = new EventEmitter<ExamRoom>();
-  @Output() update = new EventEmitter<ExamRoom>();
-  @Output() delete = new EventEmitter<ExamRoom>();
+  @Output() startEditing = new EventEmitter<VenueRoom>();
+  @Output() toggle = new EventEmitter<VenueRoom>();
+  @Output() update = new EventEmitter<VenueRoom>();
+  @Output() delete = new EventEmitter<VenueRoom>();
   @Output() cancel = new EventEmitter<number>();
 
-  protected roomLocation(room: ExamRoom): string {
+  protected roomLocation(room: VenueRoom): string {
     return (
-      [room.building, room.wing, room.floor, room.room_number].filter(Boolean).join(' · ') ||
+      [room.building, room.wing, room.floor, room.roomNumber].filter(Boolean).join(' · ') ||
       'Nicht hinterlegt'
     );
   }

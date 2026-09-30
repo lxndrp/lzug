@@ -6,8 +6,8 @@
         <li>
           <div class="locations-item-heading">
             <strong>{{ contact.label }}</strong>
-            <span tuiBadge [appearance]="contact.is_active ? 'positive' : 'neutral'">
-              {{ contact.is_active ? 'Aktiv' : 'Inaktiv' }}
+            <span tuiBadge [appearance]="contact.isActive ? 'positive' : 'neutral'">
+              {{ contact.isActive ? 'Aktiv' : 'Inaktiv' }}
             </span>
           </div>
           <dl class="locations-inline-definition-list">
@@ -26,7 +26,7 @@
             <div>
               <dt>Erreichbarkeit</dt>
               <dd class="locations-preserved-text">
-                {{ optional(contact.availability_notes) }}
+                {{ optional(contact.availabilityNotes) }}
               </dd>
             </div>
           </dl>
@@ -41,7 +41,7 @@
                 Bearbeiten
               </button>
               <button tuiButton type="button" appearance="secondary" (click)="toggle.emit(contact)">
-                {{ contact.is_active ? 'Deaktivieren' : 'Reaktivieren' }}
+                {{ contact.isActive ? 'Deaktivieren' : 'Reaktivieren' }}
               </button>
               <button tuiButton type="button" appearance="negative" (click)="delete.emit(contact)">
                 Löschen
@@ -81,7 +81,7 @@
                 <input
                   tuiInput
                   name="editContactAvailability"
-                  [(ngModel)]="contactEditDraft.availability_notes"
+                  [(ngModel)]="contactEditDraft.availabilityNotes"
                 />
               </tui-textfield>
               <div class="app-field-full app-form-actions">
