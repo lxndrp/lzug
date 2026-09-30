@@ -138,6 +138,28 @@ describe('NotificationsComponent', () => {
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:calendar');
   });
 
+  it('shows calendar download failures in the calendar status area', () => {
+    personal.downloadCalendarEvent = vi.fn().mockReturnValue(throwError(() => new Error()));
+    const fixture = TestBed.createComponent(NotificationsComponent);
+    fixture.detectChanges();
+
+    (
+      fixture.componentInstance as unknown as { downloadCalendarEvent(id: number): void }
+    ).downloadCalendarEvent(5);
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    expect(element.textContent).toContain(
+      'Der Kalendereintrag konnte nicht heruntergeladen werden.',
+    );
+    expect(element.querySelector('[role="status"]')?.textContent).toContain(
+      'Der Kalendereintrag konnte nicht heruntergeladen werden.',
+    );
+    expect(element.textContent).not.toContain(
+      'Browser-Benachrichtigungen konnten nicht aktiviert werden.',
+    );
+  });
+
   it('explains a denied browser permission without registering an endpoint', async () => {
     const fixture = TestBed.createComponent(NotificationsComponent);
     const component = fixture.componentInstance as unknown as {

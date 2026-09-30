@@ -125,7 +125,7 @@ export class NotificationsComponent implements OnInit {
         this.calendarEventBusy.set(null);
       },
       error: () => {
-        this.pushMessage.set('Der Kalendereintrag konnte nicht heruntergeladen werden.');
+        this.calendarMessage.set('Der Kalendereintrag konnte nicht heruntergeladen werden.');
         this.calendarEventBusy.set(null);
       },
     });
