@@ -557,7 +557,23 @@ describe('App', () => {
     const route = routeComponent(fixture, LocationsRouteComponent) as unknown as {
       openVenue(id: number): void;
       closeDetail(): void;
+      locationSnapshot(): import('./locations/locations.models').LocationSnapshot | null;
     };
+
+    const snapshot = route.locationSnapshot();
+    fixture.detectChanges();
+    expect(route.locationSnapshot()).toBe(snapshot);
+    const workspace = TestBed.inject(ApplicationWorkspaceService);
+    const currentMasterData = workspace.masterData();
+    expect(currentMasterData).not.toBeNull();
+    workspace.masterData.set({
+      ...currentMasterData!,
+      examVenues: [
+        ...currentMasterData!.examVenues,
+        { ...currentMasterData!.examVenues[0], id: 999 },
+      ],
+    });
+    expect(route.locationSnapshot()).not.toBe(snapshot);
 
     route.openVenue(masterDataFixture.examVenues[0].id);
     await fixture.whenStable();

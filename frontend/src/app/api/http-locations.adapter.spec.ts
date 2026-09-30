@@ -35,10 +35,12 @@ describe('HttpLocationsAdapter', () => {
       mapProvider: { mode: expect.any(String) },
       capabilities: { manage: expect.any(Boolean), requestPromotion: expect.any(Boolean) },
     });
+    expect('consequenceWarning' in venue).toBe(false);
     expect(venue.rooms[0]).toMatchObject({
       venueId: venue.id,
       isActive: true,
     });
+    expect('consequenceWarning' in venue.rooms[0]).toBe(false);
     expect(venue.contacts[0]).toMatchObject({
       venueId: venue.id,
       availabilityNotes: expect.any(String),

@@ -33,7 +33,9 @@ export function toVenue(value: ApiVenue): Venue {
     coordinateSource: value.coordinate_source ?? null,
     isActive: value.is_active === 1,
     revision: value.revision,
-    consequenceWarning: value.consequence_warning,
+    ...(typeof value.consequence_warning === 'string'
+      ? { consequenceWarning: value.consequence_warning }
+      : {}),
     rooms: value.rooms.map(toRoom),
     contacts: value.contacts.map(toContact),
     consequenceProblems: (value.consequence_problems ?? []).map((problem) => ({
@@ -88,7 +90,9 @@ export function toRoom(value: ApiRoom): VenueRoom {
     capacity: value.capacity,
     isActive: value.is_active === 1,
     revision: value.revision,
-    consequenceWarning: value.consequence_warning,
+    ...(typeof value.consequence_warning === 'string'
+      ? { consequenceWarning: value.consequence_warning }
+      : {}),
   };
 }
 

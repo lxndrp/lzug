@@ -6,7 +6,6 @@ import { map } from 'rxjs';
 import { AuthService } from '../auth/auth.service';
 import { LocationsComponent } from '../locations/locations.component';
 import type {
-  LocationSnapshot,
   Venue,
   VenueContact,
   VenueRoom,
@@ -75,11 +74,10 @@ export class LocationsRouteComponent {
         this.workspace.masterData()?.examVenuesCanCreate === true),
   );
 
-  protected locationSnapshot(): LocationSnapshot | null {
+  protected readonly locationSnapshot = computed(() => {
     const masterData = this.workspace.masterData();
-    if (!masterData) return null;
-    return toLocationSnapshot(masterData);
-  }
+    return masterData ? toLocationSnapshot(masterData) : null;
+  });
 
   protected openVenue(id: number): void {
     void this.router.navigateByUrl(`/locations/${id}`);

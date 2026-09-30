@@ -279,8 +279,12 @@ export class VenueWorkflowService {
       next: (result) => {
         this.locationsComponent?.finishEditing(-1);
         const warning =
-          typeof result === 'object' && result !== null && 'consequenceWarning' in result
-            ? String(result.consequenceWarning)
+          typeof result === 'object' &&
+          result !== null &&
+          'consequenceWarning' in result &&
+          typeof result.consequenceWarning === 'string' &&
+          result.consequenceWarning.trim()
+            ? result.consequenceWarning
             : null;
         this.feedback.notify(
           warning ? 'error' : 'success',

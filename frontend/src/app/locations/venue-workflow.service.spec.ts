@@ -112,6 +112,29 @@ describe('VenueWorkflowService', () => {
     );
   });
 
+  it('reports room and promotion success when the adapter omits a consequence warning', () => {
+    const room = venue.rooms[0];
+    const port = createPort({
+      createRoom: vi.fn(() => of({ ...room, consequenceWarning: undefined })),
+      decidePromotion: vi.fn(() => of({ ...venue, consequenceWarning: undefined })),
+    });
+    const { workflow, feedback } = configure(port);
+
+    workflow.createRoom({
+      venueId: venue.id,
+      payload: { name: room.name, capacity: room.capacity, isActive: true },
+    });
+    workflow.decidePromotion({ venue, decision: 'approve', reason: 'Geprüft' });
+
+    expect(feedback.notify).toHaveBeenNthCalledWith(1, 'success', 'Raum angelegt', room.name);
+    expect(feedback.notify).toHaveBeenNthCalledWith(
+      2,
+      'success',
+      'Prüfungsort hochgestuft',
+      venue.name,
+    );
+  });
+
   it('preserves venue deletion guard text and room-impact confirmation behavior', () => {
     let confirmAction: (() => void) | undefined;
     const room = venue.rooms[0];
