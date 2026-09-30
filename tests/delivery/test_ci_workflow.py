@@ -53,9 +53,9 @@ class QualityWorkflowContractTests(unittest.TestCase):
         self.assertIn("directory: /operator-cli", self.dependabot_config)
 
     def test_dependabot_auto_merge_allows_go_patch_and_minor(self) -> None:
-        classification = self.dependabot.split(
-            'case "${PACKAGE_ECOSYSTEM}:${UPDATE_TYPE}" in', 1
-        )[1].split("esac", 1)[0]
+        classification = self.dependabot.split('case "${PACKAGE_ECOSYSTEM}:${UPDATE_TYPE}" in', 1)[
+            1
+        ].split("esac", 1)[0]
         for update_type in ("semver-patch", "semver-minor"):
             with self.subTest(update_type=update_type):
                 self.assertIn(f"gomod:version-update:{update_type}", classification)
@@ -71,9 +71,9 @@ class QualityWorkflowContractTests(unittest.TestCase):
         self.assertNotIn("workflow_run:", self.dependabot)
 
     def test_dependabot_auto_merge_leaves_major_actions_and_unknown_manual(self) -> None:
-        classification = self.dependabot.split(
-            'case "${PACKAGE_ECOSYSTEM}:${UPDATE_TYPE}" in', 1
-        )[1].split("esac", 1)[0]
+        classification = self.dependabot.split('case "${PACKAGE_ECOSYSTEM}:${UPDATE_TYPE}" in', 1)[
+            1
+        ].split("esac", 1)[0]
         self.assertNotIn("semver-major", classification)
         self.assertNotIn("github-actions:version-update", classification)
         self.assertIn("*)", classification)
