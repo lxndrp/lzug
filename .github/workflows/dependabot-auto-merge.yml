@@ -43,8 +43,8 @@ jobs:
           case "${PACKAGE_ECOSYSTEM}:${UPDATE_TYPE}" in
             npm_and_yarn:version-update:semver-patch | \
               npm_and_yarn:version-update:semver-minor | \
-              gomod:version-update:semver-patch | \
-              gomod:version-update:semver-minor | \
+              go_modules:version-update:semver-patch | \
+              go_modules:version-update:semver-minor | \
               uv:version-update:semver-patch | \
               uv:version-update:semver-minor)
               echo "eligible=true" >> "$GITHUB_OUTPUT"

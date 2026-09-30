@@ -58,7 +58,7 @@ class QualityWorkflowContractTests(unittest.TestCase):
         ].split("esac", 1)[0]
         for update_type in ("semver-patch", "semver-minor"):
             with self.subTest(update_type=update_type):
-                self.assertIn(f"gomod:version-update:{update_type}", classification)
+                self.assertIn(f"go_modules:version-update:{update_type}", classification)
         self.assertIn("github.actor == 'dependabot[bot]'", self.dependabot)
         self.assertIn("pull_request.user.login == 'dependabot[bot]'", self.dependabot)
         self.assertIn(
