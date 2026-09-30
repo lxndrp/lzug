@@ -6,10 +6,11 @@
 
 ## Status
 
-Teilweise fortgeltend.
-Syft gilt für das lokale Quality-Image, stabile Produkt-Releases und Demo-Images.
-Die Buildx-Ausnahme für Produkt-Snapshots ist im aktuellen
-[Delivery-Vertrag](../delivery.md#release-und-artefakte) dokumentiert.
+Teilweise abgelöst für SBOMs von Produkt-Snapshots durch
+[ADR-0040](0040-buildx-sbom-produkt-snapshots.md).
+Die Syft-Entscheidung gilt für das lokale Quality-Image, stabile Produkt-Releases und Demo-Images fort.
+Die aktuelle Erzeugung und ihre Grenze beschreibt der
+[Delivery-Vertrag](../delivery.md#release-und-artefakte).
 
 ## Kontext
 
