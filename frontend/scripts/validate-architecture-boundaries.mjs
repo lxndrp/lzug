@@ -479,6 +479,97 @@ assert.equal(
   'composition root binds the exam-day port to its HTTP adapter',
 );
 
+const protocolFeaturePath = path.join(root, 'exam-protocol', 'exam-protocol.component.ts');
+const protocolApplicationPath = path.join(root, 'exam-protocol', 'exam-protocol.application.ts');
+const protocolFacadePath = path.join(root, 'exam-protocol', 'exam-protocol.facade.ts');
+const protocolPortPath = path.join(root, 'exam-protocol', 'exam-protocol.port.ts');
+const protocolModelsPath = path.join(root, 'exam-protocol', 'exam-protocol.models.ts');
+const protocolSpecPath = path.join(root, 'exam-protocol', 'exam-protocol.component.spec.ts');
+const protocolAdapterPath = path.join(root, 'api', 'http-exam-protocol.adapter.ts');
+const protocolAdapterSpecPath = path.join(root, 'api', 'http-exam-protocol.adapter.spec.ts');
+const [
+  protocolFeature,
+  protocolApplication,
+  protocolFacade,
+  protocolPort,
+  protocolModels,
+  protocolSpec,
+  protocolAdapter,
+  protocolAdapterSpec,
+] = await Promise.all(
+  [
+    protocolFeaturePath,
+    protocolApplicationPath,
+    protocolFacadePath,
+    protocolPortPath,
+    protocolModelsPath,
+    protocolSpecPath,
+    protocolAdapterPath,
+    protocolAdapterSpecPath,
+  ].map((file) => readFile(file, 'utf8')),
+);
+assert.doesNotMatch(
+  importsOf(protocolFeature),
+  /@angular\/common\/http|(?:^|\/)(?:api|adapters?)(?:\/|$)/,
+  'protocol feature component stays above the HTTP adapter boundary',
+);
+assert.doesNotMatch(
+  protocolFeature,
+  /['"]\/api\//,
+  'protocol component does not construct API URLs',
+);
+assert.match(importsOf(protocolFeature), /exam-protocol\.facade/);
+assert.doesNotMatch(
+  importsOf(protocolFeature),
+  /ExamProtocolApiService|exam-protocol-api\.service|ApiClient|api-client\.service/,
+  'protocol component uses its feature facade instead of an API service',
+);
+assert.deepEqual(relativeImportsOf(protocolApplication), ['./exam-protocol.port']);
+assert.doesNotMatch(
+  importsOf(protocolApplication),
+  /@angular\/common\/http|(?:^|\/)(?:api|adapters?)(?:\/|$)/,
+  'protocol application depends only on its port',
+);
+assert.deepEqual(relativeImportsOf(protocolPort), ['./exam-protocol.models']);
+assert.doesNotMatch(
+  importsOf(protocolPort),
+  /@angular\/common\/http|(?:^|\/)(?:api|adapters?)(?:\/|$)|types\.gen|['"]\/api\//,
+  'protocol port exposes transport-neutral operations',
+);
+for (const [name, source] of [
+  ['protocol component', protocolFeature],
+  ['protocol application', protocolApplication],
+  ['protocol facade', protocolFacade],
+  ['protocol port', protocolPort],
+  ['protocol models', protocolModels],
+  ['protocol behavior tests', protocolSpec],
+]) {
+  assert.doesNotMatch(
+    importsOf(source),
+    /(?:^|\/)api\.models(?:$|\n)|execution\.models|types\.gen/,
+    `${name} must not import backend/API models`,
+  );
+}
+assert.match(protocolFacade, /ExamProtocolApplication/);
+assert.match(protocolSpec, /EXAM_PROTOCOL_PORT/);
+assert.doesNotMatch(
+  protocolSpec,
+  /HttpTestingController|provideHttpClientTesting/,
+  'protocol behavior tests use application-boundary doubles',
+);
+assert.match(protocolAdapter, /execution\.models/);
+assert.match(protocolAdapter, /generated\/types\.gen/);
+assert.match(protocolAdapter, /fromApiProtocol\(/);
+assert.match(protocolAdapter, /fromApiRevision\(/);
+assert.match(protocolAdapterSpec, /HttpExamProtocolAdapter/);
+assert.match(protocolAdapterSpec, /current_version/);
+assert.match(protocolAdapterSpec, /currentVersion/);
+assert.equal(
+  hasProviderBinding(config, 'EXAM_PROTOCOL_PORT', 'HttpExamProtocolAdapter'),
+  true,
+  'composition root binds the protocol port to its HTTP adapter',
+);
+
 function importModulesOf(source) {
   const file = ts.createSourceFile('boundary.ts', source, ts.ScriptTarget.Latest, true);
   const modules = [];
