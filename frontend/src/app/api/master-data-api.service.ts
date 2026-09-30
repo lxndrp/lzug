@@ -3,6 +3,8 @@ import { forkJoin, map } from 'rxjs';
 import type {
   Candidate,
   CandidateCommitteeAssignment,
+  CandidateCreateCommand,
+  CandidateUpdateCommand,
   CandidateView,
   Committee,
   CommitteeMember,
@@ -13,7 +15,7 @@ import type {
 } from './master-data.models';
 import type {
   CandidateCreate,
-  CandidateUpdate,
+  CandidateUpdate as TransportCandidateUpdate,
   CommitteeUpdate,
   MembershipCreate,
   MembershipUpdate,
@@ -97,18 +99,26 @@ export class MasterDataApiService {
     return this.client.patch<CommitteeMember>(`/api/members/${id}`, payload);
   }
 
-  createCandidate(payload: CandidateCreate) {
-    return this.client.post<Candidate>('/api/candidates', {
-      ...payload,
+  createCandidate(payload: CandidateCreateCommand) {
+    const request = {
+      attempt_number: payload.attempt_number,
       exam_round_id: payload.exam_round_id ?? this.roundId,
-    });
+      first_name: payload.first_name,
+      ihk_exam_number: payload.ihk_exam_number,
+      last_name: payload.last_name,
+      requires_mep: payload.requires_mep,
+      specialization: payload.specialization,
+      training_company: payload.training_company,
+    } satisfies CandidateCreate;
+    return this.client.post<Candidate>('/api/candidates', request);
   }
 
-  updateCandidate(id: number, payload: CandidateUpdate) {
-    return this.client.patch<Candidate>(`/api/candidates/${id}`, {
+  updateCandidate(id: number, payload: CandidateUpdateCommand) {
+    const request = {
       ...payload,
       exam_round_id: payload.exam_round_id ?? this.roundId,
-    });
+    } satisfies TransportCandidateUpdate;
+    return this.client.patch<Candidate>(`/api/candidates/${id}`, request);
   }
 
   deleteCandidate(id: number) {

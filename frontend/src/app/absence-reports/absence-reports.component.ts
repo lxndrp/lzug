@@ -3,6 +3,7 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { TuiButton } from '@taiga-ui/core';
 
 import { AbsenceReport } from '../api/api.models';
+import { ApplicationError } from '../application/application-error';
 import { PersonalApiService } from '../api/personal-api.service';
 import { AuthService } from '../auth/auth.service';
 
@@ -69,10 +70,10 @@ export class AbsenceReportsComponent implements OnInit {
             : 'Ersatz ausgewählt. Benachrichtigungs- und Kalenderfolgen wurden verarbeitet.',
         );
       },
-      error: (error: { status?: number }) => {
+      error: (error: ApplicationError) => {
         this.busyResponse.set(null);
         this.message.set(
-          error.status === 409
+          error.kind === 'conflict'
             ? 'Der Ausfallprozess wurde inzwischen geändert. Laden Sie den aktuellen Stand.'
             : 'Der Ersatz konnte nicht ausgewählt werden.',
         );

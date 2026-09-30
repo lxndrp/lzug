@@ -1,82 +1,101 @@
-import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { provideHttpClient } from '@angular/common/http';
 import { Location } from '@angular/common';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
-import { routes } from '../app.routes';
+import { ApplicationError } from '../api/application-error';
+import { AuthApiService } from '../api/auth-api.service';
+import { RuntimeExperienceService } from '../runtime/runtime-experience.service';
 import { AuthService } from './auth.service';
+import type { AuthSession } from './auth.models';
+
+const session: AuthSession = {
+  authenticated: true,
+  account_id: 2,
+  person_id: 4,
+  committee_member_id: 7,
+  is_operator: false,
+};
 
 describe('AuthService', () => {
   let service: AuthService;
-  let http: HttpTestingController;
+  let api: {
+    session: ReturnType<typeof vi.fn>;
+    login: ReturnType<typeof vi.fn>;
+    logout: ReturnType<typeof vi.fn>;
+    prepareInvitation: ReturnType<typeof vi.fn>;
+    activateInvitation: ReturnType<typeof vi.fn>;
+    prepareRecovery: ReturnType<typeof vi.fn>;
+    completeRecovery: ReturnType<typeof vi.fn>;
+  };
+  let runtime: { startDemoSession: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
+    api = {
+      session: vi.fn(() => of(session)),
+      login: vi.fn(() => of({ authenticated: true as const, account_id: 2, expires_at: '' })),
+      logout: vi.fn(() => of(void 0)),
+      prepareInvitation: vi.fn(() => of({ email: '', expires_at: '' })),
+      activateInvitation: vi.fn(() =>
+        of({ account: { id: 2, email: '', is_operator: false }, recovery_codes: [] }),
+      ),
+      prepareRecovery: vi.fn(() => of({ email: '', expires_at: '' })),
+      completeRecovery: vi.fn(() =>
+        of({ account: { id: 2, email: '', is_operator: false }, recovery_codes: [] }),
+      ),
+    };
+    runtime = { startDemoSession: vi.fn(() => of(void 0)) };
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter(routes)],
+      providers: [
+        provideRouter([]),
+        { provide: AuthApiService, useValue: api },
+        { provide: RuntimeExperienceService, useValue: runtime },
+      ],
     });
     service = TestBed.inject(AuthService);
-    http = TestBed.inject(HttpTestingController);
   });
 
   afterEach(() => {
     service.markAnonymous();
-    http.verify();
     vi.useRealTimers();
   });
 
-  it('initializes an authenticated session', () => {
+  it('initializes from a transport-neutral session', () => {
     let authenticated = false;
     service.initialize().subscribe((value) => (authenticated = value));
-
-    const request = http.expectOne('/api/session');
-    request.flush({
-      authenticated: true,
-      account_id: 2,
-      person_id: 4,
-      committee_member_id: 7,
-      is_operator: false,
-    });
 
     expect(authenticated).toBe(true);
     expect(service.state()).toBe('authenticated');
     expect(service.session()?.committee_member_id).toBe(7);
+    expect(api.session).toHaveBeenCalledOnce();
   });
 
-  it('falls back to the anonymous state when the session is unavailable', () => {
+  it('falls back to the anonymous state when no session exists', () => {
+    api.session.mockReturnValue(throwError(() => new ApplicationError('unauthenticated', '')));
     let authenticated = true;
+
     service.initialize().subscribe((value) => (authenticated = value));
-    http
-      .expectOne('/api/session')
-      .flush({ error: 'Authentication required.' }, { status: 401, statusText: 'Unauthorized' });
 
     expect(authenticated).toBe(false);
     expect(service.state()).toBe('anonymous');
     expect(service.session()).toBeNull();
   });
 
-  it('preserves an authentication deep link while initial navigation is pending', () => {
-    const location = TestBed.inject(Location);
-    location.go('/activate');
+  it('preserves an authentication deep link while initialization is pending', () => {
+    TestBed.inject(Location).go('/activate');
+    api.session.mockReturnValue(throwError(() => new ApplicationError('unauthenticated', '')));
 
     service.initialize().subscribe();
-    http
-      .expectOne('/api/session')
-      .flush({ error: 'Authentication required.' }, { status: 401, statusText: 'Unauthorized' });
 
-    expect(location.path()).toBe('/activate');
+    expect(TestBed.inject(Location).path()).toBe('/activate');
   });
 
   it('uses explicit demo capabilities while preserving product sessions', () => {
     expect(service.hasCapability('candidate-days:create')).toBe(true);
 
     service.session.set({
-      authenticated: true,
-      account_id: 1,
-      person_id: 1,
-      committee_member_id: 1,
-      is_operator: false,
+      ...session,
       demo_role: 'chair',
       capabilities: ['candidate-days:generate'],
     });
@@ -85,131 +104,38 @@ describe('AuthService', () => {
     expect(service.hasCapability('candidate-days:create')).toBe(false);
   });
 
-  it('posts login and activation/recovery requests only as request bodies', () => {
+  it('delegates authentication requests and returns to the anonymous state on logout', () => {
     service.login('member@example.invalid', 'a password', '123456').subscribe();
-    const login = http.expectOne('/api/auth/login');
-    expect(login.request.method).toBe('POST');
-    expect(login.request.body).toEqual({
+    expect(api.login).toHaveBeenCalledWith({
       email: 'member@example.invalid',
       password: 'a password',
       second_factor: '123456',
     });
-    login.flush({ authenticated: true, account_id: 2, expires_at: '2026-01-01T20:00:00+00:00' });
-
-    service.prepareInvitation('invite-token').subscribe();
-    const invitationPreparation = http.expectOne('/api/auth/invitation/prepare');
-    expect(invitationPreparation.request.body).toEqual({ token: 'invite-token' });
-    invitationPreparation.flush({
-      email: 'member@example.invalid',
-      expires_at: '2026-01-01T20:00:00+00:00',
-      totp_secret: 'JBSWY3DPEHPK3PXP',
-    });
-
-    service
-      .activateInvitation('invite-token', 'a password', 'JBSWY3DPEHPK3PXP', '123456')
-      .subscribe();
-    const activation = http.expectOne('/api/auth/invitation/activate');
-    expect(activation.request.body).toEqual({
-      token: 'invite-token',
-      password: 'a password',
-      totp_secret: 'JBSWY3DPEHPK3PXP',
-      totp_code: '123456',
-    });
-    activation.flush({
-      activated: true,
-      account: { id: 2, email: 'member@example.invalid', is_operator: false },
-      recovery_codes: ['ABCD2345EF'],
-    });
-
-    service.prepareRecovery('recovery-token').subscribe();
-    const recoveryPreparation = http.expectOne('/api/auth/recovery/prepare');
-    expect(recoveryPreparation.request.body).toEqual({ token: 'recovery-token' });
-    recoveryPreparation.flush({
-      email: 'member@example.invalid',
-      expires_at: '2026-01-01T20:00:00+00:00',
-      totp_secret: 'JBSWY3DPEHPK3PXP',
-    });
-
-    service
-      .completeRecovery('recovery-token', 'a new password', 'JBSWY3DPEHPK3PXP', '654321')
-      .subscribe();
-    const recovery = http.expectOne('/api/auth/recovery/complete');
-    expect(recovery.request.body).toEqual({
-      token: 'recovery-token',
-      password: 'a new password',
-      totp_secret: 'JBSWY3DPEHPK3PXP',
-      totp_code: '654321',
-    });
-    recovery.flush({
-      recovered: true,
-      account: { id: 2, email: 'member@example.invalid', is_operator: false },
-      recovery_codes: ['GHJK6789MN'],
-    });
-  });
-
-  it('ends the current session before returning to authentication', () => {
-    service.state.set('authenticated');
-    service.session.set({
-      authenticated: true,
-      account_id: 2,
-      person_id: 3,
-      committee_member_id: 3,
-      is_operator: false,
-      demo_role: 'examiner',
-      display_name: 'Testperson Gamma',
-      capabilities: ['attendance:write-own', 'availability:write-own'],
-    });
+    expect(service.state()).toBe('authenticated');
 
     service.logout().subscribe();
-    const request = http.expectOne('/api/session/logout');
-    expect(request.request.method).toBe('POST');
-    request.flush(null);
 
+    expect(api.logout).toHaveBeenCalledOnce();
     expect(service.state()).toBe('anonymous');
     expect(service.session()).toBeNull();
   });
 
-  it('starts a demo role and enters the shared scenario workspace', () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-09-02T10:00:00Z'));
+  it('starts the selected demo role and enters the shared session', () => {
     service.startDemoSession('replacement').subscribe();
-    const start = http.expectOne('/api/demo/session');
-    expect(start.request.method).toBe('POST');
-    expect(start.request.body).toEqual({ role: 'replacement' });
-    start.flush({ authenticated: true });
 
-    const sessionRequest = http.expectOne('/api/session');
-    sessionRequest.flush({
-      authenticated: true,
-      account_id: 4,
-      person_id: 6,
-      committee_member_id: 6,
-      is_operator: false,
-      demo_role: 'replacement',
-      display_name: 'Francis Flute',
-      capabilities: ['absence:respond-own', 'notifications:read-own', 'calendar:read-own'],
-      demo_workspace_expires_at: '2026-09-02T11:00:00Z',
-    });
-
+    expect(runtime.startDemoSession).toHaveBeenCalledWith('replacement');
+    expect(api.session).toHaveBeenCalledOnce();
     expect(service.state()).toBe('authenticated');
-    expect(service.session()?.demo_role).toBe('replacement');
   });
 
   it('ends a demo session at its absolute workspace expiry', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-09-02T10:00:00Z'));
-    service.startDemoSession('examiner').subscribe();
-    http.expectOne('/api/demo/session').flush({ authenticated: true });
-    http.expectOne('/api/session').flush({
-      authenticated: true,
-      account_id: 2,
-      person_id: 3,
-      committee_member_id: 3,
-      is_operator: false,
-      demo_role: 'examiner',
-      demo_workspace_expires_at: '2026-09-02T10:00:01Z',
-    });
+    api.session.mockReturnValue(
+      of({ ...session, demo_role: 'examiner', demo_workspace_expires_at: '2026-09-02T10:00:01Z' }),
+    );
 
+    service.acceptAuthentication().subscribe();
     vi.advanceTimersByTime(999);
     expect(service.state()).toBe('authenticated');
     vi.advanceTimersByTime(1);

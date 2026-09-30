@@ -1,10 +1,4 @@
 import type { ApiLink } from './common.models';
-import type {
-  PlanningProposalAssignmentPayload as TransportPlanningProposalAssignment,
-  PlanningProposalDayPayload as TransportPlanningProposalDay,
-  PlanningProposalResponse as TransportPlanningProposal,
-  PlanningProposalSlotPayload as TransportPlanningProposalSlot,
-} from './generated/types.gen';
 import type { CandidateView, CommitteeMember, Location } from './master-data.models';
 
 export type RoundSummary = {
@@ -200,7 +194,8 @@ export type PlanningConflict = {
 };
 
 /** One ordered slot inside the editable, revisioned planning aggregate. */
-export type PlanningProposalSlot = Pick<TransportPlanningProposalSlot, 'round_candidate_id'> & {
+export type PlanningProposalSlot = {
+  round_candidate_id: number;
   id: number | null;
   slot_type: 'regular' | 'mep';
   starts_at: string;
@@ -210,10 +205,8 @@ export type PlanningProposalSlot = Pick<TransportPlanningProposalSlot, 'round_ca
 };
 
 /** One examiner or fallback assignment for a proposal day part. */
-export type PlanningProposalAssignment = Pick<
-  TransportPlanningProposalAssignment,
-  'committee_member_id'
-> & {
+export type PlanningProposalAssignment = {
+  committee_member_id: number;
   id: number | null;
   assignment_role: 'examiner' | 'fallback';
   day_part: 'morning' | 'afternoon' | 'full_day';
@@ -221,7 +214,8 @@ export type PlanningProposalAssignment = Pick<
 };
 
 /** One candidate exam day and its complete editable proposal content. */
-export type PlanningProposalDay = Pick<TransportPlanningProposalDay, 'candidate_exam_day_id'> & {
+export type PlanningProposalDay = {
+  candidate_exam_day_id: number;
   id: number | null;
   date: string;
   room_id?: number;
@@ -232,7 +226,9 @@ export type PlanningProposalDay = Pick<TransportPlanningProposalDay, 'candidate_
 };
 
 /** Complete proposal exchanged through the optimistic-lock aggregate endpoint. */
-export type EditablePlanningProposal = Pick<TransportPlanningProposal, 'round_id' | 'revision'> & {
+export type EditablePlanningProposal = {
+  round_id: number;
+  revision: number;
   exam_days: PlanningProposalDay[];
   _links?: Record<string, ApiLink>;
 };

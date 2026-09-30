@@ -22,6 +22,7 @@ import {
   PlanningProposalSlot,
 } from '../api/api.models';
 import { ConfirmedPlanApiService } from '../api/confirmed-plan-api.service';
+import { ApplicationError } from '../application/application-error';
 import { AuthService } from '../auth/auth.service';
 import { RuntimeExperienceService } from '../runtime/runtime-experience.service';
 
@@ -136,19 +137,18 @@ export class ConfirmedPlanEditorComponent implements OnChanges {
         );
         this.loadRevisions(generation, roundId);
       },
-      error: (error: { status?: number; error?: { error?: { message?: string } | string } }) => {
+      error: (error: ApplicationError) => {
         if (!this.isCurrentRequest(generation, roundId)) return;
-        if (error.status === 409) {
+        if (error.kind === 'conflict') {
           this.errorMessage.set(
             'Der Plan wurde inzwischen geändert. Die aktuelle Fassung wird neu geladen; Ihre lokalen Änderungen wurden nicht gespeichert.',
           );
           this.loadAfterConflict(generation, roundId);
           return;
         }
-        const detail = error.error?.error;
         this.errorMessage.set(
-          typeof detail === 'object' && detail?.message
-            ? detail.message
+          error.message
+            ? error.message
             : 'Die Änderung konnte nicht gespeichert werden. Prüfen Sie die Angaben und versuchen Sie es erneut.',
         );
         this.state.set('ready');

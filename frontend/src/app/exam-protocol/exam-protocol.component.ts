@@ -1,4 +1,3 @@
-import { HttpErrorResponse } from '@angular/common/http';
 import { Component, Input, OnChanges, SimpleChanges, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { TuiButton } from '@taiga-ui/core';
@@ -10,6 +9,7 @@ import {
   ExamProtocolDeclaration,
   ExamProtocolEntryCategory,
 } from '../api/api.models';
+import { ApplicationError } from '../application/application-error';
 import { ExamProtocolApiService } from '../api/exam-protocol-api.service';
 import { AuthService } from '../auth/auth.service';
 
@@ -74,10 +74,10 @@ export class ExamProtocolComponent implements OnChanges {
         this.accept(protocol);
         this.state.set('ready');
       },
-      error: (error: HttpErrorResponse) => {
+      error: (error: ApplicationError) => {
         if (sequence !== this.requestSequence) return;
         this.protocol.set(null);
-        this.state.set(error.status === 404 ? 'not-found' : 'error');
+        this.state.set(error.kind === 'not-found' ? 'not-found' : 'error');
       },
     });
   }
@@ -234,13 +234,9 @@ export class ExamProtocolComponent implements OnChanges {
         this.busy.set(false);
         this.message.set(successMessage);
       },
-      error: (error: HttpErrorResponse) => {
+      error: (error: ApplicationError) => {
         this.busy.set(false);
-        this.error.set(
-          error.error?.error?.message ??
-            error.error?.error ??
-            'Die Protokollaktion konnte nicht gespeichert werden.',
-        );
+        this.error.set(error.message || 'Die Protokollaktion konnte nicht gespeichert werden.');
       },
     });
   }

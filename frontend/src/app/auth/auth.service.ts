@@ -1,38 +1,19 @@
-import { HttpClient } from '@angular/common/http';
 import { Location } from '@angular/common';
 import { Injectable, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { catchError, map, of, switchMap, tap } from 'rxjs';
 
-import { DemoRole } from '../api/api.models';
-import type {
-  FactorActivationRequest,
-  LoginRequest,
-  SessionResponse,
-  TokenRequest,
-} from '../api/generated/types.gen';
+import type { DemoRole } from '../api/api.models';
+import { ApplicationError } from '../api/application-error';
+import { AuthApiService } from '../api/auth-api.service';
 import { RuntimeExperienceService } from '../runtime/runtime-experience.service';
+import type { AuthenticationPort, AuthSession, AuthState } from './auth.models';
 
-export type AuthState = 'checking' | 'authenticated' | 'anonymous';
-
-export type AuthSession = SessionResponse;
-
-export type AuthPreparation = {
-  email: string;
-  expires_at: string;
-  totp_secret?: string;
-};
-
-export type AuthCompletion = {
-  activated?: boolean;
-  recovered?: boolean;
-  account: { id: number; email: string; is_operator: boolean };
-  recovery_codes: string[];
-};
+export type { AuthCompletion, AuthPreparation, AuthSession, AuthState } from './auth.models';
 
 @Injectable({ providedIn: 'root' })
-export class AuthService {
-  private readonly http = inject(HttpClient);
+export class AuthService implements AuthenticationPort {
+  private readonly api = inject(AuthApiService);
   private readonly location = inject(Location);
   private readonly router = inject(Router);
   private readonly runtimeExperience = inject(RuntimeExperienceService);
@@ -48,7 +29,7 @@ export class AuthService {
 
   initialize() {
     if (this.state() !== 'checking') return of(this.state() === 'authenticated');
-    return this.http.get<AuthSession>('/api/session').pipe(
+    return this.api.session().pipe(
       tap((session) => {
         this.acceptSession(session);
         if (this.isAuthRoute(this.currentUrl())) {
@@ -56,34 +37,24 @@ export class AuthService {
         }
       }),
       map(() => true),
-      catchError((error: { status?: number; error?: { error?: { code?: string } } }) => {
-        if (error.error?.error?.code !== 'runtime_not_ready') this.markAnonymous();
+      catchError((error: ApplicationError) => {
+        if (error.code !== 'runtime_not_ready') this.markAnonymous();
         return of(false);
       }),
     );
   }
 
   login(email: string, password: string, secondFactor: string) {
-    const request = {
-      email,
-      password,
-      second_factor: secondFactor,
-    } satisfies LoginRequest;
-    return this.http
-      .post<{ authenticated: true; account_id: number; expires_at: string }>(
-        '/api/auth/login',
-        request,
-      )
-      .pipe(
-        tap(() => {
-          this.state.set('authenticated');
-          void this.router.navigateByUrl('/dashboard', { replaceUrl: true });
-        }),
-      );
+    return this.api.login({ email, password, second_factor: secondFactor }).pipe(
+      tap(() => {
+        this.state.set('authenticated');
+        void this.router.navigateByUrl('/dashboard', { replaceUrl: true });
+      }),
+    );
   }
 
   acceptAuthentication() {
-    return this.http.get<AuthSession>('/api/session').pipe(
+    return this.api.session().pipe(
       tap((session) => {
         this.acceptSession(session);
         void this.router.navigateByUrl(this.entryPath(session), { replaceUrl: true });
@@ -98,37 +69,33 @@ export class AuthService {
   }
 
   logout() {
-    return this.http.post<void>('/api/session/logout', {}).pipe(tap(() => this.markAnonymous()));
+    return this.api.logout().pipe(tap(() => this.markAnonymous()));
   }
 
   prepareInvitation(token: string) {
-    return this.http.post<AuthPreparation>('/api/auth/invitation/prepare', {
-      token,
-    } satisfies TokenRequest);
+    return this.api.prepareInvitation({ token });
   }
 
   activateInvitation(token: string, password: string, totpSecret: string, totpCode: string) {
-    return this.http.post<AuthCompletion>('/api/auth/invitation/activate', {
+    return this.api.activateInvitation({
       token,
       password,
       totp_secret: totpSecret,
       totp_code: totpCode,
-    } satisfies FactorActivationRequest);
+    });
   }
 
   prepareRecovery(token: string) {
-    return this.http.post<AuthPreparation>('/api/auth/recovery/prepare', {
-      token,
-    } satisfies TokenRequest);
+    return this.api.prepareRecovery({ token });
   }
 
   completeRecovery(token: string, password: string, totpSecret: string, totpCode: string) {
-    return this.http.post<AuthCompletion>('/api/auth/recovery/complete', {
+    return this.api.completeRecovery({
       token,
       password,
       totp_secret: totpSecret,
       totp_code: totpCode,
-    } satisfies FactorActivationRequest);
+    });
   }
 
   markAnonymous(): void {

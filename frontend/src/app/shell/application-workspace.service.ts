@@ -3,6 +3,7 @@ import { Router } from '@angular/router';
 import { finalize } from 'rxjs';
 
 import type { ExamRound, MasterData, PlanningBoard, RoundSummary } from '../api/api.models';
+import { ApplicationError } from '../api/application-error';
 import { PlanningApiService } from '../api/planning-api.service';
 import { RoundContextService } from '../api/round-context.service';
 import { AuthService } from '../auth/auth.service';
@@ -70,12 +71,12 @@ export class ApplicationWorkspaceService {
           }
           this.message.set('Daten synchronisiert');
         },
-        error: (error: { status?: number }) => {
+        error: (error: ApplicationError) => {
           if (generation !== this.refreshGeneration || this.roundContext.roundId() !== roundId) {
             return;
           }
           this.masterDataError.set(true);
-          if (error.status === 401) {
+          if (error.kind === 'unauthenticated') {
             this.auth.markAnonymous();
             return;
           }
