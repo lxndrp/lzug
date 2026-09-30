@@ -573,7 +573,11 @@ HTTP-Adapter; die konkrete Bereinigung der vorhandenen API-Modelle und
 HTTP-Fehlergrenzen ist in #908 nachgewiesen.
 
 `ApplicationWorkspaceService` hält ausschließlich den fachübergreifenden
-Lesezustand des gewählten Prüfungskontexts.
+Lesezustand des gewählten Prüfungskontexts und hängt dafür an
+`WorkspacePort` statt direkt am HTTP-Client.
+`HttpWorkspaceAdapter` übersetzt das Dashboard-Transportmodell in einen
+Snapshot ohne HAL-Links; die anwendungsweite Bindung liegt in
+`app.config.ts`.
 Planungs-, Stammdaten- und Ortsbefehle liegen in den zuständigen
 Workflow-Services.
 `App` besitzt nur Rahmen, Authentisierung, globale Runtimezustände,

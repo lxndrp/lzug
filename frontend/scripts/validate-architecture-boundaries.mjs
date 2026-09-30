@@ -127,6 +127,56 @@ assert.equal(
 assert.doesNotMatch(componentSpec, /HttpTestingController|provideHttpClientTesting/);
 assert.match(componentSpec, /SCHEDULING_OVERVIEW_PORT/);
 
+const workspaceServicePath = path.join(root, 'shell', 'application-workspace.service.ts');
+const workspacePortPath = path.join(root, 'shell', 'workspace.port.ts');
+const workspaceSpecPath = path.join(root, 'shell', 'application-workspace.service.spec.ts');
+const workspaceAdapterPath = path.join(root, 'api', 'http-workspace.adapter.ts');
+const workspaceAdapterSpecPath = path.join(root, 'api', 'http-workspace.adapter.spec.ts');
+const [workspaceService, workspacePort, workspaceSpec, workspaceAdapter, workspaceAdapterSpec] =
+  await Promise.all(
+    [
+      workspaceServicePath,
+      workspacePortPath,
+      workspaceSpecPath,
+      workspaceAdapterPath,
+      workspaceAdapterSpecPath,
+    ].map((file) => readFile(file, 'utf8')),
+  );
+
+assert.match(workspaceService, /WORKSPACE_PORT/);
+assert.doesNotMatch(
+  importsOf(workspaceService),
+  /PlanningApiService|planning-api\.service/,
+  'workspace application state must not depend directly on the HTTP API service',
+);
+assert.doesNotMatch(
+  workspaceService,
+  /\bHttpClient\b|\bfetch\s*\(/,
+  'workspace application state performs HTTP directly',
+);
+assert.match(workspacePort, /applicationVersion:\s*string/);
+assert.doesNotMatch(
+  workspacePort,
+  /\bhref\b|\bHttpClient\b|\bfetch\s*\(|types\.gen/,
+  'workspace port exposes a transport address or OpenAPI types',
+);
+assert.match(workspacePort, /Key extends '_links' \? never/);
+assert.match(workspaceAdapter, /PlanningApiService/);
+assert.match(workspaceAdapter, /withoutHttpLinks/);
+assert.match(workspaceSpec, /WORKSPACE_PORT/);
+assert.doesNotMatch(
+  workspaceSpec,
+  /PlanningApiService|HttpTestingController|provideHttpClientTesting/,
+  'workspace behavior tests must use the application port, not the HTTP adapter',
+);
+assert.match(workspaceAdapterSpec, /HttpWorkspaceAdapter/);
+assert.match(workspaceAdapterSpec, /_links/);
+assert.equal(
+  hasProviderBinding(config, 'WORKSPACE_PORT', 'HttpWorkspaceAdapter'),
+  true,
+  'composition root binds the workspace port to its HTTP adapter',
+);
+
 function importModulesOf(source) {
   const file = ts.createSourceFile('boundary.ts', source, ts.ScriptTarget.Latest, true);
   const modules = [];

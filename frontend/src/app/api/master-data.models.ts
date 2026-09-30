@@ -67,7 +67,7 @@ export type ExamRoom = {
   is_active: number;
   revision: number;
   consequence_warning?: string;
-  _links: Record<string, ApiLink>;
+  _links?: Record<string, ApiLink>;
 };
 
 export type VenueChangeImpact = {
@@ -102,7 +102,7 @@ export type ExamVenueContact = {
   is_active: number;
   revision: number;
   room_ids: number[];
-  _links: Record<string, ApiLink>;
+  _links?: Record<string, ApiLink>;
 };
 
 export type ExamVenue = {
@@ -142,7 +142,7 @@ export type ExamVenue = {
     request_promotion: boolean;
     decide_promotion: boolean;
   };
-  _links: Record<string, ApiLink>;
+  _links?: Record<string, ApiLink>;
 };
 
 export type Candidate = {
