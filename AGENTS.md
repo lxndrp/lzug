@@ -15,8 +15,8 @@ technische Details im [Entwicklerhandbuch](docs/developers/index.md).
   bleiben beim bestehenden Dependabot-Verfahren und den deterministischen CI-Prüfungen.
 - Ändere eine exakt fixierte Abhängigkeit für ausgelieferte Assets nur zusammen
   mit den passenden Prüfungen, regenerierten Artefakten und Lizenzangaben.
-  Für Lucide prüft `brand/generate-assets.mjs` die feste Version `1.39.0`;
-  ein Update erfordert daher die abgestimmte Generator-/Asset-/Lizenzänderung.
+  Für Lucide prüft `brand/generate-assets.mjs` den exakten Manifest-/Lockfile-Pin;
+  ein Versionswechsel erfordert daher die abgestimmte Generator-/Asset-/Lizenzänderung.
   Ein verfügbares Update allein ist kein Reviewbefund.
 
 ## 1. Kanonischer Stand und Auftrag
