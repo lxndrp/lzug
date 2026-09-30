@@ -4,6 +4,21 @@ Diese Datei enthält die verbindlichen Projektregeln für Coding Agents.
 Anleitungen für Menschen stehen im [GitHub Wiki](https://github.com/lxndrp/lzug/wiki/Entwicklung),
 technische Details im [Entwicklerhandbuch](docs/developers/index.md).
 
+## Code Review Rules
+
+- Prüfe Änderungen an npm-, uv- und Go-Abhängigkeiten auf konkrete
+  Kompatibilitätsbrüche in Installation, Build, Tests oder Laufzeit.
+  Bei gekoppelten Paketen wie Angular-Buildwerkzeugen oder Vitest und Coverage
+  muss der unterstützte Abhängigkeitsgraph zusammenpassen; nenne nur belegte
+  Vertragsverletzungen und einen kompatiblen Korrekturpfad.
+  Versionsverfügbarkeit, SemVer-Klassifikation, Format und Lockfile-Synchronität
+  bleiben beim bestehenden Dependabot-Verfahren und den deterministischen CI-Prüfungen.
+- Ändere eine exakt fixierte Abhängigkeit für ausgelieferte Assets nur zusammen
+  mit den passenden Prüfungen, regenerierten Artefakten und Lizenzangaben.
+  Für Lucide prüft `brand/generate-assets.mjs` die feste Version `1.39.0`;
+  ein Update erfordert daher die abgestimmte Generator-/Asset-/Lizenzänderung.
+  Ein verfügbares Update allein ist kein Reviewbefund.
+
 ## 1. Kanonischer Stand und Auftrag
 
 - GitHub ist die kanonische Quelle für Aufgaben, Entscheidungen, Abhängigkeiten und Status.
