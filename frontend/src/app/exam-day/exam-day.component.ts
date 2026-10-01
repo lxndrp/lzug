@@ -238,7 +238,7 @@ export class ExamDayComponent implements OnInit, OnChanges {
     }
     const dayId = this.view()?.day.id;
     if (dayId === undefined || this.hasSavingAction()) return;
-    const actionSequence = this.requestSequence;
+    const actionSequence = this.contextSequence;
     this.savingKeys.set(new Set([`absence-${assignmentId}`]));
     this.actionMessage.set(null);
     this.actionError.set(null);
@@ -250,7 +250,7 @@ export class ExamDayComponent implements OnInit, OnChanges {
       })
       .subscribe({
         next: () => {
-          if (actionSequence !== this.requestSequence) return;
+          if (actionSequence !== this.contextSequence || this.dayId !== dayId) return;
           this.savingKeys.set(new Set());
           this.actionMessage.set('Ausfallmeldung gespeichert.');
           void this.router.navigateByUrl(
@@ -258,7 +258,7 @@ export class ExamDayComponent implements OnInit, OnChanges {
           );
         },
         error: (error: ApplicationError) => {
-          if (actionSequence !== this.requestSequence) return;
+          if (actionSequence !== this.contextSequence || this.dayId !== dayId) return;
           this.savingKeys.set(new Set());
           this.actionError.set(
             this.applicationError(error, 'Die Ausfallmeldung konnte nicht gespeichert werden.'),
