@@ -95,5 +95,13 @@ function dashboard(id: number, name: string) {
     summary: {},
     board: {},
     masterData: { committees: [] },
+    candidateWorkspace: {
+      candidates: [],
+      assignments: [],
+      examRounds: [],
+      committees: [],
+      activeRound: null,
+    },
+    committeeWorkspace: { committees: [], members: [], persons: [] },
   };
 }

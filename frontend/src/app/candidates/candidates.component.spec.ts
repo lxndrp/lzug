@@ -1,12 +1,8 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
 import { CandidatesComponent } from './candidates.component';
-import {
-  absenceCandidateFixture,
-  examRoundFixture,
-  masterDataFixture,
-  planchangeCandidateFixture,
-} from '../testing/fixtures';
+import { absenceCandidateFixture, planchangeCandidateFixture } from '../testing/fixtures';
+import { candidateWorkspaceFixture } from '../testing/master-data-feature-fixtures';
 
 describe('CandidatesComponent', () => {
   let fixture: ComponentFixture<CandidatesComponent>;
@@ -25,8 +21,8 @@ describe('CandidatesComponent', () => {
     }).compileComponents();
 
     fixture = TestBed.createComponent(CandidatesComponent);
-    fixture.componentRef.setInput('masterData', masterDataFixture);
-    fixture.componentRef.setInput('activeRound', examRoundFixture);
+    fixture.componentRef.setInput('masterData', candidateWorkspaceFixture);
+    fixture.componentRef.setInput('activeRound', candidateWorkspaceFixture.activeRound);
     fixture.detectChanges();
   });
 
@@ -208,7 +204,7 @@ describe('CandidatesComponent', () => {
 
   it('should offer candidate creation inside an empty list', () => {
     const element = fixture.nativeElement as HTMLElement;
-    fixture.componentRef.setInput('masterData', { ...masterDataFixture, candidates: [] });
+    fixture.componentRef.setInput('masterData', { ...candidateWorkspaceFixture, candidates: [] });
     fixture.detectChanges();
 
     const emptyAction = buttonWithLabel('Ersten Prüfling anlegen');
@@ -249,9 +245,9 @@ describe('CandidatesComponent', () => {
 
     expect(component.createCandidate.emit).toHaveBeenCalledWith(
       expect.objectContaining({
-        first_name: 'Prüfling',
-        last_name: 'Gamma',
-        ihk_exam_number: 'TEST-2026-0003',
+        firstName: 'Prüfling',
+        lastName: 'Gamma',
+        examNumber: 'TEST-2026-0003',
       }),
     );
     expect(inputValue('#candidateFirstName')).toBe('Prüfling');
@@ -290,9 +286,9 @@ describe('CandidatesComponent', () => {
     expect(component.updateCandidate.emit).toHaveBeenCalledWith({
       id: 1,
       payload: expect.objectContaining({
-        last_name: 'Alpha-Neu',
-        attempt_number: 3,
-        requires_mep: 0,
+        lastName: 'Alpha-Neu',
+        attemptNumber: 3,
+        requiresMep: false,
       }),
     });
     expect(editor.editForm()!.controls.last_name.value).toBe('Alpha-Neu');

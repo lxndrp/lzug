@@ -1,12 +1,8 @@
 import { Component, ViewChild, inject } from '@angular/core';
 
-import {
-  CandidatePayload,
-  CandidatesComponent,
-  CandidateUpdate,
-} from '../candidates/candidates.component';
+import { CandidatesComponent } from '../candidates/candidates.component';
 import { MasterDataWorkflowService } from '../master-data/master-data-workflow.service';
-import { ApplicationWorkspaceService } from '../shell/application-workspace.service';
+import type { CandidateCommand, CandidateUpdate } from '../master-data/master-data.models';
 import { UiFeedbackService } from '../shell/ui-feedback.service';
 
 /** Route entry and command boundary for candidate master data. */
@@ -14,24 +10,23 @@ import { UiFeedbackService } from '../shell/ui-feedback.service';
   imports: [CandidatesComponent],
   template: `
     <app-candidates
-      [masterData]="workspace.masterData()"
-      [activeRound]="workspace.round()"
+      [masterData]="workflow.candidateWorkspace()"
+      [activeRound]="workflow.candidateWorkspace()?.activeRound ?? null"
       [actionBusy]="workflow.actionBusy()"
       (createCandidate)="createCandidate($event)"
       (updateCandidate)="updateCandidate($event)"
       (deleteCandidate)="
-        requestCandidateDeletion($event.id, $event.first_name + ' ' + $event.last_name)
+        requestCandidateDeletion($event.id, $event.firstName + ' ' + $event.lastName)
       "
     />
   `,
 })
 export class CandidatesRouteComponent {
-  protected readonly workspace = inject(ApplicationWorkspaceService);
   protected readonly workflow = inject(MasterDataWorkflowService);
   private readonly feedback = inject(UiFeedbackService);
   @ViewChild(CandidatesComponent) private component?: CandidatesComponent;
 
-  protected createCandidate(payload: CandidatePayload): void {
+  protected createCandidate(payload: CandidateCommand): void {
     this.workflow.createCandidate(payload).subscribe((result) => {
       if (!result.ok || !result.current) {
         this.feedback.notify(
@@ -45,7 +40,7 @@ export class CandidatesRouteComponent {
       this.feedback.notify(
         'success',
         'Prüfling angelegt',
-        `${result.value.first_name} ${result.value.last_name}`,
+        `${result.value.firstName} ${result.value.lastName}`,
       );
     });
   }
@@ -64,7 +59,7 @@ export class CandidatesRouteComponent {
       this.feedback.notify(
         'success',
         'Prüfling gespeichert',
-        `${result.value.first_name} ${result.value.last_name}`,
+        `${result.value.firstName} ${result.value.lastName}`,
       );
     });
   }

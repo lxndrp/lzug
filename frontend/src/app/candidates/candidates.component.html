@@ -284,24 +284,24 @@
               @for (item of filteredCandidates(); track item.candidate.id) {
                 <tr>
                   <td>
-                    <strong>{{ item.candidate.last_name }}, {{ item.candidate.first_name }}</strong>
+                    <strong>{{ item.candidate.lastName }}, {{ item.candidate.firstName }}</strong>
                   </td>
-                  <td>{{ item.candidate.ihk_exam_number }}</td>
+                  <td>{{ item.candidate.examNumber }}</td>
                   <td>{{ specializationLabel(item.candidate.specialization) }}</td>
                   <td>
                     <span tuiBadge appearance="neutral">{{
-                      attemptLabel(item.roundCandidate?.attempt_number)
+                      attemptLabel(item.roundCandidate?.attemptNumber)
                     }}</span>
                   </td>
                   <td>
                     <span
                       tuiBadge
-                      [appearance]="item.roundCandidate?.requires_mep ? 'warning' : 'neutral'"
+                      [appearance]="item.roundCandidate?.requiresMep ? 'warning' : 'neutral'"
                     >
-                      {{ item.roundCandidate?.requires_mep ? 'MEP' : 'Nein' }}
+                      {{ item.roundCandidate?.requiresMep ? 'MEP' : 'Nein' }}
                     </span>
                   </td>
-                  <td>{{ item.candidate.training_company }}</td>
+                  <td>{{ item.candidate.trainingCompany }}</td>
                   <td class="app-actions">
                     <div class="app-row-actions">
                       <button
@@ -345,9 +345,9 @@
                           class="app-form-grid app-inline-editor"
                           [attr.aria-label]="
                             'Prüfling ' +
-                            item.candidate.first_name +
+                            item.candidate.firstName +
                             ' ' +
-                            item.candidate.last_name +
+                            item.candidate.lastName +
                             ' bearbeiten'
                           "
                           (ngSubmit)="submitCandidateUpdate()"
@@ -508,8 +508,8 @@
                                 <li>
                                   {{ assignmentLabel(assignment) }} ·
                                   {{ assignmentStateLabel(assignment) }}
-                                  @if (assignment.change_reason) {
-                                    · {{ assignment.change_reason }}
+                                  @if (assignment.changeReason) {
+                                    · {{ assignment.changeReason }}
                                   }
                                 </li>
                               }
