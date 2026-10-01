@@ -84,9 +84,11 @@ export class ExamDayComponent implements OnInit, OnChanges {
     this.actionMessage.set(null);
     this.actionError.set(null);
     this.savingKeys.set(new Set());
+    this.view.set(null);
+    this.reopeningImpact.set(null);
+    this.resetClosureDrafts();
 
     if (requestedDayId === null) {
-      this.view.set(null);
       this.state.set('not-found');
       return;
     }
@@ -359,14 +361,17 @@ export class ExamDayComponent implements OnInit, OnChanges {
     ) {
       return;
     }
+    const actionSequence = this.requestSequence;
     this.savingKeys.set(new Set(['day-reopening-impact']));
     this.actionError.set(null);
     this.examDay.previewExamDayReopening(day.id, [scope]).subscribe({
       next: (impact) => {
+        if (actionSequence !== this.requestSequence) return;
         this.savingKeys.set(new Set());
         this.reopeningImpact.set(impact);
       },
       error: (error: ApplicationError) => {
+        if (actionSequence !== this.requestSequence) return;
         this.savingKeys.set(new Set());
         this.actionError.set(
           this.applicationError(error, 'Die Auswirkungen konnten nicht ermittelt werden.'),
@@ -577,11 +582,13 @@ export class ExamDayComponent implements OnInit, OnChanges {
     successMessage: string,
   ): void {
     if (this.hasSavingAction()) return;
+    const actionSequence = this.requestSequence;
     this.savingKeys.set(new Set([key]));
     this.actionMessage.set(null);
     this.actionError.set(null);
     request.subscribe({
       next: (closure) => {
+        if (actionSequence !== this.requestSequence) return;
         this.savingKeys.set(new Set());
         this.reopeningImpact.set(null);
         this.view.update((current) =>
@@ -600,12 +607,23 @@ export class ExamDayComponent implements OnInit, OnChanges {
         this.actionMessage.set(successMessage);
       },
       error: (error: ApplicationError) => {
+        if (actionSequence !== this.requestSequence) return;
         this.savingKeys.set(new Set());
         this.actionError.set(
           this.applicationError(error, 'Die Abschlussaktion konnte nicht ausgeführt werden.'),
         );
       },
     });
+  }
+
+  private resetClosureDrafts(): void {
+    this.closureType = 'regular';
+    this.closureReason = '';
+    this.clarificationAttempts = '';
+    this.reopeningToken = '';
+    this.reopeningOccasion = '';
+    this.reopeningSource = '';
+    this.reopeningReason = '';
   }
 
   private resetDrafts(view: ConfirmedPlanDayView): void {
