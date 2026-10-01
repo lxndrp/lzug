@@ -454,6 +454,130 @@ describe('ExamDayComponent', () => {
     expect(text).not.toContain('Die Vorschau für Tag A scheiterte.');
     expect(text).not.toContain('Die Auswirkungen konnten nicht ermittelt werden.');
   });
+
+  it('preserves closure and reopening drafts when refreshing the same day', () => {
+    fixture.detectChanges();
+    const component = fixture.componentInstance as unknown as {
+      closureType: 'regular' | 'exception';
+      closureReason: string;
+      clarificationAttempts: string;
+      reopeningToken: string;
+      reopeningOccasion: string;
+      reopeningSource: string;
+      reopeningReason: string;
+      load(): void;
+    };
+    component.closureType = 'exception';
+    component.closureReason = 'Protokollsystem nicht erreichbar';
+    component.clarificationAttempts = 'Support kontaktiert';
+    component.reopeningToken = 'exam_protocol:41';
+    component.reopeningOccasion = 'Nachträglicher Widerspruch';
+    component.reopeningSource = 'IHK-Schreiben';
+    component.reopeningReason = 'Protokollangabe korrigieren';
+
+    component.load();
+    fixture.detectChanges();
+
+    expect(component.closureType).toBe('exception');
+    expect(component.closureReason).toBe('Protokollsystem nicht erreichbar');
+    expect(component.clarificationAttempts).toBe('Support kontaktiert');
+    expect(component.reopeningToken).toBe('exam_protocol:41');
+    expect(component.reopeningOccasion).toBe('Nachträglicher Widerspruch');
+    expect(component.reopeningSource).toBe('IHK-Schreiben');
+    expect(component.reopeningReason).toBe('Protokollangabe korrigieren');
+  });
+
+  it('applies a pending closure response after a same-day refresh', () => {
+    const pending = new Subject<ExamDayClosure>();
+    const staleRefresh = new Subject<ConfirmedPlanDayView>();
+    const open = dayView();
+    open.day.closure.permissions.close = true;
+    open.day.closure.evaluation.regularCloseReady = true;
+    vi.mocked(examDay.getConfirmedPlanDay)
+      .mockReturnValueOnce(of(open))
+      .mockReturnValueOnce(staleRefresh.asObservable());
+    vi.mocked(examDay.closeExamDay).mockReturnValueOnce(pending.asObservable());
+    authorizeClosure('exam-day-closure:close');
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance as unknown as {
+      closeDay(): void;
+      load(): void;
+      savingKeys(): Set<string>;
+    };
+    component.closeDay();
+    component.load();
+    fixture.detectChanges();
+    expect(component.savingKeys()).toContain('day-close');
+
+    pending.next({
+      ...open.day.closure,
+      revision: 2,
+      status: 'closed',
+      permissions: { close: false, reopen: false, export: true },
+    });
+    pending.complete();
+    fixture.detectChanges();
+    staleRefresh.next(open);
+    staleRefresh.complete();
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Geschlossen');
+    expect(text).toContain('Prüfungstag formal abgeschlossen.');
+  });
+
+  it('applies a pending reopening response after a same-day refresh', () => {
+    const pending = new Subject<ExamDayClosure>();
+    const staleRefresh = new Subject<ConfirmedPlanDayView>();
+    const closed = dayView();
+    closed.day.closureStatus = 'closed';
+    closed.day.closure.status = 'closed';
+    closed.day.closure.permissions = { close: false, reopen: true, export: true };
+    vi.mocked(examDay.getConfirmedPlanDay)
+      .mockReturnValueOnce(of(closed))
+      .mockReturnValueOnce(staleRefresh.asObservable());
+    vi.mocked(examDay.reopenExamDay).mockReturnValueOnce(pending.asObservable());
+    authorizeClosure('exam-day-closure:preview-reopening', 'exam-day-closure:reopen');
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance as unknown as {
+      reopeningToken: string;
+      reopeningOccasion: string;
+      reopeningSource: string;
+      reopeningReason: string;
+      previewReopening(): void;
+      reopenDay(): void;
+      load(): void;
+      savingKeys(): Set<string>;
+    };
+    component.reopeningToken = 'exam_protocol:41';
+    component.reopeningOccasion = 'Nachträglicher Widerspruch';
+    component.reopeningSource = 'IHK-Schreiben';
+    component.reopeningReason = 'Protokollangabe korrigieren';
+    component.previewReopening();
+    component.reopenDay();
+    component.load();
+    fixture.detectChanges();
+    expect(component.savingKeys()).toContain('day-reopen');
+
+    pending.next({
+      ...closed.day.closure,
+      revision: 2,
+      status: 'reopening',
+      activeReopening: { expandedScope: ['exam_protocol:41'] },
+      permissions: { close: false, reopen: false, export: true },
+    });
+    pending.complete();
+    fixture.detectChanges();
+    staleRefresh.next(closed);
+    staleRefresh.complete();
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Wiederöffnung läuft');
+    expect(text).toContain('Prüfungstag zielgerichtet wieder geöffnet.');
+  });
 });
 
 function authorizeClosure(...capabilities: string[]): void {
