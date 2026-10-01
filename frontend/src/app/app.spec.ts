@@ -36,6 +36,7 @@ import { VenueWorkflowService } from './locations/venue-workflow.service';
 import { LocationsWorkspaceFacade } from './locations/locations-workspace.facade';
 import { LOCATIONS_READ_PORT } from './locations/locations.port';
 import { HttpLocationsReadAdapter } from './api/http-locations-read.adapter';
+import { MASTER_DATA_PORT } from './master-data/master-data.port';
 import { LifecycleService } from './runtime/lifecycle.service';
 import {
   apiRootFixture,
@@ -81,6 +82,16 @@ describe('App', () => {
         { provide: LOCATIONS_READ_PORT, useClass: HttpLocationsReadAdapter },
         { provide: WORKSPACE_PORT, useClass: HttpWorkspaceAdapter },
         { provide: CONFIRMED_PLANS_PORT, useClass: HttpConfirmedPlansAdapter },
+        {
+          provide: MASTER_DATA_PORT,
+          useValue: {
+            createCandidate: vi.fn(() => of({})),
+            updateCandidate: vi.fn(() => of({})),
+            deleteCandidate: vi.fn(() => of(undefined)),
+            createCommitteeMember: vi.fn(() => of({})),
+            updateCommitteeMember: vi.fn(() => of({})),
+          },
+        },
         provideTaiga({ scrollbars: 'native' }),
         TuiConfirmService,
         { provide: LifecycleService, useValue: { ready: signal(true), check: () => of(true) } },

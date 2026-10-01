@@ -38,6 +38,8 @@ import { LOCATIONS_PORT } from './locations/locations.port';
 import { HttpLocationsAdapter } from './api/http-locations.adapter';
 import { HttpLocationsReadAdapter } from './api/http-locations-read.adapter';
 import { LOCATIONS_READ_PORT } from './locations/locations.port';
+import { MASTER_DATA_PORT } from './master-data/master-data.port';
+import { HttpMasterDataAdapter } from './api/http-master-data.adapter';
 import { EXAM_DAY_PORT } from './exam-day/exam-day.port';
 import { HttpExamDayAdapter } from './api/http-exam-day.adapter';
 
@@ -50,6 +52,7 @@ export const appConfig: ApplicationConfig = {
     { provide: EXAM_PROTOCOL_PORT, useClass: HttpExamProtocolAdapter },
     { provide: LOCATIONS_PORT, useClass: HttpLocationsAdapter },
     { provide: LOCATIONS_READ_PORT, useClass: HttpLocationsReadAdapter },
+    { provide: MASTER_DATA_PORT, useClass: HttpMasterDataAdapter },
     { provide: EXAM_DAY_PORT, useClass: HttpExamDayAdapter },
     { provide: WORKSPACE_PORT, useClass: HttpWorkspaceAdapter },
     { provide: CONFIRMED_PLANS_PORT, useClass: HttpConfirmedPlansAdapter },

@@ -12,12 +12,17 @@ import {
   tap,
 } from 'rxjs';
 
-import type { Candidate, CandidateCreateCommand, CommitteeMember } from '../api/api.models';
-import { MasterDataApiService } from '../api/master-data-api.service';
-import type { CandidateUpdate } from '../api/master-data.models';
 import { RoundContextService } from '../api/round-context.service';
-import type { CommitteeMemberPayload } from '../committee/committee.component';
 import { ApplicationWorkspaceService } from '../shell/application-workspace.service';
+import { MASTER_DATA_PORT } from './master-data.port';
+import type {
+  Candidate,
+  CandidateCommand,
+  CandidateUpdate,
+  CommitteeMember,
+  CommitteeMemberCommand,
+  CommitteeMemberUpdate,
+} from './master-data.models';
 
 export type MasterDataWorkflowResult<T> =
   | { ok: true; value: T; requestId: number; contextKey: string; current: boolean }
@@ -32,7 +37,7 @@ export type MasterDataRequestState =
 /** Candidate and committee-member commands owned outside the application shell. */
 @Injectable({ providedIn: 'root' })
 export class MasterDataWorkflowService {
-  private readonly api = inject(MasterDataApiService);
+  private readonly port = inject(MASTER_DATA_PORT);
   private readonly roundContext = inject(RoundContextService);
   private readonly workspace = inject(ApplicationWorkspaceService);
   private readonly requestCounter = signal(0);
@@ -40,27 +45,27 @@ export class MasterDataWorkflowService {
 
   readonly requestState = this.state.asReadonly();
   readonly actionBusy = computed(() => this.state().status === 'pending');
+  readonly candidateWorkspace = computed(() => this.workspace.candidateWorkspace());
+  readonly committeeWorkspace = computed(() => this.workspace.committeeWorkspace());
 
   createMember(
-    payload: CommitteeMemberPayload,
+    payload: CommitteeMemberCommand,
   ): Observable<MasterDataWorkflowResult<CommitteeMember>> {
     const selectedCommitteeId = this.workspace.selectedCommitteeId();
     return this.run(
-      `committee:${payload.committee_id}`,
-      () => this.api.createMember(payload),
+      `committee:${payload.committeeId}`,
+      () => this.port.createCommitteeMember(payload),
       () =>
-        selectedCommitteeId === payload.committee_id &&
+        selectedCommitteeId === payload.committeeId &&
         this.workspace.selectedCommitteeId() === selectedCommitteeId,
     );
   }
 
-  createCandidate(
-    payload: CandidateCreateCommand,
-  ): Observable<MasterDataWorkflowResult<Candidate>> {
+  createCandidate(payload: CandidateCommand): Observable<MasterDataWorkflowResult<Candidate>> {
     const roundId = this.roundContext.roundId();
     return this.run(
       `candidate:${roundId}:create`,
-      () => this.api.createCandidate(payload),
+      () => this.port.createCandidate({ ...payload, examRoundId: payload.examRoundId ?? roundId }),
       () => this.roundContext.roundId() === roundId,
     );
   }
@@ -69,7 +74,7 @@ export class MasterDataWorkflowService {
     const roundId = this.roundContext.roundId();
     return this.run(
       `candidate:${roundId}:${id}`,
-      () => this.api.deleteCandidate(id),
+      () => this.port.deleteCandidate(id),
       () => this.roundContext.roundId() === roundId,
     );
   }
@@ -78,19 +83,23 @@ export class MasterDataWorkflowService {
     const roundId = this.roundContext.roundId();
     return this.run(
       `candidate:${roundId}:${update.id}`,
-      () => this.api.updateCandidate(update.id, update.payload),
+      () =>
+        this.port.updateCandidate({
+          ...update,
+          payload: { ...update.payload, examRoundId: update.payload.examRoundId ?? roundId },
+        }),
       () => this.roundContext.roundId() === roundId,
     );
   }
 
   toggleMember(member: CommitteeMember): Observable<MasterDataWorkflowResult<CommitteeMember>> {
-    const nextActive = member.is_active ? 0 : 1;
+    const update: CommitteeMemberUpdate = { isActive: !member.isActive };
     const selectedCommitteeId = this.workspace.selectedCommitteeId();
     return this.run(
-      `committee:${member.committee_id}`,
-      () => this.api.updateMember(member.id, { is_active: nextActive }),
+      `committee:${member.committeeId}`,
+      () => this.port.updateCommitteeMember(member.id, update),
       () =>
-        selectedCommitteeId === member.committee_id &&
+        selectedCommitteeId === member.committeeId &&
         this.workspace.selectedCommitteeId() === selectedCommitteeId,
     );
   }

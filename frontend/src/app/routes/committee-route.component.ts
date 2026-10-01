@@ -1,7 +1,8 @@
 import { Component, ViewChild, inject } from '@angular/core';
 
-import type { CommitteeMember } from '../api/api.models';
-import { CommitteeComponent, CommitteeMemberPayload } from '../committee/committee.component';
+import type { CommitteeMember } from '../master-data/master-data.models';
+import { CommitteeComponent } from '../committee/committee.component';
+import type { CommitteeMemberCommand } from '../master-data/master-data.models';
 import { MasterDataWorkflowService } from '../master-data/master-data-workflow.service';
 import { ApplicationWorkspaceService } from '../shell/application-workspace.service';
 import { UiFeedbackService } from '../shell/ui-feedback.service';
@@ -11,7 +12,7 @@ import { UiFeedbackService } from '../shell/ui-feedback.service';
   imports: [CommitteeComponent],
   template: `
     <app-committee
-      [masterData]="workspace.masterData()"
+      [masterData]="workflow.committeeWorkspace()"
       [selectedCommitteeIdInput]="workspace.selectedCommitteeId()"
       [actionBusy]="workflow.actionBusy()"
       (selectedCommitteeIdChange)="workspace.selectCommittee($event)"
@@ -26,7 +27,7 @@ export class CommitteeRouteComponent {
   private readonly feedback = inject(UiFeedbackService);
   @ViewChild(CommitteeComponent) private component?: CommitteeComponent;
 
-  protected createMember(payload: CommitteeMemberPayload): void {
+  protected createMember(payload: CommitteeMemberCommand): void {
     this.workflow.createMember(payload).subscribe((result) => {
       if (!result.ok || !result.current) {
         this.feedback.notify(
@@ -40,7 +41,7 @@ export class CommitteeRouteComponent {
       this.feedback.notify(
         'success',
         'Prüfer angelegt',
-        `${result.value.first_name} ${result.value.last_name}`,
+        `${result.value.firstName} ${result.value.lastName}`,
       );
     });
   }
@@ -51,11 +52,11 @@ export class CommitteeRouteComponent {
         this.feedback.notify('error', 'Status nicht geändert', 'Bitte erneut versuchen.');
         return;
       }
-      const nextActive = member.is_active ? 0 : 1;
+      const nextActive = !member.isActive;
       this.feedback.notify(
         'success',
         `Prüfer ${nextActive ? 'aktiviert' : 'deaktiviert'}`,
-        `${member.first_name} ${member.last_name}`,
+        `${member.firstName} ${member.lastName}`,
       );
     });
   }
