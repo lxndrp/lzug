@@ -371,7 +371,7 @@
           {{ calculation.path.roundedTotal }}. Dieser Vorschlag ist noch keine Feststellung.
         </p>
         @if (
-          current.state === 'calculation_ready' &&
+          (current.state === 'calculation_ready' || current.correctionOpen) &&
           current.permissions.determineResult &&
           can('exam-result:determine')
         ) {
@@ -434,6 +434,7 @@
         @if (
           current.permissions.confirmRecord &&
           can('exam-result:confirm-record') &&
+          canConfirmRecord(current) &&
           !hasConfirmedRecord(current) &&
           !current.correctionOpen
         ) {

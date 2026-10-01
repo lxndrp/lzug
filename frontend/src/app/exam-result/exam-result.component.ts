@@ -192,6 +192,13 @@ export class ExamResultComponent implements OnChanges {
       this.showVoteError(voteResult.reason);
       return;
     }
+    const dissent = this.dissent(voteResult.participantMemberIds);
+    if (dissent === null) {
+      this.error.set(
+        'Ein abweichendes Votum kann nur ein ausgewähltes anwesendes Mitglied abgeben.',
+      );
+      return;
+    }
     this.run(
       this.facade.determineComponent({
         resultId: result.id,
@@ -201,7 +208,7 @@ export class ExamResultComponent implements OnChanges {
         rationale: this.componentReasons.get(componentKey) ?? '',
         participants: voteResult.participantMemberIds,
         vote: voteResult.vote,
-        dissent: this.dissent(),
+        dissent,
         dayRevisions: result.dayRevisions ?? this.inputDayRevisions(),
       }),
       'Gemeinsame Ausschussbewertung festgestellt.',
@@ -259,13 +266,20 @@ export class ExamResultComponent implements OnChanges {
       this.showVoteError(voteResult.reason);
       return;
     }
+    const dissent = this.dissent(voteResult.participantMemberIds);
+    if (dissent === null) {
+      this.error.set(
+        'Ein abweichendes Votum kann nur ein ausgewähltes anwesendes Mitglied abgeben.',
+      );
+      return;
+    }
     this.run(
       this.facade.determineExamResult({
         resultId: result.id,
         version: result.version,
         participants: voteResult.participantMemberIds,
         vote: voteResult.vote,
-        dissent: this.dissent(),
+        dissent,
         dayRevisions: result.dayRevisions ?? this.inputDayRevisions(),
       }),
       'Gesamtergebnis ordnungsgemäß festgestellt.',
@@ -435,6 +449,13 @@ export class ExamResultComponent implements OnChanges {
     );
   }
 
+  protected canConfirmRecord(result: ExamResult): boolean {
+    return (
+      this.ownMemberId !== null &&
+      Boolean(result.currentDetermination?.participantMemberIds.includes(this.ownMemberId))
+    );
+  }
+
   protected can(capability: string): boolean {
     return this.auth.hasCapability(capability);
   }
@@ -456,10 +477,12 @@ export class ExamResultComponent implements OnChanges {
     return 'neutral';
   }
 
-  private dissent(): Array<{ memberId: number; statement: string }> {
-    return this.dissentMemberId && this.dissentStatement.trim()
-      ? [{ memberId: this.dissentMemberId, statement: this.dissentStatement.trim() }]
-      : [];
+  private dissent(
+    participantMemberIds: readonly number[],
+  ): Array<{ memberId: number; statement: string }> | null {
+    if (!this.dissentMemberId || !this.dissentStatement.trim()) return [];
+    if (!participantMemberIds.includes(this.dissentMemberId)) return null;
+    return [{ memberId: this.dissentMemberId, statement: this.dissentStatement.trim() }];
   }
 
   private showVoteError(

@@ -515,7 +515,6 @@ test.describe('exam execution workflows', () => {
       } else if (path.endsWith('/corrections')) {
         result.version += 1;
         result.correction_open = true;
-        result.state = 'calculation_ready';
         result.corrections = [
           {
             id: 61,
@@ -565,8 +564,13 @@ test.describe('exam execution workflows', () => {
     await editor.getByLabel('Begründung', { exact: true }).fill('Übertragungsfehler korrigieren');
     await editor.getByRole('button', { name: 'Korrektur öffnen' }).click();
     await expect(editor.getByText('Korrektur offen', { exact: true })).toBeVisible();
+    await expect(editor.getByText('Mitgeteilt')).toBeVisible();
     await expect(editor.getByLabel('Mitglied 1 stimmt mit')).not.toBeChecked();
     await expect(editor.getByLabel('Mitglied 2 stimmt mit')).not.toBeChecked();
+    const correctionVoteAccessibility = await new AxeBuilder({ page })
+      .include('#result-vote-group-1')
+      .analyze();
+    expect(correctionVoteAccessibility.violations).toEqual([]);
     await editor.getByText('Feststellungs-, Korrektur-, Mitteilungs- und Exporthistorie').click();
     await expect(editor.getByText(/Korrektur 61 · open/)).toBeVisible();
   });

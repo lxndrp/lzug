@@ -330,6 +330,85 @@ describe('ExamResultComponent', () => {
     expect(component.examResultVoters.size).toBe(0);
   });
 
+  it('rejects dissent from a member outside the selected quorum in both ballots', () => {
+    const disclosedResult = resultFixture({
+      participants: [1, 2, 3],
+      disclosures: [
+        { componentKey: 'documentation', disclosedByMemberId: 1, disclosedAt: '2026-09-30' },
+      ],
+    });
+    vi.mocked(port.get).mockReturnValue(of(disclosedResult));
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance as unknown as {
+      determineComponent(key: string): void;
+      determineResult(): void;
+      componentVoters: Map<string, Set<number>>;
+      componentVotes: Map<string, Map<number, 'yes' | 'no' | 'abstain'>>;
+      examResultVoters: Set<number>;
+      examResultVotes: Map<number, 'yes' | 'no' | 'abstain'>;
+      dissentMemberId: number | null;
+      dissentStatement: string;
+    };
+    component.componentVoters.set('documentation', new Set([1, 2]));
+    component.componentVotes.set(
+      'documentation',
+      new Map([
+        [1, 'yes'],
+        [2, 'yes'],
+      ]),
+    );
+    component.examResultVoters.add(1);
+    component.examResultVoters.add(2);
+    component.examResultVotes.set(1, 'yes');
+    component.examResultVotes.set(2, 'yes');
+    component.dissentMemberId = 3;
+    component.dissentStatement = 'Abweichender Standpunkt';
+
+    component.determineComponent('documentation');
+    component.determineResult();
+    fixture.detectChanges();
+
+    expect(port.determineComponent).not.toHaveBeenCalled();
+    expect(port.determineExamResult).not.toHaveBeenCalled();
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector('[role="alert"]')?.textContent,
+    ).toContain('nur ein ausgewähltes anwesendes Mitglied');
+
+    component.dissentMemberId = 2;
+    component.determineComponent('documentation');
+    expect(port.determineComponent).toHaveBeenCalledWith(
+      expect.objectContaining({ dissent: [{ memberId: 2, statement: 'Abweichender Standpunkt' }] }),
+    );
+    component.determineResult();
+    expect(port.determineExamResult).toHaveBeenCalledWith(
+      expect.objectContaining({ dissent: [{ memberId: 2, statement: 'Abweichender Standpunkt' }] }),
+    );
+  });
+
+  it('allows record confirmation only for members in the saved determination quorum', () => {
+    const determination = resultFixture().determinations[0];
+    vi.mocked(port.get).mockReturnValue(of(resultFixture({ currentDetermination: determination })));
+    fixture.componentRef.setInput('ownMemberId', 3);
+    fixture.detectChanges();
+    fixture.detectChanges();
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector(
+        'button[aria-label="Sachliche Richtigkeit bestätigen"]',
+      ),
+    ).toBeNull();
+    expect((fixture.nativeElement as HTMLElement).textContent).not.toContain(
+      'Sachliche Richtigkeit bestätigen',
+    );
+
+    fixture.componentRef.setInput('ownMemberId', 1);
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      'Sachliche Richtigkeit bestätigen',
+    );
+  });
+
   it('clears both ballots when a correction is successfully opened', () => {
     vi.mocked(port.openResultCorrection).mockReturnValue(
       of(resultFixture({ correctionOpen: true })),
