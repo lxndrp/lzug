@@ -151,6 +151,13 @@ class SessionRotationResponse(BaseModel):
     expires_at: str
 
 
+class DemoSessionStartResponse(BaseModel):
+    authenticated: Literal[True]
+    role: Literal["chair", "examiner", "replacement"]
+    display_name: str
+    expires_at: str
+
+
 class DemoScenarioRoleResponse(BaseModel):
     name: Literal["chair", "examiner", "replacement"]
     display_name: str
@@ -196,6 +203,118 @@ class DemoScenarioResetResponse(BaseModel):
     status: Literal["reset"]
     role: Literal["chair", "examiner", "replacement"]
     expires_at: str
+
+
+class ExamResultCandidateResponse(BaseModel):
+    id: int
+    first_name: str
+    last_name: str
+    ihk_exam_number: str | None
+    specialization: str | None
+
+
+class ExamResultResponse(BaseModel):
+    """Core result aggregate exposed by result reads and mutation commands."""
+
+    id: int
+    round_candidate_id: int
+    day_revisions: dict[str, int]
+    version: int
+    state: Literal["incomplete", "calculation_ready", "determined", "communicated"]
+    correction_open: bool
+    legacy_status: str | None
+    candidate: ExamResultCandidateResponse
+    binding: dict[str, object]
+    model_version: dict[str, object]
+    participants: list[int]
+    disclosures: list[dict[str, object]]
+    individual_assessments: list[dict[str, object]]
+    individual_assessment_counts: list[dict[str, object]]
+    committee_assessments: list[dict[str, object]]
+    external_results: list[dict[str, object]]
+    calculations: list[dict[str, object]]
+    current_calculation: dict[str, object] | None
+    determinations: list[dict[str, object]]
+    current_determination: dict[str, object] | None
+    corrections: list[dict[str, object]]
+    communications: list[dict[str, object]]
+    retention: dict[str, object] | None
+    exports: list[dict[str, object]]
+    permissions: dict[str, bool]
+    created_at: str
+    updated_at: str
+    links: dict[str, object] = Field(alias="_links")
+
+
+class ExamProtocolEntryResponse(BaseModel):
+    id: int
+    category: str
+    statement: str
+    occurred_from: str
+    occurred_to: str | None
+    recorded_by_member_id: int | None
+    created_at: str
+
+
+class ExamProtocolParticipantResponse(BaseModel):
+    id: int
+    committee_member_id: int
+    response: str
+    entry_id: int | None
+    statement: str | None
+    responded_at: str
+
+
+class ExamProtocolRevisionResponse(BaseModel):
+    id: int
+    version: int
+    declaration: str | None
+    workflow_state: str
+    previous_revision_id: int | None
+    correction_request_id: int | None
+    changed_by_member_id: int | None
+    change_reason: str | None
+    submitted_by_member_id: int | None
+    submitted_at: str | None
+    created_at: str
+    obsolete: bool
+    missing_response_member_ids: list[int]
+    entries: list[ExamProtocolEntryResponse]
+    responses: list[ExamProtocolParticipantResponse]
+
+
+class ExamProtocolCorrectionRequestResponse(BaseModel):
+    id: int
+    version: int
+    requested_by_member_id: int
+    reason: str
+    status: str
+    requested_at: str
+    opened_by_member_id: int | None
+    opened_at: str | None
+    reopening_reference: str | None
+
+
+class ExamProtocolResponse(BaseModel):
+    """Versioned exam protocol aggregate exposed by its HTTP operations."""
+
+    id: int
+    exam_slot_id: int
+    day_revision: int | None
+    current_version: int
+    source: str
+    state: str
+    closing_ready: bool
+    participants: list[int]
+    current_revision: ExamProtocolRevisionResponse
+    history: list[ExamProtocolRevisionResponse]
+    correction_requests: list[ExamProtocolCorrectionRequestResponse]
+    open_correction: bool
+    retention: dict[str, object] | None
+    permissions: dict[str, bool]
+    created_at: str
+    updated_at: str
+    links: dict[str, object] = Field(alias="_links")
 
 
 class DemoSessionRequest(BaseModel):

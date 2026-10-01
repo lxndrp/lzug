@@ -17,6 +17,7 @@ from .api_contracts import (
     DemoScenarioOverviewResponse,
     DemoScenarioResetResponse,
     DemoSessionRequest,
+    DemoSessionStartResponse,
     EmptyRequest,
     FactorActivationRequest,
     FrontendErrorRequest,
@@ -135,7 +136,11 @@ def create_demo_router(
     def demo_status(context: Context):
         return runtime_get(context, ["demo", "status"])
 
-    @router.post(f"{demo_api_prefix}/session", include_in_schema=False)
+    @router.post(
+        f"{demo_api_prefix}/session",
+        response_model=DemoSessionStartResponse,
+        status_code=201,
+    )
     def demo_session(context: ObjectBodyContext, payload: DemoSessionRequest):
         del payload
         return runtime_post(context, ["demo", "session"])
@@ -258,6 +263,7 @@ def create_session_router(resolved: FastAPIConfig) -> APIRouter:
     @router.get(
         "/api/session",
         response_model=SessionResponse,
+        response_model_exclude_unset=True,
     )
     def session(context: SessionContext):
         auth = context.auth_context

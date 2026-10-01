@@ -17,7 +17,11 @@ from .fastapi_app import (
     register_application_routes,
     register_transport_and_errors,
 )
-from .fastapi_dependencies import BoundedBodyRoute
+from .fastapi_dependencies import (
+    BoundedBodyRoute,
+    bind_session_cookie,
+    reset_session_cookie_binding,
+)
 from .fastapi_http import APPLICATION_ERROR_RESPONSES
 from .fastapi_runtime import RuntimeAdmissionMiddleware
 from .identity.admin_service import OperatorAuthService
@@ -130,14 +134,18 @@ def create_app(
     )
     if runtime is not None:
         app.add_middleware(RuntimeAdmissionMiddleware, runtime=runtime)
-    for registrar in registration:
-        registrar(
-            app,
-            resolved,
-            application,
-            read_security,
-            write_security,
-        )
+    cookie_binding = bind_session_cookie(resolved.session_cookie_name)
+    try:
+        for registrar in registration:
+            registrar(
+                app,
+                resolved,
+                application,
+                read_security,
+                write_security,
+            )
+    finally:
+        reset_session_cookie_binding(cookie_binding)
 
     return app
 

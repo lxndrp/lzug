@@ -571,6 +571,41 @@ export type DemoScenarioRoleResponse = {
 };
 
 /**
+ * DemoSessionRequest
+ *
+ * Demo role selection; runtime policy retains the role allowlist.
+ */
+export type DemoSessionRequest = {
+    /**
+     * Role
+     */
+    role?: string | null;
+    [key: string]: unknown;
+};
+
+/**
+ * DemoSessionStartResponse
+ */
+export type DemoSessionStartResponse = {
+    /**
+     * Authenticated
+     */
+    authenticated: true;
+    /**
+     * Display Name
+     */
+    display_name: string;
+    /**
+     * Expires At
+     */
+    expires_at: string;
+    /**
+     * Role
+     */
+    role: 'chair' | 'examiner' | 'replacement';
+};
+
+/**
  * DomainCollectionResponse
  */
 export type DomainCollectionResponse = {
@@ -754,6 +789,48 @@ export type ExamProtocolContentRequest = {
 };
 
 /**
+ * ExamProtocolCorrectionRequestResponse
+ */
+export type ExamProtocolCorrectionRequestResponse = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Opened At
+     */
+    opened_at: string | null;
+    /**
+     * Opened By Member Id
+     */
+    opened_by_member_id: number | null;
+    /**
+     * Reason
+     */
+    reason: string;
+    /**
+     * Reopening Reference
+     */
+    reopening_reference: string | null;
+    /**
+     * Requested At
+     */
+    requested_at: string;
+    /**
+     * Requested By Member Id
+     */
+    requested_by_member_id: number;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Version
+     */
+    version: number;
+};
+
+/**
  * ExamProtocolEntryRequest
  *
  * One factual occurrence in a versioned exam protocol.
@@ -775,6 +852,149 @@ export type ExamProtocolEntryRequest = {
      * Statement
      */
     statement: string;
+};
+
+/**
+ * ExamProtocolEntryResponse
+ */
+export type ExamProtocolEntryResponse = {
+    /**
+     * Category
+     */
+    category: string;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Occurred From
+     */
+    occurred_from: string;
+    /**
+     * Occurred To
+     */
+    occurred_to: string | null;
+    /**
+     * Recorded By Member Id
+     */
+    recorded_by_member_id: number | null;
+    /**
+     * Statement
+     */
+    statement: string;
+};
+
+/**
+ * ExamProtocolParticipantResponse
+ */
+export type ExamProtocolParticipantResponse = {
+    /**
+     * Committee Member Id
+     */
+    committee_member_id: number;
+    /**
+     * Entry Id
+     */
+    entry_id: number | null;
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Responded At
+     */
+    responded_at: string;
+    /**
+     * Response
+     */
+    response: string;
+    /**
+     * Statement
+     */
+    statement: string | null;
+};
+
+/**
+ * ExamProtocolResponse
+ *
+ * Versioned exam protocol aggregate exposed by its HTTP operations.
+ */
+export type ExamProtocolResponse = {
+    /**
+     * Links
+     */
+    _links: {
+        [key: string]: unknown;
+    };
+    /**
+     * Closing Ready
+     */
+    closing_ready: boolean;
+    /**
+     * Correction Requests
+     */
+    correction_requests: Array<ExamProtocolCorrectionRequestResponse>;
+    /**
+     * Created At
+     */
+    created_at: string;
+    current_revision: ExamProtocolRevisionResponse;
+    /**
+     * Current Version
+     */
+    current_version: number;
+    /**
+     * Day Revision
+     */
+    day_revision: number | null;
+    /**
+     * Exam Slot Id
+     */
+    exam_slot_id: number;
+    /**
+     * History
+     */
+    history: Array<ExamProtocolRevisionResponse>;
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Open Correction
+     */
+    open_correction: boolean;
+    /**
+     * Participants
+     */
+    participants: Array<number>;
+    /**
+     * Permissions
+     */
+    permissions: {
+        [key: string]: boolean;
+    };
+    /**
+     * Retention
+     */
+    retention: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Source
+     */
+    source: string;
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
 };
 
 /**
@@ -800,6 +1020,251 @@ export type ExamProtocolResponseRequest = {
      */
     version: number;
     [key: string]: unknown;
+};
+
+/**
+ * ExamProtocolRevisionResponse
+ */
+export type ExamProtocolRevisionResponse = {
+    /**
+     * Change Reason
+     */
+    change_reason: string | null;
+    /**
+     * Changed By Member Id
+     */
+    changed_by_member_id: number | null;
+    /**
+     * Correction Request Id
+     */
+    correction_request_id: number | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Declaration
+     */
+    declaration: string | null;
+    /**
+     * Entries
+     */
+    entries: Array<ExamProtocolEntryResponse>;
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Missing Response Member Ids
+     */
+    missing_response_member_ids: Array<number>;
+    /**
+     * Obsolete
+     */
+    obsolete: boolean;
+    /**
+     * Previous Revision Id
+     */
+    previous_revision_id: number | null;
+    /**
+     * Responses
+     */
+    responses: Array<ExamProtocolParticipantResponse>;
+    /**
+     * Submitted At
+     */
+    submitted_at: string | null;
+    /**
+     * Submitted By Member Id
+     */
+    submitted_by_member_id: number | null;
+    /**
+     * Version
+     */
+    version: number;
+    /**
+     * Workflow State
+     */
+    workflow_state: string;
+};
+
+/**
+ * ExamResultCandidateResponse
+ */
+export type ExamResultCandidateResponse = {
+    /**
+     * First Name
+     */
+    first_name: string;
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Ihk Exam Number
+     */
+    ihk_exam_number: string | null;
+    /**
+     * Last Name
+     */
+    last_name: string;
+    /**
+     * Specialization
+     */
+    specialization: string | null;
+};
+
+/**
+ * ExamResultResponse
+ *
+ * Core result aggregate exposed by result reads and mutation commands.
+ */
+export type ExamResultResponse = {
+    /**
+     * Links
+     */
+    _links: {
+        [key: string]: unknown;
+    };
+    /**
+     * Binding
+     */
+    binding: {
+        [key: string]: unknown;
+    };
+    /**
+     * Calculations
+     */
+    calculations: Array<{
+        [key: string]: unknown;
+    }>;
+    candidate: ExamResultCandidateResponse;
+    /**
+     * Committee Assessments
+     */
+    committee_assessments: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * Communications
+     */
+    communications: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * Correction Open
+     */
+    correction_open: boolean;
+    /**
+     * Corrections
+     */
+    corrections: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Current Calculation
+     */
+    current_calculation: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Current Determination
+     */
+    current_determination: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Day Revisions
+     */
+    day_revisions: {
+        [key: string]: number;
+    };
+    /**
+     * Determinations
+     */
+    determinations: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * Disclosures
+     */
+    disclosures: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * Exports
+     */
+    exports: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * External Results
+     */
+    external_results: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Individual Assessment Counts
+     */
+    individual_assessment_counts: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * Individual Assessments
+     */
+    individual_assessments: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * Legacy Status
+     */
+    legacy_status: string | null;
+    /**
+     * Model Version
+     */
+    model_version: {
+        [key: string]: unknown;
+    };
+    /**
+     * Participants
+     */
+    participants: Array<number>;
+    /**
+     * Permissions
+     */
+    permissions: {
+        [key: string]: boolean;
+    };
+    /**
+     * Retention
+     */
+    retention: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Round Candidate Id
+     */
+    round_candidate_id: number;
+    /**
+     * State
+     */
+    state: 'incomplete' | 'calculation_ready' | 'determined' | 'communicated';
+    /**
+     * Updated At
+     */
+    updated_at: string;
+    /**
+     * Version
+     */
+    version: number;
 };
 
 /**
@@ -1757,16 +2222,6 @@ export type FrontendErrorRequest = {
      * Status
      */
     status?: number | null;
-};
-
-/**
- * HTTPValidationError
- */
-export type HttpValidationError = {
-    /**
-     * Detail
-     */
-    detail?: Array<ValidationError>;
 };
 
 /**
@@ -2802,40 +3257,61 @@ export type TokenRequest = {
     token?: string;
 };
 
-/**
- * ValidationError
- */
-export type ValidationError = {
-    /**
-     * Context
-     */
-    ctx?: {
-        [key: string]: unknown;
-    };
-    /**
-     * Input
-     */
-    input?: unknown;
-    /**
-     * Location
-     */
-    loc: Array<string | number>;
-    /**
-     * Message
-     */
-    msg: string;
-    /**
-     * Error Type
-     */
-    type: string;
-};
-
 export type ApiRootApiGetData = {
     body?: never;
     path?: never;
     query?: never;
     url: '/api';
 };
+
+export type ApiRootApiGetErrors = {
+    /**
+     * Application error
+     */
+    400: ErrorResponse;
+    /**
+     * Application error
+     */
+    401: ErrorResponse;
+    /**
+     * Application error
+     */
+    403: ErrorResponse;
+    /**
+     * Application error
+     */
+    404: ErrorResponse;
+    /**
+     * Application error
+     */
+    409: ErrorResponse;
+    /**
+     * Application error
+     */
+    413: ErrorResponse;
+    /**
+     * Application error
+     */
+    415: ErrorResponse;
+    /**
+     * Application error
+     */
+    422: ErrorResponse;
+    /**
+     * Application error
+     */
+    429: ErrorResponse;
+    /**
+     * Application error
+     */
+    500: ErrorResponse;
+    /**
+     * Runtime is not ready. Inspect lifecycle; never automatically retry a mutation.
+     */
+    503: RuntimeUnavailableResponse;
+};
+
+export type ApiRootApiGetError = ApiRootApiGetErrors[keyof ApiRootApiGetErrors];
 
 export type ApiRootApiGetResponses = {
     /**
@@ -2853,6 +3329,55 @@ export type AbsenceReportsApiAbsenceReportsGetData = {
     url: '/api/absence-reports';
 };
 
+export type AbsenceReportsApiAbsenceReportsGetErrors = {
+    /**
+     * Application error
+     */
+    400: ErrorResponse;
+    /**
+     * Application error
+     */
+    401: ErrorResponse;
+    /**
+     * Application error
+     */
+    403: ErrorResponse;
+    /**
+     * Application error
+     */
+    404: ErrorResponse;
+    /**
+     * Application error
+     */
+    409: ErrorResponse;
+    /**
+     * Application error
+     */
+    413: ErrorResponse;
+    /**
+     * Application error
+     */
+    415: ErrorResponse;
+    /**
+     * Application error
+     */
+    422: ErrorResponse;
+    /**
+     * Application error
+     */
+    429: ErrorResponse;
+    /**
+     * Application error
+     */
+    500: ErrorResponse;
+    /**
+     * Runtime is not ready. Inspect lifecycle; never automatically retry a mutation.
+     */
+    503: RuntimeUnavailableResponse;
+};
+
+export type AbsenceReportsApiAbsenceReportsGetError = AbsenceReportsApiAbsenceReportsGetErrors[keyof AbsenceReportsApiAbsenceReportsGetErrors];
+
 export type AbsenceReportsApiAbsenceReportsGetResponses = {
     /**
      * Successful Response
@@ -2869,9 +3394,49 @@ export type CreateAbsenceApiAbsenceReportsPostData = {
 
 export type CreateAbsenceApiAbsenceReportsPostErrors = {
     /**
-     * Validation Error
+     * Application error
      */
-    422: HttpValidationError;
+    400: ErrorResponse;
+    /**
+     * Application error
+     */
+    401: ErrorResponse;
+    /**
+     * Application error
+     */
+    403: ErrorResponse;
+    /**
+     * Application error
+     */
+    404: ErrorResponse;
+    /**
+     * Application error
+     */
+    409: ErrorResponse;
+    /**
+     * Application error
+     */
+    413: ErrorResponse;
+    /**
+     * Application error
+     */
+    415: ErrorResponse;
+    /**
+     * Application error
+     */
+    422: ErrorResponse;
+    /**
+     * Application error
+     */
+    429: ErrorResponse;
+    /**
+     * Application error
+     */
+    500: ErrorResponse;
+    /**
+     * Runtime is not ready. Inspect lifecycle; never automatically retry a mutation.
+     */
+    503: RuntimeUnavailableResponse;
 };
 
 export type CreateAbsenceApiAbsenceReportsPostError = CreateAbsenceApiAbsenceReportsPostErrors[keyof CreateAbsenceApiAbsenceReportsPostErrors];
@@ -2897,9 +3462,49 @@ export type AbsenceReportApiAbsenceReportsIdGetData = {
 
 export type AbsenceReportApiAbsenceReportsIdGetErrors = {
     /**
-     * Validation Error
+     * Application error
      */
-    422: HttpValidationError;
+    400: ErrorResponse;
+    /**
+     * Application error
+     */
+    401: ErrorResponse;
+    /**
+     * Application error
+     */
+    403: ErrorResponse;
+    /**
+     * Application error
+     */
+    404: ErrorResponse;
+    /**
+     * Application error
+     */
+    409: ErrorResponse;
+    /**
+     * Application error
+     */
+    413: ErrorResponse;
+    /**
+     * Application error
+     */
+    415: ErrorResponse;
+    /**
+     * Application error
+     */
+    422: ErrorResponse;
+    /**
+     * Application error
+     */
+    429: ErrorResponse;
+    /**
+     * Application error
+     */
+    500: ErrorResponse;
+    /**
+     * Runtime is not ready. Inspect lifecycle; never automatically retry a mutation.
+     */
+    503: RuntimeUnavailableResponse;
 };
 
 export type AbsenceReportApiAbsenceReportsIdGetError = AbsenceReportApiAbsenceReportsIdGetErrors[keyof AbsenceReportApiAbsenceReportsIdGetErrors];
@@ -2925,9 +3530,49 @@ export type AbsenceCancelApiAbsenceReportsReportIdCancelPostData = {
 
 export type AbsenceCancelApiAbsenceReportsReportIdCancelPostErrors = {
     /**
-     * Validation Error
+     * Application error
      */
-    422: HttpValidationError;
+    400: ErrorResponse;
+    /**
+     * Application error
+     */
+    401: ErrorResponse;
+    /**
+     * Application error
+     */
+    403: ErrorResponse;
+    /**
+     * Application error
+     */
+    404: ErrorResponse;
+    /**
+     * Application error
+     */
+    409: ErrorResponse;
+    /**
+     * Application error
+     */
+    413: ErrorResponse;
+    /**
+     * Application error
+     */
+    415: ErrorResponse;
+    /**
+     * Application error
+     */
+    422: ErrorResponse;
+    /**
+     * Application error
+     */
+    429: ErrorResponse;
+    /**
+     * Application error
+     */
+    500: ErrorResponse;
+    /**
+     * Runtime is not ready. Inspect lifecycle; never automatically retry a mutation.
+     */
+    503: RuntimeUnavailableResponse;
 };
 
 export type AbsenceCancelApiAbsenceReportsReportIdCancelPostError = AbsenceCancelApiAbsenceReportsReportIdCancelPostErrors[keyof AbsenceCancelApiAbsenceReportsReportIdCancelPostErrors];
@@ -2953,9 +3598,49 @@ export type AbsenceReopenApiAbsenceReportsReportIdReopenPostData = {
 
 export type AbsenceReopenApiAbsenceReportsReportIdReopenPostErrors = {
     /**
-     * Validation Error
+     * Application error
      */
-    422: HttpValidationError;
+    400: ErrorResponse;
+    /**
+     * Application error
+     */
+    401: ErrorResponse;
+    /**
+     * Application error
+     */
+    403: ErrorResponse;
+    /**
+     * Application error
+     */
+    404: ErrorResponse;
+    /**
+     * Application error
+     */
+    409: ErrorResponse;
+    /**
+     * Application error
+     */
+    413: ErrorResponse;
+    /**
+     * Application error
+     */
+    415: ErrorResponse;
+    /**
+     * Application error
+     */
+    422: ErrorResponse;
+    /**
+     * Application error
+     */
+    429: ErrorResponse;
+    /**
+     * Application error
+     */
+    500: ErrorResponse;
+    /**
+     * Runtime is not ready. Inspect lifecycle; never automatically retry a mutation.
+     */
+    503: RuntimeUnavailableResponse;
 };
 
 export type AbsenceReopenApiAbsenceReportsReportIdReopenPostError = AbsenceReopenApiAbsenceReportsReportIdReopenPostErrors[keyof AbsenceReopenApiAbsenceReportsReportIdReopenPostErrors];
@@ -2981,9 +3666,49 @@ export type AbsenceSelectReplacementApiAbsenceReportsReportIdSelectReplacementPo
 
 export type AbsenceSelectReplacementApiAbsenceReportsReportIdSelectReplacementPostErrors = {
     /**
-     * Validation Error
+     * Application error
      */
-    422: HttpValidationError;
+    400: ErrorResponse;
+    /**
+     * Application error
+     */
+    401: ErrorResponse;
+    /**
+     * Application error
+     */
+    403: ErrorResponse;
+    /**
+     * Application error
+     */
+    404: ErrorResponse;
+    /**
+     * Application error
+     */
+    409: ErrorResponse;
+    /**
+     * Application error
+     */
+    413: ErrorResponse;
+    /**
+     * Application error
+     */
+    415: ErrorResponse;
+    /**
+     * Application error
+     */
+    422: ErrorResponse;
+    /**
+     * Application error
+     */
+    429: ErrorResponse;
+    /**
+     * Application error
+     */
+    500: ErrorResponse;
+    /**
+     * Runtime is not ready. Inspect lifecycle; never automatically retry a mutation.
+     */
+    503: RuntimeUnavailableResponse;
 };
 
 export type AbsenceSelectReplacementApiAbsenceReportsReportIdSelectReplacementPostError = AbsenceSelectReplacementApiAbsenceReportsReportIdSelectReplacementPostErrors[keyof AbsenceSelectReplacementApiAbsenceReportsReportIdSelectReplacementPostErrors];
@@ -3009,9 +3734,49 @@ export type AbsenceWithdrawApiAbsenceReportsReportIdWithdrawPostData = {
 
 export type AbsenceWithdrawApiAbsenceReportsReportIdWithdrawPostErrors = {
     /**
-     * Validation Error
+     * Application error
      */
-    422: HttpValidationError;
+    400: ErrorResponse;
+    /**
+     * Application error
+     */
+    401: ErrorResponse;
+    /**
+     * Application error
+     */
+    403: ErrorResponse;
+    /**
+     * Application error
+     */
+    404: ErrorResponse;
+    /**
+     * Application error
+     */
+    409: ErrorResponse;
+    /**
+     * Application error
+     */
+    413: ErrorResponse;
+    /**
+     * Application error
+     */
+    415: ErrorResponse;
+    /**
+     * Application error
+     */
+    422: ErrorResponse;
+    /**
+     * Application error
+     */
+    429: ErrorResponse;
+    /**
+     * Application error
+     */
+    500: ErrorResponse;
+    /**
+     * Runtime is not ready. Inspect lifecycle; never automatically retry a mutation.
+     */
+    503: RuntimeUnavailableResponse;
 };
 
 export type AbsenceWithdrawApiAbsenceReportsReportIdWithdrawPostError = AbsenceWithdrawApiAbsenceReportsReportIdWithdrawPostErrors[keyof AbsenceWithdrawApiAbsenceReportsReportIdWithdrawPostErrors];
@@ -3164,9 +3929,49 @@ export type AuthInvitationActivateApiAuthInvitationActivatePostData = {
 
 export type AuthInvitationActivateApiAuthInvitationActivatePostErrors = {
     /**
-     * Validation Error
+     * Application error
      */
-    422: HttpValidationError;
+    400: ErrorResponse;
+    /**
+     * Application error
+     */
+    401: ErrorResponse;
+    /**
+     * Application error
+     */
+    403: ErrorResponse;
+    /**
+     * Application error
+     */
+    404: ErrorResponse;
+    /**
+     * Application error
+     */
+    409: ErrorResponse;
+    /**
+     * Application error
+     */
+    413: ErrorResponse;
+    /**
+     * Application error
+     */
+    415: ErrorResponse;
+    /**
+     * Application error
+     */
+    422: ErrorResponse;
+    /**
+     * Application error
+     */
+    429: ErrorResponse;
+    /**
+     * Application error
+     */
+    500: ErrorResponse;
+    /**
+     * Runtime is not ready. Inspect lifecycle; never automatically retry a mutation.
+     */
+    503: RuntimeUnavailableResponse;
 };
 
 export type AuthInvitationActivateApiAuthInvitationActivatePostError = AuthInvitationActivateApiAuthInvitationActivatePostErrors[keyof AuthInvitationActivateApiAuthInvitationActivatePostErrors];
@@ -3193,9 +3998,49 @@ export type AuthInvitationPrepareApiAuthInvitationPreparePostData = {
 
 export type AuthInvitationPrepareApiAuthInvitationPreparePostErrors = {
     /**
-     * Validation Error
+     * Application error
      */
-    422: HttpValidationError;
+    400: ErrorResponse;
+    /**
+     * Application error
+     */
+    401: ErrorResponse;
+    /**
+     * Application error
+     */
+    403: ErrorResponse;
+    /**
+     * Application error
+     */
+    404: ErrorResponse;
+    /**
+     * Application error
+     */
+    409: ErrorResponse;
+    /**
+     * Application error
+     */
+    413: ErrorResponse;
+    /**
+     * Application error
+     */
+    415: ErrorResponse;
+    /**
+     * Application error
+     */
+    422: ErrorResponse;
+    /**
+     * Application error
+     */
+    429: ErrorResponse;
+    /**
+     * Application error
+     */
+    500: ErrorResponse;
+    /**
+     * Runtime is not ready. Inspect lifecycle; never automatically retry a mutation.
+     */
+    503: RuntimeUnavailableResponse;
 };
 
 export type AuthInvitationPrepareApiAuthInvitationPreparePostError = AuthInvitationPrepareApiAuthInvitationPreparePostErrors[keyof AuthInvitationPrepareApiAuthInvitationPreparePostErrors];
@@ -3222,9 +4067,49 @@ export type LoginApiAuthLoginPostData = {
 
 export type LoginApiAuthLoginPostErrors = {
     /**
-     * Validation Error
+     * Application error
      */
-    422: HttpValidationError;
+    400: ErrorResponse;
+    /**
+     * Application error
+     */
+    401: ErrorResponse;
+    /**
+     * Application error
+     */
+    403: ErrorResponse;
+    /**
+     * Application error
+     */
+    404: ErrorResponse;
+    /**
+     * Application error
+     */
+    409: ErrorResponse;
+    /**
+     * Application error
+     */
+    413: ErrorResponse;
+    /**
+     * Application error
+     */
+    415: ErrorResponse;
+    /**
+     * Application error
+     */
+    422: ErrorResponse;
+    /**
+     * Application error
+     */
+    429: ErrorResponse;
+    /**
+     * Application error
+     */
+    500: ErrorResponse;
+    /**
+     * Runtime is not ready. Inspect lifecycle; never automatically retry a mutation.
+     */
+    503: RuntimeUnavailableResponse;
 };
 
 export type LoginApiAuthLoginPostError = LoginApiAuthLoginPostErrors[keyof LoginApiAuthLoginPostErrors];
@@ -3251,9 +4136,49 @@ export type AuthRecoveryCompleteApiAuthRecoveryCompletePostData = {
 
 export type AuthRecoveryCompleteApiAuthRecoveryCompletePostErrors = {
     /**
-     * Validation Error
+     * Application error
      */
-    422: HttpValidationError;
+    400: ErrorResponse;
+    /**
+     * Application error
+     */
+    401: ErrorResponse;
+    /**
+     * Application error
+     */
+    403: ErrorResponse;
+    /**
+     * Application error
+     */
+    404: ErrorResponse;
+    /**
+     * Application error
+     */
+    409: ErrorResponse;
+    /**
+     * Application error
+     */
+    413: ErrorResponse;
+    /**
+     * Application error
+     */
+    415: ErrorResponse;
+    /**
+     * Application error
+     */
+    422: ErrorResponse;
+    /**
+     * Application error
+     */
+    429: ErrorResponse;
+    /**
+     * Application error
+     */
+    500: ErrorResponse;
+    /**
+     * Runtime is not ready. Inspect lifecycle; never automatically retry a mutation.
+     */
+    503: RuntimeUnavailableResponse;
 };
 
 export type AuthRecoveryCompleteApiAuthRecoveryCompletePostError = AuthRecoveryCompleteApiAuthRecoveryCompletePostErrors[keyof AuthRecoveryCompleteApiAuthRecoveryCompletePostErrors];
@@ -3280,9 +4205,49 @@ export type AuthRecoveryPrepareApiAuthRecoveryPreparePostData = {
 
 export type AuthRecoveryPrepareApiAuthRecoveryPreparePostErrors = {
     /**
-     * Validation Error
+     * Application error
      */
-    422: HttpValidationError;
+    400: ErrorResponse;
+    /**
+     * Application error
+     */
+    401: ErrorResponse;
+    /**
+     * Application error
+     */
+    403: ErrorResponse;
+    /**
+     * Application error
+     */
+    404: ErrorResponse;
+    /**
+     * Application error
+     */
+    409: ErrorResponse;
+    /**
+     * Application error
+     */
+    413: ErrorResponse;
+    /**
+     * Application error
+     */
+    415: ErrorResponse;
+    /**
+     * Application error
+     */
+    422: ErrorResponse;
+    /**
+     * Application error
+     */
+    429: ErrorResponse;
+    /**
+     * Application error
+     */
+    500: ErrorResponse;
+    /**
+     * Runtime is not ready. Inspect lifecycle; never automatically retry a mutation.
+     */
+    503: RuntimeUnavailableResponse;
 };
 
 export type AuthRecoveryPrepareApiAuthRecoveryPreparePostError = AuthRecoveryPrepareApiAuthRecoveryPreparePostErrors[keyof AuthRecoveryPrepareApiAuthRecoveryPreparePostErrors];
@@ -3307,6 +4272,55 @@ export type CalendarStatusApiCalendarGetData = {
     url: '/api/calendar';
 };
 
+export type CalendarStatusApiCalendarGetErrors = {
+    /**
+     * Application error
+     */
+    400: ErrorResponse;
+    /**
+     * Application error
+     */
+    401: ErrorResponse;
+    /**
+     * Application error
+     */
+    403: ErrorResponse;
+    /**
+     * Application error
+     */
+    404: ErrorResponse;
+    /**
+     * Application error
+     */
+    409: ErrorResponse;
+    /**
+     * Application error
+     */
+    413: ErrorResponse;
+    /**
+     * Application error
+     */
+    415: ErrorResponse;
+    /**
+     * Application error
+     */
+    422: ErrorResponse;
+    /**
+     * Application error
+     */
+    429: ErrorResponse;
+    /**
+     * Application error
+     */
+    500: ErrorResponse;
+    /**
+     * Runtime is not ready. Inspect lifecycle; never automatically retry a mutation.
+     */
+    503: RuntimeUnavailableResponse;
+};
+
+export type CalendarStatusApiCalendarGetError = CalendarStatusApiCalendarGetErrors[keyof CalendarStatusApiCalendarGetErrors];
+
 export type CalendarStatusApiCalendarGetResponses = {
     /**
      * Successful Response
@@ -3322,6 +4336,55 @@ export type CalendarEventsApiCalendarEventsGetData = {
     query?: never;
     url: '/api/calendar/events';
 };
+
+export type CalendarEventsApiCalendarEventsGetErrors = {
+    /**
+     * Application error
+     */
+    400: ErrorResponse;
+    /**
+     * Application error
+     */
+    401: ErrorResponse;
+    /**
+     * Application error
+     */
+    403: ErrorResponse;
+    /**
+     * Application error
+     */
+    404: ErrorResponse;
+    /**
+     * Application error
+     */
+    409: ErrorResponse;
+    /**
+     * Application error
+     */
+    413: ErrorResponse;
+    /**
+     * Application error
+     */
+    415: ErrorResponse;
+    /**
+     * Application error
+     */
+    422: ErrorResponse;
+    /**
+     * Application error
+     */
+    429: ErrorResponse;
+    /**
+     * Application error
+     */
+    500: ErrorResponse;
+    /**
+     * Runtime is not ready. Inspect lifecycle; never automatically retry a mutation.
+     */
+    503: RuntimeUnavailableResponse;
+};
+
+export type CalendarEventsApiCalendarEventsGetError = CalendarEventsApiCalendarEventsGetErrors[keyof CalendarEventsApiCalendarEventsGetErrors];
 
 export type CalendarEventsApiCalendarEventsGetResponses = {
     /**
@@ -3339,6 +4402,55 @@ export type RevokeFeedApiCalendarFeedDeleteData = {
     url: '/api/calendar/feed';
 };
 
+export type RevokeFeedApiCalendarFeedDeleteErrors = {
+    /**
+     * Application error
+     */
+    400: ErrorResponse;
+    /**
+     * Application error
+     */
+    401: ErrorResponse;
+    /**
+     * Application error
+     */
+    403: ErrorResponse;
+    /**
+     * Application error
+     */
+    404: ErrorResponse;
+    /**
+     * Application error
+     */
+    409: ErrorResponse;
+    /**
+     * Application error
+     */
+    413: ErrorResponse;
+    /**
+     * Application error
+     */
+    415: ErrorResponse;
+    /**
+     * Application error
+     */
+    422: ErrorResponse;
+    /**
+     * Application error
+     */
+    429: ErrorResponse;
+    /**
+     * Application error
+     */
+    500: ErrorResponse;
+    /**
+     * Runtime is not ready. Inspect lifecycle; never automatically retry a mutation.
+     */
+    503: RuntimeUnavailableResponse;
+};
+
+export type RevokeFeedApiCalendarFeedDeleteError = RevokeFeedApiCalendarFeedDeleteErrors[keyof RevokeFeedApiCalendarFeedDeleteErrors];
+
 export type RevokeFeedApiCalendarFeedDeleteResponses = {
     /**
      * Successful Response
@@ -3354,6 +4466,55 @@ export type CalendarStatusApiCalendarFeedGetData = {
     query?: never;
     url: '/api/calendar/feed';
 };
+
+export type CalendarStatusApiCalendarFeedGetErrors = {
+    /**
+     * Application error
+     */
+    400: ErrorResponse;
+    /**
+     * Application error
+     */
+    401: ErrorResponse;
+    /**
+     * Application error
+     */
+    403: ErrorResponse;
+    /**
+     * Application error
+     */
+    404: ErrorResponse;
+    /**
+     * Application error
+     */
+    409: ErrorResponse;
+    /**
+     * Application error
+     */
+    413: ErrorResponse;
+    /**
+     * Application error
+     */
+    415: ErrorResponse;
+    /**
+     * Application error
+     */
+    422: ErrorResponse;
+    /**
+     * Application error
+     */
+    429: ErrorResponse;
+    /**
+     * Application error
+     */
+    500: ErrorResponse;
+    /**
+     * Runtime is not ready. Inspect lifecycle; never automatically retry a mutation.
+     */
+    503: RuntimeUnavailableResponse;
+};
+
+export type CalendarStatusApiCalendarFeedGetError = CalendarStatusApiCalendarFeedGetErrors[keyof CalendarStatusApiCalendarFeedGetErrors];
 
 export type CalendarStatusApiCalendarFeedGetResponses = {
     /**
@@ -3373,9 +4534,49 @@ export type ActivateFeedApiCalendarFeedPostData = {
 
 export type ActivateFeedApiCalendarFeedPostErrors = {
     /**
-     * Validation Error
+     * Application error
      */
-    422: HttpValidationError;
+    400: ErrorResponse;
+    /**
+     * Application error
+     */
+    401: ErrorResponse;
+    /**
+     * Application error
+     */
+    403: ErrorResponse;
+    /**
+     * Application error
+     */
+    404: ErrorResponse;
+    /**
+     * Application error
+     */
+    409: ErrorResponse;
+    /**
+     * Application error
+     */
+    413: ErrorResponse;
+    /**
+     * Application error
+     */
+    415: ErrorResponse;
+    /**
+     * Application error
+     */
+    422: ErrorResponse;
+    /**
+     * Application error
+     */
+    429: ErrorResponse;
+    /**
+     * Application error
+     */
+    500: ErrorResponse;
+    /**
+     * Runtime is not ready. Inspect lifecycle; never automatically retry a mutation.
+     */
+    503: RuntimeUnavailableResponse;
 };
 
 export type ActivateFeedApiCalendarFeedPostError = ActivateFeedApiCalendarFeedPostErrors[keyof ActivateFeedApiCalendarFeedPostErrors];
@@ -4949,8 +6150,10 @@ export type SlotProtocolApiConfirmedPlanDaysDayIdSlotsSlotIdProtocolGetResponses
     /**
      * Successful Response
      */
-    200: unknown;
+    200: ExamProtocolResponse;
 };
+
+export type SlotProtocolApiConfirmedPlanDaysDayIdSlotsSlotIdProtocolGetResponse = SlotProtocolApiConfirmedPlanDaysDayIdSlotsSlotIdProtocolGetResponses[keyof SlotProtocolApiConfirmedPlanDaysDayIdSlotsSlotIdProtocolGetResponses];
 
 export type SlotResultApiConfirmedPlanDaysDayIdSlotsSlotIdResultGetData = {
     body?: never;
@@ -5021,8 +6224,10 @@ export type SlotResultApiConfirmedPlanDaysDayIdSlotsSlotIdResultGetResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: ExamResultResponse;
 };
+
+export type SlotResultApiConfirmedPlanDaysDayIdSlotsSlotIdResultGetResponse = SlotResultApiConfirmedPlanDaysDayIdSlotsSlotIdResultGetResponses[keyof SlotResultApiConfirmedPlanDaysDayIdSlotsSlotIdResultGetResponses];
 
 export type StartSlotApiConfirmedPlanDaysDayIdSlotsSlotIdStartPostData = {
     body: ExamSlotStartRequest;
@@ -5746,9 +6951,49 @@ export type DemoResetApiDemoResetPostData = {
 
 export type DemoResetApiDemoResetPostErrors = {
     /**
-     * Validation Error
+     * Application error
      */
-    422: HttpValidationError;
+    400: ErrorResponse;
+    /**
+     * Application error
+     */
+    401: ErrorResponse;
+    /**
+     * Application error
+     */
+    403: ErrorResponse;
+    /**
+     * Application error
+     */
+    404: ErrorResponse;
+    /**
+     * Application error
+     */
+    409: ErrorResponse;
+    /**
+     * Application error
+     */
+    413: ErrorResponse;
+    /**
+     * Application error
+     */
+    415: ErrorResponse;
+    /**
+     * Application error
+     */
+    422: ErrorResponse;
+    /**
+     * Application error
+     */
+    429: ErrorResponse;
+    /**
+     * Application error
+     */
+    500: ErrorResponse;
+    /**
+     * Runtime is not ready. Inspect lifecycle; never automatically retry a mutation.
+     */
+    503: RuntimeUnavailableResponse;
 };
 
 export type DemoResetApiDemoResetPostError = DemoResetApiDemoResetPostErrors[keyof DemoResetApiDemoResetPostErrors];
@@ -5769,6 +7014,55 @@ export type DemoScenariosApiDemoScenariosGetData = {
     url: '/api/demo/scenarios';
 };
 
+export type DemoScenariosApiDemoScenariosGetErrors = {
+    /**
+     * Application error
+     */
+    400: ErrorResponse;
+    /**
+     * Application error
+     */
+    401: ErrorResponse;
+    /**
+     * Application error
+     */
+    403: ErrorResponse;
+    /**
+     * Application error
+     */
+    404: ErrorResponse;
+    /**
+     * Application error
+     */
+    409: ErrorResponse;
+    /**
+     * Application error
+     */
+    413: ErrorResponse;
+    /**
+     * Application error
+     */
+    415: ErrorResponse;
+    /**
+     * Application error
+     */
+    422: ErrorResponse;
+    /**
+     * Application error
+     */
+    429: ErrorResponse;
+    /**
+     * Application error
+     */
+    500: ErrorResponse;
+    /**
+     * Runtime is not ready. Inspect lifecycle; never automatically retry a mutation.
+     */
+    503: RuntimeUnavailableResponse;
+};
+
+export type DemoScenariosApiDemoScenariosGetError = DemoScenariosApiDemoScenariosGetErrors[keyof DemoScenariosApiDemoScenariosGetErrors];
+
 export type DemoScenariosApiDemoScenariosGetResponses = {
     /**
      * Successful Response
@@ -5777,6 +7071,71 @@ export type DemoScenariosApiDemoScenariosGetResponses = {
 };
 
 export type DemoScenariosApiDemoScenariosGetResponse = DemoScenariosApiDemoScenariosGetResponses[keyof DemoScenariosApiDemoScenariosGetResponses];
+
+export type DemoSessionApiDemoSessionPostData = {
+    body: DemoSessionRequest;
+    path?: never;
+    query?: never;
+    url: '/api/demo/session';
+};
+
+export type DemoSessionApiDemoSessionPostErrors = {
+    /**
+     * Application error
+     */
+    400: ErrorResponse;
+    /**
+     * Application error
+     */
+    401: ErrorResponse;
+    /**
+     * Application error
+     */
+    403: ErrorResponse;
+    /**
+     * Application error
+     */
+    404: ErrorResponse;
+    /**
+     * Application error
+     */
+    409: ErrorResponse;
+    /**
+     * Application error
+     */
+    413: ErrorResponse;
+    /**
+     * Application error
+     */
+    415: ErrorResponse;
+    /**
+     * Application error
+     */
+    422: ErrorResponse;
+    /**
+     * Application error
+     */
+    429: ErrorResponse;
+    /**
+     * Application error
+     */
+    500: ErrorResponse;
+    /**
+     * Runtime is not ready. Inspect lifecycle; never automatically retry a mutation.
+     */
+    503: RuntimeUnavailableResponse;
+};
+
+export type DemoSessionApiDemoSessionPostError = DemoSessionApiDemoSessionPostErrors[keyof DemoSessionApiDemoSessionPostErrors];
+
+export type DemoSessionApiDemoSessionPostResponses = {
+    /**
+     * Successful Response
+     */
+    201: DemoSessionStartResponse;
+};
+
+export type DemoSessionApiDemoSessionPostResponse = DemoSessionApiDemoSessionPostResponses[keyof DemoSessionApiDemoSessionPostResponses];
 
 export type GetPlanningExamDayAssignmentsApiExamDayAssignmentsGetData = {
     body?: never;
@@ -6463,8 +7822,10 @@ export type ExamProtocolApiExamProtocolsProtocolIdGetResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: ExamProtocolResponse;
 };
+
+export type ExamProtocolApiExamProtocolsProtocolIdGetResponse = ExamProtocolApiExamProtocolsProtocolIdGetResponses[keyof ExamProtocolApiExamProtocolsProtocolIdGetResponses];
 
 export type UpdateExamProtocolApiExamProtocolsProtocolIdPatchData = {
     body: ExamProtocolContentRequest;
@@ -6537,8 +7898,10 @@ export type UpdateExamProtocolApiExamProtocolsProtocolIdPatchResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: ExamProtocolResponse;
 };
+
+export type UpdateExamProtocolApiExamProtocolsProtocolIdPatchResponse = UpdateExamProtocolApiExamProtocolsProtocolIdPatchResponses[keyof UpdateExamProtocolApiExamProtocolsProtocolIdPatchResponses];
 
 export type RequestExamProtocolCorrectionApiExamProtocolsProtocolIdCorrectionRequestsPostData = {
     body?: DomainResourceWrite;
@@ -6611,8 +7974,10 @@ export type RequestExamProtocolCorrectionApiExamProtocolsProtocolIdCorrectionReq
     /**
      * Successful Response
      */
-    200: unknown;
+    200: ExamProtocolResponse;
 };
+
+export type RequestExamProtocolCorrectionApiExamProtocolsProtocolIdCorrectionRequestsPostResponse = RequestExamProtocolCorrectionApiExamProtocolsProtocolIdCorrectionRequestsPostResponses[keyof RequestExamProtocolCorrectionApiExamProtocolsProtocolIdCorrectionRequestsPostResponses];
 
 export type ExportExamProtocolJsonApiExamProtocolsProtocolIdExportJsonGetData = {
     body?: never;
@@ -6821,8 +8186,10 @@ export type OpenExamProtocolCorrectionApiExamProtocolsProtocolIdOpenCorrectionPo
     /**
      * Successful Response
      */
-    200: unknown;
+    200: ExamProtocolResponse;
 };
+
+export type OpenExamProtocolCorrectionApiExamProtocolsProtocolIdOpenCorrectionPostResponse = OpenExamProtocolCorrectionApiExamProtocolsProtocolIdOpenCorrectionPostResponses[keyof OpenExamProtocolCorrectionApiExamProtocolsProtocolIdOpenCorrectionPostResponses];
 
 export type RespondToExamProtocolApiExamProtocolsProtocolIdResponsesPostData = {
     body: ExamProtocolResponseRequest;
@@ -6895,8 +8262,10 @@ export type RespondToExamProtocolApiExamProtocolsProtocolIdResponsesPostResponse
     /**
      * Successful Response
      */
-    200: unknown;
+    200: ExamProtocolResponse;
 };
+
+export type RespondToExamProtocolApiExamProtocolsProtocolIdResponsesPostResponse = RespondToExamProtocolApiExamProtocolsProtocolIdResponsesPostResponses[keyof RespondToExamProtocolApiExamProtocolsProtocolIdResponsesPostResponses];
 
 export type SetExamProtocolRetentionApiExamProtocolsProtocolIdRetentionPutData = {
     body?: DomainResourceWrite;
@@ -6969,8 +8338,10 @@ export type SetExamProtocolRetentionApiExamProtocolsProtocolIdRetentionPutRespon
     /**
      * Successful Response
      */
-    200: unknown;
+    200: ExamProtocolResponse;
 };
+
+export type SetExamProtocolRetentionApiExamProtocolsProtocolIdRetentionPutResponse = SetExamProtocolRetentionApiExamProtocolsProtocolIdRetentionPutResponses[keyof SetExamProtocolRetentionApiExamProtocolsProtocolIdRetentionPutResponses];
 
 export type SubmitExamProtocolApiExamProtocolsProtocolIdSubmitPostData = {
     body?: DomainResourceWrite;
@@ -7043,8 +8414,10 @@ export type SubmitExamProtocolApiExamProtocolsProtocolIdSubmitPostResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: ExamProtocolResponse;
 };
+
+export type SubmitExamProtocolApiExamProtocolsProtocolIdSubmitPostResponse = SubmitExamProtocolApiExamProtocolsProtocolIdSubmitPostResponses[keyof SubmitExamProtocolApiExamProtocolsProtocolIdSubmitPostResponses];
 
 export type ExamResultApiExamResultsResultIdGetData = {
     body?: never;
@@ -7111,8 +8484,10 @@ export type ExamResultApiExamResultsResultIdGetResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: ExamResultResponse;
 };
+
+export type ExamResultApiExamResultsResultIdGetResponse = ExamResultApiExamResultsResultIdGetResponses[keyof ExamResultApiExamResultsResultIdGetResponses];
 
 export type DetermineCommitteeAssessmentApiExamResultsResultIdCommitteeAssessmentsPostData = {
     body?: DomainResourceWrite;
@@ -7185,8 +8560,10 @@ export type DetermineCommitteeAssessmentApiExamResultsResultIdCommitteeAssessmen
     /**
      * Successful Response
      */
-    200: unknown;
+    200: ExamResultResponse;
 };
+
+export type DetermineCommitteeAssessmentApiExamResultsResultIdCommitteeAssessmentsPostResponse = DetermineCommitteeAssessmentApiExamResultsResultIdCommitteeAssessmentsPostResponses[keyof DetermineCommitteeAssessmentApiExamResultsResultIdCommitteeAssessmentsPostResponses];
 
 export type CommunicateExamResultApiExamResultsResultIdCommunicationsPostData = {
     body?: DomainResourceWrite;
@@ -7259,8 +8636,10 @@ export type CommunicateExamResultApiExamResultsResultIdCommunicationsPostRespons
     /**
      * Successful Response
      */
-    200: unknown;
+    200: ExamResultResponse;
 };
+
+export type CommunicateExamResultApiExamResultsResultIdCommunicationsPostResponse = CommunicateExamResultApiExamResultsResultIdCommunicationsPostResponses[keyof CommunicateExamResultApiExamResultsResultIdCommunicationsPostResponses];
 
 export type OpenResultCorrectionApiExamResultsResultIdCorrectionsPostData = {
     body?: DomainResourceWrite;
@@ -7333,8 +8712,10 @@ export type OpenResultCorrectionApiExamResultsResultIdCorrectionsPostResponses =
     /**
      * Successful Response
      */
-    200: unknown;
+    200: ExamResultResponse;
 };
+
+export type OpenResultCorrectionApiExamResultsResultIdCorrectionsPostResponse = OpenResultCorrectionApiExamResultsResultIdCorrectionsPostResponses[keyof OpenResultCorrectionApiExamResultsResultIdCorrectionsPostResponses];
 
 export type DetermineExamResultApiExamResultsResultIdDeterminePostData = {
     body?: DomainResourceWrite;
@@ -7407,8 +8788,10 @@ export type DetermineExamResultApiExamResultsResultIdDeterminePostResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: ExamResultResponse;
 };
+
+export type DetermineExamResultApiExamResultsResultIdDeterminePostResponse = DetermineExamResultApiExamResultsResultIdDeterminePostResponses[keyof DetermineExamResultApiExamResultsResultIdDeterminePostResponses];
 
 export type DiscloseIndividualAssessmentsApiExamResultsResultIdDisclosuresPostData = {
     body?: DomainResourceWrite;
@@ -7481,8 +8864,10 @@ export type DiscloseIndividualAssessmentsApiExamResultsResultIdDisclosuresPostRe
     /**
      * Successful Response
      */
-    200: unknown;
+    200: ExamResultResponse;
 };
+
+export type DiscloseIndividualAssessmentsApiExamResultsResultIdDisclosuresPostResponse = DiscloseIndividualAssessmentsApiExamResultsResultIdDisclosuresPostResponses[keyof DiscloseIndividualAssessmentsApiExamResultsResultIdDisclosuresPostResponses];
 
 export type ExportExamResultJsonApiExamResultsResultIdExportJsonGetData = {
     body?: never;
@@ -7691,8 +9076,10 @@ export type RecordExternalResultApiExamResultsResultIdExternalResultsPostRespons
     /**
      * Successful Response
      */
-    200: unknown;
+    200: ExamResultResponse;
 };
+
+export type RecordExternalResultApiExamResultsResultIdExternalResultsPostResponse = RecordExternalResultApiExamResultsResultIdExternalResultsPostResponses[keyof RecordExternalResultApiExamResultsResultIdExternalResultsPostResponses];
 
 export type ConfirmExternalResultApiExamResultsResultIdExternalResultsExternalResultIdConfirmPostData = {
     body?: DomainResourceWrite;
@@ -7769,8 +9156,10 @@ export type ConfirmExternalResultApiExamResultsResultIdExternalResultsExternalRe
     /**
      * Successful Response
      */
-    200: unknown;
+    200: ExamResultResponse;
 };
+
+export type ConfirmExternalResultApiExamResultsResultIdExternalResultsExternalResultIdConfirmPostResponse = ConfirmExternalResultApiExamResultsResultIdExternalResultsExternalResultIdConfirmPostResponses[keyof ConfirmExternalResultApiExamResultsResultIdExternalResultsExternalResultIdConfirmPostResponses];
 
 export type SaveIndividualAssessmentApiExamResultsResultIdIndividualAssessmentsPostData = {
     body: IndividualAssessmentRequest;
@@ -7843,8 +9232,10 @@ export type SaveIndividualAssessmentApiExamResultsResultIdIndividualAssessmentsP
     /**
      * Successful Response
      */
-    200: unknown;
+    200: ExamResultResponse;
 };
+
+export type SaveIndividualAssessmentApiExamResultsResultIdIndividualAssessmentsPostResponse = SaveIndividualAssessmentApiExamResultsResultIdIndividualAssessmentsPostResponses[keyof SaveIndividualAssessmentApiExamResultsResultIdIndividualAssessmentsPostResponses];
 
 export type WithdrawIndividualAssessmentApiExamResultsResultIdIndividualAssessmentsAssessmentIdWithdrawPostData = {
     body?: DomainResourceWrite;
@@ -7921,8 +9312,10 @@ export type WithdrawIndividualAssessmentApiExamResultsResultIdIndividualAssessme
     /**
      * Successful Response
      */
-    200: unknown;
+    200: ExamResultResponse;
 };
+
+export type WithdrawIndividualAssessmentApiExamResultsResultIdIndividualAssessmentsAssessmentIdWithdrawPostResponse = WithdrawIndividualAssessmentApiExamResultsResultIdIndividualAssessmentsAssessmentIdWithdrawPostResponses[keyof WithdrawIndividualAssessmentApiExamResultsResultIdIndividualAssessmentsAssessmentIdWithdrawPostResponses];
 
 export type ConfirmResultRecordApiExamResultsResultIdRecordConfirmationsPostData = {
     body?: DomainResourceWrite;
@@ -7995,8 +9388,10 @@ export type ConfirmResultRecordApiExamResultsResultIdRecordConfirmationsPostResp
     /**
      * Successful Response
      */
-    200: unknown;
+    200: ExamResultResponse;
 };
+
+export type ConfirmResultRecordApiExamResultsResultIdRecordConfirmationsPostResponse = ConfirmResultRecordApiExamResultsResultIdRecordConfirmationsPostResponses[keyof ConfirmResultRecordApiExamResultsResultIdRecordConfirmationsPostResponses];
 
 export type SetResultRetentionApiExamResultsResultIdRetentionPutData = {
     body?: DomainResourceWrite;
@@ -8069,11 +9464,19 @@ export type SetResultRetentionApiExamResultsResultIdRetentionPutResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: ExamResultResponse;
 };
+
+export type SetResultRetentionApiExamResultsResultIdRetentionPutResponse = SetResultRetentionApiExamResultsResultIdRetentionPutResponses[keyof SetResultRetentionApiExamResultsResultIdRetentionPutResponses];
 
 export type DeleteExamRoomApiExamRoomsIdDeleteData = {
     body: RevisionDeleteRequest;
+    headers?: {
+        /**
+         * X-Csrf-Token
+         */
+        'X-CSRF-Token'?: string | null;
+    };
     path: {
         /**
          * Id
@@ -8214,6 +9617,12 @@ export type ExamRoomItemApiExamRoomsIdGetResponse = ExamRoomItemApiExamRoomsIdGe
 
 export type UpdateExamRoomApiExamRoomsIdPatchData = {
     body: ExamRoomUpdateRequest;
+    headers?: {
+        /**
+         * X-Csrf-Token
+         */
+        'X-CSRF-Token'?: string | null;
+    };
     path: {
         /**
          * Id
@@ -8352,6 +9761,12 @@ export type ExamRoomChangeImpactApiExamRoomsIdChangeImpactGetResponses = {
 
 export type PreviewExamRoomChangeApiExamRoomsIdChangeImpactPostData = {
     body: ExamRoomUpdateRequest;
+    headers?: {
+        /**
+         * X-Csrf-Token
+         */
+        'X-CSRF-Token'?: string | null;
+    };
     path: {
         /**
          * Id
@@ -10361,6 +11776,12 @@ export type GetPlanningExamSlotsItemApiExamSlotsIdGetResponses = {
 
 export type RetryExamVenueChangeConsequencesApiExamVenueChangesAuditIdConsequencesRetryPostData = {
     body?: never;
+    headers?: {
+        /**
+         * X-Csrf-Token
+         */
+        'X-CSRF-Token'?: string | null;
+    };
     path: {
         /**
          * Audit Id
@@ -10429,6 +11850,12 @@ export type RetryExamVenueChangeConsequencesApiExamVenueChangesAuditIdConsequenc
 
 export type DeleteExamVenueContactApiExamVenueContactsIdDeleteData = {
     body: RevisionDeleteRequest;
+    headers?: {
+        /**
+         * X-Csrf-Token
+         */
+        'X-CSRF-Token'?: string | null;
+    };
     path: {
         /**
          * Id
@@ -10569,6 +11996,12 @@ export type ExamVenueContactItemApiExamVenueContactsIdGetResponse = ExamVenueCon
 
 export type UpdateExamVenueContactApiExamVenueContactsIdPatchData = {
     body: ExamVenueContactUpdateRequest;
+    headers?: {
+        /**
+         * X-Csrf-Token
+         */
+        'X-CSRF-Token'?: string | null;
+    };
     path: {
         /**
          * Id
@@ -10702,6 +12135,12 @@ export type ExamVenuePromotionRequestsApiExamVenuePromotionRequestsGetResponses 
 
 export type DecideExamVenuePromotionApiExamVenuePromotionRequestsIdDecisionPostData = {
     body: ExamVenuePromotionDecisionRequest;
+    headers?: {
+        /**
+         * X-Csrf-Token
+         */
+        'X-CSRF-Token'?: string | null;
+    };
     path: {
         /**
          * Id
@@ -10975,6 +12414,12 @@ export type ExamVenueDuplicateCheckApiExamVenuesDuplicateCheckPostResponses = {
 
 export type DeleteExamVenueApiExamVenuesIdDeleteData = {
     body: RevisionDeleteRequest;
+    headers?: {
+        /**
+         * X-Csrf-Token
+         */
+        'X-CSRF-Token'?: string | null;
+    };
     path: {
         /**
          * Id
@@ -11115,6 +12560,12 @@ export type ExamVenueItemApiExamVenuesIdGetResponse = ExamVenueItemApiExamVenues
 
 export type UpdateExamVenueApiExamVenuesIdPatchData = {
     body: ExamVenueUpdateRequest;
+    headers?: {
+        /**
+         * X-Csrf-Token
+         */
+        'X-CSRF-Token'?: string | null;
+    };
     path: {
         /**
          * Id
@@ -11253,6 +12704,12 @@ export type ExamVenueChangeImpactApiExamVenuesIdChangeImpactGetResponses = {
 
 export type PreviewExamVenueChangeApiExamVenuesIdChangeImpactPostData = {
     body: ExamVenueUpdateRequest;
+    headers?: {
+        /**
+         * X-Csrf-Token
+         */
+        'X-CSRF-Token'?: string | null;
+    };
     path: {
         /**
          * Id
@@ -11321,6 +12778,12 @@ export type PreviewExamVenueChangeApiExamVenuesIdChangeImpactPostResponses = {
 
 export type CreateExamVenueContactApiExamVenuesIdContactsPostData = {
     body: ExamVenueContactCreateRequest;
+    headers?: {
+        /**
+         * X-Csrf-Token
+         */
+        'X-CSRF-Token'?: string | null;
+    };
     path: {
         /**
          * Id
@@ -11391,6 +12854,12 @@ export type CreateExamVenueContactApiExamVenuesIdContactsPostResponse = CreateEx
 
 export type GeocodeExamVenueApiExamVenuesIdGeocodePostData = {
     body: ExamVenueGeocodeRequest;
+    headers?: {
+        /**
+         * X-Csrf-Token
+         */
+        'X-CSRF-Token'?: string | null;
+    };
     path: {
         /**
          * Id
@@ -11461,6 +12930,12 @@ export type GeocodeExamVenueApiExamVenuesIdGeocodePostResponse = GeocodeExamVenu
 
 export type RequestExamVenuePromotionApiExamVenuesIdPromotionRequestsPostData = {
     body: ExamVenuePromotionRequest;
+    headers?: {
+        /**
+         * X-Csrf-Token
+         */
+        'X-CSRF-Token'?: string | null;
+    };
     path: {
         /**
          * Id
@@ -11529,6 +13004,12 @@ export type RequestExamVenuePromotionApiExamVenuesIdPromotionRequestsPostRespons
 
 export type CreateExamRoomApiExamVenuesIdRoomsPostData = {
     body: ExamRoomCreateRequest;
+    headers?: {
+        /**
+         * X-Csrf-Token
+         */
+        'X-CSRF-Token'?: string | null;
+    };
     path: {
         /**
          * Id
@@ -11604,6 +13085,55 @@ export type HealthApiHealthGetData = {
     url: '/api/health';
 };
 
+export type HealthApiHealthGetErrors = {
+    /**
+     * Application error
+     */
+    400: ErrorResponse;
+    /**
+     * Application error
+     */
+    401: ErrorResponse;
+    /**
+     * Application error
+     */
+    403: ErrorResponse;
+    /**
+     * Application error
+     */
+    404: ErrorResponse;
+    /**
+     * Application error
+     */
+    409: ErrorResponse;
+    /**
+     * Application error
+     */
+    413: ErrorResponse;
+    /**
+     * Application error
+     */
+    415: ErrorResponse;
+    /**
+     * Application error
+     */
+    422: ErrorResponse;
+    /**
+     * Application error
+     */
+    429: ErrorResponse;
+    /**
+     * Application error
+     */
+    500: ErrorResponse;
+    /**
+     * Runtime is not ready. Inspect lifecycle; never automatically retry a mutation.
+     */
+    503: RuntimeUnavailableResponse;
+};
+
+export type HealthApiHealthGetError = HealthApiHealthGetErrors[keyof HealthApiHealthGetErrors];
+
 export type HealthApiHealthGetResponses = {
     /**
      * Successful Response
@@ -11619,6 +13149,55 @@ export type LifecycleApiLifecycleGetData = {
     query?: never;
     url: '/api/lifecycle';
 };
+
+export type LifecycleApiLifecycleGetErrors = {
+    /**
+     * Application error
+     */
+    400: ErrorResponse;
+    /**
+     * Application error
+     */
+    401: ErrorResponse;
+    /**
+     * Application error
+     */
+    403: ErrorResponse;
+    /**
+     * Application error
+     */
+    404: ErrorResponse;
+    /**
+     * Application error
+     */
+    409: ErrorResponse;
+    /**
+     * Application error
+     */
+    413: ErrorResponse;
+    /**
+     * Application error
+     */
+    415: ErrorResponse;
+    /**
+     * Application error
+     */
+    422: ErrorResponse;
+    /**
+     * Application error
+     */
+    429: ErrorResponse;
+    /**
+     * Application error
+     */
+    500: ErrorResponse;
+    /**
+     * Runtime is not ready. Inspect lifecycle; never automatically retry a mutation.
+     */
+    503: RuntimeUnavailableResponse;
+};
+
+export type LifecycleApiLifecycleGetError = LifecycleApiLifecycleGetErrors[keyof LifecycleApiLifecycleGetErrors];
 
 export type LifecycleApiLifecycleGetResponses = {
     /**
@@ -11766,6 +13345,12 @@ export type CreateLegacyLocationApiLocationsPostError = CreateLegacyLocationApiL
 
 export type DeleteLegacyLocationApiLocationsIdDeleteData = {
     body?: never;
+    headers?: {
+        /**
+         * X-Csrf-Token
+         */
+        'X-CSRF-Token'?: string | null;
+    };
     path: {
         /**
          * Id
@@ -11905,6 +13490,12 @@ export type LegacyLocationItemApiLocationsIdGetResponse = LegacyLocationItemApiL
 
 export type UpdateLegacyLocationApiLocationsIdPatchData = {
     body?: never;
+    headers?: {
+        /**
+         * X-Csrf-Token
+         */
+        'X-CSRF-Token'?: string | null;
+    };
     path: {
         /**
          * Id
@@ -13045,6 +14636,55 @@ export type NotificationChannelsApiNotificationChannelsGetData = {
     url: '/api/notification-channels';
 };
 
+export type NotificationChannelsApiNotificationChannelsGetErrors = {
+    /**
+     * Application error
+     */
+    400: ErrorResponse;
+    /**
+     * Application error
+     */
+    401: ErrorResponse;
+    /**
+     * Application error
+     */
+    403: ErrorResponse;
+    /**
+     * Application error
+     */
+    404: ErrorResponse;
+    /**
+     * Application error
+     */
+    409: ErrorResponse;
+    /**
+     * Application error
+     */
+    413: ErrorResponse;
+    /**
+     * Application error
+     */
+    415: ErrorResponse;
+    /**
+     * Application error
+     */
+    422: ErrorResponse;
+    /**
+     * Application error
+     */
+    429: ErrorResponse;
+    /**
+     * Application error
+     */
+    500: ErrorResponse;
+    /**
+     * Runtime is not ready. Inspect lifecycle; never automatically retry a mutation.
+     */
+    503: RuntimeUnavailableResponse;
+};
+
+export type NotificationChannelsApiNotificationChannelsGetError = NotificationChannelsApiNotificationChannelsGetErrors[keyof NotificationChannelsApiNotificationChannelsGetErrors];
+
 export type NotificationChannelsApiNotificationChannelsGetResponses = {
     /**
      * Successful Response
@@ -13060,6 +14700,55 @@ export type NotificationOverviewApiNotificationOverviewGetData = {
     query?: never;
     url: '/api/notification-overview';
 };
+
+export type NotificationOverviewApiNotificationOverviewGetErrors = {
+    /**
+     * Application error
+     */
+    400: ErrorResponse;
+    /**
+     * Application error
+     */
+    401: ErrorResponse;
+    /**
+     * Application error
+     */
+    403: ErrorResponse;
+    /**
+     * Application error
+     */
+    404: ErrorResponse;
+    /**
+     * Application error
+     */
+    409: ErrorResponse;
+    /**
+     * Application error
+     */
+    413: ErrorResponse;
+    /**
+     * Application error
+     */
+    415: ErrorResponse;
+    /**
+     * Application error
+     */
+    422: ErrorResponse;
+    /**
+     * Application error
+     */
+    429: ErrorResponse;
+    /**
+     * Application error
+     */
+    500: ErrorResponse;
+    /**
+     * Runtime is not ready. Inspect lifecycle; never automatically retry a mutation.
+     */
+    503: RuntimeUnavailableResponse;
+};
+
+export type NotificationOverviewApiNotificationOverviewGetError = NotificationOverviewApiNotificationOverviewGetErrors[keyof NotificationOverviewApiNotificationOverviewGetErrors];
 
 export type NotificationOverviewApiNotificationOverviewGetResponses = {
     /**
@@ -13077,6 +14766,55 @@ export type NotificationProblemsApiNotificationProblemsGetData = {
     url: '/api/notification-problems';
 };
 
+export type NotificationProblemsApiNotificationProblemsGetErrors = {
+    /**
+     * Application error
+     */
+    400: ErrorResponse;
+    /**
+     * Application error
+     */
+    401: ErrorResponse;
+    /**
+     * Application error
+     */
+    403: ErrorResponse;
+    /**
+     * Application error
+     */
+    404: ErrorResponse;
+    /**
+     * Application error
+     */
+    409: ErrorResponse;
+    /**
+     * Application error
+     */
+    413: ErrorResponse;
+    /**
+     * Application error
+     */
+    415: ErrorResponse;
+    /**
+     * Application error
+     */
+    422: ErrorResponse;
+    /**
+     * Application error
+     */
+    429: ErrorResponse;
+    /**
+     * Application error
+     */
+    500: ErrorResponse;
+    /**
+     * Runtime is not ready. Inspect lifecycle; never automatically retry a mutation.
+     */
+    503: RuntimeUnavailableResponse;
+};
+
+export type NotificationProblemsApiNotificationProblemsGetError = NotificationProblemsApiNotificationProblemsGetErrors[keyof NotificationProblemsApiNotificationProblemsGetErrors];
+
 export type NotificationProblemsApiNotificationProblemsGetResponses = {
     /**
      * Successful Response
@@ -13092,6 +14830,55 @@ export type NotificationsApiNotificationsGetData = {
     query?: never;
     url: '/api/notifications';
 };
+
+export type NotificationsApiNotificationsGetErrors = {
+    /**
+     * Application error
+     */
+    400: ErrorResponse;
+    /**
+     * Application error
+     */
+    401: ErrorResponse;
+    /**
+     * Application error
+     */
+    403: ErrorResponse;
+    /**
+     * Application error
+     */
+    404: ErrorResponse;
+    /**
+     * Application error
+     */
+    409: ErrorResponse;
+    /**
+     * Application error
+     */
+    413: ErrorResponse;
+    /**
+     * Application error
+     */
+    415: ErrorResponse;
+    /**
+     * Application error
+     */
+    422: ErrorResponse;
+    /**
+     * Application error
+     */
+    429: ErrorResponse;
+    /**
+     * Application error
+     */
+    500: ErrorResponse;
+    /**
+     * Runtime is not ready. Inspect lifecycle; never automatically retry a mutation.
+     */
+    503: RuntimeUnavailableResponse;
+};
+
+export type NotificationsApiNotificationsGetError = NotificationsApiNotificationsGetErrors[keyof NotificationsApiNotificationsGetErrors];
 
 export type NotificationsApiNotificationsGetResponses = {
     /**
@@ -13116,9 +14903,49 @@ export type ConfirmPushApiNotificationsIdPushConfirmationPostData = {
 
 export type ConfirmPushApiNotificationsIdPushConfirmationPostErrors = {
     /**
-     * Validation Error
+     * Application error
      */
-    422: HttpValidationError;
+    400: ErrorResponse;
+    /**
+     * Application error
+     */
+    401: ErrorResponse;
+    /**
+     * Application error
+     */
+    403: ErrorResponse;
+    /**
+     * Application error
+     */
+    404: ErrorResponse;
+    /**
+     * Application error
+     */
+    409: ErrorResponse;
+    /**
+     * Application error
+     */
+    413: ErrorResponse;
+    /**
+     * Application error
+     */
+    415: ErrorResponse;
+    /**
+     * Application error
+     */
+    422: ErrorResponse;
+    /**
+     * Application error
+     */
+    429: ErrorResponse;
+    /**
+     * Application error
+     */
+    500: ErrorResponse;
+    /**
+     * Runtime is not ready. Inspect lifecycle; never automatically retry a mutation.
+     */
+    503: RuntimeUnavailableResponse;
 };
 
 export type ConfirmPushApiNotificationsIdPushConfirmationPostError = ConfirmPushApiNotificationsIdPushConfirmationPostErrors[keyof ConfirmPushApiNotificationsIdPushConfirmationPostErrors];
@@ -13141,9 +14968,49 @@ export type FrontendErrorApiObservabilityFrontendErrorsPostData = {
 
 export type FrontendErrorApiObservabilityFrontendErrorsPostErrors = {
     /**
-     * Validation Error
+     * Application error
      */
-    422: HttpValidationError;
+    400: ErrorResponse;
+    /**
+     * Application error
+     */
+    401: ErrorResponse;
+    /**
+     * Application error
+     */
+    403: ErrorResponse;
+    /**
+     * Application error
+     */
+    404: ErrorResponse;
+    /**
+     * Application error
+     */
+    409: ErrorResponse;
+    /**
+     * Application error
+     */
+    413: ErrorResponse;
+    /**
+     * Application error
+     */
+    415: ErrorResponse;
+    /**
+     * Application error
+     */
+    422: ErrorResponse;
+    /**
+     * Application error
+     */
+    429: ErrorResponse;
+    /**
+     * Application error
+     */
+    500: ErrorResponse;
+    /**
+     * Runtime is not ready. Inspect lifecycle; never automatically retry a mutation.
+     */
+    503: RuntimeUnavailableResponse;
 };
 
 export type FrontendErrorApiObservabilityFrontendErrorsPostError = FrontendErrorApiObservabilityFrontendErrorsPostErrors[keyof FrontendErrorApiObservabilityFrontendErrorsPostErrors];
@@ -13161,6 +15028,55 @@ export type OpenapiDocumentApiOpenapiJsonGetData = {
     query?: never;
     url: '/api/openapi.json';
 };
+
+export type OpenapiDocumentApiOpenapiJsonGetErrors = {
+    /**
+     * Application error
+     */
+    400: ErrorResponse;
+    /**
+     * Application error
+     */
+    401: ErrorResponse;
+    /**
+     * Application error
+     */
+    403: ErrorResponse;
+    /**
+     * Application error
+     */
+    404: ErrorResponse;
+    /**
+     * Application error
+     */
+    409: ErrorResponse;
+    /**
+     * Application error
+     */
+    413: ErrorResponse;
+    /**
+     * Application error
+     */
+    415: ErrorResponse;
+    /**
+     * Application error
+     */
+    422: ErrorResponse;
+    /**
+     * Application error
+     */
+    429: ErrorResponse;
+    /**
+     * Application error
+     */
+    500: ErrorResponse;
+    /**
+     * Runtime is not ready. Inspect lifecycle; never automatically retry a mutation.
+     */
+    503: RuntimeUnavailableResponse;
+};
+
+export type OpenapiDocumentApiOpenapiJsonGetError = OpenapiDocumentApiOpenapiJsonGetErrors[keyof OpenapiDocumentApiOpenapiJsonGetErrors];
 
 export type OpenapiDocumentApiOpenapiJsonGetResponses = {
     /**
@@ -13963,9 +15879,49 @@ export type RegisterPushApiPushSubscriptionsPostData = {
 
 export type RegisterPushApiPushSubscriptionsPostErrors = {
     /**
-     * Validation Error
+     * Application error
      */
-    422: HttpValidationError;
+    400: ErrorResponse;
+    /**
+     * Application error
+     */
+    401: ErrorResponse;
+    /**
+     * Application error
+     */
+    403: ErrorResponse;
+    /**
+     * Application error
+     */
+    404: ErrorResponse;
+    /**
+     * Application error
+     */
+    409: ErrorResponse;
+    /**
+     * Application error
+     */
+    413: ErrorResponse;
+    /**
+     * Application error
+     */
+    415: ErrorResponse;
+    /**
+     * Application error
+     */
+    422: ErrorResponse;
+    /**
+     * Application error
+     */
+    429: ErrorResponse;
+    /**
+     * Application error
+     */
+    500: ErrorResponse;
+    /**
+     * Runtime is not ready. Inspect lifecycle; never automatically retry a mutation.
+     */
+    503: RuntimeUnavailableResponse;
 };
 
 export type RegisterPushApiPushSubscriptionsPostError = RegisterPushApiPushSubscriptionsPostErrors[keyof RegisterPushApiPushSubscriptionsPostErrors];
@@ -13993,9 +15949,49 @@ export type UnregisterPushApiPushSubscriptionsIdDeleteData = {
 
 export type UnregisterPushApiPushSubscriptionsIdDeleteErrors = {
     /**
-     * Validation Error
+     * Application error
      */
-    422: HttpValidationError;
+    400: ErrorResponse;
+    /**
+     * Application error
+     */
+    401: ErrorResponse;
+    /**
+     * Application error
+     */
+    403: ErrorResponse;
+    /**
+     * Application error
+     */
+    404: ErrorResponse;
+    /**
+     * Application error
+     */
+    409: ErrorResponse;
+    /**
+     * Application error
+     */
+    413: ErrorResponse;
+    /**
+     * Application error
+     */
+    415: ErrorResponse;
+    /**
+     * Application error
+     */
+    422: ErrorResponse;
+    /**
+     * Application error
+     */
+    429: ErrorResponse;
+    /**
+     * Application error
+     */
+    500: ErrorResponse;
+    /**
+     * Runtime is not ready. Inspect lifecycle; never automatically retry a mutation.
+     */
+    503: RuntimeUnavailableResponse;
 };
 
 export type UnregisterPushApiPushSubscriptionsIdDeleteError = UnregisterPushApiPushSubscriptionsIdDeleteErrors[keyof UnregisterPushApiPushSubscriptionsIdDeleteErrors];
@@ -14017,6 +16013,46 @@ export type ReadyApiReadyGetData = {
 };
 
 export type ReadyApiReadyGetErrors = {
+    /**
+     * Application error
+     */
+    400: ErrorResponse;
+    /**
+     * Application error
+     */
+    401: ErrorResponse;
+    /**
+     * Application error
+     */
+    403: ErrorResponse;
+    /**
+     * Application error
+     */
+    404: ErrorResponse;
+    /**
+     * Application error
+     */
+    409: ErrorResponse;
+    /**
+     * Application error
+     */
+    413: ErrorResponse;
+    /**
+     * Application error
+     */
+    415: ErrorResponse;
+    /**
+     * Application error
+     */
+    422: ErrorResponse;
+    /**
+     * Application error
+     */
+    429: ErrorResponse;
+    /**
+     * Application error
+     */
+    500: ErrorResponse;
     /**
      * Service Unavailable
      */
@@ -14048,9 +16084,49 @@ export type PatchResponseApiReplacementResponsesResponseIdPatchData = {
 
 export type PatchResponseApiReplacementResponsesResponseIdPatchErrors = {
     /**
-     * Validation Error
+     * Application error
      */
-    422: HttpValidationError;
+    400: ErrorResponse;
+    /**
+     * Application error
+     */
+    401: ErrorResponse;
+    /**
+     * Application error
+     */
+    403: ErrorResponse;
+    /**
+     * Application error
+     */
+    404: ErrorResponse;
+    /**
+     * Application error
+     */
+    409: ErrorResponse;
+    /**
+     * Application error
+     */
+    413: ErrorResponse;
+    /**
+     * Application error
+     */
+    415: ErrorResponse;
+    /**
+     * Application error
+     */
+    422: ErrorResponse;
+    /**
+     * Application error
+     */
+    429: ErrorResponse;
+    /**
+     * Application error
+     */
+    500: ErrorResponse;
+    /**
+     * Runtime is not ready. Inspect lifecycle; never automatically retry a mutation.
+     */
+    503: RuntimeUnavailableResponse;
 };
 
 export type PatchResponseApiReplacementResponsesResponseIdPatchError = PatchResponseApiReplacementResponsesResponseIdPatchErrors[keyof PatchResponseApiReplacementResponsesResponseIdPatchErrors];
@@ -14076,9 +16152,49 @@ export type PostResponseApiReplacementResponsesResponseIdRespondPostData = {
 
 export type PostResponseApiReplacementResponsesResponseIdRespondPostErrors = {
     /**
-     * Validation Error
+     * Application error
      */
-    422: HttpValidationError;
+    400: ErrorResponse;
+    /**
+     * Application error
+     */
+    401: ErrorResponse;
+    /**
+     * Application error
+     */
+    403: ErrorResponse;
+    /**
+     * Application error
+     */
+    404: ErrorResponse;
+    /**
+     * Application error
+     */
+    409: ErrorResponse;
+    /**
+     * Application error
+     */
+    413: ErrorResponse;
+    /**
+     * Application error
+     */
+    415: ErrorResponse;
+    /**
+     * Application error
+     */
+    422: ErrorResponse;
+    /**
+     * Application error
+     */
+    429: ErrorResponse;
+    /**
+     * Application error
+     */
+    500: ErrorResponse;
+    /**
+     * Runtime is not ready. Inspect lifecycle; never automatically retry a mutation.
+     */
+    503: RuntimeUnavailableResponse;
 };
 
 export type PostResponseApiReplacementResponsesResponseIdRespondPostError = PostResponseApiReplacementResponsesResponseIdRespondPostErrors[keyof PostResponseApiReplacementResponsesResponseIdRespondPostErrors];
@@ -14462,9 +16578,49 @@ export type RoundSummaryApiRoundSummaryGetData = {
 
 export type RoundSummaryApiRoundSummaryGetErrors = {
     /**
-     * Validation Error
+     * Application error
      */
-    422: HttpValidationError;
+    400: ErrorResponse;
+    /**
+     * Application error
+     */
+    401: ErrorResponse;
+    /**
+     * Application error
+     */
+    403: ErrorResponse;
+    /**
+     * Application error
+     */
+    404: ErrorResponse;
+    /**
+     * Application error
+     */
+    409: ErrorResponse;
+    /**
+     * Application error
+     */
+    413: ErrorResponse;
+    /**
+     * Application error
+     */
+    415: ErrorResponse;
+    /**
+     * Application error
+     */
+    422: ErrorResponse;
+    /**
+     * Application error
+     */
+    429: ErrorResponse;
+    /**
+     * Application error
+     */
+    500: ErrorResponse;
+    /**
+     * Runtime is not ready. Inspect lifecycle; never automatically retry a mutation.
+     */
+    503: RuntimeUnavailableResponse;
 };
 
 export type RoundSummaryApiRoundSummaryGetError = RoundSummaryApiRoundSummaryGetErrors[keyof RoundSummaryApiRoundSummaryGetErrors];
@@ -14552,6 +16708,55 @@ export type SessionApiSessionGetData = {
     url: '/api/session';
 };
 
+export type SessionApiSessionGetErrors = {
+    /**
+     * Application error
+     */
+    400: ErrorResponse;
+    /**
+     * Application error
+     */
+    401: ErrorResponse;
+    /**
+     * Application error
+     */
+    403: ErrorResponse;
+    /**
+     * Application error
+     */
+    404: ErrorResponse;
+    /**
+     * Application error
+     */
+    409: ErrorResponse;
+    /**
+     * Application error
+     */
+    413: ErrorResponse;
+    /**
+     * Application error
+     */
+    415: ErrorResponse;
+    /**
+     * Application error
+     */
+    422: ErrorResponse;
+    /**
+     * Application error
+     */
+    429: ErrorResponse;
+    /**
+     * Application error
+     */
+    500: ErrorResponse;
+    /**
+     * Runtime is not ready. Inspect lifecycle; never automatically retry a mutation.
+     */
+    503: RuntimeUnavailableResponse;
+};
+
+export type SessionApiSessionGetError = SessionApiSessionGetErrors[keyof SessionApiSessionGetErrors];
+
 export type SessionApiSessionGetResponses = {
     /**
      * Successful Response
@@ -14576,9 +16781,49 @@ export type LogoutSessionApiSessionLogoutPostData = {
 
 export type LogoutSessionApiSessionLogoutPostErrors = {
     /**
-     * Validation Error
+     * Application error
      */
-    422: HttpValidationError;
+    400: ErrorResponse;
+    /**
+     * Application error
+     */
+    401: ErrorResponse;
+    /**
+     * Application error
+     */
+    403: ErrorResponse;
+    /**
+     * Application error
+     */
+    404: ErrorResponse;
+    /**
+     * Application error
+     */
+    409: ErrorResponse;
+    /**
+     * Application error
+     */
+    413: ErrorResponse;
+    /**
+     * Application error
+     */
+    415: ErrorResponse;
+    /**
+     * Application error
+     */
+    422: ErrorResponse;
+    /**
+     * Application error
+     */
+    429: ErrorResponse;
+    /**
+     * Application error
+     */
+    500: ErrorResponse;
+    /**
+     * Runtime is not ready. Inspect lifecycle; never automatically retry a mutation.
+     */
+    503: RuntimeUnavailableResponse;
 };
 
 export type LogoutSessionApiSessionLogoutPostError = LogoutSessionApiSessionLogoutPostErrors[keyof LogoutSessionApiSessionLogoutPostErrors];
@@ -14607,9 +16852,49 @@ export type RotateSessionApiSessionRotatePostData = {
 
 export type RotateSessionApiSessionRotatePostErrors = {
     /**
-     * Validation Error
+     * Application error
      */
-    422: HttpValidationError;
+    400: ErrorResponse;
+    /**
+     * Application error
+     */
+    401: ErrorResponse;
+    /**
+     * Application error
+     */
+    403: ErrorResponse;
+    /**
+     * Application error
+     */
+    404: ErrorResponse;
+    /**
+     * Application error
+     */
+    409: ErrorResponse;
+    /**
+     * Application error
+     */
+    413: ErrorResponse;
+    /**
+     * Application error
+     */
+    415: ErrorResponse;
+    /**
+     * Application error
+     */
+    422: ErrorResponse;
+    /**
+     * Application error
+     */
+    429: ErrorResponse;
+    /**
+     * Application error
+     */
+    500: ErrorResponse;
+    /**
+     * Runtime is not ready. Inspect lifecycle; never automatically retry a mutation.
+     */
+    503: RuntimeUnavailableResponse;
 };
 
 export type RotateSessionApiSessionRotatePostError = RotateSessionApiSessionRotatePostErrors[keyof RotateSessionApiSessionRotatePostErrors];
