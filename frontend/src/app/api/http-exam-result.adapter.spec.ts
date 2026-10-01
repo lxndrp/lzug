@@ -114,8 +114,9 @@ describe('HttpExamResultAdapter', () => {
         componentKey: 'documentation',
         points: '82',
         rationale: '  Gemeinsame Begründung  ',
-        participants: [1, 2],
-        dissent: [{ memberId: 2, statement: 'Abweichung' }],
+        participants: [1, 2, 3],
+        vote: { yes: [1, 2], no: [3], abstain: [] },
+        dissent: [{ memberId: 3, statement: 'Abweichung' }],
         dayRevisions: { '7': 4 },
       })
       .subscribe();
@@ -125,9 +126,9 @@ describe('HttpExamResultAdapter', () => {
       component_key: 'documentation',
       points: '82',
       rationale: 'Gemeinsame Begründung',
-      participant_member_ids: [1, 2],
-      vote: { yes: [1, 2], no: [], abstain: [] },
-      dissent: [{ member_id: 2, statement: 'Abweichung' }],
+      participant_member_ids: [1, 2, 3],
+      vote: { yes: [1, 2], no: [3], abstain: [] },
+      dissent: [{ member_id: 3, statement: 'Abweichung' }],
       day_revisions: { '7': 4 },
     });
     committee.flush(apiResult());
@@ -171,17 +172,18 @@ describe('HttpExamResultAdapter', () => {
       .determineExamResult({
         resultId: 41,
         version: 3,
-        participants: [1, 2],
-        dissent: [{ memberId: 2, statement: 'Abweichung' }],
+        participants: [1, 2, 3],
+        vote: { yes: [1, 2], no: [3], abstain: [] },
+        dissent: [{ memberId: 3, statement: 'Abweichung' }],
         dayRevisions: { '7': 4 },
       })
       .subscribe();
     const determination = http.expectOne('/api/exam-results/41/determine');
     expect(determination.request.body).toEqual({
       version: 3,
-      participant_member_ids: [1, 2],
-      vote: { yes: [1, 2], no: [], abstain: [] },
-      dissent: [{ member_id: 2, statement: 'Abweichung' }],
+      participant_member_ids: [1, 2, 3],
+      vote: { yes: [1, 2], no: [3], abstain: [] },
+      dissent: [{ member_id: 3, statement: 'Abweichung' }],
       day_revisions: { '7': 4 },
     });
     determination.flush(apiResult());

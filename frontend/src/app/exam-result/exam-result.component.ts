@@ -4,7 +4,13 @@ import { TuiButton } from '@taiga-ui/core';
 import { TuiBadge } from '@taiga-ui/kit';
 import { Observable } from 'rxjs';
 
-import type { AssessmentComponent, AssessmentCriterion, ExamResult } from './exam-result.models';
+import type {
+  AssessmentComponent,
+  AssessmentCriterion,
+  ExamResult,
+  VoteChoice,
+} from './exam-result.models';
+import { collectCommitteeVote } from './exam-result.voting';
 import { ApplicationError } from '../application/application-error';
 import { AuthService } from '../auth/auth.service';
 import { ExamResultFacade } from './exam-result.facade';
@@ -40,6 +46,8 @@ export class ExamResultComponent implements OnChanges {
   protected readonly drafts = new Map<string, CriterionDraft>();
   protected readonly componentPoints = new Map<string, string>();
   protected readonly componentReasons = new Map<string, string>();
+  protected readonly componentVotes = new Map<string, Map<number, VoteChoice>>();
+  protected readonly examResultVotes = new Map<number, VoteChoice>();
   protected externalAreaKey = '';
   protected externalPoints = '';
   protected externalGrade = '';
@@ -62,7 +70,11 @@ export class ExamResultComponent implements OnChanges {
   private requestSequence = 0;
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['dayId'] || changes['slotId']) this.load();
+    if (changes['dayId'] || changes['slotId']) {
+      this.componentVotes.clear();
+      this.examResultVotes.clear();
+      this.load();
+    }
   }
 
   protected load(): void {
@@ -166,6 +178,14 @@ export class ExamResultComponent implements OnChanges {
   protected determineComponent(componentKey: string): void {
     const result = this.result();
     if (!result) return;
+    const voteResult = collectCommitteeVote(
+      result.participants,
+      this.componentVotes.get(componentKey) ?? new Map(),
+    );
+    if (!voteResult.valid) {
+      this.showVoteError(voteResult.reason);
+      return;
+    }
     this.run(
       this.facade.determineComponent({
         resultId: result.id,
@@ -174,6 +194,7 @@ export class ExamResultComponent implements OnChanges {
         points: this.componentPoints.get(componentKey) ?? '',
         rationale: this.componentReasons.get(componentKey) ?? '',
         participants: result.participants,
+        vote: voteResult.vote,
         dissent: this.dissent(),
         dayRevisions: result.dayRevisions ?? this.inputDayRevisions(),
       }),
@@ -218,11 +239,17 @@ export class ExamResultComponent implements OnChanges {
   protected determineResult(): void {
     const result = this.result();
     if (!result) return;
+    const voteResult = collectCommitteeVote(result.participants, this.examResultVotes);
+    if (!voteResult.valid) {
+      this.showVoteError(voteResult.reason);
+      return;
+    }
     this.run(
       this.facade.determineExamResult({
         resultId: result.id,
         version: result.version,
         participants: result.participants,
+        vote: voteResult.vote,
         dissent: this.dissent(),
         dayRevisions: result.dayRevisions ?? this.inputDayRevisions(),
       }),
@@ -316,6 +343,35 @@ export class ExamResultComponent implements OnChanges {
     );
   }
 
+  protected componentVoteFor(componentKey: string, memberId: number): VoteChoice | null {
+    return this.componentVotes.get(componentKey)?.get(memberId) ?? null;
+  }
+
+  protected setComponentVote(
+    componentKey: string,
+    memberId: number,
+    choice: VoteChoice | null,
+  ): void {
+    let votes = this.componentVotes.get(componentKey);
+    if (!votes) {
+      votes = new Map();
+      this.componentVotes.set(componentKey, votes);
+    }
+    if (choice) votes.set(memberId, choice);
+    else votes.delete(memberId);
+    this.error.set(null);
+  }
+
+  protected examResultVoteFor(memberId: number): VoteChoice | null {
+    return this.examResultVotes.get(memberId) ?? null;
+  }
+
+  protected setExamResultVote(memberId: number, choice: VoteChoice | null): void {
+    if (choice) this.examResultVotes.set(memberId, choice);
+    else this.examResultVotes.delete(memberId);
+    this.error.set(null);
+  }
+
   protected hasConfirmedRecord(result: ExamResult): boolean {
     return (
       this.ownMemberId !== null &&
@@ -348,6 +404,17 @@ export class ExamResultComponent implements OnChanges {
     return this.dissentMemberId && this.dissentStatement.trim()
       ? [{ memberId: this.dissentMemberId, statement: this.dissentStatement.trim() }]
       : [];
+  }
+
+  private showVoteError(reason: 'invalid-participants' | 'incomplete' | 'no-majority'): void {
+    this.error.set(
+      {
+        'invalid-participants':
+          'Die stimmberechtigten Mitglieder sind ungültig. Bitte laden Sie den Vorgang neu.',
+        incomplete: 'Bitte ordnen Sie jedem stimmberechtigten Mitglied genau eine Stimme zu.',
+        'no-majority': 'Für die Feststellung müssen mehr Ja- als Nein-Stimmen vorliegen.',
+      }[reason],
+    );
   }
 
   private inputDayRevisions(): Record<string, number> | undefined {

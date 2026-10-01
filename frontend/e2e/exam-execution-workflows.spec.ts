@@ -1,3 +1,5 @@
+import AxeBuilder from '@axe-core/playwright';
+
 import { expect, test } from './fixtures';
 import { confirmedPlan, examProtocolView, examResultView } from './quality-support';
 
@@ -392,6 +394,7 @@ test.describe('exam execution workflows', () => {
     day.slots[0].actual_started_at = '2026-11-16T08:31:00+01:00';
     day.slots[0].execution_status = 'running';
     const result = examResultView();
+    let determinationRequestBody: Record<string, unknown> | null = null;
 
     await page.route('**/api/confirmed-plan-days/1', (route) =>
       route.fulfill({
@@ -476,14 +479,15 @@ test.describe('exam execution workflows', () => {
           },
         };
       } else if (path.endsWith('/determine')) {
+        determinationRequestBody = body;
         result.version += 1;
         result.state = 'determined';
         const determination = {
           id: 31,
           revision: 1,
-          participant_member_ids: [1, 2, 3],
-          vote: { yes: [1, 2, 3], no: [], abstain: [] },
-          dissent: [],
+          participant_member_ids: body?.['participant_member_ids'] as number[],
+          vote: body?.['vote'] as { yes: number[]; no: number[]; abstain: number[] },
+          dissent: body?.['dissent'] as Array<{ member_id: number; statement: string }>,
           status: 'current' as const,
           determined_at: '2026-11-16T10:00:00+01:00',
           confirmation_member_ids: [],
@@ -535,7 +539,21 @@ test.describe('exam execution workflows', () => {
 
     await editor.getByRole('button', { name: 'Unabhängig bestätigen' }).click();
     await expect(editor.getByText('Nachvollziehbarer Ergebnisvorschlag')).toBeVisible();
+    await editor.getByLabel('Stimme von Mitglied 1').selectOption('yes');
+    await editor.getByLabel('Stimme von Mitglied 2').selectOption('yes');
+    await editor.getByLabel('Stimme von Mitglied 3').selectOption('no');
+    await editor.getByLabel('Mitglieds-ID').selectOption('3');
+    await editor.getByLabel('Wortlaut').fill('Gegenstimme zur Gesamtnote');
+    const voteAccessibility = await new AxeBuilder({ page })
+      .include('#result-vote-group-1')
+      .analyze();
+    expect(voteAccessibility.violations).toEqual([]);
     await editor.getByRole('button', { name: 'Gesamtergebnis feststellen' }).click();
+    expect(determinationRequestBody).toMatchObject({
+      participant_member_ids: [1, 2, 3],
+      vote: { yes: [1, 2], no: [3], abstain: [] },
+      dissent: [{ member_id: 3, statement: 'Gegenstimme zur Gesamtnote' }],
+    });
     await expect(editor.getByText('Ergebnisniederschrift · Feststellung 1')).toBeVisible();
     await editor.getByRole('button', { name: 'Sachliche Richtigkeit bestätigen' }).click();
     await editor.getByRole('button', { name: 'Mitteilung dokumentieren' }).click();
