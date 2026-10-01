@@ -1397,6 +1397,9 @@ class ExamResultService:
             )
         )
         current_calculation = self._refresh_calculation(session, result, rules)
+        calculations_disclosed = all(
+            component["key"] in disclosures for component in rules["components"]
+        )
         determinations = list(
             session.scalars(
                 select(ResultDetermination)
@@ -1479,9 +1482,20 @@ class ExamResultService:
             "individual_assessment_counts": self._individual_counts(session, result.id),
             "committee_assessments": [self._committee_view(item) for item in committee],
             "external_results": [self._external_view(item) for item in external],
-            "calculations": [self._calculation_view(item) for item in calculations],
+            # Keep calculations available to the internal result lifecycle, but
+            # do not publish aggregates or their inputs while any component's
+            # individual assessments remain undisclosed. Result exports use this
+            # same projection, so the visibility rule applies consistently to
+            # every read surface.
+            "calculations": (
+                [self._calculation_view(item) for item in calculations]
+                if calculations_disclosed
+                else []
+            ),
             "current_calculation": (
-                self._calculation_view(current_calculation) if current_calculation else None
+                self._calculation_view(current_calculation)
+                if calculations_disclosed and current_calculation
+                else None
             ),
             "determinations": [self._determination_view(session, item) for item in determinations],
             "current_determination": (
