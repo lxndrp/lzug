@@ -156,6 +156,22 @@ describe('AuthService', () => {
     expect(service.session()).toBeNull();
   });
 
+  it('revokes a login when the resulting session cannot be validated', () => {
+    service.markAnonymous();
+    const validationError = new ApplicationError('unavailable', 'Session validation failed.');
+    api.session.mockReturnValue(throwError(() => validationError));
+    let receivedError: unknown;
+
+    service.login('member@example.invalid', 'a password', '123456').subscribe({
+      error: (error) => (receivedError = error),
+    });
+
+    expect(api.logout).toHaveBeenCalledOnce();
+    expect(receivedError).toBe(validationError);
+    expect(service.state()).toBe('anonymous');
+    expect(service.session()).toBeNull();
+  });
+
   it('starts the selected demo role and enters the shared session', () => {
     service.startDemoSession('replacement').subscribe();
 

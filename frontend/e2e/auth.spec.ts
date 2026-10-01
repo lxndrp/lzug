@@ -60,6 +60,58 @@ test.describe('local password and TOTP authentication', () => {
     expect(page.url()).not.toContain('123456');
   });
 
+  test('revokes a login when session validation fails after credentials are accepted', async ({
+    page,
+  }) => {
+    let loginAccepted = false;
+    let logoutRequests = 0;
+    await page.unroute('**/api/session');
+    await page.route('**/api/session', (route) =>
+      loginAccepted
+        ? route.fulfill({
+            status: 503,
+            contentType: 'application/json',
+            body: JSON.stringify({ error: { message: 'Session validation failed.' } }),
+          })
+        : route.fulfill({
+            status: 401,
+            contentType: 'application/json',
+            body: JSON.stringify({ error: 'Authentication required.' }),
+          }),
+    );
+    await page.route('**/api/auth/login', (route) => {
+      loginAccepted = true;
+      return route.fulfill({
+        contentType: 'application/json',
+        headers: { 'Set-Cookie': 'session=issued; HttpOnly; Path=/' },
+        body: JSON.stringify({
+          authenticated: true,
+          account_id: 2,
+          expires_at: '2026-01-01T20:00:00+00:00',
+        }),
+      });
+    });
+    await page.route('**/api/session/logout', (route) => {
+      logoutRequests += 1;
+      loginAccepted = false;
+      return route.fulfill({
+        status: 204,
+        headers: { 'Set-Cookie': 'session=; Max-Age=0; HttpOnly; Path=/' },
+      });
+    });
+
+    await page.goto('/login');
+    await page.getByLabel('E-Mail-Adresse').fill('member@example.invalid');
+    await page.getByLabel('Kennwort').fill('correct horse battery staple');
+    await page.getByLabel('TOTP-Code oder Recovery-Code').fill('123456');
+    await page.getByRole('button', { name: 'Anmelden' }).click();
+
+    await expect(page.getByRole('alert')).toHaveText('Session validation failed.');
+    expect(logoutRequests).toBe(1);
+    await expect(page).toHaveURL('/login');
+    expect(await page.context().cookies()).toEqual([]);
+  });
+
   test('@a11y redirects protected deep links before rendering the application shell', async ({
     page,
   }) => {

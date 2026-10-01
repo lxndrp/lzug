@@ -1,7 +1,7 @@
 import { Location } from '@angular/common';
 import { Injectable, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import { catchError, map, of, switchMap, tap } from 'rxjs';
+import { catchError, map, of, switchMap, tap, throwError } from 'rxjs';
 
 import type { DemoRole } from '../api/api.models';
 import { ApplicationError } from '../api/application-error';
@@ -48,9 +48,13 @@ export class AuthService implements AuthenticationPort {
 
   login(email: string, password: string, secondFactor: string) {
     return this.api.login({ email, password, second_factor: secondFactor }).pipe(
-      switchMap(() => this.api.session()),
+      switchMap(() =>
+        this.api.session().pipe(
+          tap((session) => this.acceptSession(session)),
+          catchError((error: unknown) => this.revokeUnvalidatedSession(error)),
+        ),
+      ),
       tap((session) => {
-        this.acceptSession(session);
         void this.router.navigateByUrl(this.entryPath(session), { replaceUrl: true });
       }),
     );
@@ -137,6 +141,14 @@ export class AuthService implements AuthenticationPort {
     this.session.set(session);
     this.state.set('authenticated');
     this.scheduleDemoExpiry(session);
+  }
+
+  private revokeUnvalidatedSession(error: unknown) {
+    this.markAnonymous();
+    return this.api.logout().pipe(
+      catchError(() => of(void 0)),
+      switchMap(() => throwError(() => error)),
+    );
   }
 
   private scheduleDemoExpiry(session: AuthSession): void {
