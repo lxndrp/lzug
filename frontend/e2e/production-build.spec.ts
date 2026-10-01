@@ -1,4 +1,5 @@
 import { expect, test } from './fixtures';
+import { demoRoles, demoCapabilities } from './quality-support';
 
 const colorSchemes = ['light', 'dark'] as const;
 const viewports = [
@@ -69,5 +70,35 @@ test.describe('optimized frontend artifact', () => {
     }
 
     expect(cspErrors).toEqual([]);
+  });
+
+  test('keeps demo runtime disabled in product builds', async ({ page }) => {
+    let scenarioRequests = 0;
+    await page.route('**/api/session', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          authenticated: true,
+          account_id: demoRoles.examiner.account_id,
+          person_id: demoRoles.examiner.person_id,
+          committee_member_id: demoRoles.examiner.committee_member_id,
+          is_operator: false,
+          demo_role: 'examiner',
+          display_name: demoRoles.examiner.display_name,
+          capabilities: demoCapabilities('examiner'),
+        }),
+      }),
+    );
+    await page.route('**/api/demo/scenarios', async (route) => {
+      scenarioRequests += 1;
+      await route.continue();
+    });
+
+    await page.goto('/demo-scenarios');
+
+    await expect(page.getByRole('alert')).toContainText(
+      'Der Demo-Arbeitsstand konnte nicht geladen werden.',
+    );
+    expect(scenarioRequests).toBe(0);
   });
 });

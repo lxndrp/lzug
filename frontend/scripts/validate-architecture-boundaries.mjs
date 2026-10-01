@@ -865,3 +865,135 @@ function propertyInitializer(object, name) {
   );
   return property && ts.isPropertyAssignment(property) ? property.initializer : undefined;
 }
+
+const demoScenariosComponentPath = path.join(root, 'demo-scenarios', 'demo-scenarios.component.ts');
+const demoScenariosSpecPath = path.join(root, 'demo-scenarios', 'demo-scenarios.component.spec.ts');
+const demoScenariosApplicationPath = path.join(
+  root,
+  'demo-scenarios',
+  'application',
+  'demo-scenarios.application.ts',
+);
+const demoScenariosApplicationSpecPath = path.join(
+  root,
+  'demo-scenarios',
+  'application',
+  'demo-scenarios.application.spec.ts',
+);
+const demoScenariosPortPath = path.join(
+  root,
+  'demo-scenarios',
+  'application',
+  'demo-scenarios.port.ts',
+);
+const demoScenariosModelsPath = path.join(root, 'demo-scenarios', 'demo-scenarios.models.ts');
+const demoScenariosAdapterPath = path.join(root, 'api', 'http-demo-scenarios.adapter.ts');
+const demoScenariosAdapterSpecPath = path.join(root, 'api', 'http-demo-scenarios.adapter.spec.ts');
+const [
+  demoScenariosComponent,
+  demoScenariosSpec,
+  demoScenariosApplication,
+  demoScenariosApplicationSpec,
+  demoScenariosPort,
+  demoScenariosModels,
+  demoScenariosAdapter,
+  demoScenariosAdapterSpec,
+] = await Promise.all(
+  [
+    demoScenariosComponentPath,
+    demoScenariosSpecPath,
+    demoScenariosApplicationPath,
+    demoScenariosApplicationSpecPath,
+    demoScenariosPortPath,
+    demoScenariosModelsPath,
+    demoScenariosAdapterPath,
+    demoScenariosAdapterSpecPath,
+  ].map((file) => readFile(file, 'utf8')),
+);
+
+assert.deepEqual(
+  relativeImportsOf(demoScenariosComponent),
+  [
+    '../auth/auth.service',
+    './application/demo-scenarios.application',
+    './demo-scenarios.models',
+    './demo-tour.component',
+  ],
+  'demo-scenarios component imports its application, feature models, tour and auth facade',
+);
+assert.doesNotMatch(
+  importsOf(demoScenariosComponent),
+  /@angular\/common\/http|(?:^|\/)(?:api|adapters?)(?:\/|$)|RuntimeExperienceApiService/,
+  'demo-scenarios component stays above the transport adapter boundary',
+);
+assert.doesNotMatch(
+  demoScenariosComponent,
+  /\bHttpClient\b|\bfetch\s*\(|['"]\/api\//,
+  'demo-scenarios component does not perform or construct transport requests',
+);
+assert.deepEqual(
+  relativeImportsOf(demoScenariosApplication),
+  ['./demo-scenarios.port'],
+  'demo-scenarios application depends only on its feature port',
+);
+assert.doesNotMatch(
+  importsOf(demoScenariosApplication),
+  /@angular\/common\/http|(?:^|\/)(?:api|adapters?)(?:\/|$)/,
+  'demo-scenarios application does not depend on a transport implementation',
+);
+assert.deepEqual(relativeImportsOf(demoScenariosPort), ['../demo-scenarios.models']);
+assert.doesNotMatch(
+  importsOf(demoScenariosPort),
+  /@angular\/common\/http|(?:^|\/)(?:api|adapters?)(?:\/|$)|types\.gen|['"]\/api\//,
+  'demo-scenarios port exposes only transport-neutral feature contracts',
+);
+for (const [name, source] of [
+  ['demo-scenarios component', demoScenariosComponent],
+  ['demo-scenarios application', demoScenariosApplication],
+  ['demo-scenarios port', demoScenariosPort],
+  ['demo-scenarios models', demoScenariosModels],
+  ['demo-scenarios behavior tests', demoScenariosSpec],
+  ['demo-scenarios application tests', demoScenariosApplicationSpec],
+]) {
+  assert.doesNotMatch(
+    importsOf(source),
+    /(?:^|\/)api\.models(?:$|\n)|types\.gen/,
+    `${name} must not import backend/API transport models`,
+  );
+}
+assert.deepEqual(
+  importModulesOf(demoScenariosAdapter).sort(),
+  [
+    './api.models',
+    '../demo-scenarios/application/demo-scenarios.port',
+    '../demo-scenarios/demo-scenarios.models',
+    '../runtime/runtime-experience.service',
+    '@angular/core',
+    'rxjs',
+  ].sort(),
+  'demo-scenarios HTTP adapter maps API models to the feature-owned port contract',
+);
+assert.match(demoScenariosAdapter, /fromApiOverview/);
+assert.match(demoScenariosAdapterSpec, /HttpDemoScenariosAdapter/);
+assert.match(demoScenariosAdapterSpec, /HttpTestingController/);
+assert.deepEqual(relativeImportsOf(demoScenariosSpec), [
+  '../auth/auth.service',
+  './application/demo-scenarios.application',
+  './demo-scenarios.component',
+  './demo-scenarios.models',
+]);
+assert.match(demoScenariosSpec, /DemoScenariosApplication/);
+assert.doesNotMatch(
+  demoScenariosSpec,
+  /HttpTestingController|provideHttpClientTesting/,
+  'demo-scenarios behavior tests use application and auth doubles',
+);
+assert.match(demoScenariosApplicationSpec, /DEMO_SCENARIOS_PORT/);
+assert.match(demoScenariosSpec, /startDemoSession/);
+assert.match(demoScenariosSpec, /reset/);
+assert.match(demoScenariosSpec, /window\.confirm/);
+assert.equal(
+  hasProviderBinding(config, 'DEMO_SCENARIOS_PORT', 'HttpDemoScenariosAdapter'),
+  true,
+  'composition root binds the demo-scenarios port to its HTTP adapter',
+);

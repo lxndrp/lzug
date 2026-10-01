@@ -38,18 +38,18 @@
       <div>
         <h2 id="demo-role-title">Aktive Rolle</h2>
         <p>
-          {{ roleLabel(current.current_role) }} ·
-          {{ roleDisplayName(current.current_role) }}
+          {{ roleLabel(current.currentRole) }} ·
+          {{ roleDisplayName(current.currentRole) }}
         </p>
       </div>
       <div class="demo-role-actions" aria-label="Demo-Rolle wechseln">
         @for (role of current.roles; track role.name) {
           <button
             tuiButton
-            [appearance]="role.name === current.current_role ? 'primary' : 'secondary'"
+            [appearance]="role.name === current.currentRole ? 'primary' : 'secondary'"
             type="button"
-            [disabled]="busy() || role.name === current.current_role"
-            [attr.aria-pressed]="role.name === current.current_role"
+            [disabled]="busy() || role.name === current.currentRole"
+            [attr.aria-pressed]="role.name === current.currentRole"
             (click)="switchRole(role.name)"
           >
             {{ roleLabel(role.name) }}
@@ -74,31 +74,31 @@
               <p class="demo-scenario-status">{{ statusLabel(scenario.status) }}</p>
               <h3 [id]="'scenario-' + scenario.id">{{ scenario.title }}</h3>
             </div>
-            <strong>{{ scenario.completed_steps }}/{{ scenario.total_steps }}</strong>
+            <strong>{{ scenario.completedSteps }}/{{ scenario.totalSteps }}</strong>
           </header>
           <progress
-            [value]="scenario.completed_steps"
-            [max]="scenario.total_steps"
+            [value]="scenario.completedSteps"
+            [max]="scenario.totalSteps"
             [attr.aria-label]="
               scenario.title +
               ': ' +
-              scenario.completed_steps +
+              scenario.completedSteps +
               ' von ' +
-              scenario.total_steps +
+              scenario.totalSteps +
               ' Schritten'
             "
           ></progress>
           <dl>
             <div>
               <dt>Nächste Rolle</dt>
-              <dd>{{ roleLabel(scenario.next_role) }}</dd>
+              <dd>{{ roleLabel(scenario.nextRole) }}</dd>
             </div>
             <div>
               <dt>Nächster Schritt</dt>
-              <dd>{{ scenario.next_action }}</dd>
+              <dd>{{ scenario.nextAction }}</dd>
             </div>
           </dl>
-          @if (scenario.status === 'complete' || scenario.next_role === current.current_role) {
+          @if (scenario.status === 'complete' || scenario.nextRole === current.currentRole) {
             <a
               tuiButton
               appearance="primary"
@@ -113,9 +113,9 @@
               appearance="secondary"
               type="button"
               [disabled]="busy()"
-              (click)="switchRole(scenario.next_role)"
+              (click)="switchRole(scenario.nextRole)"
             >
-              Zu {{ roleLabel(scenario.next_role) }} wechseln
+              Zu {{ roleLabel(scenario.nextRole) }} wechseln
             </button>
           }
         </article>
@@ -131,7 +131,7 @@
           <li>{{ notice }}</li>
         }
       </ul>
-      <p class="app-muted">{{ current.location_contract }}</p>
+      <p class="app-muted">{{ current.locationContract }}</p>
       <div class="demo-workspace-actions">
         <button
           tuiButton

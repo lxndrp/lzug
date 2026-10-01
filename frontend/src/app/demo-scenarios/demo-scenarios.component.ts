@@ -4,9 +4,9 @@ import { TuiButton, TuiNotification } from '@taiga-ui/core';
 import { finalize, interval } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
-import { DemoRole, DemoScenario, DemoScenarioOverview } from '../api/api.models';
 import { AuthService } from '../auth/auth.service';
-import { RuntimeExperienceService } from '../runtime/runtime-experience.service';
+import { DemoScenariosApplication } from './application/demo-scenarios.application';
+import { DemoRole, DemoScenario, DemoScenarioOverview } from './demo-scenarios.models';
 import { DemoTourComponent } from './demo-tour.component';
 
 @Component({
@@ -16,7 +16,7 @@ import { DemoTourComponent } from './demo-tour.component';
   styleUrl: './demo-scenarios.component.css',
 })
 export class DemoScenariosComponent implements OnInit {
-  private readonly api = inject(RuntimeExperienceService);
+  private readonly scenarios = inject(DemoScenariosApplication);
   private readonly auth = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly router = inject(Router);
@@ -48,8 +48,8 @@ export class DemoScenariosComponent implements OnInit {
   protected load(): void {
     this.loading.set(true);
     this.error.set(null);
-    this.api
-      .getDemoScenarios()
+    this.scenarios
+      .getOverview()
       .pipe(finalize(() => this.loading.set(false)))
       .subscribe({
         next: (overview) => this.setOverview(overview),
@@ -58,7 +58,7 @@ export class DemoScenariosComponent implements OnInit {
   }
 
   protected switchRole(role: DemoRole): void {
-    if (this.busy() || role === this.overview()?.current_role) return;
+    if (this.busy() || role === this.overview()?.currentRole) return;
     this.busy.set(true);
     this.error.set(null);
     this.auth
@@ -81,8 +81,8 @@ export class DemoScenariosComponent implements OnInit {
     }
     this.busy.set(true);
     this.error.set(null);
-    this.api
-      .resetDemoScenarios()
+    this.scenarios
+      .reset()
       .pipe(finalize(() => this.busy.set(false)))
       .subscribe({
         next: () => this.load(),
@@ -103,7 +103,7 @@ export class DemoScenariosComponent implements OnInit {
 
   protected openScenario(scenario: DemoScenario, event: Event): void {
     event.preventDefault();
-    if (scenario.next_role !== this.overview()?.current_role && scenario.status !== 'complete') {
+    if (scenario.nextRole !== this.overview()?.currentRole && scenario.status !== 'complete') {
       return;
     }
     void this.router.navigateByUrl(scenario.path);
@@ -118,7 +118,7 @@ export class DemoScenariosComponent implements OnInit {
   }
 
   protected roleDisplayName(role: DemoRole): string {
-    return this.overview()?.roles.find((item) => item.name === role)?.display_name ?? '';
+    return this.overview()?.roles.find((item) => item.name === role)?.displayName ?? '';
   }
 
   protected statusLabel(status: DemoScenario['status']): string {
@@ -127,6 +127,6 @@ export class DemoScenariosComponent implements OnInit {
 
   private setOverview(overview: DemoScenarioOverview): void {
     this.overview.set(overview);
-    this.remainingSeconds.set(overview.remaining_seconds);
+    this.remainingSeconds.set(overview.remainingSeconds);
   }
 }
