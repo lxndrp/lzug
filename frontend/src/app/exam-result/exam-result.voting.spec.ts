@@ -5,19 +5,55 @@ describe('collectCommitteeVote', () => {
     expect(
       collectCommitteeVote(
         [1, 2, 3],
+        new Set([1, 2, 3]),
         new Map([
           [1, 'yes'],
           [2, 'yes'],
           [3, 'no'],
         ]),
+        2,
       ),
-    ).toEqual({ valid: true, vote: { yes: [1, 2], no: [3], abstain: [] } });
+    ).toEqual({
+      valid: true,
+      participantMemberIds: [1, 2, 3],
+      vote: { yes: [1, 2], no: [3], abstain: [] },
+    });
   });
 
   it('rejects an incomplete vote', () => {
-    expect(collectCommitteeVote([1, 2], new Map([[1, 'yes']]))).toEqual({
+    expect(collectCommitteeVote([1, 2], new Set([1, 2]), new Map([[1, 'yes']]), 2)).toEqual({
       valid: false,
       reason: 'incomplete',
+    });
+  });
+
+  it('returns only the selected quorum and excludes absent members from the vote', () => {
+    expect(
+      collectCommitteeVote(
+        [1, 2, 3],
+        new Set([1, 2]),
+        new Map([
+          [1, 'yes'],
+          [2, 'yes'],
+          [3, 'no'],
+        ]),
+        2,
+      ),
+    ).toEqual({
+      valid: true,
+      participantMemberIds: [1, 2],
+      vote: { yes: [1, 2], no: [], abstain: [] },
+    });
+  });
+
+  it('rejects a selection below quorum or containing a nonparticipant', () => {
+    expect(collectCommitteeVote([1, 2, 3], new Set([1]), new Map([[1, 'yes']]), 2)).toEqual({
+      valid: false,
+      reason: 'invalid-quorum',
+    });
+    expect(collectCommitteeVote([1, 2, 3], new Set([1, 4]), new Map(), 2)).toEqual({
+      valid: false,
+      reason: 'invalid-participants',
     });
   });
 
@@ -25,20 +61,22 @@ describe('collectCommitteeVote', () => {
     expect(
       collectCommitteeVote(
         [1, 2],
+        new Set([1, 2]),
         new Map([
           [1, 'yes'],
           [2, 'no'],
         ]),
+        2,
       ),
     ).toEqual({ valid: false, reason: 'no-majority' });
   });
 
   it('rejects empty or duplicate participant lists', () => {
-    expect(collectCommitteeVote([], new Map())).toEqual({
+    expect(collectCommitteeVote([], new Set(), new Map(), 1)).toEqual({
       valid: false,
       reason: 'invalid-participants',
     });
-    expect(collectCommitteeVote([1, 1], new Map([[1, 'yes']]))).toEqual({
+    expect(collectCommitteeVote([1, 1], new Set([1]), new Map([[1, 'yes']]), 1)).toEqual({
       valid: false,
       reason: 'invalid-participants',
     });

@@ -394,6 +394,7 @@ test.describe('exam execution workflows', () => {
     day.slots[0].actual_started_at = '2026-11-16T08:31:00+01:00';
     day.slots[0].execution_status = 'running';
     const result = examResultView();
+    result.model_version.rules.quorum.minimum_members = 2;
     let determinationRequestBody: Record<string, unknown> | null = null;
 
     await page.route('**/api/confirmed-plan-days/1', (route) =>
@@ -496,7 +497,8 @@ test.describe('exam execution workflows', () => {
         result.current_determination = determination;
       } else if (path.endsWith('/record-confirmations')) {
         result.version += 1;
-        result.current_determination!.confirmation_member_ids = [1, 2, 3];
+        result.current_determination!.confirmation_member_ids =
+          result.current_determination!.participant_member_ids;
       } else if (path.endsWith('/communications')) {
         result.version += 1;
         result.state = 'communicated';
@@ -513,6 +515,7 @@ test.describe('exam execution workflows', () => {
       } else if (path.endsWith('/corrections')) {
         result.version += 1;
         result.correction_open = true;
+        result.state = 'calculation_ready';
         result.corrections = [
           {
             id: 61,
@@ -539,20 +542,20 @@ test.describe('exam execution workflows', () => {
 
     await editor.getByRole('button', { name: 'Unabhängig bestätigen' }).click();
     await expect(editor.getByText('Nachvollziehbarer Ergebnisvorschlag')).toBeVisible();
+    await editor.getByLabel('Mitglied 1 stimmt mit').check();
+    await editor.getByLabel('Mitglied 2 stimmt mit').check();
+    await expect(editor.getByLabel('Stimme von Mitglied 3')).toHaveCount(0);
     await editor.getByLabel('Stimme von Mitglied 1').selectOption('yes');
     await editor.getByLabel('Stimme von Mitglied 2').selectOption('yes');
-    await editor.getByLabel('Stimme von Mitglied 3').selectOption('no');
-    await editor.getByLabel('Mitglieds-ID').selectOption('3');
-    await editor.getByLabel('Wortlaut').fill('Gegenstimme zur Gesamtnote');
     const voteAccessibility = await new AxeBuilder({ page })
       .include('#result-vote-group-1')
       .analyze();
     expect(voteAccessibility.violations).toEqual([]);
     await editor.getByRole('button', { name: 'Gesamtergebnis feststellen' }).click();
     expect(determinationRequestBody).toMatchObject({
-      participant_member_ids: [1, 2, 3],
-      vote: { yes: [1, 2], no: [3], abstain: [] },
-      dissent: [{ member_id: 3, statement: 'Gegenstimme zur Gesamtnote' }],
+      participant_member_ids: [1, 2],
+      vote: { yes: [1, 2], no: [], abstain: [] },
+      dissent: [],
     });
     await expect(editor.getByText('Ergebnisniederschrift · Feststellung 1')).toBeVisible();
     await editor.getByRole('button', { name: 'Sachliche Richtigkeit bestätigen' }).click();
@@ -562,6 +565,8 @@ test.describe('exam execution workflows', () => {
     await editor.getByLabel('Begründung', { exact: true }).fill('Übertragungsfehler korrigieren');
     await editor.getByRole('button', { name: 'Korrektur öffnen' }).click();
     await expect(editor.getByText('Korrektur offen', { exact: true })).toBeVisible();
+    await expect(editor.getByLabel('Mitglied 1 stimmt mit')).not.toBeChecked();
+    await expect(editor.getByLabel('Mitglied 2 stimmt mit')).not.toBeChecked();
     await editor.getByText('Feststellungs-, Korrektur-, Mitteilungs- und Exporthistorie').click();
     await expect(editor.getByText(/Korrektur 61 · open/)).toBeVisible();
   });

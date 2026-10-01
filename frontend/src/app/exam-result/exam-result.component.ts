@@ -47,7 +47,9 @@ export class ExamResultComponent implements OnChanges {
   protected readonly componentPoints = new Map<string, string>();
   protected readonly componentReasons = new Map<string, string>();
   protected readonly componentVotes = new Map<string, Map<number, VoteChoice>>();
+  protected readonly componentVoters = new Map<string, Set<number>>();
   protected readonly examResultVotes = new Map<number, VoteChoice>();
+  protected readonly examResultVoters = new Set<number>();
   protected externalAreaKey = '';
   protected externalPoints = '';
   protected externalGrade = '';
@@ -72,7 +74,9 @@ export class ExamResultComponent implements OnChanges {
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['dayId'] || changes['slotId']) {
       this.componentVotes.clear();
+      this.componentVoters.clear();
       this.examResultVotes.clear();
+      this.examResultVoters.clear();
       this.load();
     }
   }
@@ -180,7 +184,9 @@ export class ExamResultComponent implements OnChanges {
     if (!result) return;
     const voteResult = collectCommitteeVote(
       result.participants,
+      this.componentVoters.get(componentKey) ?? new Set(),
       this.componentVotes.get(componentKey) ?? new Map(),
+      result.modelVersion.rules.quorum.minimumMembers,
     );
     if (!voteResult.valid) {
       this.showVoteError(voteResult.reason);
@@ -193,12 +199,16 @@ export class ExamResultComponent implements OnChanges {
         componentKey,
         points: this.componentPoints.get(componentKey) ?? '',
         rationale: this.componentReasons.get(componentKey) ?? '',
-        participants: result.participants,
+        participants: voteResult.participantMemberIds,
         vote: voteResult.vote,
         dissent: this.dissent(),
         dayRevisions: result.dayRevisions ?? this.inputDayRevisions(),
       }),
       'Gemeinsame Ausschussbewertung festgestellt.',
+      () => {
+        this.componentVotes.delete(componentKey);
+        this.componentVoters.delete(componentKey);
+      },
     );
   }
 
@@ -239,7 +249,12 @@ export class ExamResultComponent implements OnChanges {
   protected determineResult(): void {
     const result = this.result();
     if (!result) return;
-    const voteResult = collectCommitteeVote(result.participants, this.examResultVotes);
+    const voteResult = collectCommitteeVote(
+      result.participants,
+      this.examResultVoters,
+      this.examResultVotes,
+      result.modelVersion.rules.quorum.minimumMembers,
+    );
     if (!voteResult.valid) {
       this.showVoteError(voteResult.reason);
       return;
@@ -248,12 +263,16 @@ export class ExamResultComponent implements OnChanges {
       this.facade.determineExamResult({
         resultId: result.id,
         version: result.version,
-        participants: result.participants,
+        participants: voteResult.participantMemberIds,
         vote: voteResult.vote,
         dissent: this.dissent(),
         dayRevisions: result.dayRevisions ?? this.inputDayRevisions(),
       }),
       'Gesamtergebnis ordnungsgemäß festgestellt.',
+      () => {
+        this.examResultVotes.clear();
+        this.examResultVoters.clear();
+      },
     );
   }
 
@@ -282,6 +301,12 @@ export class ExamResultComponent implements OnChanges {
         result.dayRevisions ?? this.inputDayRevisions(),
       ),
       'Korrekturvorgang eröffnet; der bisherige Feststellungsstand bleibt erhalten.',
+      () => {
+        this.componentVotes.clear();
+        this.componentVoters.clear();
+        this.examResultVotes.clear();
+        this.examResultVoters.clear();
+      },
     );
   }
 
@@ -347,6 +372,24 @@ export class ExamResultComponent implements OnChanges {
     return this.componentVotes.get(componentKey)?.get(memberId) ?? null;
   }
 
+  protected componentVoterSelected(componentKey: string, memberId: number): boolean {
+    return this.componentVoters.get(componentKey)?.has(memberId) ?? false;
+  }
+
+  protected setComponentVoter(componentKey: string, memberId: number, selected: boolean): void {
+    let voters = this.componentVoters.get(componentKey);
+    if (!voters) {
+      voters = new Set();
+      this.componentVoters.set(componentKey, voters);
+    }
+    if (selected) voters.add(memberId);
+    else {
+      voters.delete(memberId);
+      this.componentVotes.get(componentKey)?.delete(memberId);
+    }
+    this.error.set(null);
+  }
+
   protected setComponentVote(
     componentKey: string,
     memberId: number,
@@ -364,6 +407,19 @@ export class ExamResultComponent implements OnChanges {
 
   protected examResultVoteFor(memberId: number): VoteChoice | null {
     return this.examResultVotes.get(memberId) ?? null;
+  }
+
+  protected examResultVoterSelected(memberId: number): boolean {
+    return this.examResultVoters.has(memberId);
+  }
+
+  protected setExamResultVoter(memberId: number, selected: boolean): void {
+    if (selected) this.examResultVoters.add(memberId);
+    else {
+      this.examResultVoters.delete(memberId);
+      this.examResultVotes.delete(memberId);
+    }
+    this.error.set(null);
   }
 
   protected setExamResultVote(memberId: number, choice: VoteChoice | null): void {
@@ -406,11 +462,15 @@ export class ExamResultComponent implements OnChanges {
       : [];
   }
 
-  private showVoteError(reason: 'invalid-participants' | 'incomplete' | 'no-majority'): void {
+  private showVoteError(
+    reason: 'invalid-participants' | 'invalid-quorum' | 'incomplete' | 'no-majority',
+  ): void {
     this.error.set(
       {
         'invalid-participants':
           'Die stimmberechtigten Mitglieder sind ungültig. Bitte laden Sie den Vorgang neu.',
+        'invalid-quorum':
+          'Bitte wählen Sie mindestens die erforderliche Anzahl anwesender Ausschussmitglieder aus.',
         incomplete: 'Bitte ordnen Sie jedem stimmberechtigten Mitglied genau eine Stimme zu.',
         'no-majority': 'Für die Feststellung müssen mehr Ja- als Nein-Stimmen vorliegen.',
       }[reason],
@@ -421,7 +481,11 @@ export class ExamResultComponent implements OnChanges {
     return this.dayRevision === null ? undefined : { [String(this.dayId)]: this.dayRevision };
   }
 
-  private run(request: Observable<ExamResult>, successMessage: string): void {
+  private run(
+    request: Observable<ExamResult>,
+    successMessage: string,
+    afterSuccess?: () => void,
+  ): void {
     if (this.busy()) return;
     this.busy.set(true);
     this.message.set(null);
@@ -429,6 +493,7 @@ export class ExamResultComponent implements OnChanges {
     request.subscribe({
       next: (result) => {
         this.accept(result);
+        afterSuccess?.();
         this.busy.set(false);
         this.message.set(successMessage);
       },

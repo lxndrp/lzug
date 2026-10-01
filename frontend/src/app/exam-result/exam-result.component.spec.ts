@@ -189,6 +189,7 @@ describe('ExamResultComponent', () => {
     fixture.detectChanges();
     const component = fixture.componentInstance as unknown as {
       determineResult(): void;
+      setExamResultVoter(memberId: number, selected: boolean): void;
       setExamResultVote(memberId: number, choice: 'yes' | 'no' | 'abstain' | null): void;
     };
 
@@ -197,8 +198,10 @@ describe('ExamResultComponent', () => {
     expect(port.determineExamResult).not.toHaveBeenCalled();
     expect(
       (fixture.nativeElement as HTMLElement).querySelector('[role="alert"]')?.textContent,
-    ).toContain('jedem stimmberechtigten Mitglied genau eine Stimme');
+    ).toContain('mindestens die erforderliche Anzahl anwesender Ausschussmitglieder');
 
+    component.setExamResultVoter(1, true);
+    component.setExamResultVoter(2, true);
     component.setExamResultVote(1, 'yes');
     component.setExamResultVote(2, 'no');
     component.determineResult();
@@ -231,7 +234,9 @@ describe('ExamResultComponent', () => {
       determineComponent(key: string): void;
       determineResult(): void;
       componentVotes: Map<string, Map<number, 'yes' | 'no' | 'abstain'>>;
+      componentVoters: Map<string, Set<number>>;
       examResultVotes: Map<number, 'yes' | 'no' | 'abstain'>;
+      examResultVoters: Set<number>;
       dissentMemberId: number | null;
       dissentStatement: string;
     };
@@ -241,9 +246,13 @@ describe('ExamResultComponent', () => {
       [3, 'no'],
     ]);
     component.componentVotes.set('documentation', vote);
+    component.componentVoters.set('documentation', new Set([1, 2, 3]));
     component.examResultVotes.set(1, 'yes');
     component.examResultVotes.set(2, 'yes');
     component.examResultVotes.set(3, 'no');
+    component.examResultVoters.add(1);
+    component.examResultVoters.add(2);
+    component.examResultVoters.add(3);
     component.dissentMemberId = 3;
     component.dissentStatement = 'Abweichende Begründung';
 
@@ -264,6 +273,87 @@ describe('ExamResultComponent', () => {
         dissent: [{ memberId: 3, statement: 'Abweichende Begründung' }],
       }),
     );
+  });
+
+  it('sends only the selected quorum and clears votes after determination', () => {
+    const disclosedResult = resultFixture({
+      participants: [1, 2, 3],
+      disclosures: [
+        { componentKey: 'documentation', disclosedByMemberId: 1, disclosedAt: '2026-09-30' },
+      ],
+    });
+    vi.mocked(port.get).mockReturnValue(of(disclosedResult));
+    vi.mocked(port.determineComponent).mockReturnValue(of(disclosedResult));
+    vi.mocked(port.determineExamResult).mockReturnValue(of(disclosedResult));
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance as unknown as {
+      determineComponent(key: string): void;
+      determineResult(): void;
+      componentVotes: Map<string, Map<number, 'yes' | 'no' | 'abstain'>>;
+      componentVoters: Map<string, Set<number>>;
+      examResultVotes: Map<number, 'yes' | 'no' | 'abstain'>;
+      examResultVoters: Set<number>;
+    };
+    component.componentVoters.set('documentation', new Set([1, 2]));
+    component.componentVotes.set(
+      'documentation',
+      new Map([
+        [1, 'yes'],
+        [2, 'yes'],
+      ]),
+    );
+    component.examResultVoters.add(1);
+    component.examResultVoters.add(2);
+    component.examResultVotes.set(1, 'yes');
+    component.examResultVotes.set(2, 'yes');
+
+    component.determineComponent('documentation');
+    expect(port.determineComponent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        participants: [1, 2],
+        vote: { yes: [1, 2], no: [], abstain: [] },
+      }),
+    );
+    expect(component.componentVotes.has('documentation')).toBe(false);
+    expect(component.componentVoters.has('documentation')).toBe(false);
+
+    component.determineResult();
+    expect(port.determineExamResult).toHaveBeenCalledWith(
+      expect.objectContaining({
+        participants: [1, 2],
+        vote: { yes: [1, 2], no: [], abstain: [] },
+      }),
+    );
+    expect(component.examResultVotes.size).toBe(0);
+    expect(component.examResultVoters.size).toBe(0);
+  });
+
+  it('clears both ballots when a correction is successfully opened', () => {
+    vi.mocked(port.openResultCorrection).mockReturnValue(
+      of(resultFixture({ correctionOpen: true })),
+    );
+    fixture.detectChanges();
+    fixture.detectChanges();
+    const component = fixture.componentInstance as unknown as {
+      openCorrection(): void;
+      componentVotes: Map<string, Map<number, 'yes' | 'no' | 'abstain'>>;
+      componentVoters: Map<string, Set<number>>;
+      examResultVotes: Map<number, 'yes' | 'no' | 'abstain'>;
+      examResultVoters: Set<number>;
+    };
+    component.componentVotes.set('documentation', new Map([[1, 'yes']]));
+    component.componentVoters.set('documentation', new Set([1]));
+    component.examResultVotes.set(1, 'yes');
+    component.examResultVoters.add(1);
+
+    component.openCorrection();
+
+    expect(component.componentVotes.size).toBe(0);
+    expect(component.componentVoters.size).toBe(0);
+    expect(component.examResultVotes.size).toBe(0);
+    expect(component.examResultVoters.size).toBe(0);
   });
 
   it('renders calculation, correction, retention, and immutable result history', () => {
@@ -419,7 +509,9 @@ describe('ExamResultComponent', () => {
       reopeningReference: string;
       communicationAt: string;
       componentVotes: Map<string, Map<number, 'yes' | 'no' | 'abstain'>>;
+      componentVoters: Map<string, Set<number>>;
       examResultVotes: Map<number, 'yes' | 'no' | 'abstain'>;
+      examResultVoters: Set<number>;
       dissentMemberId: number | null;
       dissentStatement: string;
     };
@@ -431,8 +523,11 @@ describe('ExamResultComponent', () => {
         [2, 'abstain'],
       ]),
     );
+    component.componentVoters.set('documentation', new Set([1, 2]));
     component.examResultVotes.set(1, 'yes');
     component.examResultVotes.set(2, 'abstain');
+    component.examResultVoters.add(1);
+    component.examResultVoters.add(2);
     component.dissentMemberId = 2;
     component.dissentStatement = 'Abweichende Begründung';
     component.drafts.set('documentation:clarity', {
@@ -510,6 +605,10 @@ describe('ExamResultComponent', () => {
     vi.mocked(port.determineExamResult).mockReturnValueOnce(
       throwError(() => new ApplicationError('conflict', 'Versionskonflikt')),
     );
+    component.examResultVoters.add(1);
+    component.examResultVoters.add(2);
+    component.examResultVotes.set(1, 'yes');
+    component.examResultVotes.set(2, 'abstain');
     component.determineResult();
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('Versionskonflikt');
