@@ -12,6 +12,9 @@ test.describe('local password and TOTP authentication', () => {
         body: JSON.stringify({ error: 'Authentication required.' }),
       }),
     );
+    await page.goto('/login');
+    await page.evaluate(() => localStorage.removeItem('lzug.auth.session-revocation-pending'));
+    await page.reload();
   });
 
   test('logs in with password and a second factor without putting secrets in the URL', async ({
@@ -71,14 +74,7 @@ test.describe('local password and TOTP authentication', () => {
         ? route.fulfill({
             status: 503,
             contentType: 'application/json',
-            body: JSON.stringify({
-              error: {
-                code: 'runtime_not_ready',
-                state: 'unreachable',
-                ready: false,
-                message: 'Session validation failed.',
-              },
-            }),
+            body: JSON.stringify({ error: { message: 'Session validation failed.' } }),
           })
         : route.fulfill({
             status: 401,
@@ -111,11 +107,97 @@ test.describe('local password and TOTP authentication', () => {
     await page.getByLabel('E-Mail-Adresse').fill('member@example.invalid');
     await page.getByLabel('Kennwort').fill('correct horse battery staple');
     await page.getByLabel('TOTP-Code oder Recovery-Code').fill('123456');
+    const validationResponse = page.waitForResponse(
+      (response) => response.url().endsWith('/api/session') && response.status() === 503,
+    );
+    const logoutResponse = page.waitForResponse((response) =>
+      response.url().endsWith('/api/session/logout'),
+    );
     await page.getByRole('button', { name: 'Anmelden' }).click();
 
-    await expect(page.getByRole('alert')).toHaveText('Session validation failed.');
+    await Promise.all([validationResponse, logoutResponse]);
+    await expect(page.getByRole('heading', { name: 'Anmelden' })).toBeVisible();
     expect(logoutRequests).toBe(1);
     await expect(page).toHaveURL('/login');
+    expect(await page.context().cookies()).toEqual([]);
+  });
+
+  test('keeps protected pages locked when session revocation fails and offers a retry', async ({
+    page,
+  }) => {
+    let loginAccepted = false;
+    let sessionRequests = 0;
+    let logoutRequests = 0;
+    await page.unroute('**/api/session');
+    await page.route('**/api/session', (route) => {
+      sessionRequests += 1;
+      return loginAccepted
+        ? route.fulfill({
+            status: 503,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              error: {
+                code: 'runtime_not_ready',
+                state: 'unreachable',
+                ready: false,
+                message: 'Session validation failed.',
+              },
+            }),
+          })
+        : route.fulfill({
+            status: 401,
+            contentType: 'application/json',
+            body: JSON.stringify({ error: 'Authentication required.' }),
+          });
+    });
+    await page.route('**/api/auth/login', (route) => {
+      loginAccepted = true;
+      return route.fulfill({
+        contentType: 'application/json',
+        headers: { 'Set-Cookie': 'session=issued; HttpOnly; Path=/' },
+        body: JSON.stringify({
+          authenticated: true,
+          account_id: 2,
+          expires_at: '2026-01-01T20:00:00+00:00',
+        }),
+      });
+    });
+    await page.route('**/api/session/logout', (route) => {
+      logoutRequests += 1;
+      if (logoutRequests === 1) {
+        return route.fulfill({
+          status: 503,
+          contentType: 'application/json',
+          body: JSON.stringify({ error: { message: 'Revocation temporarily unavailable.' } }),
+        });
+      }
+      loginAccepted = false;
+      return route.fulfill({
+        status: 204,
+        headers: { 'Set-Cookie': 'session=; Max-Age=0; HttpOnly; Path=/' },
+      });
+    });
+
+    await page.goto('/login');
+    await page.getByLabel('E-Mail-Adresse').fill('member@example.invalid');
+    await page.getByLabel('Kennwort').fill('correct horse battery staple');
+    await page.getByLabel('TOTP-Code oder Recovery-Code').fill('123456');
+    await page.getByRole('button', { name: 'Anmelden' }).click();
+
+    await expect(page.getByRole('alert')).toContainText('nicht beendet');
+    expect((await page.context().cookies()).map(({ name }) => name)).toContain('session');
+    expect(logoutRequests).toBe(1);
+    const sessionRequestsBeforeReload = sessionRequests;
+
+    await page.goto('/dashboard');
+    await expect(page.getByRole('alert')).toContainText('Geschützte Bereiche bleiben gesperrt');
+    await expect(page.locator('.app-shell')).toHaveCount(0);
+    expect(sessionRequests).toBe(sessionRequestsBeforeReload);
+
+    await page.getByRole('button', { name: 'Sitzung sicher beenden erneut versuchen' }).click();
+
+    await expect(page).toHaveURL('/login');
+    expect(logoutRequests).toBe(2);
     expect(await page.context().cookies()).toEqual([]);
   });
 

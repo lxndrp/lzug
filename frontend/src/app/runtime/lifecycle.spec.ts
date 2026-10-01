@@ -37,7 +37,9 @@ describe('public lifecycle', () => {
           useValue: {
             state: signal('checking'),
             session: signal(null),
+            sessionRevocationPending: signal(false),
             initialize,
+            retrySessionRevocation: vi.fn(),
             hasCapability: () => true,
           },
         },

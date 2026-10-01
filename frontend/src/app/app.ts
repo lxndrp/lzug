@@ -140,6 +140,10 @@ export class App {
     });
   }
 
+  protected retrySessionRevocation(): void {
+    this.auth.retrySessionRevocation().subscribe();
+  }
+
   protected refresh(): void {
     this.workspace.refresh();
   }

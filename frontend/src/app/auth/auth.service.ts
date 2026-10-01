@@ -12,6 +12,25 @@ import type { AuthenticationPort, AuthSession, AuthState } from './auth.models';
 
 export type { AuthCompletion, AuthPreparation, AuthSession, AuthState } from './auth.models';
 
+const sessionRevocationMarker = 'lzug.auth.session-revocation-pending';
+
+function hasPendingSessionRevocation(): boolean {
+  try {
+    return globalThis.localStorage?.getItem(sessionRevocationMarker) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+function persistSessionRevocationPending(pending: boolean): void {
+  try {
+    if (pending) globalThis.localStorage?.setItem(sessionRevocationMarker, 'true');
+    else globalThis.localStorage?.removeItem(sessionRevocationMarker);
+  } catch {
+    // Keep the in-memory fail-closed state when browser storage is unavailable.
+  }
+}
+
 @Injectable({ providedIn: 'root' })
 export class AuthService implements AuthenticationPort {
   private readonly api = inject(AuthApiService);
@@ -23,6 +42,7 @@ export class AuthService implements AuthenticationPort {
 
   readonly state = signal<AuthState>('checking');
   readonly session = signal<AuthSession | null>(null);
+  readonly sessionRevocationPending = signal(hasPendingSessionRevocation());
 
   hasCapability(capability: string): boolean {
     const capabilities = this.session()?.capabilities;
@@ -30,6 +50,7 @@ export class AuthService implements AuthenticationPort {
   }
 
   initialize() {
+    if (this.sessionRevocationPending()) return of(false);
     if (this.state() !== 'checking') return of(this.state() === 'authenticated');
     return this.api.session().pipe(
       tap((session) => {
@@ -66,6 +87,23 @@ export class AuthService implements AuthenticationPort {
         this.acceptSession(session);
         void this.router.navigateByUrl(this.entryPath(session), { replaceUrl: true });
       }),
+      catchError((error: unknown) => {
+        this.markAnonymous();
+        return throwError(() => error);
+      }),
+    );
+  }
+
+  retrySessionRevocation() {
+    if (!this.sessionRevocationPending()) return of(false);
+    return this.api.logout().pipe(
+      tap(() => {
+        this.sessionRevocationPending.set(false);
+        persistSessionRevocationPending(false);
+        this.markAnonymous();
+      }),
+      map(() => true),
+      catchError(() => of(false)),
     );
   }
 
@@ -106,6 +144,8 @@ export class AuthService implements AuthenticationPort {
   }
 
   markAnonymous(): void {
+    this.sessionRevocationPending.set(false);
+    persistSessionRevocationPending(false);
     if (this.demoExpiryTimer !== null) clearTimeout(this.demoExpiryTimer);
     this.demoExpiryTimer = null;
     this.sessionScope.clear();
@@ -134,7 +174,6 @@ export class AuthService implements AuthenticationPort {
       !Number.isSafeInteger(session.account_id) ||
       session.account_id < 1
     ) {
-      this.markAnonymous();
       throw new ApplicationError('unauthenticated', 'No authenticated session was returned.');
     }
     this.sessionScope.establish(session);
@@ -144,11 +183,39 @@ export class AuthService implements AuthenticationPort {
   }
 
   private revokeUnvalidatedSession(error: unknown) {
-    this.markAnonymous();
+    this.holdUnverifiedSession();
     return this.api.logout().pipe(
-      catchError(() => of(void 0)),
+      tap(() => {
+        this.sessionRevocationPending.set(false);
+        persistSessionRevocationPending(false);
+        this.markAnonymous();
+      }),
+      catchError((revocationError: unknown) => {
+        this.sessionRevocationPending.set(true);
+        persistSessionRevocationPending(true);
+        return throwError(
+          () =>
+            new ApplicationError(
+              'unavailable',
+              'Die Sitzung konnte nicht sicher beendet werden. Bitte versuchen Sie es erneut.',
+              undefined,
+              undefined,
+              { cause: revocationError },
+            ),
+        );
+      }),
       switchMap(() => throwError(() => error)),
     );
+  }
+
+  private holdUnverifiedSession(): void {
+    if (this.demoExpiryTimer !== null) clearTimeout(this.demoExpiryTimer);
+    this.demoExpiryTimer = null;
+    this.sessionScope.clear();
+    this.session.set(null);
+    this.state.set('checking');
+    this.sessionRevocationPending.set(true);
+    persistSessionRevocationPending(true);
   }
 
   private scheduleDemoExpiry(session: AuthSession): void {

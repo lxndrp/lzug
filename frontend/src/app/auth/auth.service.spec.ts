@@ -172,6 +172,38 @@ describe('AuthService', () => {
     expect(service.session()).toBeNull();
   });
 
+  it('keeps authentication indeterminate until a failed revocation can be retried', () => {
+    service.markAnonymous();
+    const validationError = new ApplicationError('unavailable', 'Session validation failed.');
+    api.session.mockReturnValue(throwError(() => validationError));
+    api.logout.mockReturnValue(throwError(() => new ApplicationError('unavailable', 'offline')));
+    let receivedError: unknown;
+
+    service.login('member@example.invalid', 'a password', '123456').subscribe({
+      error: (error) => (receivedError = error),
+    });
+
+    expect(api.logout).toHaveBeenCalledOnce();
+    expect(receivedError).toBeInstanceOf(ApplicationError);
+    expect((receivedError as ApplicationError).message).toContain('nicht sicher beendet');
+    expect(service.state()).toBe('checking');
+    expect(service.session()).toBeNull();
+    expect(service.sessionRevocationPending()).toBe(true);
+    expect(localStorage.getItem('lzug.auth.session-revocation-pending')).toBe('true');
+
+    service.initialize().subscribe();
+    expect(api.session).toHaveBeenCalledOnce();
+
+    api.logout.mockReturnValue(of(void 0));
+    let revoked = false;
+    service.retrySessionRevocation().subscribe((result) => (revoked = result));
+
+    expect(revoked).toBe(true);
+    expect(service.state()).toBe('anonymous');
+    expect(service.sessionRevocationPending()).toBe(false);
+    expect(localStorage.getItem('lzug.auth.session-revocation-pending')).toBeNull();
+  });
+
   it('starts the selected demo role and enters the shared session', () => {
     service.startDemoSession('replacement').subscribe();
 

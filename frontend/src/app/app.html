@@ -11,12 +11,32 @@
         Status erneut prüfen
       </button>
     </app-lifecycle-notice>
+    @if (auth.sessionRevocationPending()) {
+      <p role="alert" class="session-revocation-warning">
+        Die Anmeldung wurde nicht bestätigt und die Sitzung konnte nicht beendet werden. Geschützte
+        Bereiche bleiben gesperrt. Stellen Sie die Verbindung wieder her und versuchen Sie, die
+        Sitzung sicher zu beenden.
+      </p>
+      <button tuiButton appearance="primary" type="button" (click)="retrySessionRevocation()">
+        Sitzung sicher beenden erneut versuchen
+      </button>
+    }
   } @else if (auth.state() === 'checking') {
     <app-runtime-notice />
     <main class="auth-page" aria-labelledby="auth-loading-title">
       <section class="auth-card" aria-live="polite">
         <h1 id="auth-loading-title">Anmeldung wird geprüft</h1>
         <p>Ihre sichere Sitzung wird geladen.</p>
+        @if (auth.sessionRevocationPending()) {
+          <p role="alert">
+            Die Anmeldung wurde nicht bestätigt und die Sitzung konnte nicht beendet werden.
+            Geschützte Bereiche bleiben gesperrt. Bitte versuchen Sie erneut, die Sitzung sicher zu
+            beenden.
+          </p>
+          <button tuiButton appearance="primary" type="button" (click)="retrySessionRevocation()">
+            Sitzung sicher beenden erneut versuchen
+          </button>
+        }
       </section>
     </main>
   } @else if (auth.state() === 'anonymous') {
