@@ -140,6 +140,22 @@ describe('public lifecycle', () => {
     http.expectNone('/api/candidates');
   });
 
+  it('allows session revocation while the runtime is unavailable but keeps business requests blocked', () => {
+    lifecycle.state.set('maintenance');
+    const client = TestBed.inject(HttpClient);
+    client.post('/api/session/logout', {}).subscribe();
+
+    http.expectOne('/api/session/logout').flush(null, {
+      status: 204,
+      statusText: 'No Content',
+    });
+
+    const error = vi.fn();
+    client.get('/api/candidates').subscribe({ error });
+    http.expectNone('/api/candidates');
+    expect(error).toHaveBeenCalledOnce();
+  });
+
   it('coalesces repeated manual clicks while one check is pending', () => {
     lifecycle.check().subscribe();
     lifecycle.check().subscribe();

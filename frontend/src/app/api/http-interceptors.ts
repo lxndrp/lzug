@@ -9,6 +9,7 @@ import { LIFECYCLE_AVAILABILITY_PORT } from '../runtime/lifecycle.port';
 import { LifecycleState, lifecycleStates } from '../runtime/lifecycle.models';
 
 const publicProbePaths = ['/api/health', '/api/ready', '/api/lifecycle'];
+const lifecycleExemptPaths = [...publicProbePaths, '/api/session/logout'];
 
 function unavailableState(error: HttpErrorResponse): LifecycleState | null {
   const detail = error.error?.error;
@@ -22,8 +23,8 @@ function unavailableState(error: HttpErrorResponse): LifecycleState | null {
 /** Stops business requests while the runtime is unavailable; never retries mutations. */
 export const lifecycleInterceptor: HttpInterceptorFn = (request, next) => {
   const lifecycle = inject(LIFECYCLE_AVAILABILITY_PORT);
-  const publicProbe = publicProbePaths.includes(request.url);
-  if (!publicProbe && request.url.startsWith('/api') && !lifecycle.isReady()) {
+  const lifecycleExempt = lifecycleExemptPaths.includes(request.url);
+  if (!lifecycleExempt && request.url.startsWith('/api') && !lifecycle.isReady()) {
     return throwError(
       () =>
         new HttpErrorResponse({
@@ -40,7 +41,7 @@ export const lifecycleInterceptor: HttpInterceptorFn = (request, next) => {
   }
   return next(request).pipe(
     catchError((error: HttpErrorResponse) => {
-      if (!publicProbe) {
+      if (!publicProbePaths.includes(request.url)) {
         const state = unavailableState(error);
         if (state) lifecycle.acceptUnavailable(state);
       }

@@ -71,7 +71,14 @@ test.describe('local password and TOTP authentication', () => {
         ? route.fulfill({
             status: 503,
             contentType: 'application/json',
-            body: JSON.stringify({ error: { message: 'Session validation failed.' } }),
+            body: JSON.stringify({
+              error: {
+                code: 'runtime_not_ready',
+                state: 'unreachable',
+                ready: false,
+                message: 'Session validation failed.',
+              },
+            }),
           })
         : route.fulfill({
             status: 401,
