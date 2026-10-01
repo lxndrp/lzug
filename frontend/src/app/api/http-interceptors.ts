@@ -1,8 +1,9 @@
 import { HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
-import { catchError, throwError } from 'rxjs';
+import { catchError, takeUntil, throwError } from 'rxjs';
 
 import { AUTHENTICATION_PORT } from '../auth/auth.models';
+import { SessionScopeService } from '../auth/session-scope.service';
 import { FRONTEND_ERROR_REPORTER_PORT } from '../observability/frontend-error.port';
 import { LIFECYCLE_AVAILABILITY_PORT } from '../runtime/lifecycle.port';
 import { LifecycleState, lifecycleStates } from '../runtime/lifecycle.models';
@@ -51,8 +52,15 @@ export const lifecycleInterceptor: HttpInterceptorFn = (request, next) => {
 /** Adds browser credentials and handles transport-level session and failure policy. */
 export const withSessionCredentials: HttpInterceptorFn = (request, next) => {
   const authentication = inject(AUTHENTICATION_PORT);
+  const sessionScope = inject(SessionScopeService);
   const reporter = inject(FRONTEND_ERROR_REPORTER_PORT);
-  return next(request.clone({ withCredentials: true })).pipe(
+  const generation = sessionScope.generation();
+  const establishesSession = request.method === 'GET' && request.url.endsWith('/api/session');
+  const response = next(request.clone({ withCredentials: true }));
+  const scopedResponse = establishesSession
+    ? response
+    : response.pipe(takeUntil(sessionScope.invalidatedAfter(generation)));
+  return scopedResponse.pipe(
     catchError((error: HttpErrorResponse) => {
       if (error.status === 401 && !request.url.endsWith('/api/auth/login')) {
         authentication.markAnonymous();

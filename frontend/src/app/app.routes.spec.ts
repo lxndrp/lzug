@@ -2,10 +2,13 @@ import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import {
   ActivatedRouteSnapshot,
+  CanActivateFn,
   convertToParamMap,
+  provideRouter,
+  Router,
   type ResolveFn,
   type Route,
-  RouterStateSnapshot,
+  type RouterStateSnapshot,
 } from '@angular/router';
 import { vi } from 'vitest';
 
@@ -24,7 +27,59 @@ describe('application routes', () => {
       expect(route.children, route.path).toBeUndefined();
       expect(route.component, route.path).toBeUndefined();
       expect(route.loadComponent, route.path).toEqual(expect.any(Function));
+      expect(
+        route.canActivate?.some((guard) => typeof guard === 'function'),
+        route.path,
+      ).toBe(true);
     }
+  });
+
+  it('redirects anonymous users away from application routes', () => {
+    const auth = { state: () => 'anonymous', session: () => null, initialize: vi.fn() };
+    TestBed.configureTestingModule({
+      providers: [provideRouter(routes), { provide: AuthService, useValue: auth }],
+    });
+    const guard = routeFor('dashboard').canActivate?.[0] as CanActivateFn;
+    const result = TestBed.runInInjectionContext(() =>
+      guard({ data: {} } as ActivatedRouteSnapshot, {} as RouterStateSnapshot),
+    );
+
+    expect(result).toEqual(TestBed.inject(Router).parseUrl('/login'));
+    expect(auth.initialize).not.toHaveBeenCalled();
+  });
+
+  it('preserves application deep links while session initialization is pending', () => {
+    const auth = { state: () => 'checking', session: () => null, initialize: vi.fn() };
+    TestBed.configureTestingModule({
+      providers: [provideRouter(routes), { provide: AuthService, useValue: auth }],
+    });
+    const guard = routeFor('dashboard').canActivate?.[0] as CanActivateFn;
+    const result = TestBed.runInInjectionContext(() =>
+      guard({ data: {} } as ActivatedRouteSnapshot, {} as RouterStateSnapshot),
+    );
+
+    expect(result).toBe(true);
+    expect(auth.initialize).not.toHaveBeenCalled();
+  });
+
+  it('redirects authenticated users away from the login screen', () => {
+    const auth = {
+      state: () => 'authenticated',
+      session: () => ({ demo_role: null }),
+      initialize: vi.fn(),
+    };
+    TestBed.configureTestingModule({
+      providers: [provideRouter(routes), { provide: AuthService, useValue: auth }],
+    });
+    const guard = routeFor('login').canActivate?.[0] as CanActivateFn;
+    const result = TestBed.runInInjectionContext(() =>
+      guard(
+        { data: { auth: true } } as unknown as ActivatedRouteSnapshot,
+        {} as RouterStateSnapshot,
+      ),
+    );
+
+    expect(result).toEqual(TestBed.inject(Router).parseUrl('/dashboard'));
   });
 
   it('keeps the established deep-link and redirect contracts', () => {

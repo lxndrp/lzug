@@ -17,16 +17,37 @@ test.describe('local password and TOTP authentication', () => {
   test('logs in with password and a second factor without putting secrets in the URL', async ({
     page,
   }) => {
-    await page.route('**/api/auth/login', (route) =>
-      route.fulfill({
+    let authenticated = false;
+    await page.unroute('**/api/session');
+    await page.route('**/api/session', (route) =>
+      authenticated
+        ? route.fulfill({
+            contentType: 'application/json',
+            body: JSON.stringify({
+              authenticated: true,
+              account_id: 2,
+              person_id: 4,
+              committee_member_id: 7,
+              is_operator: false,
+            }),
+          })
+        : route.fulfill({
+            status: 401,
+            contentType: 'application/json',
+            body: JSON.stringify({ error: 'Authentication required.' }),
+          }),
+    );
+    await page.route('**/api/auth/login', (route) => {
+      authenticated = true;
+      return route.fulfill({
         contentType: 'application/json',
         body: JSON.stringify({
           authenticated: true,
           account_id: 2,
           expires_at: '2026-01-01T20:00:00+00:00',
         }),
-      }),
-    );
+      });
+    });
 
     await page.goto('/login');
     await page.getByLabel('E-Mail-Adresse').fill('member@example.invalid');
@@ -37,6 +58,19 @@ test.describe('local password and TOTP authentication', () => {
     await expect(page).toHaveURL('/dashboard');
     expect(page.url()).not.toContain('correct');
     expect(page.url()).not.toContain('123456');
+  });
+
+  test('@a11y redirects protected deep links before rendering the application shell', async ({
+    page,
+  }) => {
+    await page.goto('/candidates');
+
+    await expect(page).toHaveURL('/login');
+    await expect(page.getByRole('heading', { name: 'Anmelden' })).toBeVisible();
+    await expect(page.locator('.app-shell')).toHaveCount(0);
+
+    const accessibility = await new AxeBuilder({ page }).include('main').analyze();
+    expect(accessibility.violations).toEqual([]);
   });
 
   test('@a11y activates an invitation and shows recovery codes exactly once', async ({ page }) => {

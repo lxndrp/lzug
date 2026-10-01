@@ -21,7 +21,16 @@
     </main>
   } @else if (auth.state() === 'anonymous') {
     <app-runtime-notice />
-    <router-outlet />
+    @if (isAuthRoute()) {
+      <router-outlet />
+    } @else {
+      <main class="auth-page" aria-labelledby="auth-required-title">
+        <section class="auth-card" aria-live="polite">
+          <h1 id="auth-required-title">Sitzung beendet</h1>
+          <p>Sie werden zur Anmeldung weitergeleitet.</p>
+        </section>
+      </main>
+    }
   } @else if (isAuthRoute()) {
     <app-runtime-notice />
     <router-outlet />

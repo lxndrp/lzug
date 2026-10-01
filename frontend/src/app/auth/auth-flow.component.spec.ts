@@ -1,5 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
+import { signal } from '@angular/core';
 import { of, throwError } from 'rxjs';
 
 import { ApplicationError } from '../application/application-error';
@@ -11,6 +12,9 @@ describe('AuthFlowComponent', () => {
   let fixture: ComponentFixture<AuthFlowComponent>;
   let component: AuthFlowComponent;
   let auth: {
+    state: ReturnType<typeof signal<'anonymous'>>;
+    session: ReturnType<typeof signal<null>>;
+    initialize: ReturnType<typeof vi.fn>;
     login: ReturnType<typeof vi.fn>;
     prepareInvitation: ReturnType<typeof vi.fn>;
     activateInvitation: ReturnType<typeof vi.fn>;
@@ -20,6 +24,9 @@ describe('AuthFlowComponent', () => {
 
   beforeEach(async () => {
     auth = {
+      state: signal<'anonymous'>('anonymous'),
+      session: signal<null>(null),
+      initialize: vi.fn(() => of(false)),
       login: vi.fn(),
       prepareInvitation: vi.fn(),
       activateInvitation: vi.fn(),

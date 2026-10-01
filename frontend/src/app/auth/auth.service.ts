@@ -7,6 +7,7 @@ import type { DemoRole } from '../api/api.models';
 import { ApplicationError } from '../api/application-error';
 import { AuthApiService } from '../api/auth-api.service';
 import { RuntimeExperienceService } from '../runtime/runtime-experience.service';
+import { SessionScopeService } from './session-scope.service';
 import type { AuthenticationPort, AuthSession, AuthState } from './auth.models';
 
 export type { AuthCompletion, AuthPreparation, AuthSession, AuthState } from './auth.models';
@@ -17,6 +18,7 @@ export class AuthService implements AuthenticationPort {
   private readonly location = inject(Location);
   private readonly router = inject(Router);
   private readonly runtimeExperience = inject(RuntimeExperienceService);
+  private readonly sessionScope = inject(SessionScopeService);
   private demoExpiryTimer: ReturnType<typeof setTimeout> | null = null;
 
   readonly state = signal<AuthState>('checking');
@@ -46,9 +48,10 @@ export class AuthService implements AuthenticationPort {
 
   login(email: string, password: string, secondFactor: string) {
     return this.api.login({ email, password, second_factor: secondFactor }).pipe(
-      tap(() => {
-        this.state.set('authenticated');
-        void this.router.navigateByUrl('/dashboard', { replaceUrl: true });
+      switchMap(() => this.api.session()),
+      tap((session) => {
+        this.acceptSession(session);
+        void this.router.navigateByUrl(this.entryPath(session), { replaceUrl: true });
       }),
     );
   }
@@ -101,6 +104,7 @@ export class AuthService implements AuthenticationPort {
   markAnonymous(): void {
     if (this.demoExpiryTimer !== null) clearTimeout(this.demoExpiryTimer);
     this.demoExpiryTimer = null;
+    this.sessionScope.clear();
     this.session.set(null);
     this.state.set('anonymous');
     if (!this.isAuthRoute(this.currentUrl())) {
@@ -121,6 +125,15 @@ export class AuthService implements AuthenticationPort {
   }
 
   private acceptSession(session: AuthSession): void {
+    if (
+      !session.authenticated ||
+      !Number.isSafeInteger(session.account_id) ||
+      session.account_id < 1
+    ) {
+      this.markAnonymous();
+      throw new ApplicationError('unauthenticated', 'No authenticated session was returned.');
+    }
+    this.sessionScope.establish(session);
     this.session.set(session);
     this.state.set('authenticated');
     this.scheduleDemoExpiry(session);

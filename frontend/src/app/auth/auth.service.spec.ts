@@ -1,7 +1,7 @@
 import { Location } from '@angular/common';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { ApplicationError } from '../api/application-error';
@@ -112,10 +112,46 @@ describe('AuthService', () => {
       second_factor: '123456',
     });
     expect(service.state()).toBe('authenticated');
+    expect(service.session()?.committee_member_id).toBe(7);
 
     service.logout().subscribe();
 
     expect(api.logout).toHaveBeenCalledOnce();
+    expect(service.state()).toBe('anonymous');
+    expect(service.session()).toBeNull();
+  });
+
+  it('does not publish an authenticated state until the session response is validated', () => {
+    service.markAnonymous();
+    const sessionResponse = new Subject<AuthSession>();
+    api.session.mockReturnValue(sessionResponse);
+
+    let completed = false;
+    service.login('member@example.invalid', 'a password', '123456').subscribe(() => {
+      completed = true;
+    });
+
+    expect(service.state()).toBe('anonymous');
+    expect(service.session()).toBeNull();
+    expect(completed).toBe(false);
+
+    sessionResponse.next(session);
+
+    expect(service.state()).toBe('authenticated');
+    expect(service.session()).toEqual(session);
+    expect(completed).toBe(true);
+  });
+
+  it('rejects a successful login response without an authenticated session', () => {
+    service.markAnonymous();
+    api.session.mockReturnValue(of({ ...session, authenticated: false }));
+    let error: unknown;
+
+    service.login('member@example.invalid', 'a password', '123456').subscribe({
+      error: (value) => (error = value),
+    });
+
+    expect(error).toBeInstanceOf(ApplicationError);
     expect(service.state()).toBe('anonymous');
     expect(service.session()).toBeNull();
   });

@@ -2,6 +2,7 @@ import { Injectable, inject, signal } from '@angular/core';
 import { Observable, finalize, forkJoin } from 'rxjs';
 
 import { LOCATIONS_PORT } from './locations.port';
+import { SessionScopeService } from '../auth/session-scope.service';
 import type {
   GeocodeCandidate,
   Venue,
@@ -25,9 +26,17 @@ export class VenueWorkflowService {
   private readonly port = inject(LOCATIONS_PORT);
   private readonly feedback = inject(UiFeedbackService);
   private readonly workspace = inject(ApplicationWorkspaceService);
+  private readonly sessionScope = inject(SessionScopeService);
   private locationsComponent?: LocationsComponent;
 
   readonly geocodeCandidate = signal<GeocodeCandidate | null>(null);
+
+  constructor() {
+    this.sessionScope.changes$.subscribe(() => {
+      this.geocodeCandidate.set(null);
+      this.locationsComponent = undefined;
+    });
+  }
 
   connect(component?: LocationsComponent): void {
     this.locationsComponent = component;
@@ -44,8 +53,8 @@ export class VenueWorkflowService {
 
   createVenue(payload: VenueCreate): void {
     this.workspace.actionBusy.set(true);
-    this.port
-      .checkDuplicates(payload)
+    this.sessionScope
+      .forCurrentSession(this.port.checkDuplicates(payload))
       .pipe(finalize(() => this.workspace.actionBusy.set(false)))
       .subscribe({
         next: (duplicates) => {
@@ -69,8 +78,8 @@ export class VenueWorkflowService {
 
   private persistVenue(payload: VenueCreate, duplicatesReviewed: boolean): void {
     this.workspace.actionBusy.set(true);
-    this.port
-      .createVenue({ ...payload, duplicatesReviewed })
+    this.sessionScope
+      .forCurrentSession(this.port.createVenue({ ...payload, duplicatesReviewed }))
       .pipe(finalize(() => this.workspace.actionBusy.set(false)))
       .subscribe({
         next: (venue) => {
@@ -89,10 +98,13 @@ export class VenueWorkflowService {
 
   updateVenue(update: VenueUpdate): void {
     this.workspace.actionBusy.set(true);
-    forkJoin({
-      impact: this.port.getVenueChangeImpact(update.id, update.payload),
-      duplicates: this.port.checkDuplicates(update.payload, update.id),
-    })
+    this.sessionScope
+      .forCurrentSession(
+        forkJoin({
+          impact: this.port.getVenueChangeImpact(update.id, update.payload),
+          duplicates: this.port.checkDuplicates(update.payload, update.id),
+        }),
+      )
       .pipe(finalize(() => this.workspace.actionBusy.set(false)))
       .subscribe({
         next: ({ impact, duplicates }) => {
@@ -124,8 +136,8 @@ export class VenueWorkflowService {
 
   geocodeVenue(venue: Venue): void {
     this.workspace.actionBusy.set(true);
-    this.port
-      .geocodeVenue(venue.id, venue.revision)
+    this.sessionScope
+      .forCurrentSession(this.port.geocodeVenue(venue.id, venue.revision))
       .pipe(finalize(() => this.workspace.actionBusy.set(false)))
       .subscribe({
         next: (candidate) => {
@@ -151,8 +163,14 @@ export class VenueWorkflowService {
     duplicatesReviewed: boolean,
   ): void {
     this.workspace.actionBusy.set(true);
-    this.port
-      .updateVenue({ ...update, confirmFutureAssignments: confirmed, duplicatesReviewed })
+    this.sessionScope
+      .forCurrentSession(
+        this.port.updateVenue({
+          ...update,
+          confirmFutureAssignments: confirmed,
+          duplicatesReviewed,
+        }),
+      )
       .pipe(finalize(() => this.workspace.actionBusy.set(false)))
       .subscribe({
         next: (venue) => {
@@ -191,8 +209,8 @@ export class VenueWorkflowService {
 
   updateRoom(command: VenueRoomUpdate): void {
     this.workspace.actionBusy.set(true);
-    this.port
-      .getRoomChangeImpact(command.id, command.payload)
+    this.sessionScope
+      .forCurrentSession(this.port.getRoomChangeImpact(command.id, command.payload))
       .pipe(finalize(() => this.workspace.actionBusy.set(false)))
       .subscribe({
         next: (impact) => {
@@ -275,31 +293,34 @@ export class VenueWorkflowService {
 
   private runVenueAction(request: Observable<unknown>, title: string, detail: string): void {
     this.workspace.actionBusy.set(true);
-    request.pipe(finalize(() => this.workspace.actionBusy.set(false))).subscribe({
-      next: (result) => {
-        this.locationsComponent?.finishEditing(-1);
-        const warning =
-          typeof result === 'object' &&
-          result !== null &&
-          'consequenceWarning' in result &&
-          typeof result.consequenceWarning === 'string' &&
-          result.consequenceWarning.trim()
-            ? result.consequenceWarning
-            : null;
-        this.feedback.notify(
-          warning ? 'error' : 'success',
-          warning ? `${title}, Folgen unvollständig` : title,
-          warning ?? detail,
-        );
-        this.workspace.refresh();
-      },
-      error: () =>
-        this.feedback.notify(
-          'error',
-          'Aktion fehlgeschlagen',
-          'Bitte prüfen Sie Status, Verwendung und Revision.',
-        ),
-    });
+    this.sessionScope
+      .forCurrentSession(request)
+      .pipe(finalize(() => this.workspace.actionBusy.set(false)))
+      .subscribe({
+        next: (result) => {
+          this.locationsComponent?.finishEditing(-1);
+          const warning =
+            typeof result === 'object' &&
+            result !== null &&
+            'consequenceWarning' in result &&
+            typeof result.consequenceWarning === 'string' &&
+            result.consequenceWarning.trim()
+              ? result.consequenceWarning
+              : null;
+          this.feedback.notify(
+            warning ? 'error' : 'success',
+            warning ? `${title}, Folgen unvollständig` : title,
+            warning ?? detail,
+          );
+          this.workspace.refresh();
+        },
+        error: () =>
+          this.feedback.notify(
+            'error',
+            'Aktion fehlgeschlagen',
+            'Bitte prüfen Sie Status, Verwendung und Revision.',
+          ),
+      });
   }
 
   private venueImpactMessage(impact: VenueChangeImpact): string {

@@ -157,6 +157,11 @@ describe('App', () => {
     const http = TestBed.inject(HttpTestingController);
     flushDashboardRequests(http);
 
+    const auth = TestBed.inject(AuthService) as unknown as {
+      state: { set(value: 'anonymous' | 'authenticated'): void };
+    };
+    auth.state.set('anonymous');
+
     fixture.detectChanges();
     await TestBed.inject(Router).navigateByUrl('/login');
     await stabilizeRoute(fixture);
