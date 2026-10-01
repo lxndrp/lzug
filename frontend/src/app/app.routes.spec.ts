@@ -1,4 +1,4 @@
-import { signal } from '@angular/core';
+import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import {
   ActivatedRouteSnapshot,
@@ -13,8 +13,9 @@ import {
 import { vi } from 'vitest';
 
 import { RoundContextService } from './api/round-context.service';
-import { routes } from './app.routes';
+import { roundContextResolver, routes } from './app.routes';
 import { AuthService } from './auth/auth.service';
+import { SessionScopeService } from './auth/session-scope.service';
 import { PlanningWorkflowService } from './planning/planning-workflow.service';
 import { ApplicationWorkspaceService } from './shell/application-workspace.service';
 
@@ -123,6 +124,55 @@ describe('application routes', () => {
     expect(roundId()).toBe(7);
     expect(refresh).not.toHaveBeenCalled();
   });
+
+  it('preserves a protected round deep link while the initial session is established', async () => {
+    const authState = signal<'checking' | 'authenticated'>('checking');
+    let loadedRoundId: number | null = null;
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([
+          {
+            path: 'scheduling-overview/:roundId',
+            component: RoundDeepLinkProbe,
+            resolve: { roundId: roundContextResolver },
+          },
+        ]),
+        { provide: AuthService, useValue: { state: authState } },
+        { provide: PlanningWorkflowService, useValue: { resetForRoundChange: vi.fn() } },
+        {
+          provide: ApplicationWorkspaceService,
+          useValue: {
+            refresh: () => (loadedRoundId = TestBed.inject(RoundContextService).roundId()),
+          },
+        },
+      ],
+    });
+
+    const router = TestBed.inject(Router);
+    const scope = TestBed.inject(SessionScopeService);
+    await router.navigateByUrl('/scheduling-overview/8');
+    const route = router.routerState.root.firstChild;
+    const roundContext = TestBed.inject(RoundContextService);
+
+    expect(router.url).toBe('/scheduling-overview/8');
+    expect(route?.snapshot.data['roundId']).toBe(8);
+    expect(roundContext.roundId()).toBe(8);
+
+    scope.establish({
+      authenticated: true,
+      account_id: 4,
+      person_id: 9,
+      committee_member_id: 12,
+      is_operator: false,
+    });
+    authState.set('authenticated');
+    TestBed.inject(ApplicationWorkspaceService).refresh();
+
+    expect(router.url).toBe('/scheduling-overview/8');
+    expect(route?.snapshot.data['roundId']).toBe(8);
+    expect(roundContext.roundId()).toBe(8);
+    expect(loadedRoundId).toBe(8);
+  });
 });
 
 function routeFor(path: string): Route {
@@ -130,3 +180,6 @@ function routeFor(path: string): Route {
   expect(route).toBeDefined();
   return route as Route;
 }
+
+@Component({ standalone: true, template: '' })
+class RoundDeepLinkProbe {}

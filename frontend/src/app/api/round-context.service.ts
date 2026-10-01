@@ -15,7 +15,9 @@ export class RoundContextService {
   readonly roundId = signal(DEFAULT_ROUND_ID);
 
   constructor() {
-    this.sessionScope.changes$.subscribe(() => this.roundId.set(DEFAULT_ROUND_ID));
+    this.sessionScope.changes$.subscribe(({ previousEstablished, established }) => {
+      if (previousEstablished || !established) this.roundId.set(DEFAULT_ROUND_ID);
+    });
   }
 
   select(roundId: number): void {

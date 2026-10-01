@@ -22,6 +22,7 @@ import { appIcons } from './app-icons';
 import type { AppView } from './app-view';
 import type { AppRouteData } from './app.routes';
 import { AuthService } from './auth/auth.service';
+import { SessionScopeService } from './auth/session-scope.service';
 import { LifecycleNoticeComponent } from './runtime/lifecycle-notice.component';
 import { LifecycleService } from './runtime/lifecycle.service';
 import { RuntimeNoticeComponent } from './runtime/runtime-notice.component';
@@ -48,6 +49,7 @@ export class App {
   private readonly documentTitle = inject(Title);
   private readonly element = inject<ElementRef<HTMLElement>>(ElementRef);
   protected readonly auth = inject(AuthService);
+  private readonly sessionScope = inject(SessionScopeService);
   private readonly workspace = inject(ApplicationWorkspaceService);
   private readonly feedbackService = inject(UiFeedbackService);
   private readonly destroyRef = inject(DestroyRef);
@@ -110,6 +112,13 @@ export class App {
       }
       previousAuthState = authState;
     });
+    this.sessionScope.changes$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(({ previousEstablished, established }) => {
+        if (previousEstablished && established && this.auth.state() === 'authenticated') {
+          this.refresh();
+        }
+      });
     this.router.events
       .pipe(
         filter((event): event is NavigationEnd => event instanceof NavigationEnd),

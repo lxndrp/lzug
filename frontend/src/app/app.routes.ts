@@ -29,7 +29,7 @@ const routeData = (
   contextual = true,
 ): AppRouteData => ({ view, title, breadcrumb, contextual });
 
-const roundContextResolver: ResolveFn<number | null> = (route: ActivatedRouteSnapshot) => {
+export const roundContextResolver: ResolveFn<number | null> = (route: ActivatedRouteSnapshot) => {
   const value = Number(route.paramMap.get('roundId'));
   const roundId = Number.isInteger(value) && value > 0 ? value : null;
   if (roundId === null) return null;

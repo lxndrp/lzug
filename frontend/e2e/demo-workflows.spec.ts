@@ -147,7 +147,11 @@ test.describe('demo workflows', () => {
     const chairButton = page.getByRole('button', { name: 'Vorsitz', exact: true });
     await chairButton.focus();
     await expect(chairButton).toBeFocused();
+    const workspaceReload = page.waitForRequest(
+      (request) => request.method() === 'GET' && new URL(request.url()).pathname === '/api',
+    );
     await page.keyboard.press('Enter');
+    await workspaceReload;
     await expect(page.getByText('Vorsitz · ' + demoRoles.chair.display_name)).toBeVisible();
   });
 

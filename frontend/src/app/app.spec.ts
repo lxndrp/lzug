@@ -19,6 +19,8 @@ import type {
 } from './locations/locations.models';
 import { HttpWorkspaceAdapter } from './api/http-workspace.adapter';
 import { AuthService } from './auth/auth.service';
+import type { AuthSession } from './auth/auth.models';
+import { SessionScopeService } from './auth/session-scope.service';
 import { RoundContextService } from './api/round-context.service';
 import { routes } from './app.routes';
 import { PlanningWorkflowService } from './planning/planning-workflow.service';
@@ -150,6 +152,39 @@ describe('App', () => {
     fixture.detectChanges();
 
     flushDashboardRequests(http);
+  });
+
+  it('reloads the workspace after an authenticated demo role changes', () => {
+    const fixture = TestBed.createComponent(App);
+    const http = TestBed.inject(HttpTestingController);
+    flushDashboardRequests(http);
+
+    const auth = TestBed.inject(AuthService) as unknown as {
+      session: { set(value: AuthSession): void };
+    };
+    const scope = TestBed.inject(SessionScopeService);
+    const examiner: AuthSession = {
+      authenticated: true,
+      account_id: 4,
+      person_id: 9,
+      committee_member_id: 12,
+      is_operator: false,
+      capabilities: ['availability:write-own'],
+      demo_role: 'examiner',
+    };
+    const chair: AuthSession = {
+      ...examiner,
+      capabilities: ['availability:coordinate'],
+      demo_role: 'chair',
+    };
+
+    auth.session.set(examiner);
+    scope.establish(examiner);
+    auth.session.set(chair);
+    scope.establish(chair);
+
+    flushDashboardRequests(http);
+    fixture.destroy();
   });
 
   it('keeps the authenticated shell landmark outside auth routes', async () => {
