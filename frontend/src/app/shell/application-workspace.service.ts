@@ -21,6 +21,8 @@ export class ApplicationWorkspaceService {
   readonly summary = signal<WorkspaceSnapshot['summary'] | null>(null);
   readonly board = signal<WorkspaceSnapshot['board'] | null>(null);
   readonly masterData = signal<WorkspaceSnapshot['masterData'] | null>(null);
+  readonly candidateWorkspace = signal<WorkspaceSnapshot['candidateWorkspace'] | null>(null);
+  readonly committeeWorkspace = signal<WorkspaceSnapshot['committeeWorkspace'] | null>(null);
   readonly selectedCommitteeId = signal<number | null>(null);
   readonly message = signal('Bereit');
   readonly loading = signal(false);
@@ -38,6 +40,8 @@ export class ApplicationWorkspaceService {
       this.summary.set(null);
       this.board.set(null);
       this.masterData.set(null);
+      this.candidateWorkspace.set(null);
+      this.committeeWorkspace.set(null);
     }
     this.masterDataError.set(false);
     this.loading.set(true);
@@ -49,7 +53,15 @@ export class ApplicationWorkspaceService {
         }),
       )
       .subscribe({
-        next: ({ applicationVersion, round, summary, board, masterData }) => {
+        next: ({
+          applicationVersion,
+          round,
+          summary,
+          board,
+          masterData,
+          candidateWorkspace,
+          committeeWorkspace,
+        }) => {
           if (generation !== this.refreshGeneration || this.roundContext.roundId() !== roundId) {
             return;
           }
@@ -59,8 +71,10 @@ export class ApplicationWorkspaceService {
           this.summary.set(summary);
           this.board.set(board);
           this.masterData.set(masterData);
+          this.candidateWorkspace.set(candidateWorkspace);
+          this.committeeWorkspace.set(committeeWorkspace);
           if (!this.selectedCommitteeId()) {
-            this.selectedCommitteeId.set(masterData.committees[0]?.id ?? null);
+            this.selectedCommitteeId.set(committeeWorkspace.committees[0]?.id ?? null);
           }
           if (
             this.router.url.startsWith('/scheduling-overview/') &&

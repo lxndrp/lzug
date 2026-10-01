@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
 import { CommitteeComponent } from './committee.component';
-import { athenChairMembershipFixture, masterDataFixture } from '../testing/fixtures';
+import { committeeWorkspaceFixture } from '../testing/master-data-feature-fixtures';
 
 describe('CommitteeComponent', () => {
   let fixture: ComponentFixture<CommitteeComponent>;
@@ -22,7 +22,7 @@ describe('CommitteeComponent', () => {
 
     fixture = TestBed.createComponent(CommitteeComponent);
     component = fixture.componentInstance;
-    fixture.componentRef.setInput('masterData', masterDataFixture);
+    fixture.componentRef.setInput('masterData', committeeWorkspaceFixture);
     fixture.detectChanges();
   });
 
@@ -57,11 +57,14 @@ describe('CommitteeComponent', () => {
 
     expect(component.createMember.emit).toHaveBeenCalledWith(
       expect.objectContaining({
-        committee_id: 1,
-        first_name: 'Testperson',
-        last_name: 'Kappa',
+        committeeId: 1,
+        firstName: 'Testperson',
+        lastName: 'Kappa',
         email: 'testperson.kappa@example.invalid',
-        is_active: 1,
+        memberStatus: 'ordinary',
+        committeeRole: 'member',
+        representingSide: 'employer',
+        isActive: true,
       }),
     );
     expect(inputValue('#memberFirstName')).toBe('Testperson');
@@ -75,7 +78,7 @@ describe('CommitteeComponent', () => {
 
     clickButton('Deaktivieren');
 
-    expect(component.toggleMember.emit).toHaveBeenCalledWith(athenChairMembershipFixture);
+    expect(component.toggleMember.emit).toHaveBeenCalledWith(committeeWorkspaceFixture.members[0]);
   });
 
   it('should give repeated member actions object-specific accessible names', () => {
@@ -137,7 +140,7 @@ describe('CommitteeComponent', () => {
 
   it('should direct an empty instance to the local operator bootstrap', () => {
     fixture.componentRef.setInput('masterData', {
-      ...masterDataFixture,
+      ...committeeWorkspaceFixture,
       committees: [],
       members: [],
     });
