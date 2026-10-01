@@ -8,7 +8,7 @@
       <span tuiBadge [appearance]="stateAppearance(current.state)">
         {{ stateLabel(current.state) }} · Stand {{ current.version }}
       </span>
-      @if (current.correction_open) {
+      @if (current.correctionOpen) {
         <span tuiBadge appearance="warning">Korrektur offen</span>
       }
     }
@@ -34,17 +34,17 @@
     <dl class="app-result-model">
       <div>
         <dt>Modellversion</dt>
-        <dd>{{ current.model_version.model_key }} v{{ current.model_version.version }}</dd>
+        <dd>{{ current.modelVersion.modelKey }} v{{ current.modelVersion.version }}</dd>
       </div>
       <div>
         <dt>IHK und Beruf</dt>
-        <dd>{{ current.model_version.ihk }} · {{ current.model_version.occupation }}</dd>
+        <dd>{{ current.modelVersion.ihk }} · {{ current.modelVersion.occupation }}</dd>
       </div>
       <div>
         <dt>Gültigkeit</dt>
         <dd>
-          {{ current.model_version.valid_from }} bis
-          {{ current.model_version.valid_until ?? 'offen' }}
+          {{ current.modelVersion.validFrom }} bis
+          {{ current.modelVersion.validUntil ?? 'offen' }}
         </dd>
       </div>
       <div>
@@ -59,7 +59,7 @@
     </p>
 
     <div class="app-result-components">
-      @for (component of current.model_version.rules.components; track component.key) {
+      @for (component of current.modelVersion.rules.components; track component.key) {
         <article>
           <header>
             <div>
@@ -82,19 +82,19 @@
           </header>
 
           @if (
-            current.permissions.assess_own &&
+            current.permissions.assessOwn &&
             can('exam-result:assess-own') &&
-            (!current.current_determination || current.correction_open)
+            (!current.currentDetermination || current.correctionOpen)
           ) {
             @for (criterion of component.criteria; track criterion.key) {
               <fieldset [disabled]="busy()">
                 <legend>{{ criterion.label }} · {{ criterion.weight }} %</legend>
                 <label>
-                  Rohpunkte ({{ criterion.raw_min }} bis {{ criterion.raw_max }})
+                  Rohpunkte ({{ criterion.rawMin }} bis {{ criterion.rawMax }})
                   <input
                     type="number"
-                    [min]="criterion.raw_min"
-                    [max]="criterion.raw_max"
+                    [min]="criterion.rawMin"
+                    [max]="criterion.rawMax"
                     step="0.01"
                     [(ngModel)]="draftFor(component, criterion).rawPoints"
                   />
@@ -107,7 +107,7 @@
                     [(ngModel)]="draftFor(component, criterion).rationale"
                   ></textarea>
                 </label>
-                @if (disclosed(current, component.key) || current.correction_open) {
+                @if (disclosed(current, component.key) || current.correctionOpen) {
                   <label>
                     Änderungsbegründung
                     <textarea
@@ -175,9 +175,9 @@
           @if (
             component.mode === 'committee' &&
             disclosed(current, component.key) &&
-            current.permissions.determine_component &&
+            current.permissions.determineComponent &&
             can('exam-result:determine-component') &&
-            (!currentCommittee(current, component.key) || current.correction_open)
+            (!currentCommittee(current, component.key) || current.correctionOpen)
           ) {
             <fieldset [disabled]="busy()">
               <legend>Gemeinsamen Beschluss dokumentieren</legend>
@@ -216,12 +216,12 @@
           <details>
             <summary>Sichtbare Einzelbeiträge und Historie</summary>
             <ul>
-              @for (assessment of current.individual_assessments; track assessment.id) {
-                @if (assessment.component_key === component.key) {
+              @for (assessment of current.individualAssessments; track assessment.id) {
+                @if (assessment.componentKey === component.key) {
                   <li>
-                    Mitglied {{ assessment.assessor_member_id }}, {{ assessment.criterion_key }}:
-                    {{ assessment.raw_points }} Rohpunkte /
-                    {{ assessment.normalized_points }} Punkte · {{ assessment.status }} · Revision
+                    Mitglied {{ assessment.assessorMemberId }}, {{ assessment.criterionKey }}:
+                    {{ assessment.rawPoints }} Rohpunkte / {{ assessment.normalizedPoints }} Punkte
+                    · {{ assessment.status }} · Revision
                     {{ assessment.revision }}
                   </li>
                 }
@@ -235,14 +235,14 @@
     <section class="app-result-section" aria-labelledby="external-heading-{{ slotId }}">
       <h5 id="external-heading-{{ slotId }}">Externe Eingangsergebnisse</h5>
       <ul>
-        @for (external of current.external_results; track external.id) {
+        @for (external of current.externalResults; track external.id) {
           <li>
-            {{ external.area_key }} · {{ external.points }} Punkte · {{ external.status }} ·
-            {{ external.source_reference }}
+            {{ external.areaKey }} · {{ external.points }} Punkte · {{ external.status }} ·
+            {{ external.sourceReference }}
             @if (
               external.status === 'unconfirmed' &&
-              external.recorded_by_member_id !== ownMemberId &&
-              current.permissions.manage_external &&
+              external.recordedByMemberId !== ownMemberId &&
+              current.permissions.manageExternal &&
               can('exam-result:external-confirm')
             ) {
               <button
@@ -259,13 +259,13 @@
         }
       </ul>
 
-      @if (current.permissions.manage_external && can('exam-result:external-record')) {
+      @if (current.permissions.manageExternal && can('exam-result:external-record')) {
         <fieldset [disabled]="busy()">
           <legend>Verbindliches externes Ergebnis erfassen</legend>
           <label>
             Prüfungsbereich
             <select [(ngModel)]="externalAreaKey">
-              @for (area of current.model_version.rules.external_areas; track area.key) {
+              @for (area of current.modelVersion.rules.externalAreas; track area.key) {
                 <option [value]="area.key">{{ area.label }}</option>
               }
             </select>
@@ -290,7 +290,7 @@
             Maßgebliche Bezugsquelle
             <input type="text" maxlength="1000" [(ngModel)]="externalSource" />
           </label>
-          @if (current.external_results.length) {
+          @if (current.externalResults.length) {
             <label>
               Korrekturbegründung
               <textarea rows="2" maxlength="2000" [(ngModel)]="externalCorrectionReason"></textarea>
@@ -315,11 +315,11 @@
       }
     </section>
 
-    @if (current.current_calculation; as calculation) {
+    @if (current.currentCalculation; as calculation) {
       <section class="app-result-section app-result-calculation">
         <h5>Nachvollziehbarer Ergebnisvorschlag</h5>
         <p>
-          <strong>{{ calculation.total_points }} Punkte · {{ calculation.grade }}</strong>
+          <strong>{{ calculation.totalPoints }} Punkte · {{ calculation.grade }}</strong>
           · {{ calculation.passed ? 'bestanden' : 'nicht bestanden' }}
         </p>
         <ol>
@@ -328,12 +328,12 @@
           }
         </ol>
         <p>
-          Unrunder Zwischenstand {{ calculation.path.unrounded_total }}; gerundeter Ausweis
-          {{ calculation.path.rounded_total }}. Dieser Vorschlag ist noch keine Feststellung.
+          Unrunder Zwischenstand {{ calculation.path.unroundedTotal }}; gerundeter Ausweis
+          {{ calculation.path.roundedTotal }}. Dieser Vorschlag ist noch keine Feststellung.
         </p>
         @if (
           current.state === 'calculation_ready' &&
-          current.permissions.determine_result &&
+          current.permissions.determineResult &&
           can('exam-result:determine')
         ) {
           <button
@@ -349,19 +349,19 @@
       </section>
     }
 
-    @if (current.current_determination; as determination) {
+    @if (current.currentDetermination; as determination) {
       <section class="app-result-section">
         <h5>Ergebnisniederschrift · Feststellung {{ determination.revision }}</h5>
         <p>
-          Beschluss am {{ determination.determined_at }}; Bestätigungen
-          {{ determination.confirmation_member_ids.length }} /
-          {{ determination.participant_member_ids.length }}
+          Beschluss am {{ determination.determinedAt }}; Bestätigungen
+          {{ determination.confirmationMemberIds.length }} /
+          {{ determination.participantMemberIds.length }}
         </p>
         @if (
-          current.permissions.confirm_record &&
+          current.permissions.confirmRecord &&
           can('exam-result:confirm-record') &&
           !hasConfirmedRecord(current) &&
-          !current.correction_open
+          !current.correctionOpen
         ) {
           <button
             tuiButton
@@ -375,9 +375,9 @@
         }
 
         @if (
-          current.permissions.coordinate_correction &&
+          current.permissions.coordinateCorrection &&
           can('exam-result:coordinate-correction') &&
-          !current.correction_open
+          !current.correctionOpen
         ) {
           <fieldset [disabled]="busy()">
             <legend>Begründeten Korrekturbedarf erfassen</legend>
@@ -404,9 +404,9 @@
         @if (
           current.permissions.communicate &&
           can('exam-result:communicate') &&
-          determination.confirmation_member_ids.length ===
-            determination.participant_member_ids.length &&
-          !current.correction_open
+          determination.confirmationMemberIds.length ===
+            determination.participantMemberIds.length &&
+          !current.correctionOpen
         ) {
           <fieldset [disabled]="busy()">
             <legend>Ergebnismitteilung dokumentieren</legend>
@@ -456,10 +456,10 @@
     <section class="app-result-section">
       <h5>Aufbewahrung</h5>
       <p>
-        {{ current.model_version.retention_rule_reference }} · mindestens
-        {{ current.model_version.retention_years }} Jahre ab Fristbeginn
+        {{ current.modelVersion.retentionRuleReference }} · mindestens
+        {{ current.modelVersion.retentionYears }} Jahre ab Fristbeginn
       </p>
-      @if (current.permissions.manage_retention && can('exam-result:retention')) {
+      @if (current.permissions.manageRetention && can('exam-result:retention')) {
         <fieldset [disabled]="busy()">
           <legend>Regelgebundene Aufbewahrung dokumentieren</legend>
           <label>
@@ -480,7 +480,7 @@
               <textarea rows="2" maxlength="3000" [(ngModel)]="retentionHoldReason"></textarea>
             </label>
           }
-          @if (current.retention?.legal_hold && !retentionLegalHold) {
+          @if (current.retention?.legalHold && !retentionLegalHold) {
             <label>
               Begründung der Freigabe
               <textarea rows="2" maxlength="3000" [(ngModel)]="retentionReleaseReason"></textarea>
@@ -494,7 +494,7 @@
               busy() ||
               (!!retentionUntil && !retentionPeriodStart) ||
               (retentionLegalHold && !retentionHoldReason.trim()) ||
-              (current.retention?.legal_hold &&
+              (current.retention?.legalHold &&
                 !retentionLegalHold &&
                 !retentionReleaseReason.trim())
             "
@@ -508,8 +508,8 @@
 
     @if (can('exam-result:export')) {
       <nav aria-label="Ergebnisexporte">
-        <a [href]="current._links['machine_export'].href">Maschinenlesbarer Ergebnisexport</a>
-        <a [href]="current._links['human_export'].href">Menschenlesbare Ergebnisniederschrift</a>
+        <a [href]="current.exportsLinks.machine">Maschinenlesbarer Ergebnisexport</a>
+        <a [href]="current.exportsLinks.human">Menschenlesbare Ergebnisniederschrift</a>
       </nav>
     }
 
@@ -519,7 +519,7 @@
         @for (determination of current.determinations; track determination.id) {
           <li>
             Feststellung {{ determination.revision }} · {{ determination.status }} ·
-            {{ determination.determined_at }}
+            {{ determination.determinedAt }}
           </li>
         }
         @for (correction of current.corrections; track correction.id) {
@@ -527,12 +527,12 @@
         }
         @for (communication of current.communications; track communication.id) {
           <li>
-            Mitteilung {{ communication.communicated_at }} · {{ communication.status }} ·
+            Mitteilung {{ communication.communicatedAt }} · {{ communication.status }} ·
             {{ communication.method }}
           </li>
         }
         @for (export of current.exports; track export.id) {
-          <li>Export {{ export.export_kind }} · {{ export.status }} · {{ export.generated_at }}</li>
+          <li>Export {{ export.exportKind }} · {{ export.status }} · {{ export.generatedAt }}</li>
         }
       </ul>
     </details>

@@ -570,6 +570,112 @@ assert.equal(
   'composition root binds the protocol port to its HTTP adapter',
 );
 
+const examResultComponentPath = path.join(root, 'exam-result', 'exam-result.component.ts');
+const examResultFacadePath = path.join(root, 'exam-result', 'exam-result.facade.ts');
+const examResultApplicationPath = path.join(root, 'exam-result', 'exam-result.application.ts');
+const examResultPortPath = path.join(root, 'exam-result', 'exam-result.port.ts');
+const examResultModelsPath = path.join(root, 'exam-result', 'exam-result.models.ts');
+const examResultSpecPath = path.join(root, 'exam-result', 'exam-result.component.spec.ts');
+const examResultAdapterPath = path.join(root, 'api', 'http-exam-result.adapter.ts');
+const examResultAdapterSpecPath = path.join(root, 'api', 'http-exam-result.adapter.spec.ts');
+const [
+  examResultComponent,
+  examResultFacade,
+  examResultApplication,
+  examResultPort,
+  examResultModels,
+  examResultSpec,
+  examResultAdapter,
+  examResultAdapterSpec,
+] = await Promise.all(
+  [
+    examResultComponentPath,
+    examResultFacadePath,
+    examResultApplicationPath,
+    examResultPortPath,
+    examResultModelsPath,
+    examResultSpecPath,
+    examResultAdapterPath,
+    examResultAdapterSpecPath,
+  ].map((file) => readFile(file, 'utf8')),
+);
+
+assert.deepEqual(
+  relativeImportsOf(examResultComponent),
+  [
+    '../application/application-error',
+    '../auth/auth.service',
+    './exam-result.facade',
+    './exam-result.models',
+  ],
+  'exam-result component imports its facade, feature models and shared application/auth contracts',
+);
+assert.doesNotMatch(
+  importsOf(examResultComponent),
+  /@angular\/common\/http|(?:^|\/)(?:adapters?|api)(?:\/|$)/,
+  'exam-result component stays above the HTTP adapter boundary',
+);
+assert.doesNotMatch(
+  examResultComponent,
+  /\bHttpClient\b|\bfetch\s*\(/,
+  'exam-result component performs no HTTP requests',
+);
+assert.deepEqual(
+  relativeImportsOf(examResultFacade),
+  ['./exam-result.application'],
+  'exam-result facade delegates only to its application operations',
+);
+assert.doesNotMatch(
+  importsOf(examResultFacade),
+  /@angular\/common\/http|(?:^|\/)(?:adapters?|api)(?:\/|$)/,
+  'exam-result facade does not depend on transport implementations',
+);
+assert.deepEqual(
+  relativeImportsOf(examResultApplication),
+  ['./exam-result.port'],
+  'exam-result application depends only on its feature port',
+);
+assert.doesNotMatch(
+  importsOf(examResultApplication),
+  /@angular\/common\/http|(?:^|\/)(?:adapters?|api)(?:\/|$)/,
+  'exam-result application does not depend on transport implementations',
+);
+assert.deepEqual(
+  relativeImportsOf(examResultPort),
+  ['./exam-result.models'],
+  'exam-result port exposes only feature-owned models',
+);
+for (const [name, source] of [
+  ['exam-result component', examResultComponent],
+  ['exam-result facade', examResultFacade],
+  ['exam-result application', examResultApplication],
+  ['exam-result port', examResultPort],
+  ['exam-result models', examResultModels],
+  ['exam-result behavior tests', examResultSpec],
+]) {
+  assert.doesNotMatch(
+    importsOf(source),
+    /(?:^|\/)(?:api|adapters?)(?:\/|$)|types\.gen|execution\.models/,
+    `${name} must not import HTTP or generated transport models`,
+  );
+}
+assert.match(examResultFacade, /ExamResultApplication/);
+assert.match(examResultApplication, /EXAM_RESULT_PORT/);
+assert.match(examResultSpec, /EXAM_RESULT_PORT/);
+assert.doesNotMatch(
+  examResultSpec,
+  /HttpTestingController|provideHttpClientTesting/,
+  'exam-result behavior tests use the feature port, not HTTP testing',
+);
+assert.match(examResultAdapter, /ApiExamResult/);
+assert.match(examResultAdapter, /EXAM_RESULT_PORT|ExamResultPort/);
+assert.match(examResultAdapterSpec, /HttpExamResultAdapter/);
+assert.match(examResultAdapterSpec, /HttpTestingController/);
+assert.equal(
+  hasProviderBinding(config, 'EXAM_RESULT_PORT', 'HttpExamResultAdapter'),
+  true,
+  'composition root binds the exam-result port to its HTTP adapter',
+);
 const masterDataWorkflowPath = path.join(root, 'master-data', 'master-data-workflow.service.ts');
 const masterDataPortPath = path.join(root, 'master-data', 'master-data.port.ts');
 const masterDataModelsPath = path.join(root, 'master-data', 'master-data.models.ts');

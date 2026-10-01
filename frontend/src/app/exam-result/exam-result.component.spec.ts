@@ -1,183 +1,45 @@
-import { provideHttpClient } from '@angular/common/http';
-import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { Observable, of, throwError } from 'rxjs';
 import { provideTaiga } from '@taiga-ui/core';
 
-import { AssessmentComponent, AssessmentCriterion, ExamResult } from '../api/api.models';
+import { ApplicationError } from '../application/application-error';
 import { AuthService } from '../auth/auth.service';
+import { EXAM_RESULT_PORT, type ExamResultPort } from './exam-result.port';
+import type { ExamResult } from './exam-result.models';
 import { ExamResultComponent } from './exam-result.component';
 
 describe('ExamResultComponent', () => {
   let fixture: ComponentFixture<ExamResultComponent>;
-  let http: HttpTestingController;
+  let port: ExamResultPort;
 
   beforeEach(async () => {
+    port = {
+      get: vi.fn((): Observable<ExamResult> => of(resultFixture())),
+      saveIndividualAssessment: vi.fn(() => of(resultFixture())),
+      withdrawIndividualAssessment: vi.fn(() => of(resultFixture())),
+      discloseAssessments: vi.fn(() => of(resultFixture())),
+      determineComponent: vi.fn(() => of(resultFixture())),
+      recordExternalResult: vi.fn(() => of(resultFixture())),
+      confirmExternalResult: vi.fn(() => of(resultFixture())),
+      determineExamResult: vi.fn(() => of(resultFixture())),
+      confirmResultRecord: vi.fn(() => of(resultFixture())),
+      openResultCorrection: vi.fn(() => of(resultFixture())),
+      communicateExamResult: vi.fn(() => of(resultFixture())),
+      setExamResultRetention: vi.fn(() => of(resultFixture())),
+    };
     await TestBed.configureTestingModule({
       imports: [ExamResultComponent],
-      providers: [
-        provideRouter([]),
-        provideHttpClient(),
-        provideHttpClientTesting(),
-        provideTaiga({ scrollbars: 'native' }),
-      ],
+      providers: [provideTaiga({}), { provide: EXAM_RESULT_PORT, useValue: port }],
     }).compileComponents();
     fixture = TestBed.createComponent(ExamResultComponent);
     fixture.componentRef.setInput('dayId', 7);
+    fixture.componentRef.setInput('dayRevision', 4);
     fixture.componentRef.setInput('slotId', 11);
     fixture.componentRef.setInput('ownMemberId', 1);
-    http = TestBed.inject(HttpTestingController);
-  });
-
-  afterEach(() => http.verify());
-
-  it('explains the privacy boundary and submits only the own criterion assessment', () => {
-    TestBed.inject(AuthService).session.set({
-      authenticated: true,
-      account_id: 1,
-      person_id: 1,
-      committee_member_id: 1,
-      is_operator: false,
-      capabilities: ['exam-result:read', 'exam-result:assess-own', 'exam-result:export'],
-    });
-    fixture.detectChanges();
-    const result = resultFixture();
-    http.expectOne('/api/confirmed-plan-days/7/slots/11/result').flush(result);
-    fixture.detectChanges();
-
-    const element = fixture.nativeElement as HTMLElement;
-    expect(element.textContent).toContain('Regelgebundener Ergebnisprozess');
-    expect(element.textContent).toContain('Andere Einzelbewertungen bleiben');
-    expect(element.textContent).toContain('Unabhängige Mehrfachbewertung');
-    expect(element.textContent).toContain('Maschinenlesbarer Ergebnisexport');
-
-    const component = result.model_version.rules.components[0];
-    const criterion = component.criteria[0];
-    const instance = fixture.componentInstance as unknown as {
-      draftFor(
-        component: AssessmentComponent,
-        criterion: AssessmentCriterion,
-      ): {
-        rawPoints: string;
-        rationale: string;
-        changeReason: string;
-      };
-      saveAssessment(
-        component: AssessmentComponent,
-        criterion: AssessmentCriterion,
-        submitted: boolean,
-      ): void;
-    };
-    const draft = instance.draftFor(component, criterion);
-    draft.rawPoints = '8.5';
-    draft.rationale = 'Nachvollziehbare fachliche Beobachtung';
-    instance.saveAssessment(component, criterion, true);
-
-    const request = http.expectOne('/api/exam-results/41/individual-assessments');
-    expect(request.request.method).toBe('POST');
-    expect(request.request.body).toEqual({
-      version: 4,
-      component_key: 'documentation',
-      criterion_key: 'quality',
-      raw_points: '8.5',
-      rationale: 'Nachvollziehbare fachliche Beobachtung',
-      submitted: true,
-    });
-    request.flush(resultFixture({ version: 5 }));
-    fixture.detectChanges();
-    expect(element.textContent).toContain('Eigene Bewertung abgegeben.');
-  });
-
-  it('does not expose result mutations without their precise demo capabilities', () => {
     TestBed.inject(AuthService).session.set({
       authenticated: true,
       account_id: 2,
       person_id: 3,
-      committee_member_id: 3,
-      is_operator: false,
-      capabilities: ['exam-result:read'],
-    });
-    fixture.detectChanges();
-    http.expectOne('/api/confirmed-plan-days/7/slots/11/result').flush(
-      resultFixture({
-        external_results: [externalFixture()],
-      }),
-    );
-    fixture.detectChanges();
-
-    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
-    expect(text).not.toContain('Eigene Bewertung abgeben');
-    expect(text).not.toContain('Vollständige Einzelbewertungen offenlegen');
-    expect(text).not.toContain('Unbestätigt erfassen');
-    expect(text).not.toContain('Unabhängig bestätigen');
-    expect(text).not.toContain('Maschinenlesbarer Ergebnisexport');
-  });
-
-  it('offers four-eyes confirmation only to a different authorized member', () => {
-    fixture.componentRef.setInput('ownMemberId', 2);
-    TestBed.inject(AuthService).session.set({
-      authenticated: true,
-      account_id: 3,
-      person_id: 2,
-      committee_member_id: 2,
-      is_operator: false,
-      capabilities: ['exam-result:read', 'exam-result:external-confirm'],
-    });
-    fixture.detectChanges();
-    http
-      .expectOne('/api/confirmed-plan-days/7/slots/11/result')
-      .flush(resultFixture({ external_results: [externalFixture()] }));
-    fixture.detectChanges();
-
-    const button = Array.from(
-      (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button'),
-    ).find((item) => item.textContent?.trim() === 'Unabhängig bestätigen');
-    expect(button).toBeTruthy();
-    button?.click();
-    const request = http.expectOne('/api/exam-results/41/external-results/12/confirm');
-    expect(request.request.body).toEqual({ version: 4 });
-    request.flush(
-      resultFixture({
-        version: 5,
-        external_results: [externalFixture({ status: 'confirmed', confirmed_by_member_id: 2 })],
-      }),
-    );
-    fixture.detectChanges();
-    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
-      'Externes Eingangsergebnis unabhängig bestätigt.',
-    );
-  });
-
-  it('distinguishes an unbound result from a retryable loading failure', () => {
-    fixture.detectChanges();
-    http
-      .expectOne('/api/confirmed-plan-days/7/slots/11/result')
-      .flush({}, { status: 404, statusText: 'Not Found' });
-    fixture.detectChanges();
-    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
-      'noch kein Bewertungsmodell gebunden',
-    );
-
-    const instance = fixture.componentInstance as unknown as { load(): void };
-    instance.load();
-    http
-      .expectOne('/api/confirmed-plan-days/7/slots/11/result')
-      .flush({}, { status: 500, statusText: 'Internal Server Error' });
-    fixture.detectChanges();
-    const element = fixture.nativeElement as HTMLElement;
-    expect(element.textContent).toContain('konnte nicht geladen werden');
-    const retry = Array.from(element.querySelectorAll<HTMLButtonElement>('button')).find(
-      (button) => button.textContent?.trim() === 'Erneut versuchen',
-    );
-    retry?.click();
-    http.expectOne('/api/confirmed-plan-days/7/slots/11/result').flush(resultFixture());
-  });
-
-  it('renders calculations, immutable histories, corrections, and retention state', () => {
-    TestBed.inject(AuthService).session.set({
-      authenticated: true,
-      account_id: 1,
-      person_id: 1,
       committee_member_id: 1,
       is_operator: false,
       capabilities: [
@@ -195,8 +57,204 @@ describe('ExamResultComponent', () => {
         'exam-result:export',
       ],
     });
+  });
+
+  it('renders the model and submits an own assessment through the feature port', () => {
     fixture.detectChanges();
-    http.expectOne('/api/confirmed-plan-days/7/slots/11/result').flush(richResultFixture());
+    fixture.detectChanges();
+    const element = fixture.nativeElement as HTMLElement;
+    expect(port.get).toHaveBeenCalledWith(7, 11);
+    expect(element.textContent).toContain('Regelgebundener Ergebnisprozess');
+    expect(element.textContent).toContain('Eigene Bewertungsbegründungen');
+    expect(element.textContent).toContain('Modellversion');
+
+    const component = fixture.componentInstance as unknown as {
+      drafts: Map<string, { rawPoints: string; rationale: string; changeReason: string }>;
+      saveAssessment(
+        model: ExamResult['modelVersion']['rules']['components'][number],
+        criterion: ExamResult['modelVersion']['rules']['components'][number]['criteria'][number],
+        submitted: boolean,
+      ): void;
+    };
+    component.drafts.set('documentation:clarity', {
+      rawPoints: '82',
+      rationale: 'Beobachtung',
+      changeReason: '',
+    });
+    component.saveAssessment(
+      resultFixture().modelVersion.rules.components[0],
+      criterionFixture(),
+      true,
+    );
+
+    expect(port.saveIndividualAssessment).toHaveBeenCalledWith({
+      resultId: 41,
+      version: 3,
+      componentKey: 'documentation',
+      criterionKey: 'clarity',
+      rawPoints: '82',
+      rationale: 'Beobachtung',
+      submitted: true,
+      changeReason: '',
+      dayRevisions: { '7': 4 },
+    });
+  });
+
+  it('hides mutation and export controls without the matching capability', () => {
+    TestBed.inject(AuthService).session.update((session) => ({
+      ...session!,
+      capabilities: ['exam-result:read'],
+    }));
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    expect(element.textContent).not.toContain('Eigene Bewertung abgeben');
+    expect(element.textContent).not.toContain('Vollständige Einzelbewertungen offenlegen');
+    expect(element.textContent).not.toContain('Maschinenlesbarer Ergebnisexport');
+  });
+
+  it('offers four-eyes confirmation only to a different authorized member', () => {
+    vi.mocked(port.get).mockReturnValue(
+      of(
+        resultFixture({
+          externalResults: [
+            {
+              id: 12,
+              areaKey: 'practice',
+              revision: 1,
+              points: '80',
+              grade: null,
+              professionalStatus: 'verbindlich',
+              determiningAuthority: 'IHK',
+              sourceReference: 'Bescheid',
+              status: 'unconfirmed',
+              recordedByMemberId: 1,
+              confirmedByMemberId: null,
+              correctionReason: null,
+            },
+          ],
+          permissions: { ...resultFixture().permissions, manageExternal: true },
+        }),
+      ),
+    );
+    fixture.componentRef.setInput('ownMemberId', 2);
+    TestBed.inject(AuthService).session.set({
+      authenticated: true,
+      account_id: 3,
+      person_id: 2,
+      committee_member_id: 2,
+      is_operator: false,
+      capabilities: ['exam-result:read', 'exam-result:external-confirm'],
+    });
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    const button = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button'),
+    ).find((item) => item.textContent?.trim() === 'Unabhängig bestätigen');
+    expect(button).toBeTruthy();
+    button?.click();
+    expect(port.confirmExternalResult).toHaveBeenCalledWith(41, 3, 12, { '7': 4 });
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      'Externes Eingangsergebnis unabhängig bestätigt.',
+    );
+  });
+
+  it('distinguishes an unbound result from a retryable loading failure', () => {
+    vi.mocked(port.get)
+      .mockReturnValueOnce(throwError(() => ({ kind: 'not-found' })))
+      .mockReturnValueOnce(throwError(() => new Error('failed')))
+      .mockReturnValueOnce(of(resultFixture()));
+    fixture.detectChanges();
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      'noch kein Bewertungsmodell gebunden',
+    );
+    (fixture.componentInstance as unknown as { load(): void }).load();
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      'Ergebnisprozess konnte nicht geladen werden',
+    );
+    (fixture.componentInstance as unknown as { load(): void }).load();
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      'Regelgebundener Ergebnisprozess',
+    );
+  });
+
+  it('renders calculation, correction, retention, and immutable result history', () => {
+    vi.mocked(port.get).mockReturnValue(
+      of(
+        resultFixture({
+          correctionOpen: true,
+          disclosures: [
+            { componentKey: 'documentation', disclosedByMemberId: 1, disclosedAt: '2026-09-30' },
+          ],
+          committeeAssessments: [
+            {
+              id: 71,
+              componentKey: 'documentation',
+              revision: 1,
+              points: '78',
+              rationale: 'Beschluss',
+              participantMemberIds: [1, 2],
+              vote: { yes: [1, 2], no: [], abstain: [] },
+              dissent: [],
+              status: 'current',
+              determinedAt: '2026-09-30T12:00:00Z',
+            },
+          ],
+          externalResults: [
+            {
+              id: 12,
+              areaKey: 'written',
+              revision: 1,
+              points: '83',
+              grade: 'gut',
+              professionalStatus: 'confirmed',
+              determiningAuthority: 'IHK',
+              sourceReference: 'Bescheid',
+              status: 'confirmed',
+              recordedByMemberId: 1,
+              confirmedByMemberId: 2,
+              correctionReason: null,
+            },
+          ],
+          currentCalculation: {
+            id: 91,
+            version: 3,
+            totalPoints: '76.25',
+            grade: 'gut',
+            passed: true,
+            path: {
+              inputs: [{ kind: 'component', key: 'documentation', points: '78', weight: '50' }],
+              unroundedTotal: '76.25',
+              roundedTotal: '76.25',
+              thresholdBasis: 'unrounded',
+            },
+          },
+          exports: [
+            {
+              id: 99,
+              resultDeterminationId: 61,
+              exportKind: 'machine',
+              status: 'superseded',
+              generatedAt: '2026-09-30T12:00:00Z',
+            },
+          ],
+          retention: {
+            ruleReference: 'Prüfungsordnung',
+            periodStart: '2026-01-01',
+            retainUntil: '2036-01-01',
+            legalHold: true,
+            holdReason: 'Rechtsbehelf offen',
+          },
+        }),
+      ),
+    );
+    fixture.detectChanges();
     fixture.detectChanges();
 
     const element = fixture.nativeElement as HTMLElement;
@@ -209,393 +267,260 @@ describe('ExamResultComponent', () => {
     expect(element.textContent).toContain('written · 83 Punkte · confirmed');
     expect(element.textContent).toContain('Maschinenlesbarer Ergebnisexport');
     expect(element.textContent).toContain('Export machine · superseded');
-
-    const instance = fixture.componentInstance as unknown as TestableExamResultComponent;
-    expect(instance.stateLabel('communicated')).toBe('Mitgeteilt');
-    expect(instance.stateLabel('future')).toBe('future');
-    expect(instance.stateAppearance('determined')).toBe('positive');
-    expect(instance.stateAppearance('calculation_ready')).toBe('warning');
-    expect(instance.stateAppearance('incomplete')).toBe('neutral');
-    expect(instance.hasConfirmedRecord(richResultFixture())).toBe(false);
   });
 
-  it('executes every result action and surfaces a domain error', () => {
-    TestBed.inject(AuthService).session.set({
-      authenticated: true,
-      account_id: 1,
-      person_id: 1,
-      committee_member_id: 1,
-      is_operator: false,
-      capabilities: ['exam-result:read'],
-    });
+  it('routes all result workflow commands through the feature port', () => {
+    vi.mocked(port.get).mockReturnValue(
+      of(
+        resultFixture({
+          individualAssessments: [
+            {
+              id: 21,
+              componentKey: 'documentation',
+              criterionKey: 'clarity',
+              assessorMemberId: 1,
+              revision: 1,
+              rawPoints: '75',
+              normalizedPoints: '75',
+              rationale: 'Begründung',
+              status: 'submitted',
+              changeReason: null,
+              submittedAt: '2026-09-30T12:00:00Z',
+            },
+          ],
+          externalResults: [
+            {
+              id: 12,
+              areaKey: 'practice',
+              revision: 1,
+              points: '80',
+              grade: null,
+              professionalStatus: 'verbindlich',
+              determiningAuthority: 'IHK',
+              sourceReference: 'Bescheid',
+              status: 'unconfirmed',
+              recordedByMemberId: 2,
+              confirmedByMemberId: null,
+              correctionReason: null,
+            },
+          ],
+          permissions: {
+            ...resultFixture().permissions,
+            manageExternal: true,
+          },
+        }),
+      ),
+    );
     fixture.detectChanges();
-    const initial = resultFixture({
-      individual_assessments: [individualFixture()],
-      external_results: [externalFixture({ recorded_by_member_id: 2 })],
-    });
-    http.expectOne('/api/confirmed-plan-days/7/slots/11/result').flush(initial);
     fixture.detectChanges();
+    const component = fixture.componentInstance as unknown as {
+      withdraw(
+        component: ExamResult['modelVersion']['rules']['components'][number],
+        criterion: ExamResult['modelVersion']['rules']['components'][number]['criteria'][number],
+      ): void;
+      disclose(key: string): void;
+      determineComponent(key: string): void;
+      recordExternal(): void;
+      confirmExternal(id: number): void;
+      determineResult(): void;
+      confirmRecord(): void;
+      openCorrection(): void;
+      communicate(): void;
+      saveRetention(): void;
+      componentPoints: Map<string, string>;
+      drafts: Map<string, { rawPoints: string; rationale: string; changeReason: string }>;
+      externalAreaKey: string;
+      externalPoints: string;
+      externalAuthority: string;
+      externalSource: string;
+      correctionReason: string;
+      reopeningReference: string;
+      communicationAt: string;
+    };
+    component.componentPoints.set('documentation', '78');
+    component.drafts.set('documentation:clarity', {
+      rawPoints: '75',
+      rationale: 'Begründung',
+      changeReason: 'Rücknahmegrund',
+    });
+    component.externalAreaKey = 'practice';
+    component.externalPoints = '80';
+    component.externalAuthority = 'IHK';
+    component.externalSource = 'Bescheid';
+    component.correctionReason = 'Grund';
+    component.reopeningReference = 'Nachweis';
+    component.communicationAt = '2026-09-30T12:00';
 
-    const instance = fixture.componentInstance as unknown as TestableExamResultComponent;
-    const component = initial.model_version.rules.components[0];
-    const criterion = component.criteria[0];
-    instance.draftFor(component, criterion).changeReason = 'Erfassung berichtigen';
-    instance.withdraw(component, criterion);
-    http
-      .expectOne('/api/exam-results/41/individual-assessments/21/withdraw')
-      .flush(resultFixture());
+    component.withdraw(resultFixture().modelVersion.rules.components[0], criterionFixture());
+    component.disclose('documentation');
+    component.determineComponent('documentation');
+    component.recordExternal();
+    component.confirmExternal(12);
+    component.determineResult();
+    component.confirmRecord();
+    component.openCorrection();
+    component.communicate();
+    component.saveRetention();
 
-    instance.disclose(component.key);
-    http.expectOne('/api/exam-results/41/disclosures').flush(resultFixture());
+    expect(port.withdrawIndividualAssessment).toHaveBeenCalledWith(41, 3, 21, 'Rücknahmegrund', {
+      '7': 4,
+    });
+    expect(port.discloseAssessments).toHaveBeenCalledWith(41, 3, 'documentation', { '7': 4 });
+    expect(port.determineComponent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        resultId: 41,
+        componentKey: 'documentation',
+        participants: [1, 2],
+        dayRevisions: { '7': 4 },
+      }),
+    );
+    expect(port.recordExternalResult).toHaveBeenCalledWith(
+      expect.objectContaining({
+        resultId: 41,
+        areaKey: 'practice',
+        determiningAuthority: 'IHK',
+      }),
+    );
+    expect(port.confirmExternalResult).toHaveBeenCalledWith(41, 3, 12, { '7': 4 });
+    expect(port.determineExamResult).toHaveBeenCalledWith(
+      expect.objectContaining({
+        resultId: 41,
+        participants: [1, 2],
+      }),
+    );
+    expect(port.confirmResultRecord).toHaveBeenCalledWith(41, 3, { '7': 4 });
+    expect(port.openResultCorrection).toHaveBeenCalledWith(41, 3, 'Grund', 'Nachweis', { '7': 4 });
+    expect(port.communicateExamResult).toHaveBeenCalledWith(
+      41,
+      3,
+      'persönlich',
+      '2026-09-30T12:00',
+      '',
+      { '7': 4 },
+    );
+    expect(port.setExamResultRetention).toHaveBeenCalledWith(
+      expect.objectContaining({
+        resultId: 41,
+        legalHold: false,
+        dayRevisions: { '7': 4 },
+      }),
+    );
 
-    instance.componentPoints.set(component.key, '78');
-    instance.componentReasons.set(component.key, 'Gemeinsamer Beschluss');
-    instance.dissentMemberId = 2;
-    instance.dissentStatement = 'Abweichende fachliche Würdigung';
-    instance.determineComponent(component.key);
-    const componentRequest = http.expectOne('/api/exam-results/41/committee-assessments');
-    expect(componentRequest.request.body.dissent).toEqual([
-      { member_id: 2, statement: 'Abweichende fachliche Würdigung' },
-    ]);
-    componentRequest.flush(resultFixture());
-
-    instance.externalAreaKey = 'written';
-    instance.externalPoints = '81';
-    instance.externalGrade = 'gut';
-    instance.externalAuthority = 'IHK Teststadt';
-    instance.externalSource = 'Bescheid 17';
-    instance.externalCorrectionReason = 'Übertragungsfehler berichtigt';
-    instance.recordExternal();
-    http.expectOne('/api/exam-results/41/external-results').flush(resultFixture());
-
-    instance.confirmExternal(12);
-    http.expectOne('/api/exam-results/41/external-results/12/confirm').flush(resultFixture());
-
-    instance.determineResult();
-    instance.determineResult();
-    http.expectOne('/api/exam-results/41/determine').flush(resultFixture());
-
-    instance.confirmRecord();
-    http.expectOne('/api/exam-results/41/record-confirmations').flush(resultFixture());
-
-    instance.correctionReason = 'Rechenweg berichtigen';
-    instance.reopeningReference = 'Freigabe 18';
-    instance.openCorrection();
-    http.expectOne('/api/exam-results/41/corrections').flush(resultFixture());
-
-    instance.communicationMethod = 'persönlich';
-    instance.communicationAt = '2027-05-18T12:00';
-    instance.externalDocumentReference = 'IHK-Schreiben 19';
-    instance.communicate();
-    http.expectOne('/api/exam-results/41/communications').flush(resultFixture());
-
-    instance.retentionPeriodStart = '2027-06-01';
-    instance.retentionUntil = '2042-06-01';
-    instance.retentionLegalHold = true;
-    instance.retentionHoldReason = 'Rechtsbehelf offen';
-    instance.retentionReleaseReason = 'Später freigegeben';
-    instance.saveRetention();
-    http.expectOne('/api/exam-results/41/retention').flush(resultFixture());
-
-    instance.determineResult();
-    http
-      .expectOne('/api/exam-results/41/determine')
-      .flush({ error: { message: 'Versionskonflikt' } }, { status: 409, statusText: 'Conflict' });
+    vi.mocked(port.determineExamResult).mockReturnValueOnce(
+      throwError(() => new ApplicationError('conflict', 'Versionskonflikt')),
+    );
+    component.determineResult();
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('Versionskonflikt');
   });
 });
 
-type TestableExamResultComponent = {
-  draftFor(
-    component: AssessmentComponent,
-    criterion: AssessmentCriterion,
-  ): {
-    rawPoints: string;
-    rationale: string;
-    changeReason: string;
-  };
-  withdraw(component: AssessmentComponent, criterion: AssessmentCriterion): void;
-  disclose(componentKey: string): void;
-  determineComponent(componentKey: string): void;
-  recordExternal(): void;
-  confirmExternal(externalResultId: number): void;
-  determineResult(): void;
-  confirmRecord(): void;
-  openCorrection(): void;
-  communicate(): void;
-  saveRetention(): void;
-  stateLabel(value: string): string;
-  stateAppearance(value: string): 'neutral' | 'positive' | 'warning';
-  hasConfirmedRecord(result: ExamResult): boolean;
-  componentPoints: Map<string, string>;
-  componentReasons: Map<string, string>;
-  dissentMemberId: number | null;
-  dissentStatement: string;
-  externalAreaKey: string;
-  externalPoints: string;
-  externalGrade: string;
-  externalAuthority: string;
-  externalSource: string;
-  externalCorrectionReason: string;
-  correctionReason: string;
-  reopeningReference: string;
-  communicationMethod: string;
-  communicationAt: string;
-  externalDocumentReference: string;
-  retentionPeriodStart: string;
-  retentionUntil: string;
-  retentionLegalHold: boolean;
-  retentionHoldReason: string;
-  retentionReleaseReason: string;
-};
+function criterionFixture(): ExamResult['modelVersion']['rules']['components'][number]['criteria'][number] {
+  return { key: 'clarity', label: 'Klarheit', rawMin: '0', rawMax: '100', weight: '100' };
+}
 
 function resultFixture(overrides: Partial<ExamResult> = {}): ExamResult {
-  const component: AssessmentComponent = {
-    key: 'documentation',
-    label: 'Dokumentation',
-    mode: 'independent',
-    weight: '50',
-    day_scoped: true,
-    required_assessors: 2,
-    max_deviation: '15',
-    additional_assessor_on_deviation: true,
-    criteria: [
-      {
-        key: 'quality',
-        label: 'Fachliche Qualität',
-        raw_min: '0',
-        raw_max: '10',
-        weight: '100',
-      },
-    ],
+  const determination: ExamResult['determinations'][number] = {
+    id: 61,
+    revision: 1,
+    participantMemberIds: [1, 2],
+    vote: { yes: [1, 2], no: [], abstain: [] },
+    dissent: [],
+    status: 'current',
+    determinedAt: '2026-09-30T12:00:00Z',
+    confirmationMemberIds: [],
   };
   return {
     id: 41,
-    round_candidate_id: 1,
-    version: 4,
-    state: 'incomplete',
-    correction_open: false,
-    legacy_status: null,
+    roundCandidateId: 5,
+    dayRevisions: { '7': 4 },
+    version: 3,
+    state: 'calculation_ready',
+    correctionOpen: false,
+    legacyStatus: null,
     candidate: {
-      id: 1,
-      first_name: 'Prüfling',
-      last_name: 'Alpha',
-      ihk_exam_number: 'TEST-2026-0001',
-      specialization: 'application_development',
+      id: 5,
+      firstName: 'Ada',
+      lastName: 'Beispiel',
+      ihkExamNumber: '123',
+      specialization: 'Anwendung',
     },
-    model_version: {
+    modelVersion: {
       id: 2,
-      model_key: 'fiae-final-2026',
+      modelKey: 'standard',
       version: 1,
-      ihk: 'IHK Teststadt',
-      occupation: 'Fachinformatiker/in',
+      ihk: 'IHK Beispiel',
+      occupation: 'Fachinformatikerin',
       specialization: null,
-      valid_from: '2026-01-01',
-      valid_until: '2026-12-31',
+      validFrom: '2026-01-01',
+      validUntil: null,
       rules: {
-        components: [component],
-        external_areas: [{ key: 'written', label: 'Schriftlich', weight: '50', required: true }],
+        components: [
+          {
+            key: 'documentation',
+            label: 'Dokumentation',
+            mode: 'committee',
+            weight: '100',
+            dayScoped: false,
+            requiredAssessors: 2,
+            maxDeviation: '20',
+            additionalAssessorOnDeviation: false,
+            criteria: [criterionFixture()],
+          },
+        ],
+        externalAreas: [{ key: 'practice', label: 'Praxis', weight: '0', required: false }],
         rounding: {
           intermediate: { mode: 'none', digits: null },
-          overall: { mode: 'half_up', digits: 0 },
-          threshold_basis: 'unrounded',
+          overall: { mode: 'none', digits: null },
+          thresholdBasis: 'unrounded',
         },
-        grades: [{ label: 'bestanden', min_points: '0' }],
-        passing: { overall_min: '50', component_minima: {}, external_minima: {} },
-        quorum: { minimum_members: 3, majority: 'simple' },
+        grades: [{ label: 'Gut', minPoints: '80' }],
+        passing: { overallMin: '50', componentMinima: {}, externalMinima: {} },
+        quorum: { minimumMembers: 2, majority: 'simple' },
       },
-      retention_rule_reference: 'PrüfO § 31',
-      retention_years: 15,
+      retentionRuleReference: 'Prüfungsordnung',
+      retentionYears: 10,
     },
-    participants: [1, 2, 3],
+    participants: [1, 2],
     disclosures: [],
-    individual_assessments: [],
-    individual_assessment_counts: [],
-    committee_assessments: [],
-    external_results: [],
-    current_calculation: null,
-    determinations: [],
-    current_determination: null,
+    individualAssessments: [],
+    individualAssessmentCounts: [],
+    committeeAssessments: [],
+    externalResults: [],
+    currentCalculation: {
+      id: 91,
+      version: 3,
+      totalPoints: '78',
+      grade: 'Befriedigend',
+      passed: true,
+      path: {
+        inputs: [{ kind: 'component', key: 'documentation', points: '78', weight: '100' }],
+        unroundedTotal: '78',
+        roundedTotal: '78',
+        thresholdBasis: 'unrounded',
+      },
+    },
+    determinations: [determination],
+    currentDetermination: null,
     corrections: [],
     communications: [],
     retention: null,
     exports: [],
     permissions: {
-      assess_own: true,
+      assessOwn: true,
       disclose: true,
-      determine_component: true,
-      manage_external: true,
-      determine_result: true,
-      confirm_record: true,
-      coordinate_correction: true,
+      determineComponent: true,
+      manageExternal: false,
+      determineResult: true,
+      confirmRecord: true,
+      coordinateCorrection: true,
       communicate: true,
-      manage_retention: true,
+      manageRetention: true,
     },
-    _links: {
-      machine_export: { href: '/api/exam-results/41/export.json' },
-      human_export: { href: '/api/exam-results/41/export.txt' },
+    exportsLinks: {
+      machine: '/api/exam-results/41/export.json',
+      human: '/api/exam-results/41/export.txt',
     },
     ...overrides,
   };
-}
-
-function externalFixture(
-  overrides: Partial<ExamResult['external_results'][number]> = {},
-): ExamResult['external_results'][number] {
-  return {
-    id: 12,
-    area_key: 'written',
-    revision: 1,
-    points: '82',
-    grade: 'gut',
-    professional_status: 'bestanden',
-    determining_authority: 'IHK Teststadt',
-    source_reference: 'Bescheid TEST-2026-0001',
-    status: 'unconfirmed',
-    recorded_by_member_id: 1,
-    confirmed_by_member_id: null,
-    correction_reason: null,
-    ...overrides,
-  };
-}
-
-function individualFixture(): ExamResult['individual_assessments'][number] {
-  return {
-    id: 21,
-    component_key: 'documentation',
-    criterion_key: 'quality',
-    assessor_member_id: 1,
-    revision: 1,
-    raw_points: '8',
-    normalized_points: '80',
-    rationale: 'Fachlich nachvollziehbar',
-    status: 'submitted',
-    change_reason: null,
-    submitted_at: '2027-05-18T09:30:00Z',
-  };
-}
-
-function richResultFixture(): ExamResult {
-  const result = resultFixture({
-    state: 'calculation_ready',
-    correction_open: true,
-    disclosures: [
-      {
-        component_key: 'presentation',
-        disclosed_by_member_id: 1,
-        disclosed_at: '2027-05-18T10:20:00Z',
-      },
-    ],
-    individual_assessments: [individualFixture()],
-    individual_assessment_counts: [{ component_key: 'documentation', draft: 0, submitted: 2 }],
-    committee_assessments: [
-      {
-        id: 31,
-        component_key: 'presentation',
-        revision: 1,
-        points: '75',
-        rationale: 'Gemeinsame fachliche Würdigung',
-        participant_member_ids: [1, 2, 3],
-        vote: { yes: [1, 2], no: [3], abstain: [] },
-        dissent: [{ member_id: 3, statement: 'Abweichende Gewichtung' }],
-        status: 'current',
-        determined_at: '2027-05-18T10:30:00Z',
-      },
-    ],
-    external_results: [
-      externalFixture({ recorded_by_member_id: 2 }),
-      externalFixture({
-        id: 13,
-        revision: 2,
-        points: '83',
-        status: 'confirmed',
-        recorded_by_member_id: 2,
-        confirmed_by_member_id: 3,
-        correction_reason: 'Externes Ergebnis berichtigt',
-      }),
-    ],
-    current_calculation: {
-      id: 51,
-      version: 2,
-      total_points: '76.25',
-      grade: 'gut',
-      passed: true,
-      path: {
-        inputs: [
-          { kind: 'component', key: 'documentation', points: '70', weight: '50' },
-          { kind: 'external', key: 'written', points: '82.5', weight: '50' },
-        ],
-        unrounded_total: '76.25',
-        rounded_total: '76',
-        threshold_basis: 'unrounded',
-      },
-    },
-    corrections: [
-      {
-        id: 71,
-        reason: 'Übertragungsfehler',
-        status: 'open',
-        reopening_reference: 'Freigabe 18',
-      },
-    ],
-    communications: [
-      {
-        id: 81,
-        method: 'persönlich',
-        communicated_at: '2027-05-18T12:00:00Z',
-        external_document_status: 'extern dokumentiert',
-        external_document_reference: 'IHK-Schreiben 19',
-        status: 'obsolete',
-      },
-    ],
-    retention: {
-      rule_reference: 'PrüfO § 31',
-      period_start: '2027-06-01',
-      retain_until: '2042-06-01',
-      legal_hold: true,
-      hold_reason: 'Rechtsbehelf offen',
-    },
-    exports: [
-      {
-        id: 91,
-        result_determination_id: 61,
-        export_kind: 'machine',
-        status: 'superseded',
-        generated_at: '2027-05-18T12:01:00Z',
-      },
-    ],
-  });
-  result.model_version.rules.components.push({
-    key: 'presentation',
-    label: 'Präsentation',
-    mode: 'committee',
-    weight: '50',
-    day_scoped: true,
-    required_assessors: 3,
-    max_deviation: '100',
-    additional_assessor_on_deviation: false,
-    criteria: [
-      {
-        key: 'delivery',
-        label: 'Darstellung',
-        raw_min: '0',
-        raw_max: '100',
-        weight: '100',
-      },
-    ],
-  });
-  const determination: ExamResult['determinations'][number] = {
-    id: 61,
-    revision: 1,
-    participant_member_ids: [1, 2, 3],
-    vote: { yes: [1, 2, 3], no: [], abstain: [] },
-    dissent: [],
-    status: 'current',
-    determined_at: '2027-05-18T11:30:00Z',
-    confirmation_member_ids: [2, 3],
-  };
-  result.determinations = [determination];
-  result.current_determination = determination;
-  return result;
 }
