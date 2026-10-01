@@ -7,8 +7,14 @@ import { vi } from 'vitest';
 import { ApplicationError } from '../application/application-error';
 import { AuthService } from '../auth/auth.service';
 import { PERSONAL_PORT, type PersonalPort } from '../personal/personal.port';
+import type { PersonalAbsenceReport } from '../personal/personal.models';
 import { EXAM_DAY_PORT, type ExamDayPort } from './exam-day.port';
-import type { ConfirmedPlanDayView, ExamDayClosure, ExecutionStatus } from './exam-day.models';
+import type {
+  ConfirmedPlanDayView,
+  ExamDayClosure,
+  ExamDayReopeningImpact,
+  ExecutionStatus,
+} from './exam-day.models';
 import { ExamDayComponent } from './exam-day.component';
 
 describe('ExamDayComponent', () => {
@@ -151,6 +157,58 @@ describe('ExamDayComponent', () => {
     ownReport?.click();
     fixture.detectChanges();
     expect(TestBed.inject(Router).navigateByUrl).toHaveBeenCalledWith('/demo-scenarios');
+  });
+
+  it('handles a successful absence report after a same-day refresh', () => {
+    const pending = new Subject<PersonalAbsenceReport>();
+    vi.mocked(personal.createAbsenceReport).mockReturnValueOnce(pending.asObservable());
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance as unknown as {
+      reportAbsence(assignmentId: number): void;
+      load(): void;
+      savingKeys(): Set<string>;
+    };
+    component.reportAbsence(7);
+    component.load();
+    fixture.detectChanges();
+    expect(component.savingKeys()).toContain('absence-7');
+
+    pending.next({} as PersonalAbsenceReport);
+    pending.complete();
+    fixture.detectChanges();
+
+    expect(component.savingKeys().size).toBe(0);
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      'Ausfallmeldung gespeichert.',
+    );
+    expect(navigate).toHaveBeenCalledWith('/absence-reports');
+  });
+
+  it('clears an absence-report saving state when its request fails after a same-day refresh', () => {
+    const pending = new Subject<PersonalAbsenceReport>();
+    vi.mocked(personal.createAbsenceReport).mockReturnValueOnce(pending.asObservable());
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance as unknown as {
+      reportAbsence(assignmentId: number): void;
+      load(): void;
+      savingKeys(): Set<string>;
+      actionError(): string | null;
+    };
+    component.reportAbsence(7);
+    component.load();
+    fixture.detectChanges();
+    expect(component.savingKeys()).toContain('absence-7');
+
+    pending.error(new ApplicationError('invalid-request', 'Die Ausfallmeldung wurde abgelehnt.'));
+    fixture.detectChanges();
+
+    expect(component.savingKeys().size).toBe(0);
+    expect(component.actionError()).toContain('Die Ausfallmeldung wurde abgelehnt.');
+    expect(navigate).not.toHaveBeenCalled();
   });
 
   it('shows only capability-backed own actions', () => {
@@ -333,7 +391,258 @@ describe('ExamDayComponent', () => {
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('IHK-PLAN-8');
   });
+
+  it('ignores a successful closure response for a previous day after the route changes', () => {
+    const pending = new Subject<ExamDayClosure>();
+    const open = dayView();
+    open.day.closure.permissions.close = true;
+    open.day.closure.evaluation.regularCloseReady = true;
+    vi.mocked(examDay.getConfirmedPlanDay).mockReturnValueOnce(of(open));
+    vi.mocked(examDay.closeExamDay).mockReturnValueOnce(pending.asObservable());
+    authorizeClosure('exam-day-closure:close');
+    fixture.detectChanges();
+
+    (fixture.componentInstance as unknown as { closeDay(): void }).closeDay();
+    fixture.componentRef.setInput('dayId', 8);
+    fixture.detectChanges();
+
+    pending.next({
+      ...open.day.closure,
+      revision: 2,
+      status: 'closed',
+      permissions: { close: false, reopen: false, export: true },
+    });
+    pending.complete();
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('IHK-PLAN-8');
+    expect(text).toContain('Offen');
+    expect(text).not.toContain('Prüfungstag formal abgeschlossen.');
+  });
+
+  it('ignores a failed closure response for a previous day after the route changes', () => {
+    const pending = new Subject<ExamDayClosure>();
+    const open = dayView();
+    open.day.closure.permissions.close = true;
+    open.day.closure.evaluation.regularCloseReady = true;
+    vi.mocked(examDay.getConfirmedPlanDay).mockReturnValueOnce(of(open));
+    vi.mocked(examDay.closeExamDay).mockReturnValueOnce(pending.asObservable());
+    authorizeClosure('exam-day-closure:close');
+    fixture.detectChanges();
+
+    (fixture.componentInstance as unknown as { closeDay(): void }).closeDay();
+    fixture.componentRef.setInput('dayId', 8);
+    fixture.detectChanges();
+
+    pending.error(new ApplicationError('invalid-request', 'Der Abschluss von Tag A scheiterte.'));
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('IHK-PLAN-8');
+    expect(text).not.toContain('Der Abschluss von Tag A scheiterte.');
+    expect(text).not.toContain('Die Abschlussaktion konnte nicht ausgeführt werden.');
+  });
+
+  it('ignores a reopening preview response for a previous day after the route changes', () => {
+    const pending = new Subject<ExamDayReopeningImpact>();
+    const closed = dayView();
+    closed.day.closureStatus = 'closed';
+    closed.day.closure.status = 'closed';
+    closed.day.closure.permissions = { close: false, reopen: true, export: true };
+    vi.mocked(examDay.getConfirmedPlanDay).mockReturnValueOnce(of(closed));
+    vi.mocked(examDay.previewExamDayReopening).mockReturnValueOnce(pending.asObservable());
+    authorizeClosure('exam-day-closure:preview-reopening');
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance as unknown as {
+      reopeningToken: string;
+      previewReopening(): void;
+    };
+    component.reopeningToken = 'exam_protocol:41';
+    component.previewReopening();
+    fixture.componentRef.setInput('dayId', 8);
+    fixture.detectChanges();
+
+    pending.next({
+      dayId: 7,
+      revision: 1,
+      requestedScope: ['exam_protocol:41'],
+      expandedScope: ['exam_protocol:41'],
+      impacts: { exam_protocol: [41] },
+    });
+    pending.complete();
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('IHK-PLAN-8');
+    expect(text).not.toContain('Betroffen: exam_protocol:41');
+  });
+
+  it('ignores a failed reopening preview response for a previous day after the route changes', () => {
+    const pending = new Subject<ExamDayReopeningImpact>();
+    const closed = dayView();
+    closed.day.closureStatus = 'closed';
+    closed.day.closure.status = 'closed';
+    closed.day.closure.permissions = { close: false, reopen: true, export: true };
+    vi.mocked(examDay.getConfirmedPlanDay).mockReturnValueOnce(of(closed));
+    vi.mocked(examDay.previewExamDayReopening).mockReturnValueOnce(pending.asObservable());
+    authorizeClosure('exam-day-closure:preview-reopening');
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance as unknown as {
+      reopeningToken: string;
+      previewReopening(): void;
+    };
+    component.reopeningToken = 'exam_protocol:41';
+    component.previewReopening();
+    fixture.componentRef.setInput('dayId', 8);
+    fixture.detectChanges();
+
+    pending.error(new ApplicationError('invalid-request', 'Die Vorschau für Tag A scheiterte.'));
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('IHK-PLAN-8');
+    expect(text).not.toContain('Die Vorschau für Tag A scheiterte.');
+    expect(text).not.toContain('Die Auswirkungen konnten nicht ermittelt werden.');
+  });
+
+  it('preserves closure and reopening drafts when refreshing the same day', () => {
+    fixture.detectChanges();
+    const component = fixture.componentInstance as unknown as {
+      closureType: 'regular' | 'exception';
+      closureReason: string;
+      clarificationAttempts: string;
+      reopeningToken: string;
+      reopeningOccasion: string;
+      reopeningSource: string;
+      reopeningReason: string;
+      load(): void;
+    };
+    component.closureType = 'exception';
+    component.closureReason = 'Protokollsystem nicht erreichbar';
+    component.clarificationAttempts = 'Support kontaktiert';
+    component.reopeningToken = 'exam_protocol:41';
+    component.reopeningOccasion = 'Nachträglicher Widerspruch';
+    component.reopeningSource = 'IHK-Schreiben';
+    component.reopeningReason = 'Protokollangabe korrigieren';
+
+    component.load();
+    fixture.detectChanges();
+
+    expect(component.closureType).toBe('exception');
+    expect(component.closureReason).toBe('Protokollsystem nicht erreichbar');
+    expect(component.clarificationAttempts).toBe('Support kontaktiert');
+    expect(component.reopeningToken).toBe('exam_protocol:41');
+    expect(component.reopeningOccasion).toBe('Nachträglicher Widerspruch');
+    expect(component.reopeningSource).toBe('IHK-Schreiben');
+    expect(component.reopeningReason).toBe('Protokollangabe korrigieren');
+  });
+
+  it('applies a pending closure response after a same-day refresh', () => {
+    const pending = new Subject<ExamDayClosure>();
+    const staleRefresh = new Subject<ConfirmedPlanDayView>();
+    const open = dayView();
+    open.day.closure.permissions.close = true;
+    open.day.closure.evaluation.regularCloseReady = true;
+    vi.mocked(examDay.getConfirmedPlanDay)
+      .mockReturnValueOnce(of(open))
+      .mockReturnValueOnce(staleRefresh.asObservable());
+    vi.mocked(examDay.closeExamDay).mockReturnValueOnce(pending.asObservable());
+    authorizeClosure('exam-day-closure:close');
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance as unknown as {
+      closeDay(): void;
+      load(): void;
+      savingKeys(): Set<string>;
+    };
+    component.closeDay();
+    component.load();
+    fixture.detectChanges();
+    expect(component.savingKeys()).toContain('day-close');
+
+    pending.next({
+      ...open.day.closure,
+      revision: 2,
+      status: 'closed',
+      permissions: { close: false, reopen: false, export: true },
+    });
+    pending.complete();
+    fixture.detectChanges();
+    staleRefresh.next(open);
+    staleRefresh.complete();
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Geschlossen');
+    expect(text).toContain('Prüfungstag formal abgeschlossen.');
+  });
+
+  it('applies a pending reopening response after a same-day refresh', () => {
+    const pending = new Subject<ExamDayClosure>();
+    const staleRefresh = new Subject<ConfirmedPlanDayView>();
+    const closed = dayView();
+    closed.day.closureStatus = 'closed';
+    closed.day.closure.status = 'closed';
+    closed.day.closure.permissions = { close: false, reopen: true, export: true };
+    vi.mocked(examDay.getConfirmedPlanDay)
+      .mockReturnValueOnce(of(closed))
+      .mockReturnValueOnce(staleRefresh.asObservable());
+    vi.mocked(examDay.reopenExamDay).mockReturnValueOnce(pending.asObservable());
+    authorizeClosure('exam-day-closure:preview-reopening', 'exam-day-closure:reopen');
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance as unknown as {
+      reopeningToken: string;
+      reopeningOccasion: string;
+      reopeningSource: string;
+      reopeningReason: string;
+      previewReopening(): void;
+      reopenDay(): void;
+      load(): void;
+      savingKeys(): Set<string>;
+    };
+    component.reopeningToken = 'exam_protocol:41';
+    component.reopeningOccasion = 'Nachträglicher Widerspruch';
+    component.reopeningSource = 'IHK-Schreiben';
+    component.reopeningReason = 'Protokollangabe korrigieren';
+    component.previewReopening();
+    component.reopenDay();
+    component.load();
+    fixture.detectChanges();
+    expect(component.savingKeys()).toContain('day-reopen');
+
+    pending.next({
+      ...closed.day.closure,
+      revision: 2,
+      status: 'reopening',
+      activeReopening: { expandedScope: ['exam_protocol:41'] },
+      permissions: { close: false, reopen: false, export: true },
+    });
+    pending.complete();
+    fixture.detectChanges();
+    staleRefresh.next(closed);
+    staleRefresh.complete();
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Wiederöffnung läuft');
+    expect(text).toContain('Prüfungstag zielgerichtet wieder geöffnet.');
+  });
 });
+
+function authorizeClosure(...capabilities: string[]): void {
+  TestBed.inject(AuthService).session.set({
+    authenticated: true,
+    account_id: 1,
+    person_id: 1,
+    committee_member_id: 1,
+    is_operator: false,
+    capabilities,
+  });
+}
 
 function createExamDayPort(): ExamDayPort {
   return {
