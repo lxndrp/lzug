@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
-import { of, throwError } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 
 import { masterDataFixture } from '../testing/fixtures';
 import { toLocationSnapshot } from '../api/http-locations.mapper';
@@ -13,12 +13,9 @@ const venue = toLocationSnapshot(masterDataFixture).venues[0];
 
 describe('VenueWorkflowService', () => {
   it('checks duplicates and keeps user confirmation before venue creation', () => {
-    let confirmAction: (() => void) | undefined;
     const duplicates = [{ id: 10, name: 'Ähnlich', scope: 'global', address: 'Musterweg 1' }];
     const port = createPort({ checkDuplicates: vi.fn(() => of(duplicates)) });
-    const { workflow, feedback, workspace } = configure(port, {
-      confirm: vi.fn((_title, _message, _accept, action) => (confirmAction = action)),
-    });
+    const { workflow, feedback, workspace } = configure(port);
     const command = {
       scope: 'committee' as const,
       committeeId: 4,
@@ -34,22 +31,95 @@ describe('VenueWorkflowService', () => {
 
     workflow.createVenue(command);
 
-    expect(workspace.actionBusy()).toBe(false);
-    expect(feedback.confirm).toHaveBeenCalledWith(
+    expect(workflow.actionBusy()).toBe(false);
+    expect(feedback.confirm$).toHaveBeenCalledWith(
       'Ähnliche Prüfungsorte gefunden',
       'Ähnlich · Musterweg 1',
       'Trotzdem anlegen',
-      expect.any(Function),
     );
-    expect(port.createVenue).not.toHaveBeenCalled();
-    confirmAction?.();
+    expect(port.createVenue).toHaveBeenCalledOnce();
     expect(port.createVenue).toHaveBeenCalledWith({ ...command, duplicatesReviewed: true });
     expect(feedback.notify).toHaveBeenCalledWith('success', 'Prüfungsort angelegt', venue.name);
     expect(workspace.refresh).toHaveBeenCalledOnce();
+    expect(workflow.actionBusy()).toBe(false);
+  });
+
+  it('keeps venue creation pending across preflight, confirmation and mutation and ignores duplicate submits', () => {
+    const confirmation = new Subject<boolean>();
+    const duplicates = new Subject<
+      Array<{ id: number; name: string; scope: string; address: string }>
+    >();
+    const creation = new Subject<typeof venue>();
+    const port = createPort({
+      checkDuplicates: vi.fn(() => duplicates),
+      createVenue: vi.fn(() => creation),
+    });
+    const { workflow, feedback } = configure(port, {
+      confirm$: vi.fn(() => confirmation),
+    });
+    const command = {
+      scope: 'committee' as const,
+      committeeId: 4,
+      name: 'Prüfungszentrum',
+      street: 'Musterweg 1',
+      postalCode: '20095',
+      city: 'Hamburg',
+      country: 'Deutschland',
+      accessibilityStatus: 'confirmed' as const,
+      isAccessible: true,
+      isActive: true,
+    };
+
+    workflow.createVenue(command);
+    workflow.createVenue(command);
+
+    expect(port.checkDuplicates).toHaveBeenCalledOnce();
+    expect(workflow.actionBusy()).toBe(true);
+    duplicates.next([{ id: 10, name: 'Ähnlich', scope: 'global', address: 'Musterweg 1' }]);
+    expect(port.createVenue).not.toHaveBeenCalled();
+    expect(workflow.actionBusy()).toBe(true);
+    confirmation.next(true);
+    confirmation.complete();
+    expect(port.createVenue).toHaveBeenCalledOnce();
+    expect(workflow.actionBusy()).toBe(true);
+    creation.next(venue);
+    creation.complete();
+    expect(feedback.notify).toHaveBeenCalledWith('success', 'Prüfungsort angelegt', venue.name);
+    expect((workflow as unknown as { pending: () => boolean }).pending()).toBe(false);
+    expect(workflow.actionBusy()).toBe(false);
+    expect(feedback.notify).toHaveBeenCalledWith('success', 'Prüfungsort angelegt', venue.name);
+  });
+
+  it('does not apply a late venue response to a newly activated view', () => {
+    const creation = new Subject<typeof venue>();
+    const port = createPort({ createVenue: vi.fn(() => creation) });
+    const { workflow } = configure(port);
+    const viewA = Symbol('locations-view-a');
+    const viewB = Symbol('locations-view-b');
+    const command = {
+      scope: 'committee' as const,
+      committeeId: 4,
+      name: 'Prüfungszentrum',
+      street: 'Musterweg 1',
+      postalCode: '20095',
+      city: 'Hamburg',
+      country: 'Deutschland',
+      accessibilityStatus: 'confirmed' as const,
+      isAccessible: true,
+      isActive: true,
+    };
+
+    workflow.activateView(viewA);
+    workflow.createVenue(command, viewA);
+    workflow.activateView(viewB);
+    creation.next(venue);
+    creation.complete();
+
+    expect(workflow.viewEffect()).toBeNull();
+    expect(workflow.actionBusy()).toBe(false);
   });
 
   it('combines change impact and duplicate results before confirming a revisioned update', () => {
-    let confirmAction: (() => void) | undefined;
     const impact = {
       count: 2,
       dateFrom: '2026-11-01',
@@ -65,9 +135,7 @@ describe('VenueWorkflowService', () => {
         of({ ...venue, name: 'Neuer Ort', consequenceWarning: 'Calendar failed' }),
       ),
     });
-    const { workflow, feedback } = configure(port, {
-      confirm: vi.fn((_title, _message, _accept, action) => (confirmAction = action)),
-    });
+    const { workflow, feedback } = configure(port);
     const update = {
       id: venue.id,
       payload: { expectedRevision: venue.revision, name: 'Neuer Ort' },
@@ -75,14 +143,11 @@ describe('VenueWorkflowService', () => {
 
     workflow.updateVenue(update);
 
-    expect(feedback.confirm).toHaveBeenCalledWith(
+    expect(feedback.confirm$).toHaveBeenCalledWith(
       'Bestätigte Termine betroffen',
       expect.stringContaining('2 bestätigte Einplanungen'),
       'Änderung bestätigen',
-      expect.any(Function),
     );
-    expect(port.updateVenue).not.toHaveBeenCalled();
-    confirmAction?.();
     expect(port.updateVenue).toHaveBeenCalledWith({
       ...update,
       confirmFutureAssignments: true,
@@ -136,7 +201,6 @@ describe('VenueWorkflowService', () => {
   });
 
   it('preserves venue deletion guard text and room-impact confirmation behavior', () => {
-    let confirmAction: (() => void) | undefined;
     const room = venue.rooms[0];
     const port = createPort({
       getRoomChangeImpact: vi.fn(() =>
@@ -150,26 +214,21 @@ describe('VenueWorkflowService', () => {
         }),
       ),
     });
-    const { workflow, feedback } = configure(port, {
-      confirm: vi.fn((_title, _message, _accept, action) => (confirmAction = action)),
-    });
+    const { workflow, feedback } = configure(port);
 
     workflow.requestVenueDeletion(venue);
-    expect(feedback.confirm).toHaveBeenCalledWith(
+    expect(feedback.confirm$).toHaveBeenCalledWith(
       `${venue.name} löschen?`,
       'Nur ein vollständig ungenutzter Ort ohne Räume und Kontakte kann gelöscht werden.',
       `${venue.name} löschen`,
-      expect.any(Function),
     );
 
     workflow.updateRoom({ id: room.id, payload: { expectedRevision: room.revision, name: 'Neu' } });
-    expect(feedback.confirm).toHaveBeenCalledWith(
+    expect(feedback.confirm$).toHaveBeenCalledWith(
       'Bestätigte Termine betroffen',
       expect.stringContaining('1 bestätigte Einplanungen'),
       'Änderung bestätigen',
-      expect.any(Function),
     );
-    confirmAction?.();
   });
 });
 
@@ -220,16 +279,20 @@ function configure(port: LocationsPort, feedbackOverrides: Record<string, unknow
     notify: vi.fn(),
     ...feedbackOverrides,
   };
+  const feedbackWithConfirmation = {
+    ...feedback,
+    confirm$: feedbackOverrides['confirm$'] ?? vi.fn(() => of(true)),
+  };
   TestBed.configureTestingModule({
     providers: [
       { provide: LOCATIONS_PORT, useValue: port },
       { provide: ApplicationWorkspaceService, useValue: workspace },
-      { provide: UiFeedbackService, useValue: feedback },
+      { provide: UiFeedbackService, useValue: feedbackWithConfirmation },
     ],
   });
   return {
     workflow: TestBed.inject(VenueWorkflowService),
     workspace,
-    feedback,
+    feedback: feedbackWithConfirmation,
   };
 }

@@ -25,10 +25,8 @@ import {
   ExamRoundUpdate,
   Location,
   MasterData,
-  MemberAvailability,
   PlanningBoard,
   PlanningResult,
-  PlanningSettings,
   PlanningValidationViolation,
   RoundSummary,
 } from '../api/api.models';
@@ -39,17 +37,19 @@ import {
   PlanningProposalEditorComponent,
   ProposalEditorState,
 } from './planning-proposal-editor.component';
+import type {
+  AvailabilityPayload,
+  CandidateExamDayPayload,
+  PlanningSettingsPayload,
+  PlanningViewEffect,
+} from './planning-view-effect';
+export type {
+  AvailabilityPayload,
+  CandidateExamDayPayload,
+  PlanningSettingsPayload,
+} from './planning-view-effect';
 
-export type PlanningSettingsPayload = Omit<
-  PlanningSettings,
-  'id' | 'exam_round_id' | 'updated_by_member_id'
->;
-export type CandidateExamDayPayload = Omit<CandidateExamDay, 'id' | 'exam_round_id'>;
 export type RoundUpdatePayload = ExamRoundUpdate;
-export type AvailabilityPayload = Pick<
-  MemberAvailability,
-  'committee_member_id' | 'candidate_exam_day_id' | 'availability'
->;
 /** Transient UI state for one optimistic availability update. */
 export type AvailabilityCellState = {
   status: 'saving' | 'saved' | 'error';
@@ -108,6 +108,7 @@ export class PlanningComponent implements OnChanges, OnDestroy {
   @Input() allowCandidateDayGeneration = true;
   @Input() canCreateCandidateDay = true;
   @Input() canToggleCandidateDay = true;
+  @Input() workflowEffect: PlanningViewEffect | null = null;
 
   @Output() saveSettings = new EventEmitter<PlanningSettingsPayload>();
   @Output() saveRound = new EventEmitter<RoundUpdatePayload>();
@@ -195,6 +196,15 @@ export class PlanningComponent implements OnChanges, OnDestroy {
     }
     if (changes['round'] || changes['summary'] || changes['board']) {
       this.syncWorkflowState();
+    }
+    const effect = changes['workflowEffect']?.currentValue as PlanningViewEffect | null | undefined;
+    const previous = changes['workflowEffect']?.previousValue as
+      PlanningViewEffect | null | undefined;
+    if (!effect || effect.version === previous?.version) return;
+    if (effect.type === 'reset-candidate-day-draft') this.resetCandidateDayDraft();
+    if (effect.type === 'availability-saved') this.markAvailabilitySaved(effect.payload);
+    if (effect.type === 'availability-error') {
+      this.markAvailabilityError(effect.payload, effect.usePersistedValue);
     }
   }
 

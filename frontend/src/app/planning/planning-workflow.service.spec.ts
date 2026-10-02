@@ -3,13 +3,12 @@ import { provideRouter } from '@angular/router';
 import { signal } from '@angular/core';
 import { of, Subject } from 'rxjs';
 
-import type { ExamRound } from '../api/api.models';
+import type { CandidateExamDay, ExamRound } from '../api/api.models';
 import { RoundContextService } from '../api/round-context.service';
 import { AuthService } from '../auth/auth.service';
 import { SessionScopeService } from '../auth/session-scope.service';
 import { ApplicationWorkspaceService } from '../shell/application-workspace.service';
 import { UiFeedbackService } from '../shell/ui-feedback.service';
-import type { PlanningComponent } from './planning.component';
 import { PLANNING_PORT } from './planning.port';
 import { PlanningWorkflowService } from './planning-workflow.service';
 
@@ -150,18 +149,22 @@ describe('PlanningWorkflowService', () => {
     const context = TestBed.inject(RoundContextService);
     context.select(2);
     const workflow = TestBed.inject(PlanningWorkflowService);
-    const markAvailabilityError = vi.fn();
-    workflow.connect({ markAvailabilityError } as unknown as PlanningComponent);
+    const view = Symbol('planning-view');
+    workflow.activateView(view);
     const payload = {
       committee_member_id: 1,
       candidate_exam_day_id: 5,
       availability: 'morning' as const,
     };
 
-    workflow.saveAvailability(payload);
+    workflow.saveAvailability(payload, view);
 
     expect(planning.saveMemberAvailability).not.toHaveBeenCalled();
-    expect(markAvailabilityError).toHaveBeenCalledWith(payload, true);
+    expect(workflow.viewEffect()).toMatchObject({
+      type: 'availability-error',
+      payload,
+      usePersistedValue: true,
+    });
   });
 
   it('does not apply a late availability response to the newly selected round', () => {
@@ -202,28 +205,75 @@ describe('PlanningWorkflowService', () => {
     const context = TestBed.inject(RoundContextService);
     context.select(1);
     const workflow = TestBed.inject(PlanningWorkflowService);
-    const markAvailabilitySaved = vi.fn();
-    const markAvailabilityError = vi.fn();
-    workflow.connect({
-      markAvailabilitySaved,
-      markAvailabilityError,
-    } as unknown as PlanningComponent);
+    const viewA = Symbol('planning-view-a');
+    const viewB = Symbol('planning-view-b');
+    workflow.activateView(viewA);
     const payload = {
       committee_member_id: 1,
       candidate_exam_day_id: 5,
       availability: 'morning' as const,
     };
-    workflow.saveAvailability(payload);
+    workflow.saveAvailability(payload, viewA);
 
     expect(planning.saveMemberAvailability).toHaveBeenCalledWith(payload, 1);
     context.select(2);
+    workflow.activateView(viewB);
     availabilityResponse.next({ id: 7, ...payload });
     availabilityResponse.complete();
 
     expect(board()).toEqual({ availabilities: [] });
-    expect(markAvailabilitySaved).not.toHaveBeenCalled();
-    expect(markAvailabilityError).not.toHaveBeenCalled();
+    expect(workflow.viewEffect()).toBeNull();
     expect(feedback.notify).not.toHaveBeenCalled();
+  });
+
+  it('blocks duplicate planning submits and keeps a late success out of a new view', () => {
+    const response = new Subject<CandidateExamDay>();
+    const workspace = {
+      round: signal<ExamRound | null>({
+        id: 1,
+        exam_half_year_id: 4,
+        name: 'Runde A',
+        committee_id: 3,
+        status: 'draft',
+        availability_deadline: null,
+        availability_reminder_at: null,
+      }),
+      loading: signal(false),
+      actionBusy: signal(false),
+      refresh: vi.fn(),
+    };
+    const planning = { createCandidateExamDay: vi.fn(() => response) };
+    const feedback = { notify: vi.fn(), roleRestriction: vi.fn() };
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([]),
+        { provide: ApplicationWorkspaceService, useValue: workspace },
+        { provide: PLANNING_PORT, useValue: planning },
+        { provide: AuthService, useValue: { hasCapability: () => true, session: () => null } },
+        { provide: UiFeedbackService, useValue: feedback },
+      ],
+    });
+
+    const context = TestBed.inject(RoundContextService);
+    context.select(1);
+    const workflow = TestBed.inject(PlanningWorkflowService);
+    const viewA = Symbol('planning-view-a');
+    const viewB = Symbol('planning-view-b');
+    workflow.activateView(viewA);
+    const payload = { date: '2026-11-01' } as never;
+
+    workflow.createCandidateDay(payload, viewA);
+    workflow.createCandidateDay(payload, viewA);
+
+    expect(planning.createCandidateExamDay).toHaveBeenCalledOnce();
+    expect(workflow.actionBusy()).toBe(true);
+    workflow.activateView(viewB);
+    response.next({ id: 6, date: '2026-11-01' } as CandidateExamDay);
+    response.complete();
+
+    expect(workflow.viewEffect()).toBeNull();
+    expect(workflow.actionBusy()).toBe(false);
+    expect(workspace.refresh).not.toHaveBeenCalled();
   });
 
   it('keeps availability request steps on the validated round if selection changes mid-request', () => {

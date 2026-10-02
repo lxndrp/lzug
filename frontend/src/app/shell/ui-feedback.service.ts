@@ -1,6 +1,6 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { TuiConfirmService } from '@taiga-ui/kit';
-import { finalize, takeUntil } from 'rxjs';
+import { finalize, Observable, takeUntil } from 'rxjs';
 import { SessionScopeService } from '../auth/session-scope.service';
 
 export type UiFeedback = {
@@ -30,19 +30,22 @@ export class UiFeedbackService {
   }
 
   confirm(title: string, message: string, confirmLabel: string, action: () => void): void {
+    this.confirm$(title, message, confirmLabel).subscribe((confirmed) => {
+      if (confirmed) action();
+    });
+  }
+
+  confirm$(title: string, message: string, confirmLabel: string): Observable<boolean> {
     const generation = this.sessionScope.generation();
     this.confirmService.markAsDirty();
-    this.confirmService
+    return this.confirmService
       .withConfirm({
         label: title,
         size: 'm',
         data: { content: message, no: 'Abbrechen', yes: confirmLabel, appearance: 'negative' },
       })
       .pipe(takeUntil(this.sessionScope.invalidatedAfter(generation)))
-      .pipe(finalize(() => this.confirmService.markAsPristine()))
-      .subscribe((confirmed) => {
-        if (confirmed) action();
-      });
+      .pipe(finalize(() => this.confirmService.markAsPristine()));
   }
 
   roleRestriction(): void {

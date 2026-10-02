@@ -1,6 +1,6 @@
 import { computed, effect, Injectable, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import { finalize, switchMap } from 'rxjs';
+import { defer, filter, finalize, switchMap } from 'rxjs';
 
 import type {
   AvailabilityRequest,
@@ -18,9 +18,10 @@ import { SessionScopeService } from '../auth/session-scope.service';
 import type {
   AvailabilityPayload,
   CandidateExamDayPayload,
-  PlanningComponent,
   PlanningSettingsPayload,
-} from './planning.component';
+  PlanningViewEffect,
+  PlanningViewEffectCommand,
+} from './planning-view-effect';
 import type { ProposalEditorState } from './planning-proposal-editor.component';
 import { ApplicationWorkspaceService } from '../shell/application-workspace.service';
 import { UiFeedbackService } from '../shell/ui-feedback.service';
@@ -36,8 +37,13 @@ export class PlanningWorkflowService {
   private readonly roundContext = inject(RoundContextService);
   private readonly router = inject(Router);
   private readonly workspace = inject(ApplicationWorkspaceService);
-  private planningComponent?: PlanningComponent;
+  private readonly pending = signal(false);
+  private activeView: symbol | null = null;
+  private effectVersion = 0;
+  private readonly pendingAvailability = new Set<string>();
 
+  readonly actionBusy = computed(() => this.pending() || this.workspace.actionBusy());
+  readonly viewEffect = signal<PlanningViewEffect | null>(null);
   readonly lastResult = signal<PlanningResult | null>(null);
   readonly proposal = signal<EditablePlanningProposal | null>(null);
   readonly editorState = signal<ProposalEditorState>('idle');
@@ -64,8 +70,15 @@ export class PlanningWorkflowService {
     this.sessionScope.changes$.subscribe(() => this.resetForSessionChange());
   }
 
-  connect(component?: PlanningComponent): void {
-    this.planningComponent = component;
+  activateView(view: symbol): void {
+    this.activeView = view;
+    this.viewEffect.set(null);
+  }
+
+  deactivateView(view: symbol): void {
+    if (this.activeView !== view) return;
+    this.activeView = null;
+    this.viewEffect.set(null);
   }
 
   resetForRoundChange(): void {
@@ -75,7 +88,6 @@ export class PlanningWorkflowService {
   }
 
   private resetForSessionChange(): void {
-    this.planningComponent = undefined;
     this.lastResult.set(null);
     this.candidateDayGeneration.set(null);
     this.resetPlanningProposal();
@@ -83,29 +95,47 @@ export class PlanningWorkflowService {
     this.editorViolations.set([]);
   }
 
-  requestPlanConfirmation(): void {
-    this.feedback.confirm(
-      'Terminplan bestätigen?',
-      'Der aktuelle Planungsvorschlag wird als verbindlicher Terminplan bestätigt.',
-      'Plan verbindlich bestätigen',
-      () => this.confirmPlan(),
-    );
+  requestPlanConfirmation(view = this.activeView): void {
+    if (!this.ensureWorkspaceMatchesSelectedRound()) return;
+    if (!this.auth.hasCapability('planning-proposal:confirm')) {
+      this.feedback.roleRestriction();
+      return;
+    }
+    if (!this.beginOperation()) return;
+    const roundId = this.roundContext.roundId();
+    this.sessionScope
+      .forCurrentSession(
+        this.feedback.confirm$(
+          'Terminplan bestätigen?',
+          'Der aktuelle Planungsvorschlag wird als verbindlicher Terminplan bestätigt.',
+          'Plan verbindlich bestätigen',
+        ),
+      )
+      .pipe(
+        filter((confirmed) => confirmed && this.isCurrentView(view)),
+        switchMap(() => defer(() => this.planning.confirmPlan())),
+        finalize(() => this.pending.set(false)),
+      )
+      .subscribe({
+        next: (result) => this.handlePlanConfirmation(result, roundId, view),
+        error: () => this.reportPlanConfirmationFailure(roundId, view),
+      });
   }
 
-  savePlanningSettings(payload: PlanningSettingsPayload): void {
+  savePlanningSettings(payload: PlanningSettingsPayload, view = this.activeView): void {
     if (!this.ensureWorkspaceMatchesSelectedRound()) return;
     if (!this.auth.hasCapability('planning-settings:write')) {
       this.feedback.roleRestriction();
       return;
     }
     const roundId = this.roundContext.roundId();
-    this.workspace.actionBusy.set(true);
+    if (!this.beginOperation()) return;
     this.sessionScope
       .forCurrentSession(this.planning.savePlanningSettings(payload, roundId))
-      .pipe(finalize(() => this.workspace.actionBusy.set(false)))
+      .pipe(finalize(() => this.pending.set(false)))
       .subscribe({
         next: () => {
-          if (!this.isSelectedRound(roundId)) return;
+          if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
           this.feedback.notify(
             'success',
             'Planungsrahmen gespeichert',
@@ -114,7 +144,7 @@ export class PlanningWorkflowService {
           this.workspace.refresh();
         },
         error: () => {
-          if (!this.isSelectedRound(roundId)) return;
+          if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
           this.feedback.notify(
             'error',
             'Planungsrahmen nicht gespeichert',
@@ -124,20 +154,20 @@ export class PlanningWorkflowService {
       });
   }
 
-  saveExamRound(payload: ExamRoundUpdate): void {
+  saveExamRound(payload: ExamRoundUpdate, view = this.activeView): void {
     if (!this.ensureWorkspaceMatchesSelectedRound()) return;
     if (!this.auth.hasCapability('round:write')) {
       this.feedback.roleRestriction();
       return;
     }
     const roundId = this.roundContext.roundId();
-    this.workspace.actionBusy.set(true);
+    if (!this.beginOperation()) return;
     this.sessionScope
       .forCurrentSession(this.planning.updateExamRound(payload, roundId))
-      .pipe(finalize(() => this.workspace.actionBusy.set(false)))
+      .pipe(finalize(() => this.pending.set(false)))
       .subscribe({
         next: () => {
-          if (!this.isSelectedRound(roundId)) return;
+          if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
           this.feedback.notify(
             'success',
             'Prüfungsrunde gespeichert',
@@ -146,7 +176,7 @@ export class PlanningWorkflowService {
           this.workspace.refresh();
         },
         error: () => {
-          if (!this.isSelectedRound(roundId)) return;
+          if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
           this.feedback.notify(
             'error',
             'Prüfungsrunde nicht gespeichert',
@@ -156,20 +186,20 @@ export class PlanningWorkflowService {
       });
   }
 
-  requestAvailabilities(payload: AvailabilityRequest): void {
+  requestAvailabilities(payload: AvailabilityRequest, view = this.activeView): void {
     if (!this.ensureWorkspaceMatchesSelectedRound()) return;
     if (!this.auth.hasCapability('availability:coordinate')) {
       this.feedback.roleRestriction();
       return;
     }
     const roundId = this.roundContext.roundId();
-    this.workspace.actionBusy.set(true);
+    if (!this.beginOperation()) return;
     this.sessionScope
       .forCurrentSession(this.planning.requestAvailabilities(payload, roundId))
-      .pipe(finalize(() => this.workspace.actionBusy.set(false)))
+      .pipe(finalize(() => this.pending.set(false)))
       .subscribe({
         next: (result) => {
-          if (!this.isSelectedRound(roundId)) return;
+          if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
           this.feedback.notify(
             result.notification_warning ? 'error' : 'success',
             result.notification_warning
@@ -180,7 +210,7 @@ export class PlanningWorkflowService {
           this.workspace.refresh();
         },
         error: () => {
-          if (!this.isSelectedRound(roundId)) return;
+          if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
           this.feedback.notify(
             'error',
             'Verfügbarkeiten nicht angefragt',
@@ -190,26 +220,26 @@ export class PlanningWorkflowService {
       });
   }
 
-  createCandidateDay(payload: CandidateExamDayPayload): void {
+  createCandidateDay(payload: CandidateExamDayPayload, view = this.activeView): void {
     if (!this.ensureWorkspaceMatchesSelectedRound()) return;
     if (!this.auth.hasCapability('candidate-days:create')) {
       this.feedback.roleRestriction();
       return;
     }
     const roundId = this.roundContext.roundId();
-    this.workspace.actionBusy.set(true);
+    if (!this.beginOperation()) return;
     this.sessionScope
       .forCurrentSession(this.planning.createCandidateExamDay(payload, roundId))
-      .pipe(finalize(() => this.workspace.actionBusy.set(false)))
+      .pipe(finalize(() => this.pending.set(false)))
       .subscribe({
         next: (day) => {
-          if (!this.isSelectedRound(roundId)) return;
-          this.planningComponent?.resetCandidateDayDraft();
+          if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
+          this.emitViewEffect(view, { type: 'reset-candidate-day-draft' });
           this.feedback.notify('success', 'Prüfungstag angelegt', day.date);
           this.workspace.refresh();
         },
         error: () => {
-          if (!this.isSelectedRound(roundId)) return;
+          if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
           this.feedback.notify(
             'error',
             'Prüfungstag nicht angelegt',
@@ -219,24 +249,24 @@ export class PlanningWorkflowService {
       });
   }
 
-  generateCandidateDays(payload: PlanningSettingsPayload): void {
+  generateCandidateDays(payload: PlanningSettingsPayload, view = this.activeView): void {
     if (!this.ensureWorkspaceMatchesSelectedRound()) return;
     if (!this.canGenerateCandidateDays()) {
       this.feedback.roleRestriction();
       return;
     }
     const roundId = this.roundContext.roundId();
-    this.workspace.actionBusy.set(true);
+    if (!this.beginOperation()) return;
     this.sessionScope
       .forCurrentSession(
         this.planning
           .savePlanningSettings(payload, roundId)
           .pipe(switchMap(() => this.planning.generateCandidateExamDays(roundId))),
       )
-      .pipe(finalize(() => this.workspace.actionBusy.set(false)))
+      .pipe(finalize(() => this.pending.set(false)))
       .subscribe({
         next: (result) => {
-          if (!this.isSelectedRound(roundId)) return;
+          if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
           this.candidateDayGeneration.set(result);
           this.feedback.notify(
             'success',
@@ -246,7 +276,7 @@ export class PlanningWorkflowService {
           this.workspace.refresh();
         },
         error: () => {
-          if (!this.isSelectedRound(roundId)) return;
+          if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
           this.feedback.notify(
             'error',
             'Prüfungstage nicht berechnet',
@@ -256,7 +286,7 @@ export class PlanningWorkflowService {
       });
   }
 
-  toggleCandidateDay(day: CandidateExamDay): void {
+  toggleCandidateDay(day: CandidateExamDay, view = this.activeView): void {
     if (!this.ensureWorkspaceMatchesSelectedRound()) return;
     if (!this.auth.hasCapability('candidate-days:toggle')) {
       this.feedback.roleRestriction();
@@ -264,13 +294,13 @@ export class PlanningWorkflowService {
     }
     const roundId = this.roundContext.roundId();
     const nextActive = day.is_active ? 0 : 1;
-    this.workspace.actionBusy.set(true);
+    if (!this.beginOperation()) return;
     this.sessionScope
       .forCurrentSession(this.planning.updateCandidateExamDay(day.id, { is_active: nextActive }))
-      .pipe(finalize(() => this.workspace.actionBusy.set(false)))
+      .pipe(finalize(() => this.pending.set(false)))
       .subscribe({
         next: () => {
-          if (!this.isSelectedRound(roundId)) return;
+          if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
           this.feedback.notify(
             'success',
             `Prüfungstag ${nextActive ? 'aktiviert' : 'deaktiviert'}`,
@@ -279,15 +309,15 @@ export class PlanningWorkflowService {
           this.workspace.refresh();
         },
         error: () => {
-          if (!this.isSelectedRound(roundId)) return;
+          if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
           this.feedback.notify('error', 'Prüfungstag nicht geändert', 'Bitte erneut versuchen.');
         },
       });
   }
 
-  saveAvailability(payload: AvailabilityPayload): void {
+  saveAvailability(payload: AvailabilityPayload, view = this.activeView): void {
     if (!this.ensureWorkspaceMatchesSelectedRound()) {
-      this.planningComponent?.markAvailabilityError(payload, true);
+      this.emitViewEffect(view, { type: 'availability-error', payload, usePersistedValue: true });
       return;
     }
     const roundId = this.roundContext.roundId();
@@ -302,14 +332,18 @@ export class PlanningWorkflowService {
         payload.committee_member_id !== session.committee_member_id)
     ) {
       this.feedback.roleRestriction();
-      this.planningComponent?.markAvailabilityError(payload);
+      this.emitViewEffect(view, { type: 'availability-error', payload });
       return;
     }
+    const availabilityKey = `${payload.committee_member_id}:${payload.candidate_exam_day_id}`;
+    if (this.pendingAvailability.has(availabilityKey)) return;
+    this.pendingAvailability.add(availabilityKey);
     this.sessionScope
       .forCurrentSession(this.planning.saveMemberAvailability(payload, roundId))
+      .pipe(finalize(() => this.pendingAvailability.delete(availabilityKey)))
       .subscribe({
         next: (availability) => {
-          if (!this.isSelectedRound(roundId)) return;
+          if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
           this.workspace.board.update((board) =>
             board
               ? {
@@ -325,11 +359,15 @@ export class PlanningWorkflowService {
                 }
               : board,
           );
-          this.planningComponent?.markAvailabilitySaved(payload);
+          this.emitViewEffect(view, {
+            type: 'availability-saved',
+            payload,
+            availability: availability.availability,
+          });
         },
         error: () => {
-          if (!this.isSelectedRound(roundId)) return;
-          this.planningComponent?.markAvailabilityError(payload);
+          if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
+          this.emitViewEffect(view, { type: 'availability-error', payload });
           this.feedback.notify(
             'error',
             'Verfügbarkeit nicht gespeichert',
@@ -339,20 +377,20 @@ export class PlanningWorkflowService {
       });
   }
 
-  generateProposal(): void {
+  generateProposal(view = this.activeView): void {
     if (!this.ensureWorkspaceMatchesSelectedRound()) return;
     if (!this.auth.hasCapability('planning-proposal:generate')) {
       this.feedback.roleRestriction();
       return;
     }
     const roundId = this.roundContext.roundId();
-    this.workspace.actionBusy.set(true);
+    if (!this.beginOperation()) return;
     this.sessionScope
       .forCurrentSession(this.planning.generateProposal())
-      .pipe(finalize(() => this.workspace.actionBusy.set(false)))
+      .pipe(finalize(() => this.pending.set(false)))
       .subscribe({
         next: (result) => {
-          if (!this.isSelectedRound(roundId)) return;
+          if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
           this.lastResult.set(result);
           const planned = result.counts['planned_slots'] ?? 0;
           const suffix = result.validation?.passed === false ? ' mit Hinweisen' : '';
@@ -364,45 +402,24 @@ export class PlanningWorkflowService {
           this.workspace.refresh();
         },
         error: () => {
-          if (!this.isSelectedRound(roundId)) return;
+          if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
           this.feedback.notify('error', 'Planung nicht erzeugt', 'Bitte Planungsdaten prüfen.');
         },
       });
   }
 
-  confirmPlan(): void {
+  confirmPlan(view = this.activeView): void {
     if (!this.ensureWorkspaceMatchesSelectedRound()) return;
     if (!this.auth.hasCapability('planning-proposal:confirm')) {
       this.feedback.roleRestriction();
       return;
     }
     const roundId = this.roundContext.roundId();
-    this.workspace.actionBusy.set(true);
-    this.sessionScope
-      .forCurrentSession(this.planning.confirmPlan())
-      .pipe(finalize(() => this.workspace.actionBusy.set(false)))
-      .subscribe({
-        next: (result) => {
-          if (!this.isSelectedRound(roundId)) return;
-          this.lastResult.set(result);
-          const confirmed = result.counts['confirmed_slots'] ?? 0;
-          const warning = result.notification_warning ?? result.calendar_warning;
-          this.feedback.notify(
-            warning ? 'error' : 'success',
-            warning ? 'Plan bestätigt, Zusatzinformationen unvollständig' : 'Plan bestätigt',
-            warning ?? `${confirmed} Termine sind verbindlich.`,
-          );
-          this.workspace.refresh();
-          void this.router.navigateByUrl(`/confirmed-plans/${roundId}`);
-        },
-        error: () => {
-          if (!this.isSelectedRound(roundId)) return;
-          this.feedback.notify('error', 'Plan nicht bestätigt', 'Bitte erneut versuchen.');
-        },
-      });
+    if (!this.beginOperation()) return;
+    this.submitPlanConfirmation(roundId, view);
   }
 
-  loadPlanningProposal(): void {
+  loadPlanningProposal(view = this.activeView): void {
     if (this.workspace.round()?.status !== 'plan_proposed') return;
     const roundId = this.roundContext.roundId();
     this.editorState.set('loading');
@@ -410,58 +427,113 @@ export class PlanningWorkflowService {
     this.editorViolations.set([]);
     this.sessionScope.forCurrentSession(this.planning.getPlanningProposal()).subscribe({
       next: (proposal) => {
-        if (!this.isSelectedRound(roundId)) return;
+        if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
         this.proposal.set(proposal);
         this.editorState.set('ready');
       },
       error: (error: ApplicationError) => {
-        if (!this.isSelectedRound(roundId)) return;
+        if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
         this.editorState.set('error');
         this.editorError.set(this.proposalErrorMessage(error));
       },
     });
   }
 
-  reloadPlanningProposal(): void {
-    this.loadPlanningProposal();
+  reloadPlanningProposal(view = this.activeView): void {
+    this.loadPlanningProposal(view);
   }
 
-  savePlanningProposal(proposal: EditablePlanningProposal): void {
+  savePlanningProposal(proposal: EditablePlanningProposal, view = this.activeView): void {
     if (!this.ensureWorkspaceMatchesSelectedRound()) return;
     if (!this.auth.hasCapability('planning-proposal:replace')) {
       this.feedback.roleRestriction();
       return;
     }
     const roundId = this.roundContext.roundId();
+    if (!this.beginOperation()) return;
     this.editorState.set('saving');
     this.editorError.set(null);
     this.editorViolations.set([]);
-    this.sessionScope.forCurrentSession(this.planning.savePlanningProposal(proposal)).subscribe({
-      next: (saved) => {
-        if (!this.isSelectedRound(roundId)) return;
-        this.proposal.set(saved);
-        this.editorState.set('ready');
-        this.feedback.notify(
-          'success',
-          'Änderungen gespeichert',
-          'Der Planungsvorschlag ist aktualisiert.',
-        );
-      },
-      error: (error: ApplicationError) => {
-        if (!this.isSelectedRound(roundId)) return;
-        this.editorState.set('error');
-        const detail =
-          typeof error.details === 'object' && error.details !== null
-            ? (error.details as { violations?: PlanningValidationViolation[] })
-            : undefined;
-        this.editorViolations.set(detail?.violations ?? []);
-        this.editorError.set(
-          error.kind === 'conflict'
-            ? 'Der Vorschlag wurde zwischenzeitlich geändert. Laden Sie die aktuelle Fassung, bevor Sie erneut speichern.'
-            : this.proposalErrorMessage(error),
-        );
-      },
-    });
+    this.sessionScope
+      .forCurrentSession(this.planning.savePlanningProposal(proposal))
+      .pipe(finalize(() => this.pending.set(false)))
+      .subscribe({
+        next: (saved) => {
+          if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) {
+            if (this.isSelectedRound(roundId)) this.workspace.refresh();
+            return;
+          }
+          this.proposal.set(saved);
+          this.editorState.set('ready');
+          this.feedback.notify(
+            'success',
+            'Änderungen gespeichert',
+            'Der Planungsvorschlag ist aktualisiert.',
+          );
+        },
+        error: (error: ApplicationError) => {
+          if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
+          this.editorState.set('error');
+          const detail =
+            typeof error.details === 'object' && error.details !== null
+              ? (error.details as { violations?: PlanningValidationViolation[] })
+              : undefined;
+          this.editorViolations.set(detail?.violations ?? []);
+          this.editorError.set(
+            error.kind === 'conflict'
+              ? 'Der Vorschlag wurde zwischenzeitlich geändert. Laden Sie die aktuelle Fassung, bevor Sie erneut speichern.'
+              : this.proposalErrorMessage(error),
+          );
+        },
+      });
+  }
+
+  private beginOperation(): boolean {
+    if (this.pending() || this.workspace.actionBusy()) return false;
+    this.pending.set(true);
+    return true;
+  }
+
+  private isCurrentView(view: symbol | null): boolean {
+    return view === null || view === this.activeView;
+  }
+
+  private emitViewEffect(view: symbol | null, effect: PlanningViewEffectCommand): void {
+    if (!this.isCurrentView(view)) return;
+    this.viewEffect.set({ ...effect, version: ++this.effectVersion });
+  }
+
+  private submitPlanConfirmation(roundId: number, view: symbol | null): void {
+    this.sessionScope
+      .forCurrentSession(defer(() => this.planning.confirmPlan()))
+      .pipe(finalize(() => this.pending.set(false)))
+      .subscribe({
+        next: (result) => this.handlePlanConfirmation(result, roundId, view),
+        error: () => this.reportPlanConfirmationFailure(roundId, view),
+      });
+  }
+
+  private handlePlanConfirmation(
+    result: PlanningResult,
+    roundId: number,
+    view: symbol | null,
+  ): void {
+    if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
+    this.lastResult.set(result);
+    const confirmed = result.counts['confirmed_slots'] ?? 0;
+    const warning = result.notification_warning ?? result.calendar_warning;
+    this.feedback.notify(
+      warning ? 'error' : 'success',
+      warning ? 'Plan bestätigt, Zusatzinformationen unvollständig' : 'Plan bestätigt',
+      warning ?? `${confirmed} Termine sind verbindlich.`,
+    );
+    this.workspace.refresh();
+    void this.router.navigateByUrl(`/confirmed-plans/${roundId}`);
+  }
+
+  private reportPlanConfirmationFailure(roundId: number, view: symbol | null): void {
+    if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
+    this.feedback.notify('error', 'Plan nicht bestätigt', 'Bitte erneut versuchen.');
   }
 
   private resetPlanningProposal(): void {
