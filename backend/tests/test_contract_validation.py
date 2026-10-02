@@ -1,4 +1,4 @@
-"""Nested OpenAPI response validation retains precise failure locations."""
+"""OpenAPI contract tests use complete JSON Schema validation semantics."""
 
 from __future__ import annotations
 
@@ -58,23 +58,50 @@ class ContractValidationTests(unittest.TestCase):
             {"items": [{"id": 1, "state": "open", "note": None}, {"id": 2, "note": "Text"}]},
         )
 
-    def test_errors_retain_locations_and_type_required_enum_order(self) -> None:
+    def test_errors_retain_locations(self) -> None:
         cases = (
-            ([], "response: expected object, got list"),
-            ({}, "response: missing required field 'items'"),
-            ({"items": [{}]}, "response.items[0]: missing required field 'id'"),
-            ({"items": [{"id": True}]}, "response.items[0].id: expected integer, got bool"),
+            ([], "response"),
+            ({}, "response"),
+            ({"items": [{}]}, "response.items[0]"),
+            ({"items": [{"id": True}]}, "response.items[0].id"),
             (
                 {"items": [{"id": 1, "state": "other"}]},
-                "response.items[0].state: value 'other' is not an allowed enum member",
+                "response.items[0].state",
             ),
             (
                 {"items": [{"id": 1, "note": 3}]},
-                "response.items[0].note: expected string or null, got int",
+                "response.items[0].note",
             ),
         )
-        for value, message in cases:
-            with self.subTest(message=message):
+        for value, location in cases:
+            with self.subTest(location=location):
                 with self.assertRaises(ContractValidationError) as error:
                     validate_response(self.document, "GET", "/example", 200, value)
-                self.assertEqual(message, str(error.exception))
+                self.assertTrue(str(error.exception).startswith(location))
+
+    def test_json_schema_composition_constants_and_closed_objects_are_enforced(self) -> None:
+        self.document["components"]["schemas"]["Result"] = {
+            "type": "object",
+            "required": ["session", "status"],
+            "properties": {
+                "session": {"anyOf": [{"type": "integer"}, {"type": "null"}]},
+                "status": {"const": "draft"},
+            },
+            "additionalProperties": False,
+        }
+
+        for value in (
+            {"session": "17", "status": "draft"},
+            {"session": None, "status": "active"},
+            {"session": 17, "status": "draft", "extra": True},
+        ):
+            with self.subTest(value=value), self.assertRaises(ContractValidationError):
+                validate_response(self.document, "GET", "/example", 200, value)
+
+        validate_response(
+            self.document,
+            "GET",
+            "/example",
+            200,
+            {"session": None, "status": "draft"},
+        )

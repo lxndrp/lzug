@@ -39,7 +39,6 @@ from backend.integrations.calendar import CalendarService
 from backend.integrations.notifications import NotificationService
 from backend.observability import emit_event
 from backend.persistence.models import (
-    CANDIDATE,
     Resource,
 )
 from backend.planning import PlanningService
@@ -169,12 +168,12 @@ class RequestContext:
         self._body = body
 
     def read_json(self) -> dict[str, Any]:
-        """Decode the bounded object for the remaining compatibility checks.
+        """Decode the bounded JSON object envelope.
 
         FastAPI owns request-model validation and OpenAPI generation. This
-        compatibility read remains for the stable JSON media/object envelope
-        and because runtime allowlists and lifecycle guards must inspect the
-        object before endpoint field validation.
+        read remains for the stable media/object envelope and because runtime
+        allowlists and lifecycle guards must inspect the object before endpoint
+        field validation.
         """
         if len(self._body) > self.max_request_bytes:
             raise RequestTooLargeError(f"Request body exceeds {self.max_request_bytes} bytes.")
@@ -191,45 +190,7 @@ class RequestContext:
             raise ValueError("Invalid JSON body") from error
         if not isinstance(payload, dict):
             raise ValueError("JSON body must be an object")
-        return self.normalize_payload(payload)
-
-    def normalize_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
-        normalized = dict(payload)
-        normalized.pop("specialization_label", None)
-        if "default_location_id" in normalized:
-            default_location_id = normalized.pop("default_location_id")
-            if (
-                "default_room_id" in normalized
-                and normalized["default_room_id"] != default_location_id
-            ):
-                raise ValueError("default_room_id and default_location_id must match")
-            normalized["default_room_id"] = default_location_id
-        if "attempt_number" in normalized:
-            normalized["attempt_number"] = max(1, int(normalized["attempt_number"]))
-        for field_name in (
-            "requires_mep",
-            "is_active",
-            "lunch_break_enabled",
-            "exclude_public_holidays",
-        ):
-            if field_name in normalized:
-                normalized[field_name] = self.normalize_bool(normalized[field_name])
-        normalized.pop(CANDIDATE.table, None)
-        return normalized
-
-    @staticmethod
-    def normalize_bool(value: Any) -> int:
-        if isinstance(value, bool):
-            return int(value)
-        if isinstance(value, int):
-            return int(value != 0)
-        if isinstance(value, str):
-            normalized = value.strip().lower()
-            if normalized in {"1", "true", "yes", "on"}:
-                return 1
-            if normalized in {"0", "false", "no", "off"}:
-                return 0
-        raise ValueError("Expected boolean value")
+        return payload
 
     def require_authenticated(
         self, *, require_actor: bool = True, require_csrf: bool = False

@@ -586,7 +586,7 @@ class OpenApiContractTests(unittest.TestCase):
             altered_health = dict(health)
             altered_health.pop("status")
 
-        with self.assertRaisesRegex(ContractValidationError, "missing required field 'status'"):
+        with self.assertRaisesRegex(ContractValidationError, "'status' is a required property"):
             app = create_app(
                 FastAPIConfig(
                     db_path=db_path,

@@ -1,11 +1,34 @@
 """Pydantic models used at the public FastAPI contract boundary."""
 
 from decimal import Decimal
-from typing import Literal
+from typing import Annotated, Literal, cast
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
+from pydantic import (
+    AliasChoices,
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_validator,
+)
 
 from .runtime import RuntimeState
+
+
+def _attempt_number(value: object) -> int:
+    """Preserve the historical lower bound on candidate attempt numbers."""
+    if value is None:
+        return cast(int, value)
+    if not isinstance(value, (str, int, float, Decimal)):
+        raise ValueError("Invalid attempt number") from None
+    try:
+        return max(1, int(value))
+    except TypeError, ValueError, OverflowError:
+        raise ValueError("Invalid attempt number") from None
+
+
+AttemptNumber = Annotated[int, BeforeValidator(_attempt_number)]
 
 
 class ErrorResponse(BaseModel):
@@ -335,6 +358,64 @@ class DomainResourceWrite(BaseModel):
     model_config = ConfigDict(extra="allow")
 
 
+def _compatible_boolean(value: object) -> object:
+    """Keep supported historical boolean spellings at declared request fields."""
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return int(value != 0)
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            return 1
+        if normalized in {"0", "false", "no", "off"}:
+            return 0
+    raise ValueError("Expected boolean value")
+
+
+CompatibleBoolean = Annotated[bool | int, BeforeValidator(_compatible_boolean)]
+
+
+def _planning_settings_schema(schema: dict[str, object], _model: type[BaseModel]) -> None:
+    properties = schema.setdefault("properties", {})
+    if isinstance(properties, dict):
+        properties["default_location_id"] = {
+            "anyOf": [{"type": "integer"}, {"type": "null"}],
+            "deprecated": True,
+            "description": "Compatibility alias for default_room_id.",
+            "title": "Default Location Id",
+        }
+
+
+class PlanningSettingsRequest(DomainResourceWrite):
+    """Planning settings inputs with their legacy location alias."""
+
+    model_config = ConfigDict(
+        extra="allow",
+        json_schema_extra=_planning_settings_schema,
+    )
+
+    default_room_id: int | None = Field(
+        default=None,
+        validation_alias=AliasChoices("default_room_id", "default_location_id"),
+    )
+    lunch_break_enabled: CompatibleBoolean | None = None
+    exclude_public_holidays: CompatibleBoolean | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def validate_location_aliases(cls, value: object) -> object:
+        if not isinstance(value, dict):
+            return value
+        if (
+            "default_room_id" in value
+            and "default_location_id" in value
+            and value["default_room_id"] != value["default_location_id"]
+        ):
+            raise ValueError("default_room_id and default_location_id must match")
+        return value
+
+
 class DomainResourceResponse(BaseModel):
     model_config = ConfigDict(extra="allow")
 
@@ -412,7 +493,7 @@ class MembershipCreate(BaseModel):
     member_status: str = "ordinary"
     committee_role: str = "member"
     representing_side: str = "employer"
-    is_active: bool | int = True
+    is_active: CompatibleBoolean = True
 
 
 class MembershipUpdate(MasterDataUpdate):
@@ -425,7 +506,7 @@ class MembershipUpdate(MasterDataUpdate):
     member_status: str | None = None
     committee_role: str | None = None
     representing_side: str | None = None
-    is_active: bool | int | None = None
+    is_active: CompatibleBoolean | None = None
 
 
 class MembershipResponse(MasterDataResponse):
@@ -510,18 +591,18 @@ class RoundCandidateCreate(BaseModel):
 
     exam_round_id: int
     candidate_id: int
-    attempt_number: int = 1
-    requires_mep: bool | int = False
-    is_active: bool | int = True
+    attempt_number: AttemptNumber = 1
+    requires_mep: CompatibleBoolean = False
+    is_active: CompatibleBoolean = True
     assignment_change_reason: str | None = None
 
 
 class RoundCandidateUpdate(MasterDataUpdate):
     exam_round_id: int | None = None
     candidate_id: int | None = None
-    attempt_number: int | None = None
-    requires_mep: bool | int | None = None
-    is_active: bool | int | None = None
+    attempt_number: AttemptNumber | None = None
+    requires_mep: CompatibleBoolean | None = None
+    is_active: CompatibleBoolean | None = None
     terminal_status: str | None = None
     terminal_reason: str | None = None
     effective_new_round_id: int | None = None
@@ -556,8 +637,8 @@ class CandidateCreate(BaseModel):
     specialization: str
     training_company: str
     exam_round_id: int | None = None
-    attempt_number: int = 1
-    requires_mep: bool | int = False
+    attempt_number: AttemptNumber = 1
+    requires_mep: CompatibleBoolean = False
 
 
 class CandidateUpdate(MasterDataUpdate):
@@ -570,8 +651,8 @@ class CandidateUpdate(MasterDataUpdate):
     specialization: str | None = None
     training_company: str | None = None
     exam_round_id: int | None = None
-    attempt_number: int | None = None
-    requires_mep: bool | int | None = None
+    attempt_number: AttemptNumber | None = None
+    requires_mep: CompatibleBoolean | None = None
     assignment_change_reason: str | None = None
 
 
@@ -915,14 +996,14 @@ class ExamVenueCreateRequest(BaseModel):
     site_name: str | None = None
     entrance: str | None = None
     travel_directions: str | None = None
-    is_accessible: bool | int | None = None
+    is_accessible: CompatibleBoolean | None = None
     accessibility_status: str = "needs_clarification"
     accessibility_notes: str | None = None
     latitude: float | None = None
     longitude: float | None = None
     coordinate_status: str = "missing"
     coordinate_source: str | None = None
-    is_active: bool | int = False
+    is_active: CompatibleBoolean = False
     reason: str | None = None
     duplicates_reviewed: bool = False
     duplicate_reason: str | None = None
@@ -942,14 +1023,14 @@ class ExamVenueUpdateRequest(BaseModel):
     site_name: str | None = None
     entrance: str | None = None
     travel_directions: str | None = None
-    is_accessible: bool | int | None = None
+    is_accessible: CompatibleBoolean | None = None
     accessibility_status: str | None = None
     accessibility_notes: str | None = None
     latitude: float | None = None
     longitude: float | None = None
     coordinate_status: str | None = None
     coordinate_source: str | None = None
-    is_active: bool | int | None = None
+    is_active: CompatibleBoolean | None = None
     reason: str | None = None
     duplicates_reviewed: bool = False
     duplicate_reason: str | None = None
@@ -983,7 +1064,7 @@ class ExamRoomCreateRequest(BaseModel):
     room_number: str | None = None
     access_notes: str | None = None
     capacity: int | None = None
-    is_active: bool | int = True
+    is_active: CompatibleBoolean = True
     reason: str | None = None
 
 
@@ -1000,7 +1081,7 @@ class ExamRoomUpdateRequest(BaseModel):
     room_number: str | None = None
     access_notes: str | None = None
     capacity: int | None = None
-    is_active: bool | int | None = None
+    is_active: CompatibleBoolean | None = None
     reason: str | None = None
     confirm_future_assignments: bool = False
     meaningful_change: bool = True
@@ -1016,7 +1097,7 @@ class ExamVenueContactCreateRequest(BaseModel):
     phone: str | None = None
     email: str | None = None
     availability_notes: str | None = None
-    is_active: bool | int = True
+    is_active: CompatibleBoolean = True
     room_ids: list[int] | None = None
     reason: str | None = None
 
@@ -1032,7 +1113,7 @@ class ExamVenueContactUpdateRequest(BaseModel):
     phone: str | None = None
     email: str | None = None
     availability_notes: str | None = None
-    is_active: bool | int | None = None
+    is_active: CompatibleBoolean | None = None
     room_ids: list[int] | None = None
     reason: str | None = None
 
