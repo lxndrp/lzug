@@ -223,17 +223,25 @@ Eine zusätzliche Generation-Fencing-Garantie für verspätete Task-Abschlüsse
 ist damit nicht festgelegt.
 
 Weitere heutige Kalenderpfade liegen in `execution.absence`:
-`select_replacement` ruft `sync_round` zunächst unmittelbar vor der
-Abwesenheitsmutation auf und ruft es bei offenem Prüfungstag ein zweites Mal
-nach dem Commit der Mutation auf.
-Wiederöffnung ruft `sync_round` nach dem Abwesenheitscommit auf; Abbruch ruft
-`cancel_assignment` nach diesem Commit auf.
+`select_replacement` ermittelt über `_report_round_id` eine Runde nur für
+einen offenen Prüfungstag und ruft dann `sync_round` vor der
+Abwesenheitsmutation auf.
+Nach dem Commit ruft es `sync_round` erneut auf, ebenfalls nur bei offenem
+Prüfungstag.
+Wiederöffnung ruft `sync_round` nach dem Abwesenheitscommit nur für einen
+offenen Prüfungstag auf; dieser Sync hat für die Wiederherstellung der
+ursprünglichen Zuweisung keinen Kalenderereignis- oder Versions-Effekt.
+Abbruch ruft `cancel_assignment` nach dem Commit ebenfalls nur für einen
+offenen Prüfungstag auf.
 Diese Aufrufe sind direkte synchrone Folgen ohne dauerhaften Application-
 Auftrag und ohne garantierte Wiederholung nach Prozessabbruch.
 Eine Rundungsabsage verhält sich anders:
-`ExamRoundLifecycleService` setzt die betroffenen zukünftigen
-`CalendarEvent`-Zeilen während derselben Rundungsentscheidungs-
-Transaktion auf `cancelled` und erhöht ihre Version.
+`ExamRoundLifecycleService` setzt nicht stornierte `CalendarEvent`-Zeilen mit
+`date >= now[:10]` während derselben Rundungsentscheidungs-Transaktion auf
+`cancelled` und erhöht ihre Version.
+Der inklusive Tages-Cutoff umfasst damit alle Events des Entscheidungstags
+und späterer Tage, auch wenn ein Eventzeitpunkt am Entscheidungstag bereits
+vergangen ist.
 Damit committen Rundungsentscheidung und lokale Kalenderstornierung gemeinsam;
 es gibt für diesen Pfad keinen nachgelagerten Calendar-Sync-Auftrag.
 
@@ -243,6 +251,12 @@ verloren sein.
 Der Zielvertrag kehrt diese Reihenfolge um:
 erst lokale Projektion im eigenen Calendar-UoW erfolgreich aktualisieren,
 dann das neue Credential atomar speichern und dessen URL einmalig zurückgeben.
+Der Credential-UoW prüft unter Schreibserialisierung erneut den vor dem Sync
+beobachteten Credentialstatus oder sichert ihn per Revision/CAS.
+Bei konkurrierender Aktivierung oder Rotation erhält der Verlierer einen
+stabilen `FeedAlreadyActive`-/`FeedConflict`-Fehler ohne Secret; er kann weder
+den zuerst ausgegebenen Token ungültig machen noch einen rohen
+Unique-Constraint-Fehler erhalten.
 Scheitert der Sync, bleibt ein vorhandenes Credential unverändert und es wird
 kein Geheimnis ausgegeben.
 Geht die erfolgreiche Antwort nach dem Credential-Commit verloren, wird das
