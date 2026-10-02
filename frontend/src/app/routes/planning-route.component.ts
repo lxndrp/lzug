@@ -27,7 +27,7 @@ import { ApplicationWorkspaceService } from '../shell/application-workspace.serv
       [board]="workspace.board()"
       [masterData]="workspace.masterData()"
       [actionBusy]="workflow.actionBusy()"
-      [workflowEffect]="workflow.viewEffect()"
+      [workflowEffects]="workflow.viewEffects()"
       [candidateDayGenerationResult]="workflow.candidateDayGeneration()"
       [planningResult]="workflow.lastResult()"
       [availabilityOnly]="isDemoExaminer()"
@@ -50,6 +50,7 @@ import { ApplicationWorkspaceService } from '../shell/application-workspace.serv
       (loadPlanningProposal)="loadPlanningProposal()"
       (reloadPlanningProposal)="reloadPlanningProposal()"
       (savePlanningProposal)="savePlanningProposal($event)"
+      (workflowEffectsConsumed)="acknowledgeWorkflowEffects($event)"
       (confirmPlan)="requestPlanConfirmation()"
       (cancel)="cancel()"
     />
@@ -117,6 +118,10 @@ export class PlanningRouteComponent implements OnDestroy {
 
   protected savePlanningProposal(proposal: EditablePlanningProposal): void {
     this.workflow.savePlanningProposal(proposal, this.viewId);
+  }
+
+  protected acknowledgeWorkflowEffects(throughVersion: number): void {
+    this.workflow.acknowledgeViewEffects(this.viewId, throughVersion);
   }
 
   protected cancel(): void {

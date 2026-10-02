@@ -119,6 +119,45 @@ describe('VenueWorkflowService', () => {
     expect(workflow.actionBusy()).toBe(false);
   });
 
+  it('closes a pending venue confirmation when its route view is destroyed', () => {
+    const confirmation = new Subject<boolean>();
+    const port = createPort({ deleteVenue: vi.fn(() => of(undefined)) });
+    const { workflow, feedback } = configure(port, {
+      confirm$: vi.fn(() => confirmation),
+    });
+    const view = Symbol('locations-route-view');
+    workflow.activateView(view);
+
+    workflow.requestVenueDeletion(venue, view);
+
+    expect(workflow.actionBusy()).toBe(true);
+    expect(confirmation.observed).toBe(true);
+    workflow.deactivateView(view);
+
+    expect(confirmation.observed).toBe(false);
+    expect(workflow.actionBusy()).toBe(false);
+    expect(port.deleteVenue).not.toHaveBeenCalled();
+    expect(feedback.notify).not.toHaveBeenCalled();
+  });
+
+  it('suppresses a geocode success message after its route view is discarded', () => {
+    const response = new Subject<{ latitude: number; longitude: number; source: string }>();
+    const port = createPort({ geocodeVenue: vi.fn(() => response) });
+    const { workflow, feedback } = configure(port);
+    const viewA = Symbol('locations-route-a');
+    const viewB = Symbol('locations-route-b');
+    workflow.activateView(viewA);
+
+    workflow.geocodeVenue(venue, viewA);
+    workflow.activateView(viewB);
+    response.next({ latitude: 53.55, longitude: 9.99, source: 'test' });
+    response.complete();
+
+    expect(workflow.geocodeCandidate()).toBeNull();
+    expect(feedback.notify).not.toHaveBeenCalled();
+    expect(workflow.actionBusy()).toBe(false);
+  });
+
   it('combines change impact and duplicate results before confirming a revisioned update', () => {
     const impact = {
       count: 2,

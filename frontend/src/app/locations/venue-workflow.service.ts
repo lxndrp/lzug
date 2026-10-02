@@ -2,13 +2,17 @@ import { computed, Injectable, inject, signal } from '@angular/core';
 import {
   Observable,
   EMPTY,
+  NEVER,
+  Subject,
   catchError,
   defer,
   filter,
   finalize,
   forkJoin,
+  of,
   switchMap,
   take,
+  takeUntil,
 } from 'rxjs';
 
 import { LOCATIONS_PORT } from './locations.port';
@@ -39,6 +43,7 @@ export class VenueWorkflowService {
   private readonly sessionScope = inject(SessionScopeService);
   private readonly pending = signal(false);
   private activeView: symbol | null = null;
+  private activeViewEnded: Subject<void> | null = null;
   private effectVersion = 0;
 
   readonly actionBusy = computed(() => this.pending() || this.workspace.actionBusy());
@@ -52,13 +57,16 @@ export class VenueWorkflowService {
   }
 
   activateView(view: symbol): void {
+    if (this.activeView === view) return;
+    this.endActiveView();
     this.activeView = view;
+    this.activeViewEnded = new Subject<void>();
     this.viewEffect.set(null);
   }
 
   deactivateView(view: symbol): void {
     if (this.activeView !== view) return;
-    this.activeView = null;
+    this.endActiveView();
     this.viewEffect.set(null);
     this.geocodeCandidate.set(null);
   }
@@ -66,16 +74,15 @@ export class VenueWorkflowService {
   requestVenueDeletion(venue: Venue, view = this.activeView): void {
     this.runOperation(
       () =>
-        this.feedback
-          .confirm$(
-            `${venue.name} löschen?`,
-            'Nur ein vollständig ungenutzter Ort ohne Räume und Kontakte kann gelöscht werden.',
-            `${venue.name} löschen`,
-          )
-          .pipe(
-            filter((confirmed) => confirmed && this.isCurrentView(view)),
-            switchMap(() => defer(() => this.port.deleteVenue(venue.id, venue.revision))),
-          ),
+        this.confirmForView(
+          view,
+          `${venue.name} löschen?`,
+          'Nur ein vollständig ungenutzter Ort ohne Räume und Kontakte kann gelöscht werden.',
+          `${venue.name} löschen`,
+        ).pipe(
+          filter((confirmed) => confirmed && this.isCurrentView(view)),
+          switchMap(() => defer(() => this.port.deleteVenue(venue.id, venue.revision))),
+        ),
       () => this.completeVenueAction(undefined, 'Prüfungsort gelöscht', venue.name, view),
       () =>
         this.feedback.notify(
@@ -113,16 +120,15 @@ export class VenueWorkflowService {
                 }),
               );
             if (!duplicates.length) return create();
-            return this.feedback
-              .confirm$(
-                'Ähnliche Prüfungsorte gefunden',
-                duplicates.map((item) => `${item.name} · ${item.address}`).join('\n'),
-                'Trotzdem anlegen',
-              )
-              .pipe(
-                filter((confirmed) => confirmed && this.isCurrentView(view)),
-                switchMap(create),
-              );
+            return this.confirmForView(
+              view,
+              'Ähnliche Prüfungsorte gefunden',
+              duplicates.map((item) => `${item.name} · ${item.address}`).join('\n'),
+              'Trotzdem anlegen',
+            ).pipe(
+              filter((confirmed) => confirmed && this.isCurrentView(view)),
+              switchMap(create),
+            );
           }),
         ),
       (venue) => {
@@ -175,23 +181,20 @@ export class VenueWorkflowService {
                 }),
               );
             if (!needsConfirmation) return save();
-            return this.feedback
-              .confirm$(
-                duplicates.length
-                  ? 'Ähnliche Prüfungsorte gefunden'
-                  : 'Bestätigte Termine betroffen',
-                [
-                  this.venueImpactMessage(impact),
-                  ...duplicates.map((item) => `${item.name} · ${item.address}`),
-                ]
-                  .filter(Boolean)
-                  .join('\n'),
-                'Änderung bestätigen',
-              )
-              .pipe(
-                filter((confirmed) => confirmed && this.isCurrentView(view)),
-                switchMap(save),
-              );
+            return this.confirmForView(
+              view,
+              duplicates.length ? 'Ähnliche Prüfungsorte gefunden' : 'Bestätigte Termine betroffen',
+              [
+                this.venueImpactMessage(impact),
+                ...duplicates.map((item) => `${item.name} · ${item.address}`),
+              ]
+                .filter(Boolean)
+                .join('\n'),
+              'Änderung bestätigen',
+            ).pipe(
+              filter((confirmed) => confirmed && this.isCurrentView(view)),
+              switchMap(save),
+            );
           }),
         ),
       (venue) => {
@@ -221,9 +224,8 @@ export class VenueWorkflowService {
     this.runOperation(
       () => defer(() => this.port.geocodeVenue(venue.id, venue.revision)),
       (candidate) => {
-        if (this.isCurrentView(view)) {
-          this.geocodeCandidate.set({ venueId: venue.id, ...candidate });
-        }
+        if (!this.isCurrentView(view)) return;
+        this.geocodeCandidate.set({ venueId: venue.id, ...candidate });
         this.feedback.notify(
           'success',
           'Position vorgeschlagen',
@@ -280,16 +282,15 @@ export class VenueWorkflowService {
                 }),
               );
             if (!requiresConfirmation) return save();
-            return this.feedback
-              .confirm$(
-                'Bestätigte Termine betroffen',
-                this.venueImpactMessage(impact),
-                'Änderung bestätigen',
-              )
-              .pipe(
-                filter((confirmed) => confirmed && this.isCurrentView(view)),
-                switchMap(save),
-              );
+            return this.confirmForView(
+              view,
+              'Bestätigte Termine betroffen',
+              this.venueImpactMessage(impact),
+              'Änderung bestätigen',
+            ).pipe(
+              filter((confirmed) => confirmed && this.isCurrentView(view)),
+              switchMap(save),
+            );
           }),
           catchError(() => {
             this.feedback.notify(
@@ -445,6 +446,31 @@ export class VenueWorkflowService {
 
   private isCurrentView(view: symbol | null): boolean {
     return view === null || view === this.activeView;
+  }
+
+  private confirmForView(
+    view: symbol | null,
+    title: string,
+    message: string,
+    confirmLabel: string,
+  ): Observable<boolean> {
+    if (!this.isCurrentView(view)) return EMPTY;
+    return this.feedback
+      .confirm$(title, message, confirmLabel)
+      .pipe(takeUntil(this.viewEnded(view)));
+  }
+
+  private viewEnded(view: symbol | null): Observable<void> {
+    if (view === null) return NEVER;
+    if (!this.isCurrentView(view)) return of(undefined);
+    return this.activeViewEnded ?? of(undefined);
+  }
+
+  private endActiveView(): void {
+    this.activeView = null;
+    this.activeViewEnded?.next();
+    this.activeViewEnded?.complete();
+    this.activeViewEnded = null;
   }
 
   private venueImpactMessage(impact: VenueChangeImpact): string {

@@ -1,6 +1,17 @@
 import { computed, effect, Injectable, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import { defer, filter, finalize, switchMap } from 'rxjs';
+import {
+  EMPTY,
+  NEVER,
+  Subject,
+  Subscription,
+  defer,
+  filter,
+  finalize,
+  of,
+  switchMap,
+  takeUntil,
+} from 'rxjs';
 
 import type {
   AvailabilityRequest,
@@ -39,11 +50,13 @@ export class PlanningWorkflowService {
   private readonly workspace = inject(ApplicationWorkspaceService);
   private readonly pending = signal(false);
   private activeView: symbol | null = null;
+  private activeViewEnded: Subject<void> | null = null;
+  private proposalLoad?: Subscription;
   private effectVersion = 0;
   private readonly pendingAvailability = new Set<string>();
 
   readonly actionBusy = computed(() => this.pending() || this.workspace.actionBusy());
-  readonly viewEffect = signal<PlanningViewEffect | null>(null);
+  readonly viewEffects = signal<PlanningViewEffect[]>([]);
   readonly lastResult = signal<PlanningResult | null>(null);
   readonly proposal = signal<EditablePlanningProposal | null>(null);
   readonly editorState = signal<ProposalEditorState>('idle');
@@ -62,7 +75,7 @@ export class PlanningWorkflowService {
     effect(() => {
       const round = this.workspace.round();
       if (round?.status === 'plan_proposed') {
-        this.loadPlanningProposal();
+        this.loadPlanningProposal(this.activeView);
       } else {
         this.resetPlanningProposal();
       }
@@ -71,14 +84,21 @@ export class PlanningWorkflowService {
   }
 
   activateView(view: symbol): void {
+    if (this.activeView === view) return;
+    this.endActiveView();
     this.activeView = view;
-    this.viewEffect.set(null);
+    this.activeViewEnded = new Subject<void>();
+    this.viewEffects.set([]);
+    if (this.workspace.round()?.status === 'plan_proposed') this.loadPlanningProposal(view);
   }
 
   deactivateView(view: symbol): void {
     if (this.activeView !== view) return;
-    this.activeView = null;
-    this.viewEffect.set(null);
+    this.endActiveView();
+    this.viewEffects.set([]);
+    if (this.editorState() === 'loading' || this.editorState() === 'saving') {
+      this.editorState.set('idle');
+    }
   }
 
   resetForRoundChange(): void {
@@ -105,7 +125,8 @@ export class PlanningWorkflowService {
     const roundId = this.roundContext.roundId();
     this.sessionScope
       .forCurrentSession(
-        this.feedback.confirm$(
+        this.confirmForView(
+          view,
           'Terminplan bestätigen?',
           'Der aktuelle Planungsvorschlag wird als verbindlicher Terminplan bestätigt.',
           'Plan verbindlich bestätigen',
@@ -377,6 +398,13 @@ export class PlanningWorkflowService {
       });
   }
 
+  acknowledgeViewEffects(view: symbol, throughVersion: number): void {
+    if (!this.isCurrentView(view)) return;
+    this.viewEffects.update((effects) =>
+      effects.filter((effect) => effect.version > throughVersion),
+    );
+  }
+
   generateProposal(view = this.activeView): void {
     if (!this.ensureWorkspaceMatchesSelectedRound()) return;
     if (!this.auth.hasCapability('planning-proposal:generate')) {
@@ -420,23 +448,40 @@ export class PlanningWorkflowService {
   }
 
   loadPlanningProposal(view = this.activeView): void {
-    if (this.workspace.round()?.status !== 'plan_proposed') return;
+    if (!this.isCurrentView(view)) return;
+    this.proposalLoad?.unsubscribe();
+    this.proposalLoad = undefined;
+    if (this.workspace.round()?.status !== 'plan_proposed') {
+      this.editorState.set('idle');
+      return;
+    }
     const roundId = this.roundContext.roundId();
     this.editorState.set('loading');
     this.editorError.set(null);
     this.editorViolations.set([]);
-    this.sessionScope.forCurrentSession(this.planning.getPlanningProposal()).subscribe({
-      next: (proposal) => {
-        if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
-        this.proposal.set(proposal);
-        this.editorState.set('ready');
-      },
-      error: (error: ApplicationError) => {
-        if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
-        this.editorState.set('error');
-        this.editorError.set(this.proposalErrorMessage(error));
-      },
-    });
+    const subscription = this.sessionScope
+      .forCurrentSession(this.planning.getPlanningProposal())
+      .pipe(
+        takeUntil(this.viewEnded(view)),
+        finalize(() => {
+          if (this.isCurrentView(view) && this.editorState() === 'loading') {
+            this.editorState.set('idle');
+          }
+        }),
+      )
+      .subscribe({
+        next: (proposal) => {
+          if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
+          this.proposal.set(proposal);
+          this.editorState.set('ready');
+        },
+        error: (error: ApplicationError) => {
+          if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
+          this.editorState.set('error');
+          this.editorError.set(this.proposalErrorMessage(error));
+        },
+      });
+    this.proposalLoad = subscription;
   }
 
   reloadPlanningProposal(view = this.activeView): void {
@@ -460,7 +505,7 @@ export class PlanningWorkflowService {
       .subscribe({
         next: (saved) => {
           if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) {
-            if (this.isSelectedRound(roundId)) this.workspace.refresh();
+            if (this.isSelectedRound(roundId)) this.recoverProposalForActiveView(roundId, true);
             return;
           }
           this.proposal.set(saved);
@@ -472,7 +517,11 @@ export class PlanningWorkflowService {
           );
         },
         error: (error: ApplicationError) => {
-          if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
+          if (!this.isSelectedRound(roundId)) return;
+          if (!this.isCurrentView(view)) {
+            this.recoverProposalForActiveView(roundId, false);
+            return;
+          }
           this.editorState.set('error');
           const detail =
             typeof error.details === 'object' && error.details !== null
@@ -498,9 +547,46 @@ export class PlanningWorkflowService {
     return view === null || view === this.activeView;
   }
 
+  private confirmForView(
+    view: symbol | null,
+    title: string,
+    message: string,
+    confirmLabel: string,
+  ) {
+    if (!this.isCurrentView(view)) return EMPTY;
+    return this.feedback
+      .confirm$(title, message, confirmLabel)
+      .pipe(takeUntil(this.viewEnded(view)));
+  }
+
+  private viewEnded(view: symbol | null) {
+    if (view === null) return NEVER;
+    if (!this.isCurrentView(view)) return of(undefined);
+    return this.activeViewEnded ?? of(undefined);
+  }
+
+  private endActiveView(): void {
+    this.activeView = null;
+    this.activeViewEnded?.next();
+    this.activeViewEnded?.complete();
+    this.activeViewEnded = null;
+  }
+
+  private recoverProposalForActiveView(roundId: number, refreshWorkspace: boolean): void {
+    if (!this.isSelectedRound(roundId)) return;
+    if (refreshWorkspace) this.workspace.refresh();
+    const view = this.activeView;
+    if (view && this.workspace.round()?.status === 'plan_proposed') {
+      this.loadPlanningProposal(view);
+    }
+  }
+
   private emitViewEffect(view: symbol | null, effect: PlanningViewEffectCommand): void {
     if (!this.isCurrentView(view)) return;
-    this.viewEffect.set({ ...effect, version: ++this.effectVersion });
+    this.viewEffects.update((effects) => [
+      ...effects,
+      { ...effect, version: ++this.effectVersion } as PlanningViewEffect,
+    ]);
   }
 
   private submitPlanConfirmation(roundId: number, view: symbol | null): void {

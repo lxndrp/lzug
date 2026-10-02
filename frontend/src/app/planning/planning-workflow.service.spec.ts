@@ -160,11 +160,13 @@ describe('PlanningWorkflowService', () => {
     workflow.saveAvailability(payload, view);
 
     expect(planning.saveMemberAvailability).not.toHaveBeenCalled();
-    expect(workflow.viewEffect()).toMatchObject({
-      type: 'availability-error',
-      payload,
-      usePersistedValue: true,
-    });
+    expect(workflow.viewEffects()).toMatchObject([
+      {
+        type: 'availability-error',
+        payload,
+        usePersistedValue: true,
+      },
+    ]);
   });
 
   it('does not apply a late availability response to the newly selected round', () => {
@@ -222,8 +224,150 @@ describe('PlanningWorkflowService', () => {
     availabilityResponse.complete();
 
     expect(board()).toEqual({ availabilities: [] });
-    expect(workflow.viewEffect()).toBeNull();
+    expect(workflow.viewEffects()).toEqual([]);
     expect(feedback.notify).not.toHaveBeenCalled();
+  });
+
+  it('settles proposal loading when a view is destroyed and reloads on the next route view', () => {
+    const requests: Subject<never>[] = [];
+    const planning = {
+      getPlanningProposal: vi.fn(() => {
+        const response = new Subject<never>();
+        requests.push(response);
+        return response;
+      }),
+    };
+    const workspace = createPlanningWorkspace('plan_proposed');
+    configureWorkflow(workspace, planning);
+    TestBed.inject(RoundContextService).select(1);
+    const workflow = TestBed.inject(PlanningWorkflowService);
+    const viewA = Symbol('planning-route-a');
+    const viewB = Symbol('planning-route-b');
+
+    workflow.activateView(viewA);
+    const staleRequest = requests.at(-1)!;
+    expect(workflow.editorState()).toBe('loading');
+    expect(staleRequest.observed).toBe(true);
+
+    workflow.deactivateView(viewA);
+    expect(workflow.editorState()).toBe('idle');
+    expect(staleRequest.observed).toBe(false);
+
+    workflow.activateView(viewB);
+    const activeRequest = requests.at(-1)!;
+    expect(activeRequest).not.toBe(staleRequest);
+    expect(workflow.editorState()).toBe('loading');
+    staleRequest.next({} as never);
+    expect(workflow.editorState()).toBe('loading');
+    activeRequest.next({} as never);
+    activeRequest.complete();
+
+    expect(workflow.editorState()).toBe('ready');
+  });
+
+  it('restarts proposal loading after a save error arrives from a discarded view', () => {
+    const saveResponse = new Subject<never>();
+    const proposalRequests: Subject<never>[] = [];
+    const planning = {
+      getPlanningProposal: vi.fn(() => {
+        const response = new Subject<never>();
+        proposalRequests.push(response);
+        return response;
+      }),
+      savePlanningProposal: vi.fn(() => saveResponse),
+    };
+    const workspace = createPlanningWorkspace('plan_proposed');
+    configureWorkflow(workspace, planning);
+    TestBed.inject(RoundContextService).select(1);
+    const workflow = TestBed.inject(PlanningWorkflowService);
+    const viewA = Symbol('planning-route-a');
+    const viewB = Symbol('planning-route-b');
+    workflow.activateView(viewA);
+    workflow.savePlanningProposal({} as never, viewA);
+    workflow.activateView(viewB);
+    const proposalLoadsBeforeFailure = proposalRequests.length;
+
+    saveResponse.error({ kind: 'conflict' });
+
+    expect(planning.savePlanningProposal).toHaveBeenCalledOnce();
+    expect(proposalRequests).toHaveLength(proposalLoadsBeforeFailure + 1);
+    expect(workflow.editorState()).toBe('loading');
+    expect(workflow.actionBusy()).toBe(false);
+  });
+
+  it('cancels plan confirmation and clears pending when the planning route is destroyed', () => {
+    const confirmation = new Subject<boolean>();
+    const planning = {
+      confirmPlan: vi.fn(() => of({ counts: {} })),
+      getPlanningProposal: vi.fn(() => of({})),
+    };
+    const workspace = createPlanningWorkspace('plan_proposed');
+    const feedback = {
+      notify: vi.fn(),
+      roleRestriction: vi.fn(),
+      confirm$: vi.fn(() => confirmation),
+    };
+    configureWorkflow(workspace, planning, feedback);
+    TestBed.inject(RoundContextService).select(1);
+    const workflow = TestBed.inject(PlanningWorkflowService);
+    const view = Symbol('planning-route-view');
+    workflow.activateView(view);
+
+    workflow.requestPlanConfirmation(view);
+
+    expect(workflow.actionBusy()).toBe(true);
+    expect(confirmation.observed).toBe(true);
+    workflow.deactivateView(view);
+
+    expect(confirmation.observed).toBe(false);
+    expect(workflow.actionBusy()).toBe(false);
+    expect(planning.confirmPlan).not.toHaveBeenCalled();
+  });
+
+  it('delivers parallel availability save effects without overwriting either cell result', () => {
+    const responses = new Map<string, Subject<never>>();
+    const planning = {
+      saveMemberAvailability: vi.fn(
+        (payload: { committee_member_id: number; candidate_exam_day_id: number }) => {
+          const response = new Subject<never>();
+          responses.set(
+            `${payload.committee_member_id}:${payload.candidate_exam_day_id}`,
+            response,
+          );
+          return response;
+        },
+      ),
+    };
+    const workspace = createPlanningWorkspace('availability_requested');
+    configureWorkflow(workspace, planning);
+    TestBed.inject(RoundContextService).select(1);
+    const workflow = TestBed.inject(PlanningWorkflowService);
+    const view = Symbol('planning-route');
+    workflow.activateView(view);
+    const first = {
+      committee_member_id: 11,
+      candidate_exam_day_id: 21,
+      availability: 'morning',
+    } as const;
+    const second = {
+      committee_member_id: 12,
+      candidate_exam_day_id: 22,
+      availability: 'afternoon',
+    } as const;
+
+    workflow.saveAvailability(first, view);
+    workflow.saveAvailability(second, view);
+    responses.get('11:21')!.next({ id: 1, ...first } as never);
+    responses.get('12:22')!.next({ id: 2, ...second } as never);
+
+    expect(workflow.viewEffects()).toHaveLength(2);
+    expect(workflow.viewEffects().map((effect) => effect.type)).toEqual([
+      'availability-saved',
+      'availability-saved',
+    ]);
+    const lastVersion = workflow.viewEffects()[1].version;
+    workflow.acknowledgeViewEffects(view, lastVersion);
+    expect(workflow.viewEffects()).toEqual([]);
   });
 
   it('blocks duplicate planning submits and keeps a late success out of a new view', () => {
@@ -271,7 +415,7 @@ describe('PlanningWorkflowService', () => {
     response.next({ id: 6, date: '2026-11-01' } as CandidateExamDay);
     response.complete();
 
-    expect(workflow.viewEffect()).toBeNull();
+    expect(workflow.viewEffects()).toEqual([]);
     expect(workflow.actionBusy()).toBe(false);
     expect(workspace.refresh).not.toHaveBeenCalled();
   });
@@ -438,3 +582,36 @@ describe('PlanningWorkflowService', () => {
     expect(workspace.refresh).not.toHaveBeenCalled();
   });
 });
+
+function createPlanningWorkspace(status: ExamRound['status']) {
+  return {
+    round: signal<ExamRound | null>({
+      id: 1,
+      exam_half_year_id: 4,
+      name: 'Runde A',
+      committee_id: 3,
+      status,
+      availability_deadline: null,
+      availability_reminder_at: null,
+    }),
+    loading: signal(false),
+    actionBusy: signal(false),
+    board: signal({ availabilities: [] as Array<{ id: number }> }),
+    refresh: vi.fn(),
+  };
+}
+
+function configureWorkflow(workspace: object, planning: object, feedback?: object): void {
+  TestBed.configureTestingModule({
+    providers: [
+      provideRouter([]),
+      { provide: ApplicationWorkspaceService, useValue: workspace },
+      { provide: PLANNING_PORT, useValue: planning },
+      { provide: AuthService, useValue: { hasCapability: () => true, session: () => null } },
+      {
+        provide: UiFeedbackService,
+        useValue: feedback ?? { notify: vi.fn(), roleRestriction: vi.fn() },
+      },
+    ],
+  });
+}
