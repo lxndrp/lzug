@@ -192,11 +192,9 @@ Automatisierte Accessibility-Prüfungen belegen keine vollständige
 WCAG-Konformität.
 
 Für Umsetzungs- und PR-Abnahmereviews folgen die Reviewperspektiven der kanonischen Complexity-Matrix
-in [`AGENTS.md`](https://github.com/lxndrp/lzug/blob/master/AGENTS.md). Sie werden auf die betroffenen Änderungen
-angewendet; ein kleiner PR verlangt keinen Vollreview. Dazu zählen Code-,
-Komponenten-, Anwendungs-, System- und bei betroffenen Delivery-/Betriebsänderungen
-DevOps-Perspektiven. Die jeweiligen Verfahren und Grenzen stehen in den verlinkten
-[`SKILL.md`](https://github.com/lxndrp/lzug/tree/master/.agents/skills)-Dateien.
+in [`AGENTS.md`](https://github.com/lxndrp/lzug/blob/master/AGENTS.md).
+Sie werden auf die betroffenen Änderungen angewendet; ein kleiner PR verlangt keinen Vollreview.
+Die Verfahren und Grenzen stehen in den dort verlinkten projektlokalen Skills unter `.agents/skills/`.
 
 Complexity wird live für die eindeutig zugeordneten Auftragsissues aus dem Feld
 `Complexity` des Projects lzug Roadmap gelesen. PR-Verknüpfungen über `Closes`,
