@@ -1,0 +1,4 @@
+interface:
+  display_name: "lzug · Senior Developer Review"
+  short_description: "Codequalität in Backend, Frontend und Go-CLI prüfen"
+  default_prompt: "Prüfe mit $lzug-code-review Backend, Frontend und CLI am aktuellen master auf Korrektheit und idiomatische Framework-Nutzung."

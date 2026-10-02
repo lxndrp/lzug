@@ -191,6 +191,26 @@ Tastaturfokus prüfen.
 Automatisierte Accessibility-Prüfungen belegen keine vollständige
 WCAG-Konformität.
 
+Für Umsetzungs- und PR-Abnahmereviews folgen die Reviewperspektiven der kanonischen Complexity-Matrix
+in [`AGENTS.md`](https://github.com/lxndrp/lzug/blob/master/AGENTS.md).
+Sie werden auf die betroffenen Änderungen angewendet; ein kleiner PR verlangt keinen Vollreview.
+Die Verfahren und Grenzen stehen in den dort verlinkten projektlokalen Skills unter `.agents/skills/`.
+
+Complexity wird live für die eindeutig zugeordneten Auftragsissues aus dem Feld
+`Complexity` des Projects lzug Roadmap gelesen. PR-Verknüpfungen über `Closes`,
+`Fixes`, `Resolves` oder `Tracks` und ausdrücklich bestätigte Aufträge zählen;
+Erwähnungen und Branch-Namen nicht. Bei bestehenden oder manuell erstellten PRs
+mit mehreren Auftragsissues gelten der höchste Wert und die Vereinigung der
+betroffenen Perspektiven. Bei fehlender API kann
+belegte, als übergeben markierte Evidenz des Bearbeiters verwendet werden;
+fehlende oder widersprüchliche aktuelle Evidenz erlaubt einen fokussierten Review, aber
+keine vollständige Reviewabnahme. Fehlende Complexity wird nicht erfunden.
+GitHub-Codex-Reviews lesen das Repository-`SKILL.md` und relevante Referenzen;
+verfügbare unabhängige lokale Reviews werden durch read-only Subagents ausgeführt.
+Fehlt diese Unabhängigkeit, wird die Lücke benannt. PRs zur Änderung dieser Regeln
+werden bis zum Merge nach den bestehenden Regeln abgenommen; vorgeschlagene
+Lockerungen reduzieren nicht die eigene Reviewabdeckung.
+
 ## Aufträge und Zuständigkeiten
 
 Issues enthalten Ziel, Umfang und Akzeptanzkriterien.

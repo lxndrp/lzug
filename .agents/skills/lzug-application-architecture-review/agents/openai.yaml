@@ -1,0 +1,4 @@
+interface:
+  display_name: "lzug · Senior Software Architect Review"
+  short_description: "Fachmodule, Schichten und Anwendungsverträge bewerten"
+  default_prompt: "Bewerte mit $lzug-application-architecture-review die Fachmodule und Schnittstellen von lzug und zeige begründete Strukturverbesserungen."
