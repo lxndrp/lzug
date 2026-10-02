@@ -5,6 +5,7 @@ import { finalize } from 'rxjs';
 import { ApplicationError } from '../application/application-error';
 import { RoundContextService } from '../api/round-context.service';
 import { AuthService } from '../auth/auth.service';
+import { SessionScopeService } from '../auth/session-scope.service';
 import { UiFeedbackService } from './ui-feedback.service';
 import { WORKSPACE_PORT, type WorkspaceSnapshot } from './workspace.port';
 
@@ -13,6 +14,7 @@ import { WORKSPACE_PORT, type WorkspaceSnapshot } from './workspace.port';
 export class ApplicationWorkspaceService {
   private readonly workspacePort = inject(WORKSPACE_PORT);
   private readonly auth = inject(AuthService);
+  private readonly sessionScope = inject(SessionScopeService);
   private readonly feedback = inject(UiFeedbackService);
   private readonly roundContext = inject(RoundContextService);
   private readonly router = inject(Router);
@@ -31,10 +33,15 @@ export class ApplicationWorkspaceService {
   readonly masterDataError = signal(false);
   private refreshGeneration = 0;
 
+  constructor() {
+    this.sessionScope.changes$.subscribe(() => this.clear());
+  }
+
   refresh(): void {
     if (this.auth.state() !== 'authenticated') return;
     const roundId = this.roundContext.roundId();
     const generation = ++this.refreshGeneration;
+    const sessionGeneration = this.sessionScope.generation();
     if (this.round() && this.round()?.id !== roundId) {
       this.round.set(null);
       this.summary.set(null);
@@ -45,8 +52,8 @@ export class ApplicationWorkspaceService {
     }
     this.masterDataError.set(false);
     this.loading.set(true);
-    this.workspacePort
-      .loadDashboard(roundId)
+    this.sessionScope
+      .forCurrentSession(this.workspacePort.loadDashboard(roundId))
       .pipe(
         finalize(() => {
           if (generation === this.refreshGeneration) this.loading.set(false);
@@ -62,7 +69,11 @@ export class ApplicationWorkspaceService {
           candidateWorkspace,
           committeeWorkspace,
         }) => {
-          if (generation !== this.refreshGeneration || this.roundContext.roundId() !== roundId) {
+          if (
+            generation !== this.refreshGeneration ||
+            sessionGeneration !== this.sessionScope.generation() ||
+            this.roundContext.roundId() !== roundId
+          ) {
             return;
           }
           this.masterDataError.set(false);
@@ -85,7 +96,11 @@ export class ApplicationWorkspaceService {
           this.message.set('Daten synchronisiert');
         },
         error: (error: ApplicationError) => {
-          if (generation !== this.refreshGeneration || this.roundContext.roundId() !== roundId) {
+          if (
+            generation !== this.refreshGeneration ||
+            sessionGeneration !== this.sessionScope.generation() ||
+            this.roundContext.roundId() !== roundId
+          ) {
             return;
           }
           this.masterDataError.set(true);
@@ -111,5 +126,21 @@ export class ApplicationWorkspaceService {
     this.roundContext.select(id);
     this.refresh();
     void this.router.navigateByUrl('/dashboard');
+  }
+
+  private clear(): void {
+    this.refreshGeneration += 1;
+    this.round.set(null);
+    this.summary.set(null);
+    this.board.set(null);
+    this.masterData.set(null);
+    this.candidateWorkspace.set(null);
+    this.committeeWorkspace.set(null);
+    this.selectedCommitteeId.set(null);
+    this.message.set('Bereit');
+    this.loading.set(false);
+    this.actionBusy.set(false);
+    this.applicationVersion.set(null);
+    this.masterDataError.set(false);
   }
 }

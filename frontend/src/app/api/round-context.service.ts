@@ -1,4 +1,5 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
+import { SessionScopeService } from '../auth/session-scope.service';
 
 export const DEFAULT_ROUND_ID = 1;
 
@@ -10,7 +11,14 @@ export const DEFAULT_ROUND_ID = 1;
  */
 @Injectable({ providedIn: 'root' })
 export class RoundContextService {
+  private readonly sessionScope = inject(SessionScopeService);
   readonly roundId = signal(DEFAULT_ROUND_ID);
+
+  constructor() {
+    this.sessionScope.changes$.subscribe(({ previousEstablished, established }) => {
+      if (previousEstablished || !established) this.roundId.set(DEFAULT_ROUND_ID);
+    });
+  }
 
   select(roundId: number): void {
     this.roundId.set(roundId);

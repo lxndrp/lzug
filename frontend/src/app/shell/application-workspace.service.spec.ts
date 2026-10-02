@@ -4,6 +4,7 @@ import { Subject } from 'rxjs';
 
 import { RoundContextService } from '../api/round-context.service';
 import { AuthService } from '../auth/auth.service';
+import { SessionScopeService } from '../auth/session-scope.service';
 import { UiFeedbackService } from './ui-feedback.service';
 import { ApplicationWorkspaceService } from './application-workspace.service';
 import { WORKSPACE_PORT } from './workspace.port';
@@ -84,6 +85,38 @@ describe('ApplicationWorkspaceService', () => {
     expect(workspace.loading()).toBe(true);
     requests[1].next(dashboard(2, 'Runde B'));
     requests[1].complete();
+    expect(workspace.loading()).toBe(false);
+  });
+
+  it('clears cached workspace and ignores a response from the previous session', () => {
+    const workspace = TestBed.inject(ApplicationWorkspaceService);
+    const context = TestBed.inject(RoundContextService);
+    const scope = TestBed.inject(SessionScopeService);
+    scope.establish({
+      authenticated: true,
+      account_id: 3,
+      person_id: 5,
+      committee_member_id: 6,
+      is_operator: false,
+    });
+
+    workspace.refresh();
+    requests[0].next(dashboard(1, 'Vorherige Runde'));
+    requests[0].complete();
+    context.select(8);
+    workspace.selectedCommitteeId.set(6);
+    workspace.refresh();
+
+    scope.clear();
+    requests[1].next(dashboard(8, 'Veraltete Antwort'));
+    requests[1].complete();
+
+    expect(workspace.round()).toBeNull();
+    expect(workspace.masterData()).toBeNull();
+    expect(workspace.candidateWorkspace()).toBeNull();
+    expect(workspace.committeeWorkspace()).toBeNull();
+    expect(workspace.selectedCommitteeId()).toBeNull();
+    expect(context.roundId()).toBe(1);
     expect(workspace.loading()).toBe(false);
   });
 });

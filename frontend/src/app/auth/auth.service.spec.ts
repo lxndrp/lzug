@@ -1,7 +1,7 @@
 import { Location } from '@angular/common';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { ApplicationError } from '../api/application-error';
@@ -112,6 +112,7 @@ describe('AuthService', () => {
       second_factor: '123456',
     });
     expect(service.state()).toBe('authenticated');
+    expect(service.session()?.committee_member_id).toBe(7);
 
     service.logout().subscribe();
 
@@ -120,12 +121,121 @@ describe('AuthService', () => {
     expect(service.session()).toBeNull();
   });
 
+  it('does not publish an authenticated state until the session response is validated', () => {
+    service.markAnonymous();
+    const sessionResponse = new Subject<AuthSession>();
+    api.session.mockReturnValue(sessionResponse);
+
+    let completed = false;
+    service.login('member@example.invalid', 'a password', '123456').subscribe(() => {
+      completed = true;
+    });
+
+    expect(service.state()).toBe('anonymous');
+    expect(service.session()).toBeNull();
+    expect(completed).toBe(false);
+
+    sessionResponse.next(session);
+
+    expect(service.state()).toBe('authenticated');
+    expect(service.session()).toEqual(session);
+    expect(completed).toBe(true);
+  });
+
+  it('rejects a successful login response without an authenticated session', () => {
+    service.markAnonymous();
+    api.session.mockReturnValue(of({ ...session, authenticated: false }));
+    let error: unknown;
+
+    service.login('member@example.invalid', 'a password', '123456').subscribe({
+      error: (value) => (error = value),
+    });
+
+    expect(error).toBeInstanceOf(ApplicationError);
+    expect(service.state()).toBe('anonymous');
+    expect(service.session()).toBeNull();
+  });
+
+  it('revokes a login when the resulting session cannot be validated', () => {
+    service.markAnonymous();
+    const validationError = new ApplicationError('unavailable', 'Session validation failed.');
+    api.session.mockReturnValue(throwError(() => validationError));
+    let receivedError: unknown;
+
+    service.login('member@example.invalid', 'a password', '123456').subscribe({
+      error: (error) => (receivedError = error),
+    });
+
+    expect(api.logout).toHaveBeenCalledOnce();
+    expect(receivedError).toBe(validationError);
+    expect(service.state()).toBe('anonymous');
+    expect(service.session()).toBeNull();
+  });
+
+  it('keeps authentication indeterminate until a failed revocation can be retried', () => {
+    service.markAnonymous();
+    const validationError = new ApplicationError('unavailable', 'Session validation failed.');
+    api.session.mockReturnValue(throwError(() => validationError));
+    api.logout.mockReturnValue(throwError(() => new ApplicationError('unavailable', 'offline')));
+    let receivedError: unknown;
+
+    service.login('member@example.invalid', 'a password', '123456').subscribe({
+      error: (error) => (receivedError = error),
+    });
+
+    expect(api.logout).toHaveBeenCalledOnce();
+    expect(receivedError).toBeInstanceOf(ApplicationError);
+    expect((receivedError as ApplicationError).message).toContain('nicht sicher beendet');
+    expect(service.state()).toBe('checking');
+    expect(service.session()).toBeNull();
+    expect(service.sessionRevocationPending()).toBe(true);
+    expect(localStorage.getItem('lzug.auth.session-revocation-pending')).toBe('true');
+
+    service.initialize().subscribe();
+    expect(api.session).toHaveBeenCalledOnce();
+
+    api.logout.mockReturnValue(of(void 0));
+    let revoked = false;
+    service.retrySessionRevocation().subscribe((result) => (revoked = result));
+
+    expect(revoked).toBe(true);
+    expect(service.state()).toBe('anonymous');
+    expect(service.sessionRevocationPending()).toBe(false);
+    expect(localStorage.getItem('lzug.auth.session-revocation-pending')).toBeNull();
+  });
+
   it('starts the selected demo role and enters the shared session', () => {
     service.startDemoSession('replacement').subscribe();
 
     expect(runtime.startDemoSession).toHaveBeenCalledWith('replacement');
     expect(api.session).toHaveBeenCalledOnce();
     expect(service.state()).toBe('authenticated');
+  });
+
+  it('revokes a demo role when the resulting session cannot be validated', () => {
+    service.initialize().subscribe();
+    const validationError = new ApplicationError('unavailable', 'Session validation failed.');
+    api.session.mockReturnValue(throwError(() => validationError));
+    api.logout.mockReturnValue(throwError(() => new ApplicationError('unavailable', 'offline')));
+    let receivedError: unknown;
+
+    service.startDemoSession('chair').subscribe({
+      error: (error) => (receivedError = error),
+    });
+
+    expect(runtime.startDemoSession).toHaveBeenCalledWith('chair');
+    expect(api.session).toHaveBeenCalledTimes(2);
+    expect(api.logout).toHaveBeenCalledOnce();
+    expect(receivedError).toBeInstanceOf(ApplicationError);
+    expect((receivedError as ApplicationError).message).toContain('nicht sicher beendet');
+    expect(service.state()).toBe('checking');
+    expect(service.session()).toBeNull();
+    expect(service.sessionRevocationPending()).toBe(true);
+
+    service.initialize().subscribe();
+
+    expect(api.session).toHaveBeenCalledTimes(2);
+    expect(service.state()).toBe('checking');
   });
 
   it('ends a demo session at its absolute workspace expiry', () => {
