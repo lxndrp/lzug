@@ -57,14 +57,18 @@ Das bestätigte Ziel aus [Issue #1078](https://github.com/lxndrp/lzug/issues/107
 ist, stabile Identitäten und Generationen über Wiederholungen und Planänderungen
 sowie die Sync-Seiteneffekte der Reads zu erhalten.
 `calendar` bezieht bestätigte Planungsdaten über einen eigenen typisierten
-Snapshot-Port, den Planning implementiert.
-Der Planning-Folgeauftrag nutzt umgekehrt einen von Planning definierten
-Calendar-Service-Port, der Event-ID und Eventversion als typisiertes Ergebnis
-liefert.
-Planning speichert den Taskabschluss mit diesem Ergebnis in einem getrennten
-UoW.
-Damit entfällt der heutige direkte `CalendarEvent`-Read in
-`PlanConsequence._complete_calendar_task`.
+Snapshot-Port, den ein Planning-Adapter erfüllt.
+Das bestätigte Ziel aus [Issue #1081](https://github.com/lxndrp/lzug/issues/1081)
+belässt die Ableitung fachlicher Folgen in Planning und überträgt ihre
+Ausführung an `application`.
+Application konsumiert einen eigenen Calendar-Service-Port, der Event-ID und
+Eventversion als typisiertes Ergebnis liefert, und speichert den Taskabschluss
+in einem getrennten UoW.
+Der Composition Root verdrahtet Snapshot-Port, Planning-Adapter und
+Application-Port.
+Damit entfallen der heutige direkte CalendarService-Aufruf und
+`CalendarEvent`-Read in `PlanConsequence._complete_calendar_task` nach dem
+Application-Handoff.
 Eine zusätzliche Generation-Fencing-Garantie für verspätete Task-Abschlüsse
 ist durch #1078 nicht festgelegt.
 Ein konsumierendes Modul definiert ein kleines strukturelles `Protocol` für
@@ -81,8 +85,10 @@ Domänentypen gehören ihrem fachlichen Eigentümer; einen globalen
 überschreiten nicht die Persistenzgrenze.
 
 Explizite Context Manager und UoW-Factories drücken Transaktionen aus.
-Über Fachgrenzen atomare Abläufe verwenden Ports über dieselbe
-SQLAlchemy-Session; Unteroperationen führen keinen eigenen Commit aus.
+Verbraucher-Ports beschreiben domänenspezifische Transaktionskontexte und
+reichen keine SQLAlchemy-Session durch.
+Konkrete Persistence-Adapter können intern dieselbe Session teilen;
+Unteroperationen führen keinen eigenen Commit aus.
 Eine sichtbare Composition Root verdrahtet Konfiguration, Runtime,
 Persistenzpfade, Ports, Adapter und Lebensdauern.
 HTTP- und Admin-Wire-Verträge, Mapping und Fehlerübersetzung bleiben am

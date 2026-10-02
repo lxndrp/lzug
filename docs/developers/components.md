@@ -166,6 +166,7 @@ Planrevision.
 `_process_calendars` gruppiert sie pro Runde, aktualisiert die Projektion in
 einem separaten Datenbank-UoW und speichert danach Auftragsstatus, Event-ID
 und Eventversion in einem weiteren UoW.
+Heute ruft Planning dafür den konkreten `CalendarService` auf.
 `sync_round` verarbeitet die Eventänderungen einer Runde in einem UoW;
 ein Fehler bei einem späteren Payload rollt frühere Änderungen dieses Laufs
 zurück.
@@ -179,9 +180,16 @@ Die Umsetzung von #1078 muss stabile Identitäten und Generationen über
 Wiederholungen und Planänderungen sowie diese Sync-Seiteneffekte erhalten.
 Sie bezieht Planungsdaten über einen typisierten Snapshot aus einem
 calendar-eigenen Port, den ein Planning-Adapter erfüllt.
-Umgekehrt erhält der Planning-Folgeauftrag Event-ID und Eventversion über
-einen Planning-eigenen Calendar-Service-Port statt eines direkten
-`CalendarEvent`-Zugriffs.
+Das Ziel aus #1081 lässt Planning die Folgen beschreiben und verlagert deren
+Ausführung in `application`.
+Application konsumiert dafür einen eigenen Calendar-Service-Port, erhält
+Event-ID und Eventversion als typisiertes Ergebnis und speichert den
+Folgeauftragsabschluss.
+Der Composition Root verdrahtet Calendar-Snapshot-Port, Planning-Adapter und
+Application-Port.
+Der direkte Planning-Aufruf von `CalendarService` und der ORM-Zugriff in
+`_complete_calendar_task` sind Übergangspfade und entfallen mit dieser
+Orchestrierung.
 Eine zusätzliche Generation-Fencing-Garantie für verspätete Task-Abschlüsse
 ist damit nicht festgelegt.
 Zielverantwortung für Feed-Credentials, lokale Projektion und ICS-Ausgabe ist
@@ -469,7 +477,7 @@ Zyklen zwischen den acht Kernpaketen.
 | `execution/` | Ausfall und Ersatz, Protokolle, Tagesabschluss und Rundenlebenszyklus | `identity`, `integrations`, `persistence` |
 | `assessment/` | individuelle Bewertungen und festgestellte Ergebnisse | `execution`, `identity`, `persistence` |
 | `identity/` | Authentisierung, Autorisierung, Mitgliedschaften und lokale Betreiberidentität | `persistence` |
-| `integrations/` | Benachrichtigungen, Dokumentablage, Feiertage, Kartenanbieter und künftige externe Adapter | `identity`, `persistence` |
+| `integrations/` | Kalender (Übergangspfad), Benachrichtigungen, Dokumentablage, Feiertage, Kartenanbieter und künftige externe Adapter | `identity`, `persistence` |
 | `persistence/` | Modelle, Datenbank, Migrationen und niedrige Store-Primitive | keine anderen Kernpakete |
 | `operations/` | Backup und Export, Empfängerverwaltung, Diagnose und Lifecycle | `identity`, `integrations`, `persistence` |
 
