@@ -69,10 +69,12 @@ const lifecycleNoticeCopy = {
         <p>lzug · Prüfungsverwaltung</p>
         <h1 #heading id="lifecycle-title" tabindex="-1">{{ title() }}</h1>
         <p>{{ explanation() }}</p>
+        <div data-testid="lifecycle-actions">
+          <ng-content />
+        </div>
         <p>
           Die Anwendung kann derzeit nicht verwendet werden. Bitte versuchen Sie es später erneut.
         </p>
-        <ng-content />
         <p role="status" aria-live="polite" aria-atomic="true">
           @if (lifecycle.checking()) {
             Status wird geprüft …
@@ -118,6 +120,13 @@ const lifecycleNoticeCopy = {
       border: 1px solid var(--lzug-role-border);
       border-radius: var(--lzug-role-card-radius);
       background: var(--lzug-role-card-surface);
+    }
+    [data-testid='lifecycle-actions'] {
+      display: grid;
+      gap: var(--lzug-space-3);
+    }
+    [data-testid='lifecycle-actions'] p {
+      margin: 0;
     }
     h1 {
       margin: 0;

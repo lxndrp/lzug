@@ -212,6 +212,32 @@ describe('AuthService', () => {
     expect(service.state()).toBe('authenticated');
   });
 
+  it('revokes a demo role when the resulting session cannot be validated', () => {
+    service.initialize().subscribe();
+    const validationError = new ApplicationError('unavailable', 'Session validation failed.');
+    api.session.mockReturnValue(throwError(() => validationError));
+    api.logout.mockReturnValue(throwError(() => new ApplicationError('unavailable', 'offline')));
+    let receivedError: unknown;
+
+    service.startDemoSession('chair').subscribe({
+      error: (error) => (receivedError = error),
+    });
+
+    expect(runtime.startDemoSession).toHaveBeenCalledWith('chair');
+    expect(api.session).toHaveBeenCalledTimes(2);
+    expect(api.logout).toHaveBeenCalledOnce();
+    expect(receivedError).toBeInstanceOf(ApplicationError);
+    expect((receivedError as ApplicationError).message).toContain('nicht sicher beendet');
+    expect(service.state()).toBe('checking');
+    expect(service.session()).toBeNull();
+    expect(service.sessionRevocationPending()).toBe(true);
+
+    service.initialize().subscribe();
+
+    expect(api.session).toHaveBeenCalledTimes(2);
+    expect(service.state()).toBe('checking');
+  });
+
   it('ends a demo session at its absolute workspace expiry', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-09-02T10:00:00Z'));

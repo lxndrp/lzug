@@ -87,10 +87,7 @@ export class AuthService implements AuthenticationPort {
         this.acceptSession(session);
         void this.router.navigateByUrl(this.entryPath(session), { replaceUrl: true });
       }),
-      catchError((error: unknown) => {
-        this.markAnonymous();
-        return throwError(() => error);
-      }),
+      catchError((error: unknown) => this.revokeUnvalidatedSession(error)),
     );
   }
 
