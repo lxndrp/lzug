@@ -286,7 +286,7 @@ flowchart LR
   ConfirmedPlans -. ausgewählte Plan-/Tagreferenz .-> Day
   Overview -. ausgewählte Eintrags-ID zur Navigation .-> Planning
   Overview -. ausgewählte Eintrags-ID zur Navigation .-> ConfirmedPlans
-  Day -. Tag-/Protokoll-ID und Revision .-> Protocol
+  Day -. Tag-/Slot-ID und Tagesrevision .-> Protocol
   Day -. geteilter Runden-/Tagkontext .-> Result
   Personal -. eigene Abwesenheitsfähigkeit .-> Day
 ```
