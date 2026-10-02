@@ -31,6 +31,7 @@ nav:
       - Fachmodell und Verträge: developers/data-and-contracts.md
       - Architektur und Entscheidungen: developers/architecture.md
       - Komponenten: developers/components.md
+      - Backend-Vertrag: developers/backend-architecture-contract.md
       - Delivery und Veröffentlichung: developers/delivery.md
       - Entwicklung: developers/development.md
       - Werkzeuginventar: developers/script-inventory.md

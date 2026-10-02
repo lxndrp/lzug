@@ -16,6 +16,8 @@ Fachliche, Nutzungs- und Betreiberanleitungen liegen im
   Container, Komponenten, Deployment, einen kritischen Ablauf, die
   Architekturprinzipien sowie Sicherheits-, Autorisierungs- und
   Observability-Grenzen.
+- Der [Backend-Vertrag](backend-architecture-contract.md) legt Zielmodule,
+  Ports, Transaktionen und Migrationsschritte für die Backend-Aufteilung fest.
 - [Komponenten](components.md) ordnet Verantwortungen und erlaubte
   Abhängigkeiten von Backend, Frontend, Betreiber-CLI, OCI-Runtime und
   Demo-Infrastruktur.

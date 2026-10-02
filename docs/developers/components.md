@@ -82,6 +82,12 @@ Unabhängige Komponenten bleiben parallel ausführbar.
 
 ## Backend
 
+Der verbindliche Zielvertrag für Modulverantwortungen, Portinventar,
+Transaktionsmatrix, Lebensdauern und Migration steht im
+[Backend-Vertrag](backend-architecture-contract.md).
+Die folgende Beschreibung dokumentiert die konkrete Implementierung dieser
+Revision und ersetzt den Zielvertrag nicht.
+
 `backend.fastapi_assembly.create_app` ist die produktive HTTP-Assembly innerhalb
 des einen autoritativen Backendprozesses.
 Sie ordnet Konfiguration, Transportgrenze, Fehlerabbildung, fachliche
@@ -130,16 +136,30 @@ Die Ausführung eines Fachbefehls bleibt eine eigene Servicetransaktion.
 Session, CSRF, Actor, Ausschuss-Scope und Fehlerübersetzung liegen am
 HTTP-Rand, während der synchrone Anwendungskern frameworkunabhängig bleibt.
 
-In `execution.absence`, `execution.exam_protocols` und
-`execution.exam_round_lifecycle` bleiben die öffentlichen Servicebefehle die
-autoritative Grenze für Zustandsübergänge.
+In `execution.absence` und `execution.exam_protocols` bleiben die öffentlichen
+Servicebefehle die autoritative Grenze für Zustandsübergänge.
+Der Runden-Lifecycle ist im Ist-Zustand noch nicht in diese Modulgrenzen
+aufgeteilt: FastAPI ruft `context.exam_round_lifecycle_service` auf, und der
+Service öffnet eigene Sessions und greift direkt auf Planning-, Execution-
+und Assessment-Daten zu.
+Der gemeinsame Application-UoW mit Planning-, Execution- und Assessment-Ports
+ist der Zielvertrag aus
+[Backend-Vertrag](backend-architecture-contract.md#port-inventar), keine
+bereits umgesetzte Laufzeitarchitektur.
+Die Ergebnisänderung auf einem geschlossenen Prüfungstag verwendet heute
+`ExamResultService` mit Execution-Prüfung und -Abschluss im selben
+Session-Kontext; die Ziel-Orchestrierung über Application-Ports steht separat
+im Backend-Vertrag.
 Benannte Vorbedingungsprüfungen lesen den aktuellen Stand in derselben Session;
 Versions- und Replay-Prüfungen behalten ihre Reihenfolge vor der Mutation.
-Audit, Wiederöffnungsaufgaben und die Kennzeichnung überholter Exporte werden
-mit dem Zustandswechsel atomar gespeichert.
-Kalenderabgleich und Benachrichtigungen behalten ihre bisherigen Aufrufgrenzen
-außerhalb der Transaktion; eine Wiederholung erzeugt keine zusätzlichen
-Rundenentscheidungen oder Wiederöffnungsaufgaben.
+Audit und die jeweils zugehörigen Änderungen werden innerhalb der
+Servicetransaktion atomar gespeichert.
+Kalenderfolgen folgen nach dem Planning- oder Execution-Fach-Commit und bleiben
+bei Fehlern getrennt wiederholbar offen.
+Benachrichtigungen folgen jeweils dem Commit des auslösenden Fachbefehls:
+Planereignisse dem Planning-Commit, Execution-Ereignisse dem Execution-Commit.
+Eine Wiederholung erzeugt keine zusätzlichen Rundenentscheidungen oder
+Wiederöffnungsaufgaben.
 `identity.committee_admin` prüft die Wiedereinladungsberechtigung vor dem
 Austausch abgelaufener Tokens in der bestehenden Schreibtransaktion.
 `identity.local_auth` trennt Konto- und Kennwortprüfung von der atomaren
@@ -148,14 +168,53 @@ TOTP-Replay-Schutz, Recovery-Code-Verbrauch, Kennwort-Rehash und Sessionwechsel
 bleiben Teil einer gemeinsamen Transaktion mit generischen Anmeldefehlern und
 Dummy-Hash-Prüfung für unbekannte Konten oder Konten ohne Kennwort.
 
-`integrations.calendar` gleicht einzelne Zuweisungen und entfallene Termine
-innerhalb der bestehenden Rundentransaktion ab.
-Die Kalenderinhalte werden aus den geladenen Daten abgeleitet; Identität,
-Generation und Versionsänderungen werden beim Speichern zusammengeführt.
-`planning.plan_consequences` leitet Kalenderaktionen und Empfängerkategorien
-rein aus den Revisionsständen ab und ergänzt die aktuelle Ausschussleitung
-in der bestehenden Ableitungstransaktion.
-Die bisherigen eindeutigen Auftragsschlüssel sichern Wiederholungen ab.
+`integrations.calendar` ist der heutige Legacy-Pfad für lokale Kalenderlogik:
+`CalendarService` materialisiert bestätigte Zuweisungen als `CalendarEvent`-
+Projektion in SQLite und rendert daraus ICS.
+Er ruft keinen externen Kalenderprovider auf.
+Der aktuelle Code codiert Eventgenerationen in `source_key` und
+`external_event_id`; Inhaltsänderungen erhöhen die Eventversion und eine
+Reaktivierung erzeugt eine weitere Generation.
+`planning.plan_consequences` besitzt und leitet Kalenderaufträge nach dem
+Plan-Commit in einem separaten, idempotent wiederholbaren Planning-UoW ab.
+Scheitert die Ableitung, bleibt der bestätigte Plan bestehen; der Request
+meldet `derivation_status=missing`, und `process_due` kann die Ableitung
+erneut ausführen.
+`_process_calendars` gruppiert sie pro Runde, aktualisiert die Projektion in
+einem separaten Datenbank-UoW und speichert danach Auftragsstatus, Event-ID
+und Eventversion in einem weiteren UoW.
+Heute ruft Planning dafür den konkreten `CalendarService` auf; künftig
+orchestriert Application die Projektion über einen typisierten Calendar-Port
+und verwaltet Taskstatus, Claim und Retry in seinem consumer-eigenen Vertrag.
+`sync_round` verarbeitet die Eventänderungen einer Runde in einem UoW;
+ein Fehler bei einem späteren Payload rollt frühere Änderungen dieses Laufs
+zurück.
+Heute liest `_complete_calendar_task` anschließend `CalendarEvent` direkt in
+Planning, um Event-ID und Version zu übernehmen; dieser ORM-Zugriff und die
+Planning-eigene Taskpersistenz werden nach dem Handoff entfernt.
+`list_events`, `feed_ics` und `event_ics` synchronisieren über `sync_person`
+ebenfalls vor dem Lesen oder Rendern; Refresh und Read laufen in getrennten
+Session-Scopes.
+Nur `feed_ics` validiert dabei ein Feed-Credential.
+Die Umsetzung von #1078 muss stabile Identitäten und Generationen über
+Wiederholungen und Planänderungen sowie diese Sync-Seiteneffekte erhalten.
+Sie bezieht Planungsdaten über einen typisierten Snapshot aus einem
+calendar-eigenen Port, den ein Planning-Adapter erfüllt.
+Das Ziel aus #1081 lässt Planning die Folgen beschreiben und verlagert deren
+Ausführung in `application`.
+Application konsumiert dafür einen eigenen Calendar-Service-Port, erhält
+Event-ID und Eventversion als typisiertes Ergebnis und speichert den
+Folgeauftragsabschluss.
+Der Composition Root verdrahtet Calendar-Snapshot-Port, Planning-Adapter und
+Application-Port.
+Der direkte Planning-Aufruf von `CalendarService` und der ORM-Zugriff in
+`_complete_calendar_task` sind Übergangspfade und entfallen mit dieser
+Orchestrierung.
+Eine zusätzliche Generation-Fencing-Garantie für verspätete Task-Abschlüsse
+ist damit nicht festgelegt.
+Zielverantwortung für Feed-Credentials, lokale Projektion und ICS-Ausgabe ist
+ein eigenständiges `calendar`-Modul.
+`integrations` bleibt konkreten externen Adaptern vorbehalten.
 `integrations.notifications` entscheidet terminale Zustellfälle vor dem
 Providerzugriff und bildet dessen Ergebnis auf den Retry- oder Bestätigungsstatus ab.
 Der Providerzugriff erfolgt nach dem Commit des Claims; nur der weiterhin
@@ -438,7 +497,7 @@ Zyklen zwischen den acht Kernpaketen.
 | `execution/` | Ausfall und Ersatz, Protokolle, Tagesabschluss und Rundenlebenszyklus | `identity`, `integrations`, `persistence` |
 | `assessment/` | individuelle Bewertungen und festgestellte Ergebnisse | `execution`, `identity`, `persistence` |
 | `identity/` | Authentisierung, Autorisierung, Mitgliedschaften und lokale Betreiberidentität | `persistence` |
-| `integrations/` | Kalender, Benachrichtigungen, Dokumentablage, Feiertage und Kartenanbieter | `identity`, `persistence` |
+| `integrations/` | Kalender (Übergangspfad), Benachrichtigungen, Dokumentablage, Feiertage, Kartenanbieter und künftige externe Adapter | `identity`, `persistence` |
 | `persistence/` | Modelle, Datenbank, Migrationen und niedrige Store-Primitive | keine anderen Kernpakete |
 | `operations/` | Backup und Export, Empfängerverwaltung, Diagnose und Lifecycle | `identity`, `integrations`, `persistence` |
 
