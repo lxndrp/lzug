@@ -29,6 +29,13 @@ Dashboard ist ein eigener Konsument einer Übersicht und kein Datenlieferant
 für andere Features.
 Gemeinsame Referenzen werden als kleine, begründete Leseverträge geteilt;
 deren Fachbesitzer und Aktualisierungsregeln bleiben sichtbar.
+Fachliche Writes umfassen auch Vorschlagserzeugung und Vorschlagsspeicherung;
+eine Berechnung oder Lesevorschau ist davon getrennt.
+Ursprungs-IDs und Revisionen werden nur für die Felder festgehalten,
+die der jeweilige Port tatsächlich entgegennimmt.
+Nach erfolgreichen Writes werden abhängige Featureprojektionen gezielt
+invalidiert; insbesondere bleiben Dashboard und Prüfungstag Konsumenten
+bestätigter Änderungen und keine Quelle dafür.
 
 Route- und Ansichtswechsel verwerfen ansichtsgebundene Reads, Ergebnisse und
 Drafts; ein bereits gestarteter Write wird nicht durch Unsubscription als

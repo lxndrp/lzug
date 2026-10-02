@@ -899,6 +899,13 @@ Snapshot ohne HAL-Links; die anwendungsweite Bindung liegt in
 `app.config.ts`.
 `PlanningWorkflowService` koordiniert Planungsbefehle über `PlanningPort`;
 `HttpPlanningAdapter` übersetzt diese Aufrufe in den vorhandenen API-Client.
+Vorschlagserzeugung und Vorschlagsspeicherung sind dabei persistierende
+Planning-Commands; die Leseoperation für den gespeicherten Vorschlag bleibt
+getrennt.
+Die derzeitigen Planning-Portmethoden nehmen keine Quellrevision entgegen.
+Prüfungstag-Anwesenheit übergibt Slot-ID für Prüflinge beziehungsweise
+Assignment-ID für Ausschussmitglieder sowie die vom Befehl akzeptierte
+Tagesrevision.
 Bestätigte Pläne verwenden denselben Schnitt: `ConfirmedPlansWorkflowService`
 ruft `ConfirmedPlansPort` auf, dessen HTTP-Adapter Plan- und Revisionsantworten
 von HAL-Links bereinigt.
