@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import sqlite3
 from datetime import UTC, date, datetime
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from pathlib import Path
@@ -1634,8 +1633,8 @@ class ExamResultService:
         except OperationalError as error:
             # SQLite WAL may reject a concurrent read-to-write upgrade with
             # SQLITE_BUSY_SNAPSHOT before the UPDATE can report rowcount zero.
-            error_code = getattr(error.orig, "sqlite_errorcode", None)
-            if error_code is not None and error_code & 0xFF == sqlite3.SQLITE_BUSY:
+            error_name = getattr(error.orig, "sqlite_errorname", None)
+            if error_name == "SQLITE_BUSY_SNAPSHOT":
                 raise ExamResultConflictError(
                     "Der Ergebnisstand wurde zwischenzeitlich geändert"
                 ) from error
