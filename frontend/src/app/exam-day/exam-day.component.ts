@@ -67,9 +67,17 @@ export class ExamDayComponent implements OnInit, OnChanges {
   ] as const;
   private initialized = false;
   private requestSequence = 0;
+  private contextSequence = 0;
+  private previewSequence = 0;
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (this.initialized && (changes['roundId'] || changes['dayId'])) this.load();
+    const contextChanged =
+      changes['roundId']?.previousValue !== changes['roundId']?.currentValue ||
+      changes['dayId']?.previousValue !== changes['dayId']?.currentValue;
+    if (this.initialized && contextChanged) {
+      this.contextSequence += 1;
+      this.load(true);
+    }
   }
 
   ngOnInit(): void {
@@ -77,13 +85,25 @@ export class ExamDayComponent implements OnInit, OnChanges {
     this.load();
   }
 
-  protected load(): void {
+  protected load(contextChanged = false): void {
     const requestSequence = ++this.requestSequence;
     const requestedDayId = this.dayId;
     const requestedRoundId = this.roundId;
     this.actionMessage.set(null);
     this.actionError.set(null);
-    this.savingKeys.set(new Set());
+    this.previewSequence += 1;
+    this.reopeningImpact.set(null);
+    if (contextChanged) {
+      this.savingKeys.set(new Set());
+      this.view.set(null);
+      this.resetClosureDrafts();
+    } else {
+      this.savingKeys.update((keys) => {
+        const current = new Set(keys);
+        current.delete('day-reopening-impact');
+        return current;
+      });
+    }
 
     if (requestedDayId === null) {
       this.view.set(null);
@@ -118,7 +138,7 @@ export class ExamDayComponent implements OnInit, OnChanges {
         ) {
           return;
         }
-        this.view.set(null);
+        if (contextChanged) this.view.set(null);
         this.state.set(error.kind === 'not-found' ? 'not-found' : 'error');
       },
     });
@@ -218,7 +238,7 @@ export class ExamDayComponent implements OnInit, OnChanges {
     }
     const dayId = this.view()?.day.id;
     if (dayId === undefined || this.hasSavingAction()) return;
-    const actionSequence = this.requestSequence;
+    const actionSequence = this.contextSequence;
     this.savingKeys.set(new Set([`absence-${assignmentId}`]));
     this.actionMessage.set(null);
     this.actionError.set(null);
@@ -230,7 +250,7 @@ export class ExamDayComponent implements OnInit, OnChanges {
       })
       .subscribe({
         next: () => {
-          if (actionSequence !== this.requestSequence) return;
+          if (actionSequence !== this.contextSequence || this.dayId !== dayId) return;
           this.savingKeys.set(new Set());
           this.actionMessage.set('Ausfallmeldung gespeichert.');
           void this.router.navigateByUrl(
@@ -238,7 +258,7 @@ export class ExamDayComponent implements OnInit, OnChanges {
           );
         },
         error: (error: ApplicationError) => {
-          if (actionSequence !== this.requestSequence) return;
+          if (actionSequence !== this.contextSequence || this.dayId !== dayId) return;
           this.savingKeys.set(new Set());
           this.actionError.set(
             this.applicationError(error, 'Die Ausfallmeldung konnte nicht gespeichert werden.'),
@@ -359,14 +379,22 @@ export class ExamDayComponent implements OnInit, OnChanges {
     ) {
       return;
     }
+    const actionSequence = this.contextSequence;
+    const previewSequence = this.previewSequence;
     this.savingKeys.set(new Set(['day-reopening-impact']));
     this.actionError.set(null);
     this.examDay.previewExamDayReopening(day.id, [scope]).subscribe({
       next: (impact) => {
+        if (actionSequence !== this.contextSequence || previewSequence !== this.previewSequence) {
+          return;
+        }
         this.savingKeys.set(new Set());
         this.reopeningImpact.set(impact);
       },
       error: (error: ApplicationError) => {
+        if (actionSequence !== this.contextSequence || previewSequence !== this.previewSequence) {
+          return;
+        }
         this.savingKeys.set(new Set());
         this.actionError.set(
           this.applicationError(error, 'Die Auswirkungen konnten nicht ermittelt werden.'),
@@ -542,20 +570,23 @@ export class ExamDayComponent implements OnInit, OnChanges {
     request: ReturnType<ExamDayFacade['saveCandidateAttendance']>,
   ): void {
     if (this.hasSavingAction()) return;
-    const actionSequence = this.requestSequence;
+    const actionSequence = this.contextSequence;
+    const actionDayId = this.view()?.day.id;
     this.savingKeys.set(new Set([key]));
     this.actionMessage.set(null);
     this.actionError.set(null);
     request.subscribe({
       next: (view) => {
-        if (actionSequence !== this.requestSequence) return;
+        if (actionSequence !== this.contextSequence || this.dayId !== actionDayId) return;
+        this.requestSequence += 1;
         this.view.set(view);
         this.resetDrafts(view);
         this.savingKeys.set(new Set());
+        this.state.set('ready');
         this.actionMessage.set('Änderung gespeichert.');
       },
       error: (error: ApplicationError) => {
-        if (actionSequence !== this.requestSequence) return;
+        if (actionSequence !== this.contextSequence || this.dayId !== actionDayId) return;
         this.savingKeys.set(new Set());
         this.actionError.set(
           this.applicationError(error, 'Die Änderung konnte nicht gespeichert werden.'),
@@ -577,11 +608,15 @@ export class ExamDayComponent implements OnInit, OnChanges {
     successMessage: string,
   ): void {
     if (this.hasSavingAction()) return;
+    const actionSequence = this.contextSequence;
+    const actionDayId = this.view()?.day.id;
     this.savingKeys.set(new Set([key]));
     this.actionMessage.set(null);
     this.actionError.set(null);
     request.subscribe({
       next: (closure) => {
+        if (actionSequence !== this.contextSequence || this.dayId !== actionDayId) return;
+        this.requestSequence += 1;
         this.savingKeys.set(new Set());
         this.reopeningImpact.set(null);
         this.view.update((current) =>
@@ -597,15 +632,27 @@ export class ExamDayComponent implements OnInit, OnChanges {
               }
             : current,
         );
+        this.state.set('ready');
         this.actionMessage.set(successMessage);
       },
       error: (error: ApplicationError) => {
+        if (actionSequence !== this.contextSequence || this.dayId !== actionDayId) return;
         this.savingKeys.set(new Set());
         this.actionError.set(
           this.applicationError(error, 'Die Abschlussaktion konnte nicht ausgeführt werden.'),
         );
       },
     });
+  }
+
+  private resetClosureDrafts(): void {
+    this.closureType = 'regular';
+    this.closureReason = '';
+    this.clarificationAttempts = '';
+    this.reopeningToken = '';
+    this.reopeningOccasion = '';
+    this.reopeningSource = '';
+    this.reopeningReason = '';
   }
 
   private resetDrafts(view: ConfirmedPlanDayView): void {
