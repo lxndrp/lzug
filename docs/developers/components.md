@@ -200,6 +200,11 @@ Planning-eigene Taskpersistenz werden nach dem Handoff entfernt.
 ebenfalls vor dem Lesen oder Rendern; Refresh und Read laufen in getrennten
 Session-Scopes.
 Nur `feed_ics` validiert dabei ein Feed-Credential.
+Heute beschränkt die Feedprüfung die Person nur darauf, mindestens eine aktive
+Mitgliedschaft zu haben; die Synchronisierung und Ausgabe filtern anschließend
+nach `person_id`.
+Bei aktivem Committee A und deaktiviertem Committee B können so weiterhin
+Kalenderereignisse aus B synchronisiert oder ausgegeben werden.
 Die Umsetzung von #1078 muss stabile Identitäten und Generationen über
 Wiederholungen und Planänderungen sowie diese Sync-Seiteneffekte erhalten.
 Sie bezieht Planungsdaten über einen typisierten Snapshot aus einem
@@ -244,10 +249,14 @@ Geht die erfolgreiche Antwort nach dem Credential-Commit verloren, wird das
 Geheimnis nicht erneut auslesbar; der Wiederherstellungsweg ist eine
 ausdrückliche Rotation mit neuer einmaliger URL.
 
-Vor `sync_person` und vor Feed-/Eventausgabe prüft Calendar über einen
-Identity-Snapshot, dass die Person mindestens eine aktive Mitgliedschaft hat.
-Ein gültiges Feed-Token allein genügt nach Deaktivierung der letzten aktiven
-Mitgliedschaft nicht zur Ausgabe.
+Im Ziel liefert Identity Calendar eine materialisierte Liste aktiver
+Membership-ID-/Committee-ID-Paare.
+Calendar beschränkt die Projektion auf diese aktiven IDs und Committees und
+prüft den Scope vor Sync sowie erneut vor Event-/ICS-Ausgabe.
+Damit zeigt ein Token nach Teilwiderruf keine Daten des deaktivierten
+Committees, solange andere Mitgliedschaften aktiv sind.
+Ein gültiges Feed-Token allein genügt ohne aktiven Identity-Scope weder für
+Sync noch Ausgabe.
 Zielverantwortung für Feed-Credentials, lokale Projektion und ICS-Ausgabe ist
 ein eigenständiges `calendar`-Modul.
 `integrations` bleibt konkreten externen Adaptern vorbehalten.
