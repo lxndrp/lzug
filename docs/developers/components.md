@@ -836,6 +836,10 @@ in der Diagnose nur Anbieter und Fehlerklasse.
 
 ## Frontend
 
+### Frontend-Zielvertrag
+
+Datenbesitz, Schreibrechte, Featuregrenzen, Zustandslebensdauern und Übergänge sind im [Frontend-Architekturvertrag](frontend-architecture-contract.md) verbindlich beschrieben. Die langfristige Entscheidung steht in [ADR-0042](decisions/0042-frontend-zustandsbesitz-und-feature-lebensdauern.md). Die folgenden Abschnitte beschreiben weiterhin die vorhandene Angular- und REST-Komponentenstruktur.
+
 Das Angular-Frontend verwendet TypeScript, Angular Router und Taiga UI.
 Es ist ein ruhiges Arbeitswerkzeug für wiederkehrende Ausschussprozesse und
 keine Marketingoberfläche.
