@@ -53,18 +53,17 @@ def json_response(result: ApplicationResult, context: RequestContext | None = No
 
 
 def payload_data[PayloadModel: BaseModel](
-    context: RequestContext,
+    _context: RequestContext,
     payload: PayloadModel,
     *,
     exclude_unset: bool = True,
 ) -> dict[str, Any]:
     """Convert FastAPI's validated model to the established application payload.
 
-    Pydantic already owns parsing and field validation. The remaining
-    normalization preserves public compatibility aliases and boolean forms at
-    the framework-neutral application boundary.
+    Pydantic owns parsing, field validation and compatibility aliases at the
+    request boundary. Application commands receive only declared model data.
     """
-    return context.normalize_payload(payload.model_dump(exclude_unset=exclude_unset))
+    return payload.model_dump(exclude_unset=exclude_unset)
 
 
 def not_found() -> Response:

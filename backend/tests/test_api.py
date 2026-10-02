@@ -681,6 +681,38 @@ class ApiTests(unittest.TestCase):
             self.assertEqual(12, summary["counts"]["candidates"])
             self.assertEqual(4, summary["counts"]["mep_count"])
 
+    def test_invalid_attempt_numbers_are_clean_client_errors(self) -> None:
+        invalid_values = (None, {"private": "attempt-marker"}, "attempt-marker")
+        candidate = {
+            "first_name": "Ungültig",
+            "last_name": "Versuch",
+            "ihk_exam_number": "INVALID-ATTEMPT",
+            "specialization": "application_development",
+            "training_company": "Testbetrieb",
+            "exam_round_id": 1,
+        }
+        with TempDatabase() as db_path, ApiServer(db_path) as api:
+            for value in invalid_values:
+                for route, body in (
+                    ("/api/candidates", {**candidate, "attempt_number": value}),
+                    (
+                        "/api/round-candidates",
+                        {
+                            "candidate_id": 1,
+                            "exam_round_id": 1,
+                            "attempt_number": value,
+                        },
+                    ),
+                ):
+                    with self.subTest(route=route, value=value):
+                        status, response = api.request("POST", route, body)
+                        self.assertIn(
+                            status,
+                            (HTTPStatus.BAD_REQUEST, HTTPStatus.UNPROCESSABLE_ENTITY),
+                            response,
+                        )
+                        self.assertNotIn("attempt-marker", json.dumps(response))
+
     def test_exam_round_metadata_can_be_updated_over_http(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:
             status, updated = api.request(

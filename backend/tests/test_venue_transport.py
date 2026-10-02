@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import unittest
 
+from backend.api_contracts import PlanningSettingsRequest
 from backend.application import hateoas
-from backend.application.transport import RequestContext, planning_proposal_from_payload
+from backend.application.transport import planning_proposal_from_payload
 from backend.persistence.models import EXAM_DAY, PLANNING_SETTINGS
 
 
@@ -42,9 +43,11 @@ class VenueTransportTests(unittest.TestCase):
             )
 
     def test_http_compatibility_aliases_do_not_replace_canonical_room_fields(self) -> None:
-        context = object.__new__(RequestContext)
-        payload = RequestContext.normalize_payload(context, {"default_location_id": 11})
+        payload = PlanningSettingsRequest(default_location_id=11).model_dump(exclude_unset=True)
         self.assertEqual({"default_room_id": 11}, payload)
+
+        with self.assertRaisesRegex(ValueError, "must match"):
+            PlanningSettingsRequest(default_location_id=11, default_room_id=12)
 
         settings = hateoas.resource_item(
             "planning-settings", PLANNING_SETTINGS, {"id": 1, "default_room_id": 11}

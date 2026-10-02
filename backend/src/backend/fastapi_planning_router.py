@@ -24,6 +24,7 @@ from .api_contracts import (
     PlanningProposalResultResponse,
     PlanningProposalWriteRequest,
     PlanningRoundRequest,
+    PlanningSettingsRequest,
 )
 from .application import ApplicationResult, ForbiddenRequestError
 from .fastapi_dependencies import (
@@ -398,6 +399,8 @@ def _planning_create(resource_name: str, finish: Finish):
             context.respond(hateoas.resource_item(resource_name, resource, row), status),
         )
 
+    if resource_name == "planning-settings":
+        create.__annotations__["request"] = PlanningSettingsRequest
     return create
 
 
@@ -428,6 +431,8 @@ def _planning_update(
             )
         )
 
+    if resource_name == "planning-settings":
+        update.__annotations__["request"] = PlanningSettingsRequest
     return update
 
 

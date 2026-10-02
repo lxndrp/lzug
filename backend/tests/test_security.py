@@ -64,6 +64,24 @@ class RuntimeSecurityConfigurationTests(unittest.TestCase):
 
 
 class HttpSecurityTests(unittest.TestCase):
+    def test_attempt_number_is_scoped_to_candidate_request_models(self) -> None:
+        invalid_values = (None, {"private": "attempt-marker"}, "attempt-marker")
+        with TempDatabase() as db_path, ApiServer(db_path) as api:
+            for value in invalid_values:
+                with self.subTest(route="login", value=value):
+                    status, response = api.request(
+                        "POST",
+                        "/api/auth/login",
+                        {
+                            "email": "invalid@example.invalid",
+                            "password": "invalid-password",
+                            "attempt_number": value,
+                        },
+                        authenticated=False,
+                    )
+                    self.assertLess(status, HTTPStatus.INTERNAL_SERVER_ERROR)
+                    self.assertNotIn("attempt-marker", json.dumps(response))
+
     def test_unhandled_server_errors_emit_no_exception_or_client_details(self) -> None:
         output = io.StringIO()
         with redirect_stdout(output):
