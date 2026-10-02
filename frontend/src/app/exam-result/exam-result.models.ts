@@ -195,6 +195,14 @@ export type RecordExternalResult = {
   dayRevisions?: Record<string, number>;
 };
 
+export type CommitteeVote = {
+  yes: number[];
+  no: number[];
+  abstain: number[];
+};
+
+export type VoteChoice = keyof CommitteeVote;
+
 export type DetermineComponent = {
   resultId: number;
   version: number;
@@ -202,6 +210,7 @@ export type DetermineComponent = {
   points: string;
   rationale: string;
   participants: number[];
+  vote: CommitteeVote;
   dissent: Array<{ memberId: number; statement: string }>;
   dayRevisions?: Record<string, number>;
 };
@@ -210,6 +219,7 @@ export type DetermineExamResult = {
   resultId: number;
   version: number;
   participants: number[];
+  vote: CommitteeVote;
   dissent: Array<{ memberId: number; statement: string }>;
   dayRevisions?: Record<string, number>;
 };
