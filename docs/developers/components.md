@@ -218,9 +218,11 @@ Eine zusätzliche Generation-Fencing-Garantie für verspätete Task-Abschlüsse
 ist damit nicht festgelegt.
 
 Weitere heutige Kalenderpfade liegen in `execution.absence`:
-die Auswahl einer Vertretung synchronisiert die Rundungsprojektion unmittelbar
-vor der Abwesenheitsmutation, weitere Zustandswechsel rufen
-`sync_round` oder `cancel_assignment` nach dem Abwesenheitscommit auf.
+`select_replacement` ruft `sync_round` zunächst unmittelbar vor der
+Abwesenheitsmutation auf und ruft es bei offenem Prüfungstag ein zweites Mal
+nach dem Commit der Mutation auf.
+Wiederöffnung ruft `sync_round` nach dem Abwesenheitscommit auf; Abbruch ruft
+`cancel_assignment` nach diesem Commit auf.
 Diese Aufrufe sind direkte synchrone Folgen ohne dauerhaften Application-
 Auftrag und ohne garantierte Wiederholung nach Prozessabbruch.
 Eine Rundungsabsage verhält sich anders:
