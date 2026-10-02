@@ -31,6 +31,9 @@ ihre Regeln und öffentlichen Use Cases.
 Kandidaten, Rundenzuordnung, Rundenentscheidungen und Prüfungszeiträume gehören
 zu `planning`; Tages-/Slotfolgen und Wiederöffnungsaufgaben zu `execution`;
 Ergebnisstatus und Ergebnisrevisionen zu `assessment`.
+Ein benötigtes Prüfungs-Halbjahr wird im Planning-UoW gemeinsam mit seiner
+Runde angelegt; eigenständige Halbjahres-Update-/Delete-Commands gehören nicht
+zum Vertrag.
 Konten, Personen und Mitgliedschaften zu `identity`.
 `application` koordiniert ausschließlich Use Cases über Fachgrenzen hinweg
 und deren gemeinsame Transaktionen.
