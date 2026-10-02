@@ -180,6 +180,10 @@ Plan-Commit in einem separaten, idempotent wiederholbaren Planning-UoW ab.
 Scheitert die Ableitung, bleibt der bestätigte Plan bestehen; der Request
 meldet `derivation_status=missing`, und `process_due` kann die Ableitung
 erneut ausführen.
+Dieser Pfad betrifft die aus bestätigten Planrevisionen abgeleiteten
+Kalenderfolgen.
+Er ist nicht mit den direkten Kalenderaufrufen aus dem Abwesenheitsprozess
+oder der Rundungsabsage gleichzusetzen.
 `_process_calendars` gruppiert sie pro Runde, aktualisiert die Projektion in
 einem separaten Datenbank-UoW und speichert danach Auftragsstatus, Event-ID
 und Eventversion in einem weiteren UoW.
@@ -212,6 +216,36 @@ Der direkte Planning-Aufruf von `CalendarService` und der ORM-Zugriff in
 Orchestrierung.
 Eine zusätzliche Generation-Fencing-Garantie für verspätete Task-Abschlüsse
 ist damit nicht festgelegt.
+
+Weitere heutige Kalenderpfade liegen in `execution.absence`:
+die Auswahl einer Vertretung synchronisiert die Rundungsprojektion unmittelbar
+vor der Abwesenheitsmutation, weitere Zustandswechsel rufen
+`sync_round` oder `cancel_assignment` nach dem Abwesenheitscommit auf.
+Diese Aufrufe sind direkte synchrone Folgen ohne dauerhaften Application-
+Auftrag und ohne garantierte Wiederholung nach Prozessabbruch.
+Eine Rundungsabsage verhält sich anders:
+`ExamRoundLifecycleService` setzt die betroffenen zukünftigen
+`CalendarEvent`-Zeilen während derselben Rundungsentscheidungs-
+Transaktion auf `cancelled` und erhöht ihre Version.
+Damit committen Rundungsentscheidung und lokale Kalenderstornierung gemeinsam;
+es gibt für diesen Pfad keinen nachgelagerten Calendar-Sync-Auftrag.
+
+Heute speichert `activate` beziehungsweise `rotate` das Credential vor dem
+anschließenden Sync; schlägt dieser fehl, kann das einmalige Geheimnis bereits
+verloren sein.
+Der Zielvertrag kehrt diese Reihenfolge um:
+erst lokale Projektion im eigenen Calendar-UoW erfolgreich aktualisieren,
+dann das neue Credential atomar speichern und dessen URL einmalig zurückgeben.
+Scheitert der Sync, bleibt ein vorhandenes Credential unverändert und es wird
+kein Geheimnis ausgegeben.
+Geht die erfolgreiche Antwort nach dem Credential-Commit verloren, wird das
+Geheimnis nicht erneut auslesbar; der Wiederherstellungsweg ist eine
+ausdrückliche Rotation mit neuer einmaliger URL.
+
+Vor `sync_person` und vor Feed-/Eventausgabe prüft Calendar über einen
+Identity-Snapshot, dass die Person mindestens eine aktive Mitgliedschaft hat.
+Ein gültiges Feed-Token allein genügt nach Deaktivierung der letzten aktiven
+Mitgliedschaft nicht zur Ausgabe.
 Zielverantwortung für Feed-Credentials, lokale Projektion und ICS-Ausgabe ist
 ein eigenständiges `calendar`-Modul.
 `integrations` bleibt konkreten externen Adaptern vorbehalten.
