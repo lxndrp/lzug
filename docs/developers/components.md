@@ -176,13 +176,13 @@ einem separaten Datenbank-UoW und speichert danach Auftragsstatus, Event-ID
 und Eventversion in einem weiteren UoW.
 Heute ruft Planning dafür den konkreten `CalendarService` auf; künftig
 orchestriert Application die Projektion über einen typisierten Calendar-Port
-und bestätigt das Ergebnis über den Planning-Port.
+und verwaltet Taskstatus, Claim und Retry in seinem consumer-eigenen Vertrag.
 `sync_round` verarbeitet die Eventänderungen einer Runde in einem UoW;
 ein Fehler bei einem späteren Payload rollt frühere Änderungen dieses Laufs
 zurück.
 Heute liest `_complete_calendar_task` anschließend `CalendarEvent` direkt in
-Planning, um Event-ID und Version zu übernehmen; dieser ORM-Zugriff wird nach
-dem Handoff entfernt.
+Planning, um Event-ID und Version zu übernehmen; dieser ORM-Zugriff und die
+Planning-eigene Taskpersistenz werden nach dem Handoff entfernt.
 `list_events`, `feed_ics` und `event_ics` synchronisieren über `sync_person`
 ebenfalls vor dem Lesen oder Rendern; Refresh und Read laufen in getrennten
 Session-Scopes.

@@ -55,9 +55,13 @@ Ein späterer Payloadfehler rollt alle früheren Projektionsänderungen desselbe
 Runden-Syncs zurück; diese All-or-nothing-Grenze ist Teil des Zielvertrags.
 Venuefolgen gehören ebenfalls zu Planning. Execution besitzt Abwesenheits-
 und Rundenstorno-Folgen. Application führt alle Kalenderfolgen über denselben
-Calendar-Service-Port nach dem jeweiligen Fach-Commit aus; ein fehlgeschlagener
-Kalender-UoW setzt den Fach-Commit nicht zurück und lässt die Folgearbeit
-wiederholbar offen.
+Calendar-Service-Port nach dem jeweiligen Fach-Commit aus und besitzt den
+dauerhaften Folgeauftragszustand mit stabiler Ursprungsidentität, Claim, Retry
+und Ergebnis. Ein fehlgeschlagener Kalender-UoW setzt den Fach-Commit nicht
+zurück und lässt die Folgearbeit wiederholbar offen.
+Nach einem Neustart stößt der bestehende Admin-Processing-Command den
+Re-Drive aus unveränderlichen Domainquellen an; ein automatischer
+Startup-Hook oder Hintergrundworker ist nicht vorausgesetzt.
 Eventgenerationen sind im aktuellen Code in `source_key` und
 `external_event_id` codiert; Inhaltsänderungen behalten die Identität und
 erhöhen die Eventversion, eine Reaktivierung erzeugt eine weitere Generation.
@@ -74,8 +78,12 @@ Das bestätigte Ziel aus [Issue #1081](https://github.com/lxndrp/lzug/issues/108
 belässt die Ableitung fachlicher Folgen in Planning und überträgt ihre
 Ausführung an `application`.
 Application konsumiert einen eigenen Calendar-Service-Port, der Event-ID und
-Eventversion als typisiertes Ergebnis liefert, und speichert den Taskabschluss
-über den jeweiligen Planning- oder Execution-Port im Eigentümer-UoW.
+Eventversion als typisiertes Ergebnis liefert, und speichert Taskabschluss
+oder Retry im eigenen consumer-eigenen UoW.
+Für einen Human-Export gibt Application einen vollständig autorisierten,
+materialisierten Snapshot zurück; der HTTP-Adapter ruft nach dem UoW den reinen
+Renderer `presentation.exam_exports` auf.
+`application` hängt nicht von `presentation` ab.
 Der Composition Root verdrahtet Snapshot-Port, Planning-Adapter und
 Application-Port.
 Damit entfallen der heutige direkte CalendarService-Aufruf und
