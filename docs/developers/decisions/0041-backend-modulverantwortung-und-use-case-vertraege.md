@@ -28,7 +28,9 @@ Portmigration.
 
 Die Fachmodule `planning`, `execution`, `assessment` und `identity` besitzen
 ihre Regeln und öffentlichen Use Cases.
-Kandidaten und Rundenzuordnung gehören zu `planning`;
+Kandidaten, Rundenzuordnung, Rundenentscheidungen und Prüfungszeiträume gehören
+zu `planning`; Tages-/Slotfolgen und Wiederöffnungsaufgaben zu `execution`;
+Ergebnisstatus und Ergebnisrevisionen zu `assessment`.
 Konten, Personen und Mitgliedschaften zu `identity`.
 `application` koordiniert ausschließlich Use Cases über Fachgrenzen hinweg
 und deren gemeinsame Transaktionen.
@@ -40,12 +42,19 @@ Module.
 `integrations` enthält konkrete externe Adapter.
 `calendar` besitzt Feed-Credentials, die lokal persistierte
 `CalendarEvent`-Projektion und die ICS-Ausgabe.
-Der heutige Legacy-Pfad `integrations.calendar` speichert Kalenderaufträge
-mit der bestätigten Planrevision, materialisiert die lokale Projektion danach
-wiederholbar in einem eigenen Datenbank-UoW und bestätigt den Auftrag mit
-Event-ID und Eventversion in einem weiteren UoW.
+Der heutige Legacy-Pfad `integrations.calendar` enthält die Projektion und
+deren Materialisierung; Planning besitzt die Planfolgen und speichert
+Kalenderaufträge mit der bestätigten Planrevision.
+Calendar materialisiert die lokale Projektion danach wiederholbar in einem
+eigenen Datenbank-UoW und Planning bestätigt den Auftrag mit Event-ID und
+Eventversion in einem weiteren Planning-UoW.
 Ein späterer Payloadfehler rollt alle früheren Projektionsänderungen desselben
 Runden-Syncs zurück; diese All-or-nothing-Grenze ist Teil des Zielvertrags.
+Venuefolgen gehören ebenfalls zu Planning. Execution besitzt Abwesenheits-
+und Rundenstorno-Folgen. Application führt alle Kalenderfolgen über denselben
+Calendar-Service-Port nach dem jeweiligen Fach-Commit aus; ein fehlgeschlagener
+Kalender-UoW setzt den Fach-Commit nicht zurück und lässt die Folgearbeit
+wiederholbar offen.
 Eventgenerationen sind im aktuellen Code in `source_key` und
 `external_event_id` codiert; Inhaltsänderungen behalten die Identität und
 erhöhen die Eventversion, eine Reaktivierung erzeugt eine weitere Generation.
@@ -63,7 +72,7 @@ belässt die Ableitung fachlicher Folgen in Planning und überträgt ihre
 Ausführung an `application`.
 Application konsumiert einen eigenen Calendar-Service-Port, der Event-ID und
 Eventversion als typisiertes Ergebnis liefert, und speichert den Taskabschluss
-in einem getrennten UoW.
+über den jeweiligen Planning- oder Execution-Port im Eigentümer-UoW.
 Der Composition Root verdrahtet Snapshot-Port, Planning-Adapter und
 Application-Port.
 Damit entfallen der heutige direkte CalendarService-Aufruf und

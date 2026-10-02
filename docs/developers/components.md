@@ -136,16 +136,21 @@ Die Ausführung eines Fachbefehls bleibt eine eigene Servicetransaktion.
 Session, CSRF, Actor, Ausschuss-Scope und Fehlerübersetzung liegen am
 HTTP-Rand, während der synchrone Anwendungskern frameworkunabhängig bleibt.
 
-In `execution.absence`, `execution.exam_protocols` und
-`execution.exam_round_lifecycle` bleiben die öffentlichen Servicebefehle die
-autoritative Grenze für Zustandsübergänge.
+In `execution.absence` und `execution.exam_protocols` bleiben die öffentlichen
+Servicebefehle die autoritative Grenze für Zustandsübergänge.
+Der Runden-Lifecycle ist dagegen ein Cross-Domain-Use-Case: `application`
+koordiniert Planning-Rundenentscheidung und -revision, Execution-Tages-/Slot-
+Folgen und Wiederöffnungsaufgaben sowie benötigte Assessment-Ergebnis-Snapshots
+in einem gemeinsamen UoW; die Regeln und Aggregate bleiben in ihren
+Eigentümermodulen.
 Benannte Vorbedingungsprüfungen lesen den aktuellen Stand in derselben Session;
 Versions- und Replay-Prüfungen behalten ihre Reihenfolge vor der Mutation.
 Audit, Wiederöffnungsaufgaben und die Kennzeichnung überholter Exporte werden
 mit dem Zustandswechsel atomar gespeichert.
-Kalenderprojektion und Benachrichtigungen behalten ihre bisherigen
-Aufrufgrenzen nach der Plantransaktion; eine Wiederholung erzeugt keine
-zusätzlichen Rundenentscheidungen oder Wiederöffnungsaufgaben.
+Kalenderfolgen laufen nach dem jeweiligen Planning- oder Execution-Commit über
+den `application`-Calendar-Port und bleiben bei Fehlern wiederholbar offen.
+Benachrichtigungen folgen dem jeweiligen Domain-Commit. Eine Wiederholung
+erzeugt keine zusätzlichen Rundenentscheidungen oder Wiederöffnungsaufgaben.
 `identity.committee_admin` prüft die Wiedereinladungsberechtigung vor dem
 Austausch abgelaufener Tokens in der bestehenden Schreibtransaktion.
 `identity.local_auth` trennt Konto- und Kennwortprüfung von der atomaren
@@ -161,20 +166,23 @@ Er ruft keinen externen Kalenderprovider auf.
 Der aktuelle Code codiert Eventgenerationen in `source_key` und
 `external_event_id`; Inhaltsänderungen erhöhen die Eventversion und eine
 Reaktivierung erzeugt eine weitere Generation.
-`planning.plan_consequences` leitet Kalenderaufträge nach dem
-Plan-Commit in einem separaten, idempotent wiederholbaren UoW ab.
+`planning.plan_consequences` besitzt und leitet Kalenderaufträge nach dem
+Plan-Commit in einem separaten, idempotent wiederholbaren Planning-UoW ab.
 Scheitert die Ableitung, bleibt der bestätigte Plan bestehen; der Request
 meldet `derivation_status=missing`, und `process_due` kann die Ableitung
 erneut ausführen.
 `_process_calendars` gruppiert sie pro Runde, aktualisiert die Projektion in
 einem separaten Datenbank-UoW und speichert danach Auftragsstatus, Event-ID
 und Eventversion in einem weiteren UoW.
-Heute ruft Planning dafür den konkreten `CalendarService` auf.
+Heute ruft Planning dafür den konkreten `CalendarService` auf; künftig
+orchestriert Application die Projektion über einen typisierten Calendar-Port
+und bestätigt das Ergebnis über den Planning-Port.
 `sync_round` verarbeitet die Eventänderungen einer Runde in einem UoW;
 ein Fehler bei einem späteren Payload rollt frühere Änderungen dieses Laufs
 zurück.
 Heute liest `_complete_calendar_task` anschließend `CalendarEvent` direkt in
-Planning, um Event-ID und Version zu übernehmen.
+Planning, um Event-ID und Version zu übernehmen; dieser ORM-Zugriff wird nach
+dem Handoff entfernt.
 `list_events`, `feed_ics` und `event_ics` synchronisieren über `sync_person`
 ebenfalls vor dem Lesen oder Rendern; Refresh und Read laufen in getrennten
 Session-Scopes.
