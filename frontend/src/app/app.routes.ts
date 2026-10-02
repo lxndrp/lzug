@@ -1,5 +1,12 @@
 import { inject } from '@angular/core';
-import type { ActivatedRouteSnapshot, ResolveFn, Routes } from '@angular/router';
+import { Router } from '@angular/router';
+import type {
+  ActivatedRouteSnapshot,
+  CanActivateFn,
+  ResolveFn,
+  Route,
+  Routes,
+} from '@angular/router';
 
 import { RoundContextService } from './api/round-context.service';
 import type { AppView } from './app-view';
@@ -22,7 +29,7 @@ const routeData = (
   contextual = true,
 ): AppRouteData => ({ view, title, breadcrumb, contextual });
 
-const roundContextResolver: ResolveFn<number | null> = (route: ActivatedRouteSnapshot) => {
+export const roundContextResolver: ResolveFn<number | null> = (route: ActivatedRouteSnapshot) => {
   const value = Number(route.paramMap.get('roundId'));
   const roundId = Number.isInteger(value) && value > 0 ? value : null;
   if (roundId === null) return null;
@@ -44,7 +51,22 @@ const dashboardRoute = () =>
 const authRoute = () =>
   import('./auth/auth-flow.component').then((module) => module.AuthFlowComponent);
 
-export const routes: Routes = [
+const authenticationBoundary: CanActivateFn = (route) => {
+  const auth = inject(AuthService);
+  const router = inject(Router);
+  const authRoute = route.data['auth'] === true;
+
+  if (auth.state() === 'checking') return true;
+  if (auth.state() === 'authenticated') {
+    return authRoute
+      ? router.parseUrl(auth.session()?.demo_role ? '/demo-scenarios' : '/dashboard')
+      : true;
+  }
+  if (authRoute) return true;
+  return router.parseUrl('/login');
+};
+
+const routeDefinitions: Routes = [
   {
     path: 'login',
     loadComponent: authRoute,
@@ -177,3 +199,9 @@ export const routes: Routes = [
   },
   { path: '**', redirectTo: 'dashboard' },
 ];
+
+export const routes: Routes = routeDefinitions.map((route: Route) =>
+  route.redirectTo === undefined
+    ? { ...route, canActivate: [...(route.canActivate ?? []), authenticationBoundary] }
+    : route,
+);

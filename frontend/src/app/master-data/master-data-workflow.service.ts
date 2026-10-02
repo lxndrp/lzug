@@ -13,6 +13,7 @@ import {
 } from 'rxjs';
 
 import { RoundContextService } from '../api/round-context.service';
+import { SessionScopeService } from '../auth/session-scope.service';
 import { ApplicationWorkspaceService } from '../shell/application-workspace.service';
 import { MASTER_DATA_PORT } from './master-data.port';
 import type {
@@ -39,6 +40,7 @@ export type MasterDataRequestState =
 export class MasterDataWorkflowService {
   private readonly port = inject(MASTER_DATA_PORT);
   private readonly roundContext = inject(RoundContextService);
+  private readonly sessionScope = inject(SessionScopeService);
   private readonly workspace = inject(ApplicationWorkspaceService);
   private readonly requestCounter = signal(0);
   private readonly state = signal<MasterDataRequestState>({ status: 'idle' });
@@ -47,6 +49,13 @@ export class MasterDataWorkflowService {
   readonly actionBusy = computed(() => this.state().status === 'pending');
   readonly candidateWorkspace = computed(() => this.workspace.candidateWorkspace());
   readonly committeeWorkspace = computed(() => this.workspace.committeeWorkspace());
+
+  constructor() {
+    this.sessionScope.changes$.subscribe(() => {
+      this.requestCounter.update((counter) => counter + 1);
+      this.state.set({ status: 'idle' });
+    });
+  }
 
   createMember(
     payload: CommitteeMemberCommand,
@@ -120,7 +129,7 @@ export class MasterDataWorkflowService {
       this.requestCounter.set(requestId);
       this.state.set({ status: 'pending', requestId, contextKey });
 
-      return defer(request).pipe(
+      return this.sessionScope.forCurrentSession(defer(request)).pipe(
         map((value): MasterDataWorkflowResult<T> => ({
           ok: true,
           value,

@@ -6,6 +6,7 @@ import { of, Subject } from 'rxjs';
 import type { ExamRound } from '../api/api.models';
 import { RoundContextService } from '../api/round-context.service';
 import { AuthService } from '../auth/auth.service';
+import { SessionScopeService } from '../auth/session-scope.service';
 import { ApplicationWorkspaceService } from '../shell/application-workspace.service';
 import { UiFeedbackService } from '../shell/ui-feedback.service';
 import type { PlanningComponent } from './planning.component';
@@ -318,6 +319,70 @@ describe('PlanningWorkflowService', () => {
     settingsResponse.complete();
 
     expect(planning.generateCandidateExamDays).toHaveBeenCalledWith(1);
+    expect(workflow.candidateDayGeneration()).toBeNull();
+    expect(feedback.notify).not.toHaveBeenCalled();
+    expect(workspace.refresh).not.toHaveBeenCalled();
+  });
+
+  it('ignores candidate-day generation results after the session changes', () => {
+    const settingsResponse = new Subject<unknown>();
+    const generationResponse = new Subject<{ counts: { created: number; existing: number } }>();
+    const planning = {
+      savePlanningSettings: vi.fn(() => settingsResponse),
+      generateCandidateExamDays: vi.fn(() => generationResponse),
+    };
+    const workspace = {
+      round: signal<ExamRound | null>({
+        id: 1,
+        exam_half_year_id: 4,
+        name: 'Runde A',
+        committee_id: 3,
+        status: 'draft',
+        availability_deadline: null,
+        availability_reminder_at: null,
+      }),
+      loading: signal(false),
+      actionBusy: signal(false),
+      refresh: vi.fn(),
+    };
+    const feedback = { notify: vi.fn(), roleRestriction: vi.fn() };
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([]),
+        { provide: ApplicationWorkspaceService, useValue: workspace },
+        { provide: PLANNING_PORT, useValue: planning },
+        {
+          provide: AuthService,
+          useValue: {
+            hasCapability: () => true,
+            session: () => null,
+          },
+        },
+        { provide: UiFeedbackService, useValue: feedback },
+      ],
+    });
+
+    const context = TestBed.inject(RoundContextService);
+    context.select(1);
+    const scope = TestBed.inject(SessionScopeService);
+    scope.establish({
+      authenticated: true,
+      account_id: 7,
+      person_id: 9,
+      committee_member_id: 12,
+      is_operator: false,
+    });
+    const workflow = TestBed.inject(PlanningWorkflowService);
+    workflow.generateCandidateDays({} as never);
+
+    settingsResponse.next({});
+    settingsResponse.complete();
+    expect(planning.generateCandidateExamDays).toHaveBeenCalledWith(1);
+
+    scope.clear();
+    generationResponse.next({ counts: { created: 1, existing: 0 } });
+    generationResponse.complete();
+
     expect(workflow.candidateDayGeneration()).toBeNull();
     expect(feedback.notify).not.toHaveBeenCalled();
     expect(workspace.refresh).not.toHaveBeenCalled();

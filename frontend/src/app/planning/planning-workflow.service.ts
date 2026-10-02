@@ -14,6 +14,7 @@ import type {
 import { ApplicationError } from '../application/application-error';
 import { RoundContextService } from '../api/round-context.service';
 import { AuthService } from '../auth/auth.service';
+import { SessionScopeService } from '../auth/session-scope.service';
 import type {
   AvailabilityPayload,
   CandidateExamDayPayload,
@@ -30,6 +31,7 @@ import { PLANNING_PORT } from './planning.port';
 export class PlanningWorkflowService {
   private readonly planning = inject(PLANNING_PORT);
   private readonly auth = inject(AuthService);
+  private readonly sessionScope = inject(SessionScopeService);
   private readonly feedback = inject(UiFeedbackService);
   private readonly roundContext = inject(RoundContextService);
   private readonly router = inject(Router);
@@ -59,6 +61,7 @@ export class PlanningWorkflowService {
         this.resetPlanningProposal();
       }
     });
+    this.sessionScope.changes$.subscribe(() => this.resetForSessionChange());
   }
 
   connect(component?: PlanningComponent): void {
@@ -69,6 +72,15 @@ export class PlanningWorkflowService {
     this.lastResult.set(null);
     this.candidateDayGeneration.set(null);
     this.resetPlanningProposal();
+  }
+
+  private resetForSessionChange(): void {
+    this.planningComponent = undefined;
+    this.lastResult.set(null);
+    this.candidateDayGeneration.set(null);
+    this.resetPlanningProposal();
+    this.editorError.set(null);
+    this.editorViolations.set([]);
   }
 
   requestPlanConfirmation(): void {
@@ -88,8 +100,8 @@ export class PlanningWorkflowService {
     }
     const roundId = this.roundContext.roundId();
     this.workspace.actionBusy.set(true);
-    this.planning
-      .savePlanningSettings(payload, roundId)
+    this.sessionScope
+      .forCurrentSession(this.planning.savePlanningSettings(payload, roundId))
       .pipe(finalize(() => this.workspace.actionBusy.set(false)))
       .subscribe({
         next: () => {
@@ -120,8 +132,8 @@ export class PlanningWorkflowService {
     }
     const roundId = this.roundContext.roundId();
     this.workspace.actionBusy.set(true);
-    this.planning
-      .updateExamRound(payload, roundId)
+    this.sessionScope
+      .forCurrentSession(this.planning.updateExamRound(payload, roundId))
       .pipe(finalize(() => this.workspace.actionBusy.set(false)))
       .subscribe({
         next: () => {
@@ -152,8 +164,8 @@ export class PlanningWorkflowService {
     }
     const roundId = this.roundContext.roundId();
     this.workspace.actionBusy.set(true);
-    this.planning
-      .requestAvailabilities(payload, roundId)
+    this.sessionScope
+      .forCurrentSession(this.planning.requestAvailabilities(payload, roundId))
       .pipe(finalize(() => this.workspace.actionBusy.set(false)))
       .subscribe({
         next: (result) => {
@@ -186,8 +198,8 @@ export class PlanningWorkflowService {
     }
     const roundId = this.roundContext.roundId();
     this.workspace.actionBusy.set(true);
-    this.planning
-      .createCandidateExamDay(payload, roundId)
+    this.sessionScope
+      .forCurrentSession(this.planning.createCandidateExamDay(payload, roundId))
       .pipe(finalize(() => this.workspace.actionBusy.set(false)))
       .subscribe({
         next: (day) => {
@@ -215,12 +227,13 @@ export class PlanningWorkflowService {
     }
     const roundId = this.roundContext.roundId();
     this.workspace.actionBusy.set(true);
-    this.planning
-      .savePlanningSettings(payload, roundId)
-      .pipe(
-        switchMap(() => this.planning.generateCandidateExamDays(roundId)),
-        finalize(() => this.workspace.actionBusy.set(false)),
+    this.sessionScope
+      .forCurrentSession(
+        this.planning
+          .savePlanningSettings(payload, roundId)
+          .pipe(switchMap(() => this.planning.generateCandidateExamDays(roundId))),
       )
+      .pipe(finalize(() => this.workspace.actionBusy.set(false)))
       .subscribe({
         next: (result) => {
           if (!this.isSelectedRound(roundId)) return;
@@ -252,8 +265,8 @@ export class PlanningWorkflowService {
     const roundId = this.roundContext.roundId();
     const nextActive = day.is_active ? 0 : 1;
     this.workspace.actionBusy.set(true);
-    this.planning
-      .updateCandidateExamDay(day.id, { is_active: nextActive })
+    this.sessionScope
+      .forCurrentSession(this.planning.updateCandidateExamDay(day.id, { is_active: nextActive }))
       .pipe(finalize(() => this.workspace.actionBusy.set(false)))
       .subscribe({
         next: () => {
@@ -292,36 +305,38 @@ export class PlanningWorkflowService {
       this.planningComponent?.markAvailabilityError(payload);
       return;
     }
-    this.planning.saveMemberAvailability(payload, roundId).subscribe({
-      next: (availability) => {
-        if (!this.isSelectedRound(roundId)) return;
-        this.workspace.board.update((board) =>
-          board
-            ? {
-                ...board,
-                availabilities: [
-                  ...board.availabilities.filter(
-                    (item) =>
-                      item.committee_member_id !== availability.committee_member_id ||
-                      item.candidate_exam_day_id !== availability.candidate_exam_day_id,
-                  ),
-                  availability,
-                ],
-              }
-            : board,
-        );
-        this.planningComponent?.markAvailabilitySaved(payload);
-      },
-      error: () => {
-        if (!this.isSelectedRound(roundId)) return;
-        this.planningComponent?.markAvailabilityError(payload);
-        this.feedback.notify(
-          'error',
-          'Verfügbarkeit nicht gespeichert',
-          'Die Auswahl wurde zurückgesetzt. Bitte erneut versuchen.',
-        );
-      },
-    });
+    this.sessionScope
+      .forCurrentSession(this.planning.saveMemberAvailability(payload, roundId))
+      .subscribe({
+        next: (availability) => {
+          if (!this.isSelectedRound(roundId)) return;
+          this.workspace.board.update((board) =>
+            board
+              ? {
+                  ...board,
+                  availabilities: [
+                    ...board.availabilities.filter(
+                      (item) =>
+                        item.committee_member_id !== availability.committee_member_id ||
+                        item.candidate_exam_day_id !== availability.candidate_exam_day_id,
+                    ),
+                    availability,
+                  ],
+                }
+              : board,
+          );
+          this.planningComponent?.markAvailabilitySaved(payload);
+        },
+        error: () => {
+          if (!this.isSelectedRound(roundId)) return;
+          this.planningComponent?.markAvailabilityError(payload);
+          this.feedback.notify(
+            'error',
+            'Verfügbarkeit nicht gespeichert',
+            'Die Auswahl wurde zurückgesetzt. Bitte erneut versuchen.',
+          );
+        },
+      });
   }
 
   generateProposal(): void {
@@ -332,8 +347,8 @@ export class PlanningWorkflowService {
     }
     const roundId = this.roundContext.roundId();
     this.workspace.actionBusy.set(true);
-    this.planning
-      .generateProposal()
+    this.sessionScope
+      .forCurrentSession(this.planning.generateProposal())
       .pipe(finalize(() => this.workspace.actionBusy.set(false)))
       .subscribe({
         next: (result) => {
@@ -363,8 +378,8 @@ export class PlanningWorkflowService {
     }
     const roundId = this.roundContext.roundId();
     this.workspace.actionBusy.set(true);
-    this.planning
-      .confirmPlan()
+    this.sessionScope
+      .forCurrentSession(this.planning.confirmPlan())
       .pipe(finalize(() => this.workspace.actionBusy.set(false)))
       .subscribe({
         next: (result) => {
@@ -393,7 +408,7 @@ export class PlanningWorkflowService {
     this.editorState.set('loading');
     this.editorError.set(null);
     this.editorViolations.set([]);
-    this.planning.getPlanningProposal().subscribe({
+    this.sessionScope.forCurrentSession(this.planning.getPlanningProposal()).subscribe({
       next: (proposal) => {
         if (!this.isSelectedRound(roundId)) return;
         this.proposal.set(proposal);
@@ -421,7 +436,7 @@ export class PlanningWorkflowService {
     this.editorState.set('saving');
     this.editorError.set(null);
     this.editorViolations.set([]);
-    this.planning.savePlanningProposal(proposal).subscribe({
+    this.sessionScope.forCurrentSession(this.planning.savePlanningProposal(proposal)).subscribe({
       next: (saved) => {
         if (!this.isSelectedRound(roundId)) return;
         this.proposal.set(saved);

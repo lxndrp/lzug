@@ -14,6 +14,138 @@ import {
 test.describe('demo workflows', () => {
   test.describe.configure({ timeout: 60_000 });
 
+  test('does not restore a demo role after validation and revocation both fail', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 720 });
+    let role: 'chair' | 'examiner' | 'replacement' = 'examiner';
+    let roleSwitchSucceeded = false;
+    let lifecycleUnavailable = false;
+    let sessionRequests = 0;
+    let logoutRequests = 0;
+
+    await page.route('**/api/lifecycle', (route) =>
+      lifecycleUnavailable
+        ? route.fulfill({
+            status: 503,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              error: {
+                code: 'runtime_not_ready',
+                state: 'unreachable',
+                ready: false,
+                message: 'Runtime is temporarily unavailable.',
+              },
+            }),
+          })
+        : route.fulfill({
+            contentType: 'application/json',
+            body: JSON.stringify({ state: 'ready', ready: true }),
+          }),
+    );
+    await page.route('**/api/session', (route) => {
+      sessionRequests += 1;
+      if (roleSwitchSucceeded) {
+        lifecycleUnavailable = true;
+        return route.fulfill({
+          status: 503,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            error: {
+              code: 'runtime_not_ready',
+              state: 'unreachable',
+              ready: false,
+              message: 'Session validation failed.',
+            },
+          }),
+        });
+      }
+      return route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          authenticated: true,
+          account_id: demoRoles[role].account_id,
+          person_id: demoRoles[role].person_id,
+          committee_member_id: demoRoles[role].committee_member_id,
+          is_operator: false,
+          demo_role: role,
+          display_name: demoRoles[role].display_name,
+          capabilities: demoCapabilities(role),
+          demo_matrix_version: 'demo-paths-v8',
+          demo_workspace_expires_at: demoWorkspaceExpiry(),
+        }),
+      });
+    });
+    await page.route('**/api/demo/scenarios', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify(demoScenarioOverview(role)),
+      }),
+    );
+    await page.route('**/api/demo/session', (route) => {
+      role = 'chair';
+      roleSwitchSucceeded = true;
+      return route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        headers: { 'Set-Cookie': 'session=switched-role; HttpOnly; Path=/' },
+        body: JSON.stringify({ authenticated: true }),
+      });
+    });
+    await page.route('**/api/session/logout', (route) => {
+      logoutRequests += 1;
+      if (logoutRequests === 1) {
+        return route.fulfill({
+          status: 503,
+          contentType: 'application/json',
+          body: JSON.stringify({ error: { message: 'Revocation temporarily unavailable.' } }),
+        });
+      }
+      roleSwitchSucceeded = false;
+      return route.fulfill({
+        status: 204,
+        headers: { 'Set-Cookie': 'session=; Max-Age=0; HttpOnly; Path=/' },
+      });
+    });
+
+    await page.goto('/demo-scenarios');
+    await expect(page.getByText('Eigenen Ausfall melden')).toBeVisible();
+    await page.getByRole('button', { name: 'Vorsitz', exact: true }).click();
+
+    await expect(page.getByRole('alert')).toContainText('nicht beendet');
+    expect(sessionRequests).toBe(2);
+    expect(logoutRequests).toBe(1);
+    expect((await page.context().cookies()).map(({ name }) => name)).toContain('session');
+
+    await page.reload();
+    const recoveryScreen = page.locator('app-lifecycle-notice');
+    const recoveryAlert = recoveryScreen.getByRole('alert');
+    const retryButton = recoveryScreen.getByRole('button', {
+      name: 'Sitzung sicher beenden erneut versuchen',
+    });
+    await expect(recoveryAlert).toContainText('Geschützte Bereiche bleiben gesperrt');
+    await expect(retryButton).toBeVisible();
+    expect(
+      await retryButton.evaluate((element) => {
+        const rect = element.getBoundingClientRect();
+        return rect.top >= 0 && rect.bottom <= window.innerHeight;
+      }),
+    ).toBe(true);
+    expect(sessionRequests).toBe(2);
+
+    lifecycleUnavailable = false;
+    await recoveryScreen.getByRole('button', { name: 'Status erneut prüfen' }).click();
+    await expect(page.getByRole('heading', { name: 'Anmeldung wird geprüft' })).toBeVisible();
+    await expect(page.locator('.app-shell')).toHaveCount(0);
+    await expect(page.getByRole('alert')).toContainText('Geschützte Bereiche bleiben gesperrt');
+    expect(sessionRequests).toBe(2);
+
+    await page.getByRole('button', { name: 'Sitzung sicher beenden erneut versuchen' }).click();
+    await expect(page).toHaveURL('/login');
+    expect(logoutRequests).toBe(2);
+    expect((await page.context().cookies()).map(({ name }) => name)).not.toContain('session');
+  });
+
   test('keeps isolated demo scenarios and roles safe on desktop and mobile', async ({ page }) => {
     test.setTimeout(180_000);
     let role: 'chair' | 'examiner' | 'replacement' = 'chair';
@@ -147,7 +279,11 @@ test.describe('demo workflows', () => {
     const chairButton = page.getByRole('button', { name: 'Vorsitz', exact: true });
     await chairButton.focus();
     await expect(chairButton).toBeFocused();
+    const workspaceReload = page.waitForRequest(
+      (request) => request.method() === 'GET' && new URL(request.url()).pathname === '/api',
+    );
     await page.keyboard.press('Enter');
+    await workspaceReload;
     await expect(page.getByText('Vorsitz · ' + demoRoles.chair.display_name)).toBeVisible();
   });
 
