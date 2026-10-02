@@ -229,18 +229,19 @@ Abwesenheitsmutation auf.
 Nach dem Commit ruft es `sync_round` erneut auf, ebenfalls nur bei offenem
 Prüfungstag.
 Der Zielvertrag entfernt diesen Pre-Sync.
-Nur für einen offenen Prüfungstag speichert die Execution-Folgequelle
-stattdessen im selben Mutation-UoW ein unveränderliches Calendar-Before-Image
-mit Assignment-ID, alter Empfänger-Membership-ID, Generation und
-materialisiertem Eventinhalt.
-Application führt diese Folge ebenfalls nur unter dem Open-Day-Guard aus und
+Nur wenn der Prüfungstag beim `select_replacement`-Commit offen ist, speichert
+die Execution-Folgequelle im selben Mutation-UoW das unveränderliche
+Before-Image einschließlich des Guard-Snapshots `closure_status == "open"`,
+Assignment-ID, alter Empfänger-Membership-ID, Generation und materialisiertem
+Eventinhalt.
+Application replayt diese bereits autorisierte Quelle samt Guard-Snapshot
+ohne den zwischenzeitlich veränderlichen Tagesstatus neu zu bewerten und
 übergibt das Image an den Calendar-Port: dieser storniert die alte Generation
 und erzeugt die stornierte Zeile aus dem Before-Image auch dann, wenn noch
 keine Projektion existiert; danach synchronisiert er die neue
 Zuweisungsgeneration.
-An einem Prüfungstag mit Status `reopening` entstehen aus
-`select_replacement` weder Before-Image-Folgeauftrag noch
-Calendar-Projektionseffekt.
+Wenn der Tag beim Mutation-Commit den Status `reopening` hat, entstehen aus
+`select_replacement` weder Before-Image noch Calendar-Quelle.
 So bleiben Abwesenheitsmutation und Wiederherstellung der alten
 Kalenderprojektion/Eventzeile nach Prozessabbruch wiederholbar.
 Wiederöffnung stellt im Execution-Zustand den ursprünglichen
