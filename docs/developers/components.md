@@ -246,22 +246,34 @@ Damit committen Rundungsentscheidung und lokale Kalenderstornierung gemeinsam;
 es gibt für diesen Pfad keinen nachgelagerten Calendar-Sync-Auftrag.
 
 Heute speichert `activate` beziehungsweise `rotate` das Credential vor dem
-anschließenden Sync; schlägt dieser fehl, kann das einmalige Geheimnis bereits
-verloren sein.
-Der Zielvertrag kehrt diese Reihenfolge um:
+anschließenden Sync.
+Bei Rotation wird das alte Credential dadurch vor dem fehleranfälligen Sync
+ungültig; schlägt der Sync fehl, bleibt jedoch das neue Token-Hash aktiv,
+obwohl dessen einmalige URL nicht zurückgegeben werden konnte.
+Zielvertrag für die initiale Aktivierung bleibt Sync-first:
 erst lokale Projektion im eigenen Calendar-UoW erfolgreich aktualisieren,
-dann das neue Credential atomar speichern und dessen URL einmalig zurückgeben.
-Der Credential-UoW prüft unter Schreibserialisierung erneut den vor dem Sync
-beobachteten Credentialstatus oder sichert ihn per Revision/CAS.
-Bei konkurrierender Aktivierung oder Rotation erhält der Verlierer einen
-stabilen `FeedAlreadyActive`-/`FeedConflict`-Fehler ohne Secret; er kann weder
-den zuerst ausgegebenen Token ungültig machen noch einen rohen
-Unique-Constraint-Fehler erhalten.
-Scheitert der Sync, bleibt ein vorhandenes Credential unverändert und es wird
-kein Geheimnis ausgegeben.
-Geht die erfolgreiche Antwort nach dem Credential-Commit verloren, wird das
-Geheimnis nicht erneut auslesbar; der Wiederherstellungsweg ist eine
-ausdrückliche Rotation mit neuer einmaliger URL.
+dann das Credential atomar anlegen und dessen URL einmalig zurückgeben.
+Bei Rotation wird das alte Credential zuerst in einem eigenen atomaren
+Calendar-UoW widerrufen und ein nicht-geheimer Pending-Generationsstand
+gespeichert.
+Scheitert dieser erste Commit, bleibt die bisherige Generation aktiv und
+Calendar beginnt keinen Sync.
+Der alte Token ist ab diesem Commit ungültig, auch wenn der folgende Sync
+scheitert; der Pending-Stand bleibt für einen ausdrücklichen Retry erhalten.
+Ein Retry synchronisiert erneut und darf die neue Token-Generation nur per
+CAS auf genau diesen Pending-Stand aktivieren.
+Ein pro-Feed Lifecycle-Lock serialisiert Requests über Sync und Finalisierung;
+Requests prüfen danach erneut ihre beobachtete aktive oder Pending-Generation.
+Konkurrierende und veraltete Requests erhalten stabile
+`FeedAlreadyActive`-, `FeedRotationPending`- oder `FeedConflict`-Fehler ohne
+Secret und können weder die Gewinner-URL ungültig machen noch rohe
+Unique-Constraint-Fehler auslösen.
+Erst der erfolgreiche Finalisierungscommit gibt die neue URL einmalig aus.
+Bei Commitfehler wird kein Secret ausgegeben; bleibt der Pending-Stand
+erhalten, kann der Sync mit einer neuen Secret-Erzeugung wiederholt werden.
+Ist die Finalisierung bereits committet und nur die Antwort verloren,
+bleibt das Secret unverfügbar und eine neue ausdrückliche Rotation ist der
+Recovery-Weg.
 
 Im Ziel liefert Identity Calendar eine materialisierte Liste aktiver
 Membership-ID-/Committee-ID-Paare.

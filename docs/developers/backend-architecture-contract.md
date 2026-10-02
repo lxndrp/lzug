@@ -176,7 +176,7 @@ keinen Adapter.
 | `calendar` | Bestätigten Planstand beziehen | Kalenderdefinierter Port liefert einen typisierten, materialisierten Snapshot der bestätigten Zuweisungen samt erforderlicher Termin-, Empfänger- und Ortswerte; keine ORM- oder HTTP-Typen | Read-Snapshot über den Planning-Adapter; die Snapshot-Transaktion commitet keine Kalenderprojektion | Heute fragt `integrations.calendar` Planungsmodelle direkt ab; #1078 ersetzt das durch einen vom `calendar`-Konsumenten definierten Port, den ein Planning-Adapter erfüllt |
 | `application` (Port-Eigner/Konsument; `calendar` implementiert) | Kalenderprojektion aktualisieren, stornieren und Ergebnis beziehen | Commands decken `sync_round`, `sync_assignment(future_from)`, `cancel_assignment` und `cancel_round_future` ab; Ergebnisse sind materialisierte Event-ID/Versionen und pro Event ein Abschluss-/Stornierungsstatus oder klassifizierter, wiederholbarer Fehler. `cancel_round_future` behält den heutigen inklusiven Tages-Cutoff `CalendarEvent.date >= now[:10]`: es storniert Events am Entscheidungstag und an späteren Tagen, nicht nur spätere Zeitpunkte. Kein Aufrufer liest oder mutiert `CalendarEvent` direkt | Jeder Calendar-Befehl besitzt seinen Calendar-Schreib-UoW; ein Rundenrefresh ist all-or-nothing. Der auslösende Planning-/Execution-Commit bleibt bestehen, wenn Projektion danach fehlschlägt. Application speichert, claimt und bestätigt den Folgeauftrag in eigenen UoWs, unabhängig vom jeweiligen Fach- und Calendar-UoW; ein Folgefehler lässt ihn wiederholbar offen | Heute rufen `planning.plan_consequences`, `planning.venue_consequences`, `execution.absence`, `execution.exam_round_lifecycle`, FastAPI-Routen und Calendar-Reads `CalendarService` direkt auf oder mutieren `CalendarEvent`; diese Aufruf- und ORM-Pfade werden nach Handoff entfernt. Provider-Claim oder Provider-I/O gibt es nicht |
 | `calendar` (Port-Eigner/Konsument; `identity` implementiert) | Aktiven Membership- und Committee-Scope einer Person lesen | Identity liefert eine materialisierte Liste aktiver Membership-ID-/Committee-ID-Paare für die angefragte Person; die Liste enthält keine Namen oder weiteren Personendaten. Eine leere Liste autorisiert keine Kalenderdaten. Calendar beschränkt die personenbezogene Sync-Projektion und Ausgabe auf genau diese Mitgliedschaften/Committees und prüft den Scope vor Sync und erneut vor Read/Render | Identity-Snapshot wird vor Calendar-Sync und vor der nachfolgenden Ausgabe gelesen; die Snapshotabfragen sind read-only und geben keine ORM-Typen heraus | Heute prüft `feed_ics` nur, ob die Person irgendeine aktive Membership hat, und Kalenderpfade filtern/synchronisieren weitgehend per `person_id`; Identity stellt künftig den vom Calendar-Konsumenten definierten Port bereit |
-| `calendar` | Feed-Status, Aktivierung, Tokenrotation, Widerruf und ICS ausgeben | Status liefert Credential-/Sync-Status; Aktivierung/Rotation gibt das Feed-Secret genau einmal zurück; Widerruf liefert bestätigten Zustand. Die personenbezogene Sync-Projektion und Event-/ICS-Reads enthalten ausschließlich aktive Membership-IDs und Committees aus dem Identity-Scope-Snapshot. Teilwiderruf einer Mitgliedschaft entzieht deren Kalenderdaten auch dann, wenn andere Memberships aktiv bleiben; ein Token allein gewährt keine widerrufenen Committee-Daten. Fehler unterscheiden Scope, fehlendes Feed, bereits aktiven Feed (Rotation erforderlich), Credential-Race-Konflikt und Syncfehler | Aktivierung/Rotation liest vor Sync den Credential-Ausgangszustand, führt dann den erfolgreichen Calendar-Projektions-Sync im eigenen UoW aus und committet das Credential anschließend atomar in einem zweiten, write-serialisierten UoW nur dann, wenn der Ausgangszustand weiterhin stimmt. Gleichzeitige Aktivierungen/Rotationen werden als stabiler `FeedAlreadyActive`-/`FeedConflict`-Fehler ohne Secret abgewiesen; Insert-/CAS-Konflikte werden auf diesen Domainfehler abgebildet, sodass der zuerst committete Token gültig bleibt. Syncfehler lassen ein bestehendes Credential unverändert; Credential-Fehler geben kein Secret aus. Widerruf hat ein eigenes UoW. Der jeweilige Identity-Scope wird vor Sync und Ausgabe geprüft; kein externer Provideraufruf | `CalendarService.status`, `activate`, `revoke`, `list_events`, `feed_ics`, `event_ics`; heute speichert `activate` das Credential vor dem Sync, dieser Übergang wird auf Sync-first und atomare Statusprüfung umgestellt. HTTP `GET/POST/DELETE /api/calendar/feed` und Event-/ICS-Routen werden auf den Calendar-Port abgebildet |
+| `calendar` | Feed-Status, Aktivierung, Tokenrotation, Widerruf und ICS ausgeben | Status liefert Credential-/Sync-Status; Aktivierung/Rotation gibt das Feed-Secret genau einmal zurück; Widerruf liefert bestätigten Zustand. Die personenbezogene Sync-Projektion und Event-/ICS-Reads enthalten ausschließlich aktive Membership-IDs und Committees aus dem Identity-Scope-Snapshot. Teilwiderruf einer Mitgliedschaft entzieht deren Kalenderdaten auch dann, wenn andere Memberships aktiv bleiben; ein Token allein gewährt keine widerrufenen Committee-Daten. Fehler unterscheiden Scope, fehlendes Feed, bereits aktiven Feed, laufende Rotation, Status-/CAS-Konflikt und Syncfehler | Initiale Aktivierung synchronisiert zuerst und legt das Credential danach atomar an, sofern der beobachtete Zustand weiterhin inaktiv ist; Syncfehler legen kein Credential an und können durch erneuten Sync-Aufruf wiederholt werden. Rotation invalidiert das bisher aktive Credential zuerst in einem eigenen atomaren Calendar-UoW und persistiert dabei einen nicht-geheimen Pending-Generationsstand. Erst danach läuft die fehlertolerante Projektion; bei Syncfehler bleibt der alte Token widerrufen und der Pending-Stand kann durch einen ausdrücklichen Retry erneut synchronisiert werden. Finalisierung erzeugt einen neuen Token, speichert nur dessen Hash und aktiviert ihn atomar per CAS auf genau diese Pending-Generation; nur nach Commit wird die URL einmalig ausgegeben. Commitfehler geben kein Secret aus: ein weiter bestehender Pending-Stand darf erneut synchronisiert und finalisiert werden; bei bereits aktivierter neuer Generation wird ein verlorenes Secret nie erneut offengelegt und erfordert eine neue ausdrückliche Rotation. Konkurrierende Aktivierungen/Rotationen liefern stabile `FeedAlreadyActive`-, `FeedRotationPending`- oder `FeedConflict`-Ergebnisse ohne Secret; CAS-/Unique-Konflikte werden als Domainfehler abgebildet. Widerruf hat ein eigenes UoW. Der jeweilige Identity-Scope wird vor Sync und Ausgabe geprüft; kein externer Provideraufruf | `CalendarService.status`, `activate`, `revoke`, `list_events`, `feed_ics`, `event_ics`; heute commitet `activate` erst das neue Credential (und invalidiert damit den alten Token), synchronisiert danach und kann bei Syncfehler die nicht ausgegebene URL dauerhaft verlieren. Initiale Aktivierung bleibt künftig Sync-first; Rotation wechselt auf atomaren Widerruf/Pending-Stand vor dem Sync. HTTP `GET/POST/DELETE /api/calendar/feed` und Event-/ICS-Routen werden auf den Calendar-Port abgebildet |
 | `notifications` | Dauerhafte Hinweise, Supersession und Empfänger-Lesen | Erzeugung ist pro Empfänger/Ereignisursprung idempotent; Supersession blendet nur noch nicht versuchte Planänderungen aus; Empfänger lesen materialisierte eigene Hinweise. Es gibt derzeit keinen persistenten individuellen Gelesen-Status | Hinweise und Supersession werden je Befehl in einem DB-UoW gespeichert; optionale Kanalaufträge werden darin angelegt und erst nach Commit verarbeitet | `NotificationService.create_for_event`, `create_direct`, `list_own`, `supersede_unsent_plan_changes` |
 | `notifications` | Push-Subscription-Lifecycle | Registrierung/Reaktivierung und nutzereigene Entfernung | Je Befehl ein DB-UoW | `NotificationService.register_push`, `unregister_push` |
 | `notifications` | Zustelldiagnose | Management sieht in Scope begrenzte, inhaltsfreie Zustellmetadaten und Fehlerlisten | Materialisierte, schreibfreie Abfrage | `NotificationService.problems`, `management_overview` |
@@ -336,27 +336,44 @@ Ein Teilwiderruf blendet daher Kalenderdaten des widerrufenen Committees aus,
 auch wenn eine andere Mitgliedschaft aktiv bleibt; eine leere Scope-Liste
 autorisiert weder Sync noch Kalenderausgabe.
 
-Für Feed-Aktivierung und Rotation gilt eine explizite Recovery-Reihenfolge:
-Calendar prüft Identity-Aktivität und die Gültigkeit der angefragten Aktion,
-aktualisiert die lokale Eventprojektion im eigenen Calendar-UoW und committet
-diesen Sync.
-Erst danach erzeugt Calendar ein neues zufälliges Token und speichert Hash,
-Zeitstempel und Aktivstatus atomar in einem zweiten, schreibserialisierten
-Credential-UoW, der den vor dem Sync beobachteten Credentialstatus erneut
-prüft oder per Revision/CAS absichert.
-Nur dessen erfolgreicher Commit erlaubt die einmalige Ausgabe der URL.
-Konkurrierende Aktivierungen oder Rotationen, deren Ausgangszustand nicht mehr
-stimmt, liefern stabil `FeedAlreadyActive` beziehungsweise `FeedConflict`
-ohne Secret; sie invalidieren keinen zuvor ausgegebenen Token und geben keinen
-rohen Unique-Constraint-Fehler weiter.
-Scheitert die Projektion, wird kein Credential angelegt oder rotiert, das
-vorhandene Token bleibt gültig und es wird kein Secret ausgegeben.
-Scheitert der Credential-Commit, wird ebenfalls kein Secret ausgegeben; ein
-erneuter Aufruf wiederholt den Sync und führt den Credential-Schritt nach
-erneuter Statusprüfung aus.
-Geht die Antwort nach erfolgreichem Credential-Commit verloren, wird das
-gehashte Token nicht wieder offengelegt; der Nutzer löst den Zustand durch
-eine neue explizite Rotation auf, die eine neue einmalige URL erzeugt.
+Für initiale Feed-Aktivierung und Rotation gelten getrennte Recovery-Wege.
+Bei initialer Aktivierung prüft Calendar den Identity-Scope und synchronisiert
+zuerst die lokale Projektion im eigenen Calendar-UoW.
+Danach legt ein Credential-UoW das neue Credential atomar an, sofern der
+beobachtete Zustand weiterhin inaktiv ist.
+Ein Syncfehler legt kein Credential an; ein erneuter Aufruf wiederholt den
+Sync.
+Ein Credential-Commitfehler gibt kein Secret aus; bei weiterhin inaktivem
+Zustand kann die Aktivierung mit erneutem Sync wiederholt werden.
+Nach erfolgreichem Credential-Commit wird die URL genau einmal ausgegeben.
+Geht diese Antwort verloren, wird das Hash nicht in ein Secret zurückgewandelt;
+die Person startet eine ausdrückliche Rotation.
+
+Bei Rotation prüft Calendar den Identity-Scope und committet zunächst in
+einem eigenen Calendar-UoW den Widerruf des bisherigen Credentials samt
+nicht-geheimer Pending-Generation.
+Der bisherige Token ist unmittelbar nach diesem Commit ungültig.
+Erst danach synchronisiert Calendar die lokale Projektion.
+Scheitert Sync, bleibt der alte Token widerrufen und der Pending-Stand erhalten;
+ein ausdrücklicher Retry wiederholt Sync für diese Generation.
+Nach erfolgreichem Sync erzeugt Calendar ein neues zufälliges Token und
+finalisiert Hash, Aktivstatus und Pending-Generationswechsel atomar per CAS.
+Nur der erfolgreiche Commit gibt die URL genau einmal aus.
+Scheitert die Finalisierung mit sicherem Rollback, bleibt der Pending-Stand
+erhalten und Retry wiederholt Sync sowie Token-Erzeugung.
+Ist der Commit erfolgt, aber die Antwort verloren, bleibt das Secret
+unverfügbar; eine neue ausdrückliche Rotation widerruft die unbekannte
+Generation und beginnt den Ablauf erneut.
+
+Ein pro-Feed Lifecycle-Lock serialisiert Requests über Rotation, Sync und
+Finalisierung.
+Jeder Request revalidiert nach Lock-Erwerb seine beim Start beobachtete
+Credential- oder Pending-Generation.
+Nur ein Request kann die Pending-Generation finalisieren; wartende Requests
+mit veraltetem Stand erhalten stabile `FeedAlreadyActive`,
+`FeedRotationPending` oder `FeedConflict` ohne Secret.
+CAS-, Insert- und Unique-Konflikte werden auf diese Domainfehler abgebildet;
+rohe Datenbankfehler verlassen den Adapter nicht.
 Der Sync ist eine lokale Projektion und hat keine externe Providerwirkung.
 
 Das Ziel aus [Issue #1078](https://github.com/lxndrp/lzug/issues/1078) ist,
@@ -431,16 +448,35 @@ bevor der zugehörige Kompatibilitätsadapter entfernt wird.
 | 2. Planning | `planning` | `ResourceRepository`-Operationen für Kandidaten, Rundenzuordnung, Prüfungszeiträume, Verfügbarkeit, Planung und Orte in fachliche Commands/Queries überführen; Rundenerstellung erhält den benötigten Halbjahres-Snapshot und legt ein fehlendes Halbjahr im selben Planning-UoW an. Keine selbstständigen Halbjahres-Update-/Delete-Commands einführen; die aktuell verbotenen generischen Schreibpfade nach Migration der unterstützten Aufrufer entfernen. Geokodierung als Planning-Port mit Autorisierung und Revisionsprüfung vor Provider-I/O anbinden; `ExamVenueApi` nach Routeumstellung entfernen |
 | 3. Execution und Assessment | jeweiliges `execution`- oder `assessment`-Modul, Cross-Domain-Koordination durch `application` | Slot-/Protokoll-/Tages- und Ergebniszugriffe in Use-Case-Ports überführen; Runden-Lifecycle in Application-Orchestrierung sowie Planning-/Execution-/Assessment-Ports mit gemeinsamem UoW aufteilen; Ergebnisänderung mit Tageswiederöffnung und die inverse Day-Close-/Reopen-Richtung mit Assessment-Readiness/Result-Korrekturen ebenso; CAS-/Audit-/Wiederöffnungs- und Offenlegungstests bestehen. Kalender- und Benachrichtigungsfolgen an den jeweiligen Planning- bzw. Execution-Post-Commit hängen; Application speichert Claim/Retry und Ergebnis unter stabiler Ursprungsidentität und kann fehlende Aufträge nach Crash anhand der unveränderlichen Planning-/Execution-Revision oder Audit-ID erneut ableiten. Direkte Kalenderaufrufe und `CalendarEvent`-Mutationen aus `execution.absence`, `planning.venue_consequences`, `execution.exam_round_lifecycle` und HTTP-Routen nach Handoff entfernen |
 | 4. Identity | `identity` | Konto-, Personen-, Mitgliedschafts- und Ausschusszugriffe aus generischem Resource-Zugriff lösen; `/api/committees`, `committee-*` und Bootstrap-/Einladungs-/Recovery-Kommandos über Identity-Commands abbilden; Auth-Atomarität, Membership-Scope und nicht offenlegende HTTP-Fehler belegen; Identity-Adapter nach letztem alten Aufrufer entfernen |
-| 5. Supporting und Operations | `calendar`, `notifications`, `documents`, `operations`; Planning/Execution liefern fachliche Folgeauftragsbeschreibungen, Application besitzt ihren dauerhaften Ausführungszustand | Calendar erhält Planungsdaten über seinen typisierten Planning-Snapshot-Port und aktive Membership-/Committee-Scopes über seinen Calendar-eigenen Identity-Port. Ein Identity-Adapter implementiert diesen Port; Sync-Projektion und Event-/ICS-Reads bleiben strikt auf die aktiven IDs begrenzt. Der Application-Port deckt Rundenrefresh, einzelne Zuweisungssynchronisierung, Zuweisungsstorno und Storno künftiger Rundentermine mit typisierten Ergebnissen ab. Feedstatus, Aktivierung, Rotation, Widerruf und ICS-Reads bleiben Calendar-Use-Cases; Aktivierung/Rotation führt erst Calendar-Sync im eigenen UoW aus, committet danach Credential in einem zweiten UoW und gibt das Secret nur nach dessen Commit zurück. Planning behält die Ableitung, Execution die fachlichen Zustandsänderungen; Application speichert Folgeaufträge, stabile Ursprungsidentitäten, Claim/Retry und Ergebnisse in seinem consumer-eigenen Vertrag. Notification-Beschreibung und ursprüngliche Empfänger-IDs committen mit Execution-Fachzustand/Audit atomar und sind Application-Recovery-Quelle. Geplante Reminder/Deadline-Verarbeitung läuft über Application mit Planning-Snapshot-Port und explizitem Admin-Processing-Befehl. Alle direkten `CalendarService`-Aufrufe und `CalendarEvent`-Reads/-Mutationen außerhalb Calendar werden nach Handoff entfernt. Notifications erhalten Ports für Kanalübersicht und synthetische Zustellung; Operations behält `config`-/`doctor`-Checks über secret-freie Ports zu Dokumenten-, Notifications- und Planning-Adaptern. Backup-Empfängerverwaltung samt Environment-Migration und atomarem Audit in Operations aufnehmen; die aktuelle fehlende Empfänger-/Ereignis-Revalidierung am Notification-Claim als offenes Risiko in #1079 entscheiden; Dokumentkompensation sowie Runtime-/Restore-Sperr- und Crash-Recovery-Verfahren nachweisen |
+| 5. Supporting und Operations | `calendar`, `notifications`, `documents`, `operations`; Planning/Execution liefern fachliche Folgeauftragsbeschreibungen, Application besitzt ihren dauerhaften Ausführungszustand | Calendar erhält Planungsdaten über seinen typisierten Planning-Snapshot-Port und aktive Membership-/Committee-Scopes über seinen Calendar-eigenen Identity-Port. Ein Identity-Adapter implementiert diesen Port; Sync-Projektion und Event-/ICS-Reads bleiben strikt auf die aktiven IDs begrenzt. Der Application-Port deckt Rundenrefresh, einzelne Zuweisungssynchronisierung, Zuweisungsstorno und Storno künftiger Rundentermine mit typisierten Ergebnissen ab. Feedstatus, Aktivierung, Rotation, Widerruf und ICS-Reads bleiben Calendar-Use-Cases; initiale Aktivierung ist Sync-first und speichert das Credential danach atomar. Rotation widerruft das bisherige Credential vor dem Sync in einem eigenen UoW und persistiert einen nicht-geheimen Pending-Stand; nach Sync wird eine neue Token-Generation nur per CAS auf diesen Stand aktiviert. Pro-Feed Lifecycle-Lock und Generation-Revalidierung schützen konkurrierende Requests; Secret-Ausgabe erfolgt genau einmal nach Finalisierungscommit. Planning behält die Ableitung, Execution die fachlichen Zustandsänderungen; Application speichert Folgeaufträge, stabile Ursprungsidentitäten, Claim/Retry und Ergebnisse in seinem consumer-eigenen Vertrag. Notification-Beschreibung und ursprüngliche Empfänger-IDs committen mit Execution-Fachzustand/Audit atomar und sind Application-Recovery-Quelle. Geplante Reminder/Deadline-Verarbeitung läuft über Application mit Planning-Snapshot-Port und explizitem Admin-Processing-Befehl. Alle direkten `CalendarService`-Aufrufe und `CalendarEvent`-Reads/-Mutationen außerhalb Calendar werden nach Handoff entfernt. Notifications erhalten Ports für Kanalübersicht und synthetische Zustellung; Operations behält `config`-/`doctor`-Checks über secret-freie Ports zu Dokumenten-, Notifications- und Planning-Adaptern. Backup-Empfängerverwaltung samt Environment-Migration und atomarem Audit in Operations aufnehmen; die aktuelle fehlende Empfänger-/Ereignis-Revalidierung am Notification-Claim als offenes Risiko in #1079 entscheiden; Dokumentkompensation sowie Runtime-/Restore-Sperr- und Crash-Recovery-Verfahren nachweisen |
 | 6. Adapterbereinigung | `application` komponiert; jeweiliger Adaptereigentümer entfernt | `GET /api/round-summary`, `GET /api/notification-channels`, Admin `test-notification`, `config` und `doctor` auf die beschriebenen Query-/Command-/Diagnostic-Ports abbilden. HTTP und Admin auf dieselben Commands/Ergebnisse mappen; `RequestContext`-/Transport-Kompatibilitätsmethoden nach Wegfall des letzten Legacy-Aufrufers entfernen; Wire- und OpenAPI-Verträge unverändert prüfen |
 
-Bei Calendar-Feed-Aktivierung und -Rotation reicht Sync-first allein nicht:
-Der zweite, schreibserialisierte Credential-UoW prüft den vor dem Sync
-beobachteten Credentialstatus erneut oder sichert ihn per Revision/CAS.
-Konkurrierende Aufrufe mit veraltetem Ausgangszustand erhalten stabil
-`FeedAlreadyActive` beziehungsweise `FeedConflict` ohne Secret.
-So bleibt ein zuerst ausgegebener Token gültig und ein Insert-/CAS-Konflikt
-erscheint nicht als roher Datenbankfehler.
+Für die initiale Calendar-Feed-Aktivierung bleibt die Projektion Sync-first:
+Erst nach erfolgreichem Sync legt ein Credential-UoW das Feed-Credential an,
+wenn der beobachtete Zustand noch inaktiv ist.
+Eine Rotation widerruft das alte Credential dagegen vor dem Sync in einem
+eigenen atomaren UoW und hinterlässt einen nicht-geheimen Pending-Stand.
+Der alte Token ist ab diesem Commit ungültig, auch wenn Sync oder spätere
+Finalisierung scheitern.
+Ein expliziter Retry synchronisiert den Pending-Stand erneut und aktiviert
+eine neu erzeugte Token-Generation nur per CAS auf genau diesen Stand.
+Ein pro-Feed Lifecycle-Lock serialisiert die Rotation über Sync und
+Finalisierung; jeder Aufruf revalidiert nach Lock-Erwerb die bei seinem Start
+beobachtete aktive oder Pending-Generation.
+Damit kann ein wartender Request nicht unbemerkt eine zwischenzeitlich
+ausgegebene URL wieder rotieren.
+Es wird ausschließlich nach erfolgreichem Finalisierungscommit einmalig die
+Feed-URL ausgegeben.
+Commitfehler geben kein Secret aus; bei weiterem Pending-Stand kann der
+Aufruf wiederholt werden.
+Wenn die Finalisierung bereits committet wurde und nur die Antwort verloren
+ging, bleibt das Secret unverfügbar und der Nutzer startet eine neue
+ausdrückliche Rotation.
+Konkurrierende Requests dürfen den Pending-Stand nicht doppelt finalisieren:
+der erfolgreiche CAS gewinnt, weitere Aufrufe erhalten stabil
+`FeedRotationPending` oder `FeedConflict` ohne Secret.
+Insert-, CAS- und Unique-Konflikte werden in diese stabilen Domainfehler
+übersetzt und erscheinen nie als rohe Datenbankfehler.
 
 Zulässige Übergänge sind ein synchroner Aufruf im selben Prozess, ein
 kurzlebiger Adapter mit expliziter Übergabe desselben UoW und eine temporäre
