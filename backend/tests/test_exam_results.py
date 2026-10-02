@@ -354,9 +354,12 @@ class ExamResultTests(unittest.TestCase):
             "retention_years": 15,
         }
 
-    def prepare_result(self, api: ApiServer) -> dict:
+    def prepare_result(self, api: ApiServer, *, rules: dict | None = None) -> dict:
         status, model = api.request(
-            "POST", "/api/assessment-model-versions", self.model_payload(), credentials=self.chair
+            "POST",
+            "/api/assessment-model-versions",
+            self.model_payload(rules=rules),
+            credentials=self.chair,
         )
         assert_status(status, HTTPStatus.CREATED)
         status, _binding = api.request(
@@ -376,6 +379,94 @@ class ExamResultTests(unittest.TestCase):
         )
         assert_status(status, HTTPStatus.OK)
         return result
+
+    def test_calculation_history_and_exports_wait_for_component_disclosure(self) -> None:
+        rules = assessment_rules()
+        component = rules["components"][0]
+        component["weight"] = "100"
+        component["required_assessors"] = 2
+        component["max_deviation"] = "100"
+        component["additional_assessor_on_deviation"] = False
+        rules["components"] = [component]
+        rules["external_areas"] = []
+        rules["passing"]["external_minima"] = {}
+
+        with ApiServer(self.db_path) as api:
+            result = self.prepare_result(api, rules=rules)
+            result = self.save(api, result, self.chair, "documentation", "quality", "5")
+            result = self.save(api, result, self.examiner, "documentation", "quality", "9")
+            result = self.save(
+                api,
+                result,
+                self.chair,
+                "documentation",
+                "quality",
+                "6",
+                change_reason="Korrektur vor Offenlegung",
+            )
+            result_id = result["id"]
+
+            status, before = api.request(
+                "GET", f"/api/exam-results/{result_id}", credentials=self.examiner
+            )
+            assert_status(status, HTTPStatus.OK)
+            self.assertEqual([], before["calculations"])
+            self.assertIsNone(before["current_calculation"])
+
+            status, machine_before = api.request(
+                "GET",
+                f"/api/exam-results/{result_id}/export.json",
+                credentials=self.examiner,
+            )
+            assert_status(status, HTTPStatus.OK)
+            self.assertEqual([], machine_before["result"]["calculations"])
+            self.assertIsNone(machine_before["result"]["current_calculation"])
+
+            status, _headers, human_before = api.request_raw(
+                "GET",
+                f"/api/exam-results/{result_id}/export.txt",
+                credentials=self.examiner,
+            )
+            assert_status(status, HTTPStatus.OK)
+            self.assertNotIn("Berechnungsweg:", human_before.decode("utf-8"))
+            self.assertNotIn("Gesamtergebnis:", human_before.decode("utf-8"))
+
+            status, disclosed = api.request(
+                "POST",
+                f"/api/exam-results/{result_id}/disclosures",
+                {
+                    "version": before["version"],
+                    "component_key": "documentation",
+                },
+                credentials=self.chair,
+            )
+            assert_status(status, HTTPStatus.OK)
+            self.assertEqual(
+                ["70", "75"],
+                [item["total_points"] for item in disclosed["calculations"]],
+            )
+            self.assertEqual("75", disclosed["current_calculation"]["total_points"])
+
+            status, machine_after = api.request(
+                "GET",
+                f"/api/exam-results/{result_id}/export.json",
+                credentials=self.examiner,
+            )
+            assert_status(status, HTTPStatus.OK)
+            self.assertEqual(
+                ["70", "75"],
+                [item["total_points"] for item in machine_after["result"]["calculations"]],
+            )
+            self.assertEqual("75", machine_after["result"]["current_calculation"]["total_points"])
+
+            status, _headers, human_after = api.request_raw(
+                "GET",
+                f"/api/exam-results/{result_id}/export.txt",
+                credentials=self.examiner,
+            )
+            assert_status(status, HTTPStatus.OK)
+            self.assertIn("Berechnungsweg:", human_after.decode("utf-8"))
+            self.assertIn("Gesamtergebnis: 75 Punkte", human_after.decode("utf-8"))
 
     @staticmethod
     def save(

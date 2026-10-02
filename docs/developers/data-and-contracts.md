@@ -122,6 +122,10 @@ erDiagram
   Feststellungen noch Abschlussentscheidungen stillschweigend.
 - Individuelle Bewertungen bleiben bis zur vollständigen Eigenbewertung und
   kontrollierten Offenlegung für andere Beteiligte verborgen.
+  Bis alle bewerteten Komponenten offengelegt sind, bleiben auch aktuelle und
+  historische Berechnungen einschließlich ihrer Eingabepfade verborgen.
+  Das gilt gleichermaßen für Ergebnisansichten und Exporte; interne
+  Fachabläufe dürfen die Berechnung weiterhin verwenden.
   Ein berechneter Vorschlag wird erst durch den vorgesehenen Beschluss zum
   festgestellten Ergebnis.
 - Personenbezogene Inhalte werden auf Zweck und Empfänger begrenzt.
