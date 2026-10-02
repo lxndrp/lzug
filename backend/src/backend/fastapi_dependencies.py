@@ -1,9 +1,15 @@
 """Shared HTTP dependencies; domain authorization stays in the application core."""
 
 from collections.abc import Callable
-from typing import Annotated
+from contextvars import ContextVar
+from dataclasses import replace
+from inspect import Parameter, Signature, signature
+from types import FunctionType
+from typing import Annotated, get_args, get_origin, get_type_hints
 
 from fastapi import Depends, Header, Request, Security
+from fastapi.params import Depends as DependsParameter
+from fastapi.params import Security as SecurityParameter
 from fastapi.routing import APIRoute
 from fastapi.security import APIKeyCookie
 from starlette.requests import ClientDisconnect
@@ -14,6 +20,7 @@ from backend.identity.local_auth import LocalAuthError
 from .application import ForbiddenRequestError
 
 SESSION_COOKIE = APIKeyCookie(name="lzug_session", scheme_name="sessionCookie", auto_error=False)
+_session_cookie_name: ContextVar[str | None] = ContextVar("session_cookie_name", default=None)
 
 
 def validate_body_headers(request: Request) -> None:
@@ -64,6 +71,12 @@ class BoundedBodyRoute(APIRoute):
     generation to FastAPI itself. Routes without a declared body are not read.
     """
 
+    def __init__(self, path: str, endpoint: Callable[..., object], **kwargs) -> None:
+        cookie_name = _session_cookie_name.get()
+        if cookie_name is not None and cookie_name != SESSION_COOKIE.model.name:
+            endpoint = _bind_cookie_security(endpoint, cookie_name, {})
+        super().__init__(path, endpoint, **kwargs)
+
     def get_route_handler(self):
         route_handler = super().get_route_handler()
 
@@ -99,6 +112,96 @@ def request_context(request: Request) -> RequestContext:
 
 
 Context = Annotated[RequestContext, Depends(request_context)]
+
+
+def bind_session_cookie(cookie_name: str):
+    """Bind a configured cookie while FastAPI assembles route dependencies.
+
+    FastAPI can rebuild dependencies for lazily included routers from endpoint
+    signatures. Binding here keeps security native to those signatures and
+    avoids post-processing routes or the generated OpenAPI document.
+    """
+    return _session_cookie_name.set(cookie_name)
+
+
+def reset_session_cookie_binding(token) -> None:
+    """Restore the previous cookie binding after app route assembly."""
+    _session_cookie_name.reset(token)
+
+
+def _bind_cookie_security(endpoint: Callable[..., object], cookie_name: str, cache):
+    """Clone only dependency signatures that carry the session security node."""
+    if endpoint in cache:
+        return cache[endpoint]
+    try:
+        original_signature = signature(endpoint)
+        hints = get_type_hints(endpoint, include_extras=True)
+    except TypeError, ValueError, NameError:
+        return endpoint
+
+    parameters = []
+    changed = False
+    for parameter in original_signature.parameters.values():
+        annotation, bound = _bind_cookie_annotation(
+            hints.get(parameter.name, parameter.annotation), cookie_name, cache
+        )
+        parameters.append(parameter.replace(annotation=annotation))
+        changed |= bound
+    return_annotation, bound = _bind_cookie_annotation(
+        hints.get("return", original_signature.return_annotation), cookie_name, cache
+    )
+    changed |= bound
+    if not changed:
+        cache[endpoint] = endpoint
+        return endpoint
+
+    bound_signature = original_signature.replace(
+        parameters=parameters, return_annotation=return_annotation
+    )
+    bound_endpoint = FunctionType(
+        endpoint.__code__,
+        endpoint.__globals__,
+        endpoint.__name__,
+        endpoint.__defaults__,
+        endpoint.__closure__,
+    )
+    bound_endpoint.__dict__.update(endpoint.__dict__)
+    bound_endpoint.__kwdefaults__ = endpoint.__kwdefaults__
+    bound_endpoint.__annotations__ = {
+        parameter.name: parameter.annotation
+        for parameter in bound_signature.parameters.values()
+        if parameter.annotation is not Parameter.empty
+    }
+    if bound_signature.return_annotation is not Signature.empty:
+        bound_endpoint.__annotations__["return"] = bound_signature.return_annotation
+    bound_endpoint.__signature__ = bound_signature
+    cache[endpoint] = bound_endpoint
+    return bound_endpoint
+
+
+def _bind_cookie_annotation(annotation, cookie_name: str, cache) -> tuple[object, bool]:
+    """Replace session security metadata in one resolved Annotated type."""
+    if get_origin(annotation) is not Annotated:
+        return annotation, False
+    base, *metadata = get_args(annotation)
+    bound_metadata = []
+    changed = False
+    for item in metadata:
+        if isinstance(item, SecurityParameter) and item.dependency is SESSION_COOKIE:
+            cookie = APIKeyCookie(
+                name=cookie_name,
+                scheme_name="sessionCookie",
+                auto_error=False,
+            )
+            item = Security(cookie, scopes=item.scopes, use_cache=item.use_cache)
+            changed = True
+        elif isinstance(item, DependsParameter) and callable(item.dependency):
+            dependency = _bind_cookie_security(item.dependency, cookie_name, cache)
+            if dependency is not item.dependency:
+                item = replace(item, dependency=dependency)
+                changed = True
+        bound_metadata.append(item)
+    return Annotated[base, *bound_metadata], changed
 
 
 def body_context(context: Context, body: BufferedBody) -> RequestContext:
@@ -238,24 +341,89 @@ def venue_access(*, mutation: bool = False, identifier: str | None = None, body:
         actor=False, csrf=mutation, body=mutation and body, mutation=mutation, operator=True
     )
     base = body_context if mutation and body else request_context
+    return _venue_access_dependency(base, access, mutation=mutation, identifier=identifier)
 
-    def validated(context: RequestContext, name: str, value: int) -> RequestContext:
-        identifiers = getattr(context.request.state, "validated_path_identifiers", {})
-        identifiers[name] = value
-        context.request.state.validated_path_identifiers = identifiers
-        return access(context)
 
-    def item(id: int, context: Annotated[RequestContext, Depends(base)]) -> RequestContext:
-        return validated(context, "id", id)
+def _venue_access_dependency(base, access, *, mutation: bool, identifier: str | None):
+    """Expose the underlying cookie and CSRF dependencies to OpenAPI."""
+    if identifier is not None:
+        return _venue_item_dependency(base, access, mutation=mutation, identifier=identifier)
+    return _venue_collection_dependency(base, access, mutation=mutation)
 
-    def audit(audit_id: int, context: Annotated[RequestContext, Depends(base)]) -> RequestContext:
-        return validated(context, "audit_id", audit_id)
 
-    if identifier == "id":
-        return item
-    if identifier == "audit_id":
-        return audit
-    return access
+def _venue_collection_dependency(base, access, *, mutation: bool):
+    if mutation:
+
+        def item(
+            context: Annotated[RequestContext, Depends(base)],
+            _session: Annotated[str | None, Security(SESSION_COOKIE)] = None,
+            _csrf: Annotated[str | None, Header(alias="X-CSRF-Token")] = None,
+        ) -> RequestContext:
+            del _session, _csrf
+            return access(context)
+
+    else:
+
+        def item(
+            context: Annotated[RequestContext, Depends(base)],
+            _session: Annotated[str | None, Security(SESSION_COOKIE)] = None,
+        ) -> RequestContext:
+            del _session
+            return access(context)
+
+    return item
+
+
+def _venue_item_dependency(base, access, *, mutation: bool, identifier: str):
+    """Validate a typed route identifier before applying the existing access check."""
+    if mutation:
+
+        def item(
+            id: int,
+            context: Annotated[RequestContext, Depends(base)],
+            _session: Annotated[str | None, Security(SESSION_COOKIE)] = None,
+            _csrf: Annotated[str | None, Header(alias="X-CSRF-Token")] = None,
+        ) -> RequestContext:
+            del _session, _csrf
+            return _validated_venue_context(context, access, "id", id)
+
+        def audit(
+            audit_id: int,
+            context: Annotated[RequestContext, Depends(base)],
+            _session: Annotated[str | None, Security(SESSION_COOKIE)] = None,
+            _csrf: Annotated[str | None, Header(alias="X-CSRF-Token")] = None,
+        ) -> RequestContext:
+            del _session, _csrf
+            return _validated_venue_context(context, access, "audit_id", audit_id)
+
+    else:
+
+        def item(
+            id: int,
+            context: Annotated[RequestContext, Depends(base)],
+            _session: Annotated[str | None, Security(SESSION_COOKIE)] = None,
+        ) -> RequestContext:
+            del _session
+            return _validated_venue_context(context, access, "id", id)
+
+        def audit(
+            audit_id: int,
+            context: Annotated[RequestContext, Depends(base)],
+            _session: Annotated[str | None, Security(SESSION_COOKIE)] = None,
+        ) -> RequestContext:
+            del _session
+            return _validated_venue_context(context, access, "audit_id", audit_id)
+
+    return {"id": item, "audit_id": audit}[identifier]
+
+
+def _validated_venue_context(
+    context: RequestContext, access, name: str, value: int
+) -> RequestContext:
+    identifiers = getattr(context.request.state, "validated_path_identifiers", {})
+    identifiers[name] = value
+    context.request.state.validated_path_identifiers = identifiers
+    return access(context)
 
 
 def venue_identifier(context: RequestContext, name: str = "id") -> int:

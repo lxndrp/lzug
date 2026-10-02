@@ -106,6 +106,12 @@ class FastAPIDependencyTests(unittest.TestCase):
             200, self.client.get("/api/session", headers=self.headers(self.member)).status_code
         )
 
+    def test_session_response_preserves_absent_runtime_policy_fields(self) -> None:
+        response = self.client.get("/api/session", headers=self.headers())
+
+        self.assertEqual(200, response.status_code)
+        self.assertNotIn("demo_role", response.json())
+
     def test_exam_round_http_create_binds_actor_and_rejects_client_actor_fields(self) -> None:
         payload = {
             "season": "summer",
