@@ -161,8 +161,11 @@ Er ruft keinen externen Kalenderprovider auf.
 Der aktuelle Code codiert Eventgenerationen in `source_key` und
 `external_event_id`; Inhaltsänderungen erhöhen die Eventversion und eine
 Reaktivierung erzeugt eine weitere Generation.
-`planning.plan_consequences` speichert Kalenderaufträge atomar mit der
-Planrevision.
+`planning.plan_consequences` leitet Kalenderaufträge nach dem
+Plan-Commit in einem separaten, idempotent wiederholbaren UoW ab.
+Scheitert die Ableitung, bleibt der bestätigte Plan bestehen; der Request
+meldet `derivation_status=missing`, und `process_due` kann die Ableitung
+erneut ausführen.
 `_process_calendars` gruppiert sie pro Runde, aktualisiert die Projektion in
 einem separaten Datenbank-UoW und speichert danach Auftragsstatus, Event-ID
 und Eventversion in einem weiteren UoW.
