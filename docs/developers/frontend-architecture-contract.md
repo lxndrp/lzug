@@ -246,7 +246,8 @@ markieren begrenzte Leseverträge.
 
 ```mermaid
 flowchart LR
-  Shell[Shell / Auth / Session / Lifecycle]
+  Shell[Shell / Navigation / Lifecycle]
+  Auth[Auth / Session / Fähigkeiten]
   Context[Auswahlkontext: Runden-ID]
   Dashboard[Dashboard-Projektion]
   Locations[Orts-Reads und Orts-Commands]
@@ -261,7 +262,11 @@ flowchart LR
   Personal[Benachrichtigung / Kalender / Abwesenheit]
   Demo[Demo-Szenarien]
   API[Bestehende Backend-API und Autorisierung]
-  Shell --> Context
+  Shell --> Auth
+  Auth -->|Auth-Commands / Sessionwechsel| API
+  Auth -. Identität / Fähigkeit .-> Context
+  Auth -. Fähigkeit / Zielautorisierung .-> Day
+  Auth -. Fähigkeit .-> Personal
   Context -. selected round ID .-> Dashboard
   Context -. selected round ID .-> HalfYears
   Context -. origin round ID .-> Planning
@@ -276,7 +281,7 @@ flowchart LR
   Day -->|Tages-/Anwesenheitscommands| API
   Protocol -->|Protokollrevision und Commands| API
   Result -->|Ergebnisrevision und Commands| API
-  Personal -->|eigene Reads und Commands| API
+  Personal -->|autorisierte Reads und Commands| API
   Demo -->|Demo-Fähigkeiten| API
   Master -. Kandidaten- und Ausschussreferenzen .-> HalfYears
   Master -. begrenzte Referenzen .-> Planning
@@ -288,7 +293,7 @@ flowchart LR
   Overview -. ausgewählte Eintrags-ID zur Navigation .-> ConfirmedPlans
   Day -. Tag-/Slot-ID und Tagesrevision .-> Protocol
   Day -. geteilter Runden-/Tagkontext .-> Result
-  Personal -. eigene Abwesenheitsfähigkeit .-> Day
+  Day -->|Abwesenheitsreport: Tag / Assignment / Revision| Personal
 ```
 
 Jede geteilte Referenz hat einen Fachbesitzer und einen begrenzten
