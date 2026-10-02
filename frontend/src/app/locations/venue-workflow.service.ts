@@ -1,5 +1,19 @@
-import { Injectable, inject, signal } from '@angular/core';
-import { Observable, finalize, forkJoin } from 'rxjs';
+import { computed, Injectable, inject, signal } from '@angular/core';
+import {
+  Observable,
+  EMPTY,
+  NEVER,
+  Subject,
+  catchError,
+  defer,
+  filter,
+  finalize,
+  forkJoin,
+  of,
+  switchMap,
+  take,
+  takeUntil,
+} from 'rxjs';
 
 import { LOCATIONS_PORT } from './locations.port';
 import { SessionScopeService } from '../auth/session-scope.service';
@@ -16,7 +30,7 @@ import type {
   VenueRoomUpdate,
   VenueUpdate,
 } from './locations.models';
-import type { LocationsComponent } from './locations.component';
+import type { VenueViewEffect, VenueViewEffectCommand } from './venue-view-effect';
 import { ApplicationWorkspaceService } from '../shell/application-workspace.service';
 import { UiFeedbackService } from '../shell/ui-feedback.service';
 
@@ -27,300 +41,436 @@ export class VenueWorkflowService {
   private readonly feedback = inject(UiFeedbackService);
   private readonly workspace = inject(ApplicationWorkspaceService);
   private readonly sessionScope = inject(SessionScopeService);
-  private locationsComponent?: LocationsComponent;
+  private readonly pending = signal(false);
+  private activeView: symbol | null = null;
+  private activeViewEnded: Subject<void> | null = null;
+  private effectVersion = 0;
 
+  readonly actionBusy = computed(() => this.pending() || this.workspace.actionBusy());
   readonly geocodeCandidate = signal<GeocodeCandidate | null>(null);
+  readonly viewEffect = signal<VenueViewEffect | null>(null);
 
   constructor() {
     this.sessionScope.changes$.subscribe(() => {
       this.geocodeCandidate.set(null);
-      this.locationsComponent = undefined;
     });
   }
 
-  connect(component?: LocationsComponent): void {
-    this.locationsComponent = component;
+  activateView(view: symbol): void {
+    if (this.activeView === view) return;
+    this.endActiveView();
+    this.activeView = view;
+    this.activeViewEnded = new Subject<void>();
+    this.viewEffect.set(null);
   }
 
-  requestVenueDeletion(venue: Venue): void {
-    this.feedback.confirm(
-      `${venue.name} löschen?`,
-      'Nur ein vollständig ungenutzter Ort ohne Räume und Kontakte kann gelöscht werden.',
-      `${venue.name} löschen`,
-      () => this.deleteVenue(venue),
+  deactivateView(view: symbol): void {
+    if (this.activeView !== view) return;
+    this.endActiveView();
+    this.viewEffect.set(null);
+    this.geocodeCandidate.set(null);
+  }
+
+  requestVenueDeletion(venue: Venue, view = this.activeView): void {
+    this.runOperation(
+      () =>
+        this.confirmForView(
+          view,
+          `${venue.name} löschen?`,
+          'Nur ein vollständig ungenutzter Ort ohne Räume und Kontakte kann gelöscht werden.',
+          `${venue.name} löschen`,
+        ).pipe(
+          filter((confirmed) => confirmed && this.isCurrentView(view)),
+          switchMap(() => defer(() => this.port.deleteVenue(venue.id, venue.revision))),
+        ),
+      () => this.completeVenueAction(undefined, 'Prüfungsort gelöscht', venue.name, view),
+      () =>
+        this.feedback.notify(
+          'error',
+          'Aktion fehlgeschlagen',
+          'Bitte prüfen Sie Status, Verwendung und Revision.',
+        ),
     );
   }
 
-  createVenue(payload: VenueCreate): void {
-    this.workspace.actionBusy.set(true);
-    this.sessionScope
-      .forCurrentSession(this.port.checkDuplicates(payload))
-      .pipe(finalize(() => this.workspace.actionBusy.set(false)))
-      .subscribe({
-        next: (duplicates) => {
-          const save = () => this.persistVenue(payload, duplicates.length > 0);
-          if (!duplicates.length) return save();
-          this.feedback.confirm(
-            'Ähnliche Prüfungsorte gefunden',
-            duplicates.map((item) => `${item.name} · ${item.address}`).join('\n'),
-            'Trotzdem anlegen',
-            save,
-          );
-        },
-        error: () =>
-          this.feedback.notify(
-            'error',
-            'Dublettenprüfung fehlgeschlagen',
-            'Bitte erneut versuchen.',
-          ),
-      });
+  createVenue(payload: VenueCreate, view = this.activeView): void {
+    this.runOperation(
+      () =>
+        defer(() => this.port.checkDuplicates(payload)).pipe(
+          catchError(() => {
+            this.feedback.notify(
+              'error',
+              'Dublettenprüfung fehlgeschlagen',
+              'Bitte erneut versuchen.',
+            );
+            return EMPTY;
+          }),
+          switchMap((duplicates) => {
+            const create = () =>
+              defer(() =>
+                this.port.createVenue({ ...payload, duplicatesReviewed: duplicates.length > 0 }),
+              ).pipe(
+                catchError(() => {
+                  this.feedback.notify(
+                    'error',
+                    'Prüfungsort nicht gespeichert',
+                    'Die Eingaben bleiben erhalten. Bitte erneut versuchen.',
+                  );
+                  return EMPTY;
+                }),
+              );
+            if (!duplicates.length) return create();
+            return this.confirmForView(
+              view,
+              'Ähnliche Prüfungsorte gefunden',
+              duplicates.map((item) => `${item.name} · ${item.address}`).join('\n'),
+              'Trotzdem anlegen',
+            ).pipe(
+              filter((confirmed) => confirmed && this.isCurrentView(view)),
+              switchMap(create),
+            );
+          }),
+        ),
+      (venue) => {
+        this.emitViewEffect(view, { type: 'reset-draft' });
+        this.feedback.notify('success', 'Prüfungsort angelegt', venue.name);
+        this.workspace.refresh();
+      },
+      () =>
+        this.feedback.notify(
+          'error',
+          'Prüfungsort nicht gespeichert',
+          'Die Eingaben bleiben erhalten. Bitte erneut versuchen.',
+        ),
+    );
   }
 
-  private persistVenue(payload: VenueCreate, duplicatesReviewed: boolean): void {
-    this.workspace.actionBusy.set(true);
-    this.sessionScope
-      .forCurrentSession(this.port.createVenue({ ...payload, duplicatesReviewed }))
-      .pipe(finalize(() => this.workspace.actionBusy.set(false)))
-      .subscribe({
-        next: (venue) => {
-          this.locationsComponent?.resetDraft();
-          this.feedback.notify('success', 'Prüfungsort angelegt', venue.name);
-          this.workspace.refresh();
-        },
-        error: () =>
-          this.feedback.notify(
-            'error',
-            'Prüfungsort nicht gespeichert',
-            'Die Eingaben bleiben erhalten. Bitte erneut versuchen.',
-          ),
-      });
-  }
-
-  updateVenue(update: VenueUpdate): void {
-    this.workspace.actionBusy.set(true);
-    this.sessionScope
-      .forCurrentSession(
+  updateVenue(update: VenueUpdate, view = this.activeView): void {
+    this.runOperation(
+      () =>
         forkJoin({
-          impact: this.port.getVenueChangeImpact(update.id, update.payload),
-          duplicates: this.port.checkDuplicates(update.payload, update.id),
-        }),
-      )
-      .pipe(finalize(() => this.workspace.actionBusy.set(false)))
-      .subscribe({
-        next: ({ impact, duplicates }) => {
-          const requiresConfirmation = impact.requiresConfirmation ?? impact.count > 0;
-          const needsConfirmation = requiresConfirmation || duplicates.length > 0;
-          const save = () =>
-            this.persistVenueUpdate(update, requiresConfirmation, duplicates.length > 0);
-          if (!needsConfirmation) return save();
-          this.feedback.confirm(
-            duplicates.length ? 'Ähnliche Prüfungsorte gefunden' : 'Bestätigte Termine betroffen',
-            [
-              this.venueImpactMessage(impact),
-              ...duplicates.map((item) => `${item.name} · ${item.address}`),
-            ]
-              .filter(Boolean)
-              .join('\n'),
-            'Änderung bestätigen',
-            save,
-          );
-        },
-        error: () =>
-          this.feedback.notify(
-            'error',
-            'Auswirkungsprüfung fehlgeschlagen',
-            'Bitte erneut versuchen.',
-          ),
-      });
+          impact: defer(() => this.port.getVenueChangeImpact(update.id, update.payload)),
+          duplicates: defer(() => this.port.checkDuplicates(update.payload, update.id)),
+        }).pipe(
+          catchError(() => {
+            this.feedback.notify(
+              'error',
+              'Auswirkungsprüfung fehlgeschlagen',
+              'Bitte erneut versuchen.',
+            );
+            return EMPTY;
+          }),
+          switchMap(({ impact, duplicates }) => {
+            const requiresConfirmation = impact.requiresConfirmation ?? impact.count > 0;
+            const needsConfirmation = requiresConfirmation || duplicates.length > 0;
+            const save = () =>
+              defer(() =>
+                this.port.updateVenue({
+                  ...update,
+                  confirmFutureAssignments: requiresConfirmation,
+                  duplicatesReviewed: duplicates.length > 0,
+                }),
+              ).pipe(
+                catchError(() => {
+                  this.feedback.notify(
+                    'error',
+                    'Prüfungsort nicht gespeichert',
+                    'Bitte erneut versuchen.',
+                  );
+                  return EMPTY;
+                }),
+              );
+            if (!needsConfirmation) return save();
+            return this.confirmForView(
+              view,
+              duplicates.length ? 'Ähnliche Prüfungsorte gefunden' : 'Bestätigte Termine betroffen',
+              [
+                this.venueImpactMessage(impact),
+                ...duplicates.map((item) => `${item.name} · ${item.address}`),
+              ]
+                .filter(Boolean)
+                .join('\n'),
+              'Änderung bestätigen',
+            ).pipe(
+              filter((confirmed) => confirmed && this.isCurrentView(view)),
+              switchMap(save),
+            );
+          }),
+        ),
+      (venue) => {
+        this.finishEditing(venue.id, view);
+        if (
+          update.payload.coordinateStatus === 'confirmed' &&
+          this.geocodeCandidate()?.venueId === venue.id &&
+          this.isCurrentView(view)
+        ) {
+          this.geocodeCandidate.set(null);
+        }
+        this.feedback.notify(
+          venue.consequenceWarning ? 'error' : 'success',
+          venue.consequenceWarning
+            ? 'Prüfungsort gespeichert, Folgen unvollständig'
+            : 'Prüfungsort gespeichert',
+          venue.consequenceWarning ?? venue.name,
+        );
+        this.workspace.refresh();
+      },
+      () =>
+        this.feedback.notify('error', 'Prüfungsort nicht gespeichert', 'Bitte erneut versuchen.'),
+    );
   }
 
-  geocodeVenue(venue: Venue): void {
-    this.workspace.actionBusy.set(true);
-    this.sessionScope
-      .forCurrentSession(this.port.geocodeVenue(venue.id, venue.revision))
-      .pipe(finalize(() => this.workspace.actionBusy.set(false)))
-      .subscribe({
-        next: (candidate) => {
-          this.geocodeCandidate.set({ venueId: venue.id, ...candidate });
-          this.feedback.notify(
-            'success',
-            'Position vorgeschlagen',
-            'Bitte die vorgeschlagene Position vor dem Speichern bestätigen.',
-          );
-        },
-        error: () =>
-          this.feedback.notify(
-            'error',
-            'Position nicht verfügbar',
-            'Die Ortsdaten wurden nicht verändert. Bitte später erneut versuchen.',
-          ),
-      });
+  geocodeVenue(venue: Venue, view = this.activeView): void {
+    this.runOperation(
+      () => defer(() => this.port.geocodeVenue(venue.id, venue.revision)),
+      (candidate) => {
+        if (!this.isCurrentView(view)) return;
+        this.geocodeCandidate.set({ venueId: venue.id, ...candidate });
+        this.feedback.notify(
+          'success',
+          'Position vorgeschlagen',
+          'Bitte die vorgeschlagene Position vor dem Speichern bestätigen.',
+        );
+      },
+      () =>
+        this.feedback.notify(
+          'error',
+          'Position nicht verfügbar',
+          'Die Ortsdaten wurden nicht verändert. Bitte später erneut versuchen.',
+        ),
+    );
   }
 
-  private persistVenueUpdate(
-    update: VenueUpdate,
-    confirmed: boolean,
-    duplicatesReviewed: boolean,
-  ): void {
-    this.workspace.actionBusy.set(true);
-    this.sessionScope
-      .forCurrentSession(
-        this.port.updateVenue({
-          ...update,
-          confirmFutureAssignments: confirmed,
-          duplicatesReviewed,
-        }),
-      )
-      .pipe(finalize(() => this.workspace.actionBusy.set(false)))
-      .subscribe({
-        next: (venue) => {
-          this.locationsComponent?.finishEditing(venue.id);
-          if (
-            update.payload.coordinateStatus === 'confirmed' &&
-            this.geocodeCandidate()?.venueId === venue.id
-          ) {
-            this.geocodeCandidate.set(null);
-          }
-          this.feedback.notify(
-            venue.consequenceWarning ? 'error' : 'success',
-            venue.consequenceWarning
-              ? 'Prüfungsort gespeichert, Folgen unvollständig'
-              : 'Prüfungsort gespeichert',
-            venue.consequenceWarning ?? venue.name,
-          );
-          this.workspace.refresh();
-        },
-        error: () =>
-          this.feedback.notify('error', 'Prüfungsort nicht gespeichert', 'Bitte erneut versuchen.'),
-      });
-  }
-
-  deleteVenue(venue: Venue): void {
+  deleteVenue(venue: Venue, view = this.activeView): void {
     this.runVenueAction(
-      this.port.deleteVenue(venue.id, venue.revision),
+      () => this.port.deleteVenue(venue.id, venue.revision),
       'Prüfungsort gelöscht',
       venue.name,
+      view,
     );
   }
 
-  createRoom(command: VenueRoomCreate): void {
-    this.runVenueAction(this.port.createRoom(command), 'Raum angelegt', command.payload.name);
-  }
-
-  updateRoom(command: VenueRoomUpdate): void {
-    this.workspace.actionBusy.set(true);
-    this.sessionScope
-      .forCurrentSession(this.port.getRoomChangeImpact(command.id, command.payload))
-      .pipe(finalize(() => this.workspace.actionBusy.set(false)))
-      .subscribe({
-        next: (impact) => {
-          const requiresConfirmation = impact.requiresConfirmation ?? impact.count > 0;
-          const save = () =>
-            this.runVenueAction(
-              this.port.updateRoom({ ...command, confirmFutureAssignments: requiresConfirmation }),
-              'Raum gespeichert',
-              '',
-            );
-          if (!requiresConfirmation) return save();
-          this.feedback.confirm(
-            'Bestätigte Termine betroffen',
-            this.venueImpactMessage(impact),
-            'Änderung bestätigen',
-            save,
-          );
-        },
-        error: () =>
-          this.feedback.notify(
-            'error',
-            'Auswirkungsprüfung fehlgeschlagen',
-            'Bitte erneut versuchen.',
-          ),
-      });
-  }
-
-  deleteRoom(room: VenueRoom): void {
-    this.runVenueAction(this.port.deleteRoom(room.id, room.revision), 'Raum gelöscht', room.name);
-  }
-
-  retryVenueConsequences(auditId: number): void {
+  createRoom(command: VenueRoomCreate, view = this.activeView): void {
     this.runVenueAction(
-      this.port.retryConsequences(auditId),
+      () => this.port.createRoom(command),
+      'Raum angelegt',
+      command.payload.name,
+      view,
+    );
+  }
+
+  updateRoom(command: VenueRoomUpdate, view = this.activeView): void {
+    this.runOperation(
+      () =>
+        defer(() => this.port.getRoomChangeImpact(command.id, command.payload)).pipe(
+          switchMap((impact) => {
+            const requiresConfirmation = impact.requiresConfirmation ?? impact.count > 0;
+            const save = () =>
+              defer(() =>
+                this.port.updateRoom({
+                  ...command,
+                  confirmFutureAssignments: requiresConfirmation,
+                }),
+              ).pipe(
+                catchError(() => {
+                  this.feedback.notify(
+                    'error',
+                    'Aktion fehlgeschlagen',
+                    'Bitte prüfen Sie Status, Verwendung und Revision.',
+                  );
+                  return EMPTY;
+                }),
+              );
+            if (!requiresConfirmation) return save();
+            return this.confirmForView(
+              view,
+              'Bestätigte Termine betroffen',
+              this.venueImpactMessage(impact),
+              'Änderung bestätigen',
+            ).pipe(
+              filter((confirmed) => confirmed && this.isCurrentView(view)),
+              switchMap(save),
+            );
+          }),
+          catchError(() => {
+            this.feedback.notify(
+              'error',
+              'Auswirkungsprüfung fehlgeschlagen',
+              'Bitte erneut versuchen.',
+            );
+            return EMPTY;
+          }),
+        ),
+      (result) => this.completeVenueAction(result, 'Raum gespeichert', '', view),
+      () =>
+        this.feedback.notify(
+          'error',
+          'Aktion fehlgeschlagen',
+          'Bitte prüfen Sie Status, Verwendung und Revision.',
+        ),
+    );
+  }
+
+  deleteRoom(room: VenueRoom, view = this.activeView): void {
+    this.runVenueAction(
+      () => this.port.deleteRoom(room.id, room.revision),
+      'Raum gelöscht',
+      room.name,
+      view,
+    );
+  }
+
+  retryVenueConsequences(auditId: number, view = this.activeView): void {
+    this.runVenueAction(
+      () => this.port.retryConsequences(auditId),
       'Folgen erneut verarbeitet',
       'Der aktuelle Status wurde geprüft.',
+      view,
     );
   }
 
-  createContact(command: VenueContactCreate): void {
+  createContact(command: VenueContactCreate, view = this.activeView): void {
     this.runVenueAction(
-      this.port.createContact(command),
+      () => this.port.createContact(command),
       'Kontakt angelegt',
       command.payload.label,
+      view,
     );
   }
 
-  updateContact(command: VenueContactUpdate): void {
-    this.runVenueAction(this.port.updateContact(command), 'Kontakt gespeichert', '');
+  updateContact(command: VenueContactUpdate, view = this.activeView): void {
+    this.runVenueAction(() => this.port.updateContact(command), 'Kontakt gespeichert', '', view);
   }
 
-  deleteContact(contact: VenueContact): void {
+  deleteContact(contact: VenueContact, view = this.activeView): void {
     this.runVenueAction(
-      this.port.deleteContact(contact.id, contact.revision),
+      () => this.port.deleteContact(contact.id, contact.revision),
       'Kontakt gelöscht',
       contact.label,
+      view,
     );
   }
 
-  requestPromotion(command: { venue: Venue; reason: string }): void {
+  requestPromotion(command: { venue: Venue; reason: string }, view = this.activeView): void {
     this.runVenueAction(
-      this.port.requestPromotion(command.venue.id, command.venue.revision, command.reason),
+      () => this.port.requestPromotion(command.venue.id, command.venue.revision, command.reason),
       'Hochstufung beantragt',
       command.venue.name,
+      view,
     );
   }
 
-  decidePromotion(command: { venue: Venue; decision: 'approve' | 'reject'; reason: string }): void {
+  decidePromotion(
+    command: { venue: Venue; decision: 'approve' | 'reject'; reason: string },
+    view = this.activeView,
+  ): void {
     this.runVenueAction(
-      this.port.decidePromotion(
-        command.venue.id,
-        command.venue.revision,
-        command.decision,
-        command.reason,
-      ),
+      () =>
+        this.port.decidePromotion(
+          command.venue.id,
+          command.venue.revision,
+          command.decision,
+          command.reason,
+        ),
       command.decision === 'approve' ? 'Prüfungsort hochgestuft' : 'Hochstufung abgelehnt',
       command.venue.name,
+      view,
     );
   }
 
-  private runVenueAction(request: Observable<unknown>, title: string, detail: string): void {
-    this.workspace.actionBusy.set(true);
+  private runVenueAction(
+    request: () => Observable<unknown>,
+    title: string,
+    detail: string,
+    view: symbol | null,
+  ): void {
+    this.runOperation(
+      request,
+      (result) => this.completeVenueAction(result, title, detail, view),
+      () =>
+        this.feedback.notify(
+          'error',
+          'Aktion fehlgeschlagen',
+          'Bitte prüfen Sie Status, Verwendung und Revision.',
+        ),
+    );
+  }
+
+  private completeVenueAction(
+    result: unknown,
+    title: string,
+    detail: string,
+    view: symbol | null,
+  ): void {
+    this.finishEditing(-1, view);
+    const warning =
+      typeof result === 'object' &&
+      result !== null &&
+      'consequenceWarning' in result &&
+      typeof result.consequenceWarning === 'string' &&
+      result.consequenceWarning.trim()
+        ? result.consequenceWarning
+        : null;
+    this.feedback.notify(
+      warning ? 'error' : 'success',
+      warning ? `${title}, Folgen unvollständig` : title,
+      warning ?? detail,
+    );
+    this.workspace.refresh();
+  }
+
+  private runOperation<T>(
+    request: () => Observable<T>,
+    onNext: (result: T) => void,
+    onError: () => void,
+  ): void {
+    if (this.pending() || this.workspace.actionBusy()) return;
+    this.pending.set(true);
     this.sessionScope
-      .forCurrentSession(request)
-      .pipe(finalize(() => this.workspace.actionBusy.set(false)))
-      .subscribe({
-        next: (result) => {
-          this.locationsComponent?.finishEditing(-1);
-          const warning =
-            typeof result === 'object' &&
-            result !== null &&
-            'consequenceWarning' in result &&
-            typeof result.consequenceWarning === 'string' &&
-            result.consequenceWarning.trim()
-              ? result.consequenceWarning
-              : null;
-          this.feedback.notify(
-            warning ? 'error' : 'success',
-            warning ? `${title}, Folgen unvollständig` : title,
-            warning ?? detail,
-          );
-          this.workspace.refresh();
-        },
-        error: () =>
-          this.feedback.notify(
-            'error',
-            'Aktion fehlgeschlagen',
-            'Bitte prüfen Sie Status, Verwendung und Revision.',
-          ),
-      });
+      .forCurrentSession(defer(request))
+      .pipe(
+        take(1),
+        finalize(() => this.pending.set(false)),
+      )
+      .subscribe({ next: onNext, error: onError });
+  }
+
+  private finishEditing(id: number, view: symbol | null): void {
+    if (this.isCurrentView(view)) this.emitViewEffect(view, { type: 'finish-editing', id });
+  }
+
+  private emitViewEffect(view: symbol | null, effect: VenueViewEffectCommand): void {
+    if (!this.isCurrentView(view)) return;
+    this.viewEffect.set({ ...effect, version: ++this.effectVersion } as VenueViewEffect);
+  }
+
+  private isCurrentView(view: symbol | null): boolean {
+    return view === null || view === this.activeView;
+  }
+
+  private confirmForView(
+    view: symbol | null,
+    title: string,
+    message: string,
+    confirmLabel: string,
+  ): Observable<boolean> {
+    if (!this.isCurrentView(view)) return EMPTY;
+    return this.feedback
+      .confirm$(title, message, confirmLabel)
+      .pipe(takeUntil(this.viewEnded(view)));
+  }
+
+  private viewEnded(view: symbol | null): Observable<void> {
+    if (view === null) return NEVER;
+    if (!this.isCurrentView(view)) return of(undefined);
+    return this.activeViewEnded ?? of(undefined);
+  }
+
+  private endActiveView(): void {
+    this.activeView = null;
+    this.activeViewEnded?.next();
+    this.activeViewEnded?.complete();
+    this.activeViewEnded = null;
   }
 
   private venueImpactMessage(impact: VenueChangeImpact): string {
