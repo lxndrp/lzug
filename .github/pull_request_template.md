@@ -12,6 +12,16 @@
 - [ ] Keine vertraulichen oder personenbezogenen Daten ergänzt
 - [ ] Keine Produktions- oder IHK-Zusage eingeführt
 
+### Reviewkontext
+
+- Auftragsissue(s) und jeweils gelesene Complexity:
+- Quelle (Project-URL), Abrufzeit und zugehörige PR-Head-SHA:
+- Gewählte Perspektiven und Nachweise je Perspektive (Revision, Ergebnis, Prüflücken):
+
+Bei fehlendem Projectzugriff übergebene Evidenz als solche kennzeichnen.
+Fehlende oder widersprüchliche Angaben benennen; für Dependabot ohne Issue keine Complexity erfinden.
+Die Auswahlregel steht in `AGENTS.md`.
+
 ## Abweichungen
 
 - Wesentliche Modellabweichungen oder Eskalationen

@@ -18,6 +18,62 @@ technische Details im [Entwicklerhandbuch](docs/developers/index.md).
   Für Lucide prüft `brand/generate-assets.mjs` den exakten Manifest-/Lockfile-Pin;
   ein Versionswechsel erfordert daher die abgestimmte Generator-/Asset-/Lizenzänderung.
   Ein verfügbares Update allein ist kein Reviewbefund.
+- Für issuebezogene Umsetzungs- und PR-Abnahmereviews gilt lokal in Codex und
+  auf GitHub dieselbe Auswahlmatrix.
+  Explorative Beratung und eigenständige Codebasis-Reviews behalten ihren beauftragten Scope.
+  Die gewählte Perspektive wird auf die betroffenen Änderungen
+  angewendet; kleine PRs erhalten keinen pauschalen Vollreview.
+
+  | Complexity | Erforderliche Perspektive |
+  | --- | --- |
+  | C1 - Mechanical | [lzug-code-review](.agents/skills/lzug-code-review/SKILL.md), enger Diff |
+  | C2 - Localized | [lzug-code-review](.agents/skills/lzug-code-review/SKILL.md), betroffene Komponentenverträge |
+  | C3 - Crosscutting | C2 plus [lzug-application-architecture-review](.agents/skills/lzug-application-architecture-review/SKILL.md) |
+  | C4 - Systemic | C3 plus [lzug-system-architecture-review](.agents/skills/lzug-system-architecture-review/SKILL.md) |
+
+  Änderungen an Toolchain, CI/CD, Packaging, Deployment oder Betrieb erfordern
+  zusätzlich unabhängig von Complexity [lzug-devops-review](.agents/skills/lzug-devops-review/SKILL.md).
+  Complexity stammt live aus dem Feld `Complexity` des Issues im Project
+  [lzug Roadmap](https://github.com/users/lxndrp/projects/2). Nur `Closes`, `Fixes`,
+  `Resolves` oder `Tracks` sowie ein ausdrücklich bestätigter Auftrag ordnen ein Issue
+  dem PR zu; beiläufige Erwähnungen und Branch-Namen sind keine Zuordnung. Bei mehreren
+  Auftragsissues eines bestehenden oder manuell erstellten PRs gilt die höchste Complexity
+  und die Vereinigung der betroffenen
+  Perspektiven; fremde Planwerte werden nicht geändert.
+
+  Kann ein Reviewer die Project-API nicht abfragen, darf er belegten Reviewkontext des
+  zuständigen Bearbeiters verwenden: Issue, Complexity-Wert, Project-URL, Abrufzeit und
+  PR-Head-SHA. Verwende sie nur für genau diesen Head und unveränderten Scope; bei
+  neuer Einstufung wird sie erneuert. Diese Quelle ist als übergeben zu kennzeichnen.
+  Der Bearbeiter stellt sie vor dem Review bereit; sie ist Nachweisevidenz und keine
+  zweite Planungsquelle.
+  Ein frisch gelesener kanonischer Wert ersetzt ältere übergebene Evidenz; der
+  Bearbeiter aktualisiert den PR-Kontext ohne neue Planungsentscheidung.
+  Widersprüchliche gleichrangige aktuelle oder fehlende Evidenz macht die Zuordnung
+  unvollständig: ein fokussierter Review bleibt
+  möglich, aber keine vollständige Reviewabnahme. Complexity darf nicht geraten werden.
+  Dependabot-PRs ohne Issue folgen dem bestehenden Verfahren; Code-Review gilt weiterhin,
+  DevOps kommt bei betroffenen Betriebs-/Deliveryänderungen hinzu, ohne Issue oder
+  Complexity zu erfinden.
+
+  Für lokale Umsetzungs- und PR-Abnahmereviews beauftragt der verantwortliche Bearbeiter je gewählter Perspektive
+  einen unabhängigen, read-only Reviewer-Subagent mit Base-/Head-SHA, Scope und Issue,
+  Complexity-Evidenz sowie Skillpfad. Bei Slotlimit dürfen Reviews nacheinander laufen.
+  Ist kein unabhängiger Subagent verfügbar, bleibt die fehlende unabhängige Prüfung offen;
+  Selbstprüfung ist kein Ersatz. GitHub-Reviews lesen für jede ausgewählte Perspektive
+  die oben verlinkte `SKILL.md` und die relevanten Referenzen; sie setzen weder eine Skill-Auswahl-API noch Subagenttools oder
+  Projectzugang im Hosted Reviewer voraus. Eine Reviewinstanz darf alle gewählten
+  Perspektiven prüfen, aber nicht mehrere unabhängige Reviews behaupten. Geprüft werden
+  Diff und erforderliche Aufrufer; Altbefunde bleiben getrennt. Format und Severity des
+  Reviewdienstes gelten. Halte verwendete Complexity-Quelle, ausgewählte und tatsächlich
+  geprüfte Perspektiven, Revision, Befunde und Prüflücken im verfügbaren Berichtsformat
+  fest; ein fehlender Befund belegt allein keine vollständige Skill-Anwendung.
+  Fehlende Metadaten erzeugen keine künstlichen Codebefunde.
+  Bei neuem Commit, Scope oder Complexity ist betroffene Evidenz zu aktualisieren;
+  vorhandene Prüfungen werden nicht pauschal wiederholt. PRs, die Reviewregeln oder
+  Skills ändern, werden bis zum Merge nach den bisher geltenden Regeln abgenommen;
+  eine vorgeschlagene Lockerung reduziert nicht die eigene Abnahme. Neue Regeln können
+  separat erprobt werden.
 
 ## 1. Kanonischer Stand und Auftrag
 

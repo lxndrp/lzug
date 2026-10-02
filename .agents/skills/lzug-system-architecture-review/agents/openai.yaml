@@ -1,0 +1,4 @@
+interface:
+  display_name: "lzug · Principal Architect Review"
+  short_description: "Systemgrenzen, Konsistenz und Ausfallverhalten prüfen"
+  default_prompt: "Prüfe mit $lzug-system-architecture-review die lzug-Gesamtarchitektur einschließlich Vertrauensgrenzen, Konsistenz und Ausfallverhalten."

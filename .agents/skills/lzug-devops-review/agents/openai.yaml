@@ -1,0 +1,4 @@
+interface:
+  display_name: "lzug · Senior DevOps Engineer Review"
+  short_description: "Toolchain, CI/CD und konkrete Betriebsfähigkeit prüfen"
+  default_prompt: "Bewerte mit $lzug-devops-review die lzug-Entwicklungsumgebung, Integration, Delivery und Betriebsfähigkeit anhand konkreter Nachweise."
