@@ -184,6 +184,257 @@ describe('ExamResultComponent', () => {
     );
   });
 
+  it('requires a complete vote and a simple majority before determining the result', () => {
+    fixture.detectChanges();
+    fixture.detectChanges();
+    const component = fixture.componentInstance as unknown as {
+      determineResult(): void;
+      setExamResultVoter(memberId: number, selected: boolean): void;
+      setExamResultVote(memberId: number, choice: 'yes' | 'no' | 'abstain' | null): void;
+    };
+
+    component.determineResult();
+    fixture.detectChanges();
+    expect(port.determineExamResult).not.toHaveBeenCalled();
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector('[role="alert"]')?.textContent,
+    ).toContain('mindestens die erforderliche Anzahl anwesender Ausschussmitglieder');
+
+    component.setExamResultVoter(1, true);
+    component.setExamResultVoter(2, true);
+    component.setExamResultVote(1, 'yes');
+    component.setExamResultVote(2, 'no');
+    component.determineResult();
+    fixture.detectChanges();
+    expect(port.determineExamResult).not.toHaveBeenCalled();
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector('[role="alert"]')?.textContent,
+    ).toContain('mehr Ja- als Nein-Stimmen');
+
+    component.setExamResultVote(2, 'abstain');
+    component.determineResult();
+    expect(port.determineExamResult).toHaveBeenCalledWith(
+      expect.objectContaining({ vote: { yes: [1], no: [], abstain: [2] } }),
+    );
+  });
+
+  it('passes the explicit majority and independent dissent through both feature commands', () => {
+    const disclosedResult = resultFixture({
+      participants: [1, 2, 3],
+      disclosures: [
+        { componentKey: 'documentation', disclosedByMemberId: 1, disclosedAt: '2026-09-30' },
+      ],
+    });
+    vi.mocked(port.get).mockReturnValue(of(disclosedResult));
+    vi.mocked(port.determineComponent).mockReturnValue(of(disclosedResult));
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance as unknown as {
+      determineComponent(key: string): void;
+      determineResult(): void;
+      componentVotes: Map<string, Map<number, 'yes' | 'no' | 'abstain'>>;
+      componentVoters: Map<string, Set<number>>;
+      examResultVotes: Map<number, 'yes' | 'no' | 'abstain'>;
+      examResultVoters: Set<number>;
+      dissentMemberId: number | null;
+      dissentStatement: string;
+    };
+    const vote = new Map<number, 'yes' | 'no' | 'abstain'>([
+      [1, 'yes'],
+      [2, 'yes'],
+      [3, 'no'],
+    ]);
+    component.componentVotes.set('documentation', vote);
+    component.componentVoters.set('documentation', new Set([1, 2, 3]));
+    component.examResultVotes.set(1, 'yes');
+    component.examResultVotes.set(2, 'yes');
+    component.examResultVotes.set(3, 'no');
+    component.examResultVoters.add(1);
+    component.examResultVoters.add(2);
+    component.examResultVoters.add(3);
+    component.dissentMemberId = 3;
+    component.dissentStatement = 'Abweichende Begründung';
+
+    component.determineComponent('documentation');
+    expect(port.determineComponent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        participants: [1, 2, 3],
+        vote: { yes: [1, 2], no: [3], abstain: [] },
+        dissent: [{ memberId: 3, statement: 'Abweichende Begründung' }],
+      }),
+    );
+
+    component.determineResult();
+    expect(port.determineExamResult).toHaveBeenCalledWith(
+      expect.objectContaining({
+        participants: [1, 2, 3],
+        vote: { yes: [1, 2], no: [3], abstain: [] },
+        dissent: [{ memberId: 3, statement: 'Abweichende Begründung' }],
+      }),
+    );
+  });
+
+  it('sends only the selected quorum and clears votes after determination', () => {
+    const disclosedResult = resultFixture({
+      participants: [1, 2, 3],
+      disclosures: [
+        { componentKey: 'documentation', disclosedByMemberId: 1, disclosedAt: '2026-09-30' },
+      ],
+    });
+    vi.mocked(port.get).mockReturnValue(of(disclosedResult));
+    vi.mocked(port.determineComponent).mockReturnValue(of(disclosedResult));
+    vi.mocked(port.determineExamResult).mockReturnValue(of(disclosedResult));
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance as unknown as {
+      determineComponent(key: string): void;
+      determineResult(): void;
+      componentVotes: Map<string, Map<number, 'yes' | 'no' | 'abstain'>>;
+      componentVoters: Map<string, Set<number>>;
+      examResultVotes: Map<number, 'yes' | 'no' | 'abstain'>;
+      examResultVoters: Set<number>;
+    };
+    component.componentVoters.set('documentation', new Set([1, 2]));
+    component.componentVotes.set(
+      'documentation',
+      new Map([
+        [1, 'yes'],
+        [2, 'yes'],
+      ]),
+    );
+    component.examResultVoters.add(1);
+    component.examResultVoters.add(2);
+    component.examResultVotes.set(1, 'yes');
+    component.examResultVotes.set(2, 'yes');
+
+    component.determineComponent('documentation');
+    expect(port.determineComponent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        participants: [1, 2],
+        vote: { yes: [1, 2], no: [], abstain: [] },
+      }),
+    );
+    expect(component.componentVotes.has('documentation')).toBe(false);
+    expect(component.componentVoters.has('documentation')).toBe(false);
+
+    component.determineResult();
+    expect(port.determineExamResult).toHaveBeenCalledWith(
+      expect.objectContaining({
+        participants: [1, 2],
+        vote: { yes: [1, 2], no: [], abstain: [] },
+      }),
+    );
+    expect(component.examResultVotes.size).toBe(0);
+    expect(component.examResultVoters.size).toBe(0);
+  });
+
+  it('rejects dissent from a member outside the selected quorum in both ballots', () => {
+    const disclosedResult = resultFixture({
+      participants: [1, 2, 3],
+      disclosures: [
+        { componentKey: 'documentation', disclosedByMemberId: 1, disclosedAt: '2026-09-30' },
+      ],
+    });
+    vi.mocked(port.get).mockReturnValue(of(disclosedResult));
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance as unknown as {
+      determineComponent(key: string): void;
+      determineResult(): void;
+      componentVoters: Map<string, Set<number>>;
+      componentVotes: Map<string, Map<number, 'yes' | 'no' | 'abstain'>>;
+      examResultVoters: Set<number>;
+      examResultVotes: Map<number, 'yes' | 'no' | 'abstain'>;
+      dissentMemberId: number | null;
+      dissentStatement: string;
+    };
+    component.componentVoters.set('documentation', new Set([1, 2]));
+    component.componentVotes.set(
+      'documentation',
+      new Map([
+        [1, 'yes'],
+        [2, 'yes'],
+      ]),
+    );
+    component.examResultVoters.add(1);
+    component.examResultVoters.add(2);
+    component.examResultVotes.set(1, 'yes');
+    component.examResultVotes.set(2, 'yes');
+    component.dissentMemberId = 3;
+    component.dissentStatement = 'Abweichender Standpunkt';
+
+    component.determineComponent('documentation');
+    component.determineResult();
+    fixture.detectChanges();
+
+    expect(port.determineComponent).not.toHaveBeenCalled();
+    expect(port.determineExamResult).not.toHaveBeenCalled();
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector('[role="alert"]')?.textContent,
+    ).toContain('nur ein ausgewähltes anwesendes Mitglied');
+
+    component.dissentMemberId = 2;
+    component.determineComponent('documentation');
+    expect(port.determineComponent).toHaveBeenCalledWith(
+      expect.objectContaining({ dissent: [{ memberId: 2, statement: 'Abweichender Standpunkt' }] }),
+    );
+    component.determineResult();
+    expect(port.determineExamResult).toHaveBeenCalledWith(
+      expect.objectContaining({ dissent: [{ memberId: 2, statement: 'Abweichender Standpunkt' }] }),
+    );
+  });
+
+  it('allows record confirmation only for members in the saved determination quorum', () => {
+    const determination = resultFixture().determinations[0];
+    vi.mocked(port.get).mockReturnValue(of(resultFixture({ currentDetermination: determination })));
+    fixture.componentRef.setInput('ownMemberId', 3);
+    fixture.detectChanges();
+    fixture.detectChanges();
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector(
+        'button[aria-label="Sachliche Richtigkeit bestätigen"]',
+      ),
+    ).toBeNull();
+    expect((fixture.nativeElement as HTMLElement).textContent).not.toContain(
+      'Sachliche Richtigkeit bestätigen',
+    );
+
+    fixture.componentRef.setInput('ownMemberId', 1);
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      'Sachliche Richtigkeit bestätigen',
+    );
+  });
+
+  it('clears both ballots when a correction is successfully opened', () => {
+    vi.mocked(port.openResultCorrection).mockReturnValue(
+      of(resultFixture({ correctionOpen: true })),
+    );
+    fixture.detectChanges();
+    fixture.detectChanges();
+    const component = fixture.componentInstance as unknown as {
+      openCorrection(): void;
+      componentVotes: Map<string, Map<number, 'yes' | 'no' | 'abstain'>>;
+      componentVoters: Map<string, Set<number>>;
+      examResultVotes: Map<number, 'yes' | 'no' | 'abstain'>;
+      examResultVoters: Set<number>;
+    };
+    component.componentVotes.set('documentation', new Map([[1, 'yes']]));
+    component.componentVoters.set('documentation', new Set([1]));
+    component.examResultVotes.set(1, 'yes');
+    component.examResultVoters.add(1);
+
+    component.openCorrection();
+
+    expect(component.componentVotes.size).toBe(0);
+    expect(component.componentVoters.size).toBe(0);
+    expect(component.examResultVotes.size).toBe(0);
+    expect(component.examResultVoters.size).toBe(0);
+  });
+
   it('renders calculation, correction, retention, and immutable result history', () => {
     vi.mocked(port.get).mockReturnValue(
       of(
@@ -336,8 +587,28 @@ describe('ExamResultComponent', () => {
       correctionReason: string;
       reopeningReference: string;
       communicationAt: string;
+      componentVotes: Map<string, Map<number, 'yes' | 'no' | 'abstain'>>;
+      componentVoters: Map<string, Set<number>>;
+      examResultVotes: Map<number, 'yes' | 'no' | 'abstain'>;
+      examResultVoters: Set<number>;
+      dissentMemberId: number | null;
+      dissentStatement: string;
     };
     component.componentPoints.set('documentation', '78');
+    component.componentVotes.set(
+      'documentation',
+      new Map([
+        [1, 'yes'],
+        [2, 'abstain'],
+      ]),
+    );
+    component.componentVoters.set('documentation', new Set([1, 2]));
+    component.examResultVotes.set(1, 'yes');
+    component.examResultVotes.set(2, 'abstain');
+    component.examResultVoters.add(1);
+    component.examResultVoters.add(2);
+    component.dissentMemberId = 2;
+    component.dissentStatement = 'Abweichende Begründung';
     component.drafts.set('documentation:clarity', {
       rawPoints: '75',
       rationale: 'Begründung',
@@ -371,6 +642,8 @@ describe('ExamResultComponent', () => {
         resultId: 41,
         componentKey: 'documentation',
         participants: [1, 2],
+        vote: { yes: [1], no: [], abstain: [2] },
+        dissent: [{ memberId: 2, statement: 'Abweichende Begründung' }],
         dayRevisions: { '7': 4 },
       }),
     );
@@ -386,6 +659,8 @@ describe('ExamResultComponent', () => {
       expect.objectContaining({
         resultId: 41,
         participants: [1, 2],
+        vote: { yes: [1], no: [], abstain: [2] },
+        dissent: [{ memberId: 2, statement: 'Abweichende Begründung' }],
       }),
     );
     expect(port.confirmResultRecord).toHaveBeenCalledWith(41, 3, { '7': 4 });
@@ -409,6 +684,10 @@ describe('ExamResultComponent', () => {
     vi.mocked(port.determineExamResult).mockReturnValueOnce(
       throwError(() => new ApplicationError('conflict', 'Versionskonflikt')),
     );
+    component.examResultVoters.add(1);
+    component.examResultVoters.add(2);
+    component.examResultVotes.set(1, 'yes');
+    component.examResultVotes.set(2, 'abstain');
     component.determineResult();
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('Versionskonflikt');

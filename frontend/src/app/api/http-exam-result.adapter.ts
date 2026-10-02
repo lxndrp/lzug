@@ -81,7 +81,7 @@ export class HttpExamResultAdapter implements ExamResultPort {
         points: command.points,
         rationale: command.rationale.trim() || null,
         participant_member_ids: command.participants,
-        vote: { yes: command.participants, no: [], abstain: [] },
+        vote: command.vote,
         dissent: command.dissent.map(({ memberId, statement }) => ({
           member_id: memberId,
           statement,
@@ -126,7 +126,7 @@ export class HttpExamResultAdapter implements ExamResultPort {
       .post<ApiExamResult>(`/api/exam-results/${command.resultId}/determine`, {
         version: command.version,
         participant_member_ids: command.participants,
-        vote: { yes: command.participants, no: [], abstain: [] },
+        vote: command.vote,
         dissent: command.dissent.map(({ memberId, statement }) => ({
           member_id: memberId,
           statement,

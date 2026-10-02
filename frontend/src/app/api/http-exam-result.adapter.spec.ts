@@ -115,7 +115,8 @@ describe('HttpExamResultAdapter', () => {
         points: '82',
         rationale: '  Gemeinsame Begründung  ',
         participants: [1, 2],
-        dissent: [{ memberId: 2, statement: 'Abweichung' }],
+        vote: { yes: [1, 2], no: [], abstain: [] },
+        dissent: [],
         dayRevisions: { '7': 4 },
       })
       .subscribe();
@@ -127,7 +128,7 @@ describe('HttpExamResultAdapter', () => {
       rationale: 'Gemeinsame Begründung',
       participant_member_ids: [1, 2],
       vote: { yes: [1, 2], no: [], abstain: [] },
-      dissent: [{ member_id: 2, statement: 'Abweichung' }],
+      dissent: [],
       day_revisions: { '7': 4 },
     });
     committee.flush(apiResult());
@@ -172,7 +173,8 @@ describe('HttpExamResultAdapter', () => {
         resultId: 41,
         version: 3,
         participants: [1, 2],
-        dissent: [{ memberId: 2, statement: 'Abweichung' }],
+        vote: { yes: [1, 2], no: [], abstain: [] },
+        dissent: [],
         dayRevisions: { '7': 4 },
       })
       .subscribe();
@@ -181,7 +183,7 @@ describe('HttpExamResultAdapter', () => {
       version: 3,
       participant_member_ids: [1, 2],
       vote: { yes: [1, 2], no: [], abstain: [] },
-      dissent: [{ member_id: 2, statement: 'Abweichung' }],
+      dissent: [],
       day_revisions: { '7': 4 },
     });
     determination.flush(apiResult());
