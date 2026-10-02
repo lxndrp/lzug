@@ -43,6 +43,8 @@ flowchart TB
   app --> calendar
   app --> notifications
   app --> documents
+  planning --> calendar
+  calendar --> planning
   execution --> presentation
   assessment --> presentation
   persistence -.->|"implements ports owned by"| planning
@@ -53,6 +55,8 @@ flowchart TB
   persistence -.->|"implements ports owned by"| notifications
   persistence -.->|"implements ports owned by"| documents
   persistence -.->|"implements ports owned by"| operations
+  planning -.->|"implements port owned by"| calendar
+  calendar -.->|"implements port owned by"| planning
   integrations -.->|"implements ports owned by"| notifications
   integrations -.->|"implements ports owned by"| documents
   integrations -.->|"implements port owned by"| planning
@@ -123,7 +127,9 @@ keinen Adapter.
 | `execution` | Protokoll und Tagesabschluss/Wiederöffnung | Versionierte Mutationen liefern bestätigte Revision bzw. Findings; CAS-Konflikt, ungültiger Übergang und fehlende Berechtigung bleiben unterscheidbar | CAS, Einträge, Audit, Korrekturen, Wiedereröffnungsaufgaben und stale-export-Marker gemeinsam atomar | `ExamProtocolService`, `ExamDayClosureService` und `ResourceRepository`; freie Ressourcenmutationen werden nach Route-/CLI-Migration entfernt |
 | `assessment` | Ergebnis lesen, berechnen, festschreiben oder korrigieren | Commands liefern typisierte Ergebnis-/Revisions-Snapshots oder Validierungs-, Konflikt- und Berechtigungsfehler; ungültige Berechnung wird nicht als Ergebnis ausgegeben | Ergebnis-CAS, Revision, Audit und betroffene Korrekturaufgaben atomar; Offenlegung stets nach Scope und Ergebnisstatus | `ExamResultService` und `ResourceRepository`; generische Ergebniszugriffe werden nach Portumstellung entfernt |
 | `identity` | Anmeldung, Konto, Person und Mitgliedschaft | Authentisierung nach außen generisch; administrative Änderungen liefern Identitäts-Snapshot oder nicht offenlegenden Fehler | TOTP-/Recovery-Verbrauch, Rehash und Sessionersatz atomar; Personen-/Mitgliedschaftsregeln in Identity-UoW | `AuthenticationRepository`, `LocalAuthService`, `CommitteeAdminService`, `ResourceRepository`; generische Fassade fällt nach Endpunktmigration weg |
-| `calendar` | Lokale Kalenderprojektion aktualisieren und ICS ausgeben | Refresh leitet `CalendarEvent`-Einträge aus dem aktuellen bestätigten Plan ab; Feed-Lifecycle und ICS-Ausgabe bleiben im Kalender-Modul; Fehler sind lokale Persistenz-, Projektions- oder Darstellungsfehler | Planrevision und stabile Konsequenz-Aufträge werden mit der Planbestätigung gespeichert; der wiederholbare Refresh materialisiert die aktuelle Runde in einem eigenen DB-UoW; ein weiterer UoW markiert den Auftrag mit Event-ID und Eventversion als erledigt; ICS wird aus einer materialisierten Projektion erzeugt. Stabile Identitäten und Generationen bleiben gemäß #1078 erhalten; ein zusätzlicher stale-task-Fence ist nicht festgelegt | Heute `CalendarService` am Legacy-Pfad `integrations.calendar` und `PlanConsequence`; Ziel ist ein eigenständiges `calendar`-Modul. Externe Kalenderadapter gehören nur bei künftigem Providerbedarf nach `integrations` |
+| `calendar` | Bestätigten Planstand beziehen | Kalenderdefinierter Port liefert einen typisierten, materialisierten Snapshot der bestätigten Zuweisungen samt erforderlicher Termin-, Empfänger- und Ortswerte; keine ORM- oder HTTP-Typen | Read-Snapshot über den Planning-Adapter; die Snapshot-Transaktion commitet keine Kalenderprojektion | Heute fragt `integrations.calendar` Planungsmodelle direkt ab; #1078 ersetzt das durch einen vom `calendar`-Konsumenten definierten Port, den ein Planning-Adapter erfüllt |
+| `calendar` | Lokale Projektion aktualisieren und Folgeauftragsergebnis liefern | Refresh erzeugt aus dem typisierten Plan-Snapshot `CalendarEvent`-Projektionen; der öffentliche Service liefert Planning ein typisiertes Ergebnis mit Abschlussstatus und bestätigter Event-ID/-Version für den jeweiligen Folgeauftrag | Der vollständige Rundenrefresh läuft in einem eigenen DB-UoW: Fehler bei einem späteren Payload rollen sämtliche zuvor vorgenommenen Projektionsänderungen dieses Laufs zurück. Planning speichert den Taskabschluss mit dem Serviceergebnis danach in einem eigenen UoW; Wiederholung bleibt stabil | Heute `CalendarService.sync_round` liefert nur eine Änderungszahl und `PlanConsequence` liest danach `CalendarEvent` direkt. #1078 ersetzt diesen Legacy-Handoff durch den Calendar-Service-Port und entfernt den direkten ORM-Zugriff. Provider-Claim oder Provider-I/O gibt es nicht |
+| `calendar` | Feed-Lifecycle und ICS ausgeben | Feed-Credentials bleiben geheim; autorisierte Reads liefern materialisierte Events oder ICS, ohne ORM-Werte | Read-Abläufe synchronisieren die lokale Projektion vor dem Read in getrennten Session-Scopes; kein externer Provideraufruf | Heute `list_events`, `feed_ics` und `event_ics` synchronisieren vor Lesen/Rendern; diese Seiteneffekte und UoW-Grenzen bleiben gemäß #1078 erhalten |
 | `notifications` | Benachrichtigung zustellen | Claim liefert eindeutige Claim-ID und begrenzten Inhalt; Abschluss liefert gesendet/erneut versuchen/terminal; Providerfehler wird klassifiziert | Claim wird vor Provider-I/O committed; Abschluss ändert nur den weiterhin eigenen, gültigen Claim | `NotificationService` und Provideradapter; Delivery bleibt wiederholbar und ist nicht Exactly-once |
 | `documents` | Dokumentinhalt und Metadaten lesen/schreiben/löschen | Commands liefern opaque Storage-ID und freigegebenen Metadaten-Snapshot; Not-found, ungültiger Name, Kollision und Storagefehler sind getrennt | Datei- und DB-Metadaten werden mit Lock und Kompensation als ein beobachtbarer Erfolg/Fehler behandelt | `DocumentStorage`-Protocol und `FilesystemDocumentStorage`; konkrete Klasse bleibt Infrastructure-Adapter |
 | `operations` | Lifecycle und Runtime-Zulassung | Diagnose liefert materialisierten Runtime-Snapshot; Sperrkonflikt, inkompatibles Schema und Diagnosefehler bleiben technisch klassifiziert | Admission und Worker-Eigentum folgen dokumentierter Lockordnung; abgebrochene Clientverbindung gibt aktive Arbeit nicht frei | `RuntimeCoordinator`, `operations.lifecycle`, `AdminApplication`; DB-spezifische Runtime-/Lockadapter bleiben explizit |
@@ -170,7 +176,7 @@ Materialisierte Leseoperationen definieren ihren Snapshotumfang ausdrücklich.
 | Ausführung und Protokoll | Slot-/Tagesrevision prüfen; Mutation und Audit dürfen nicht auseinanderlaufen | Zustandswechsel, Protokollrevision und Audit atomar; stabile Folgeaufträge mitmutieren | Abschluss-/Protokoll-Snapshot lädt erforderliche Slots, Anwesenheit, Protokolle, Ergebnisse und Findings konsistent |
 | Ergebnisse und Wiederöffnung | Ergebnis-CAS vor Mutation; Korrektur-/Wiederöffnungsfolge bleibt an bestätigte Revision gebunden | Ergebnisänderung, Audit, Korrektur, Wiederöffnung, stale-export-Marker und Task-Schlüssel gemeinsam atomar | Exporte enthalten nur autorisierte und freigegebene Ergebniswerte; verborgene aktuelle und historische Ergebnisse fehlen vollständig |
 | Identität und Authentisierung | Konto- und Mitgliedschaftsscope vor Mutation binden; generische Fehler verhindern Identitätsauskunft | TOTP-/Recovery-Verbrauch, Rehash und Sessionersatz in einer atomaren Änderung | Authentisierung verwendet einen abgeschlossenen Entscheidungsdatensatz; Loginfehler enthüllen weder unbekanntes Konto noch Status |
-| Kalenderprojektion | Bestätigte Planrevision und stabile Konsequenz-Aufträge führen zur aktuellen lokalen Projektion; Zuweisungsidentität, Eventgeneration und Eventversion kennzeichnen gespeicherte Ereignisse | Plan und Kalenderauftrag werden gemeinsam gespeichert; der Refresh schreibt die Projektion danach in einem eigenen DB-UoW und die Auftragsbestätigung in einem weiteren. Wiederholung materialisiert erneut den aktuellen Plan. Das Ziel erhält stabile Generationen über Wiederholungen und Planänderungen gemäß #1078; eine zusätzliche stale-task-Fencing-Semantik ist nicht festgelegt | Feed-/Eventdaten werden vor ICS-Ausgabe autorisiert geladen und materialisiert; der Renderer benötigt weder ORM-Lazy-Loads noch Providerzugriff |
+| Kalenderprojektion | Bestätigte Planrevision und stabile Konsequenz-Aufträge führen zur aktuellen lokalen Projektion; Identität, Generation und Eventversion bleiben über Wiederholungen und Planänderungen gemäß #1078 stabil | Plan und Folgeauftrag werden gemeinsam gespeichert; der Calendar-Service liest Planungsdaten als typisierten Snapshot und schreibt den vollständigen Rundenrefresh in einem DB-UoW. Payloadfehler rollen alle Änderungen dieses Sync-Laufs zurück. Planning erhält danach ein typisiertes Ergebnis mit Event-ID/-Version und bestätigt den Task in einem getrennten UoW; es liest `CalendarEvent` nicht selbst. Eine zusätzliche stale-task-Fencing-Semantik ist nicht festgelegt | `list_events`, `feed_ics` und `event_ics` synchronisieren lokal vor dem Lesen/Rendern. Feedprüfung (nur bei `feed_ics`), Refresh und Read haben getrennte Session-Scopes; Ausgabe nutzt autorisierte materialisierte Werte |
 | Benachrichtigungen | Claim ist eindeutig und prüft Empfänger-/Ereignisgültigkeit | Claim zuerst committen, dann Provider-I/O; Completion/Retries nur auf gültigem eigenen Claim; stabile Idempotenzschlüssel | Zustellansicht materialisiert Empfänger und begrenzte Nachrichtendaten vor Netz-I/O |
 | Dokumente | Dateiinhalt und Metadaten bleiben eine zusammengehörige Änderung | Lock, Dateiänderung und DB-Metadaten werden mit expliziter Kompensation gekoppelt; Cleanupfehler bleibt diagnostizierbar | Download-/Exportwerte enthalten geprüfte opaque ID, Metadaten und Inhaltshandle mit festgelegter Lebensdauer |
 | Wartung, Snapshot und Restore | Backup-Snapshot umfasst DB, Dokumente und Auth-Schlüssel als zusammengehörige Instanz | Snapshot-/Activation-/Migration-Locks folgen fester Reihenfolge; Restore staged und validiert vor atomarer Aktivierung | Diagnose und Backup-Report materialisieren Lifecycle, Schema, Migrationshistorie und Inhaltsmanifest vor Ausgabe |
@@ -195,9 +201,12 @@ UoW.
 Auch Kalenderreads synchronisieren zunächst lokal:
 `list_events`, `feed_ics` und `event_ics` rufen `sync_person` vor dem Lesen oder
 Rendern auf.
-Feedvalidierung, Synchronisierung und anschließendes Lesen laufen in getrennten
-`session_scope`-Transaktionen; der Read-Pfad hat daher keine gemeinsame
-Snapshot- oder Commit-Grenze über diese Schritte.
+Bei `feed_ics` laufen Feedvalidierung, Synchronisierung und anschließendes
+Lesen in getrennten `session_scope`-Transaktionen.
+`list_events` und `event_ics` synchronisieren ebenfalls vor ihrem Read, ohne
+Feed-Credential zu validieren.
+Keiner dieser Read-Pfade hat eine gemeinsame Snapshot- oder Commit-Grenze über
+Synchronisierung und anschließendes Lesen.
 
 Das Ziel aus [Issue #1078](https://github.com/lxndrp/lzug/issues/1078) ist,
 stabile Kalenderidentitäten und Generationen über Wiederholungen und
@@ -258,7 +267,7 @@ bevor der zugehörige Kompatibilitätsadapter entfernt wird.
 | 2. Planning | `planning` | `ResourceRepository`-Operationen für Kandidaten, Rundenzuordnung, Verfügbarkeit, Planung und Orte in fachliche Commands/Queries überführen; generische Schreibpfade und `PlanningService`-Datenbankzugriff nach letztem Aufrufer entfernen |
 | 3. Execution und Assessment | jeweiliges `execution`- oder `assessment`-Modul | Slot-/Protokoll-/Tages- und Ergebniszugriffe in Use-Case-Ports überführen; CAS-/Audit-/Wiederöffnungs- und Offenlegungstests bestehen; generische Mutationen nach letztem Adapteraufrufer entfernen |
 | 4. Identity | `identity` | Konto-, Personen- und Mitgliedschaftszugriffe aus generischem Resource-Zugriff lösen; Auth-Atomarität und nicht offenlegende HTTP-Fehler belegen; Identity-Adapter nach letztem alten Aufrufer entfernen |
-| 5. Supporting und Operations | `calendar`, `notifications`, `documents`, `operations` | Ausgehende Fähigkeiten beim jeweiligen Konsumenten besitzen lassen; Benachrichtigungs-Claim/Provider-I/O, Dateikompensation und Runtime-/Restore-Sperren nachweisen; direkte Cross-Imports und persistenznahe Adapterfacades entfernen |
+| 5. Supporting und Operations | `calendar`, `notifications`, `documents`, `operations` | Calendar erhält Planungsdaten über einen typisierten, calendar-eigenen Snapshot-Port; der Planning-Folgeauftrag nutzt ein typisiertes Calendar-Ergebnis mit Event-ID/-Version statt direktem `CalendarEvent`-Zugriff. Beide Handoffs über ihre Consumer-Ports verdrahten und den Legacy-ORM-Zugriff nach dem letzten Aufrufer entfernen; Benachrichtigungs-Claim/Provider-I/O, Dateikompensation und Runtime-/Restore-Sperren nachweisen |
 | 6. Adapterbereinigung | `application` komponiert; jeweiliger Adaptereigentümer entfernt | HTTP und Admin auf dieselben Commands/Ergebnisse mappen; `RequestContext`-/Transport-Kompatibilitätsmethoden nach Wegfall des letzten Legacy-Aufrufers entfernen; Wire- und OpenAPI-Verträge unverändert prüfen |
 
 Zulässige Übergänge sind ein synchroner Aufruf im selben Prozess, ein
@@ -287,6 +296,12 @@ nicht zu dieser Migration.
   gebunden.
 - Read-Snapshots und mengenorientierte Sichtbarkeitsqueries bleiben
   konsistent.
+- Ein Kalender-Rundenrefresh ist atomar: Ein Fehler bei einem späteren Payload
+  rollt alle früheren Projektionsänderungen desselben Sync-Laufs zurück.
+- `calendar` bezieht Planungsdaten über einen typisierten Snapshot-Port und
+  liefert ein typisiertes Eventergebnis an den Planning-Folgeauftrag.
+  Der direkte `CalendarEvent`-Zugriff in `PlanConsequence` entfällt nach
+  Einführung dieses Handoffs.
 - Notification-Claim committen vor Provider-I/O; Completion gehört nur dem
   noch gültigen Claim.
   Externe Zustellung ist nicht Exactly-once.

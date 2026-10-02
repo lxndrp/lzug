@@ -166,13 +166,24 @@ Planrevision.
 `_process_calendars` gruppiert sie pro Runde, aktualisiert die Projektion in
 einem separaten Datenbank-UoW und speichert danach Auftragsstatus, Event-ID
 und Eventversion in einem weiteren UoW.
+`sync_round` verarbeitet die Eventänderungen einer Runde in einem UoW;
+ein Fehler bei einem späteren Payload rollt frühere Änderungen dieses Laufs
+zurück.
+Heute liest `_complete_calendar_task` anschließend `CalendarEvent` direkt in
+Planning, um Event-ID und Version zu übernehmen.
 `list_events`, `feed_ics` und `event_ics` synchronisieren über `sync_person`
-ebenfalls vor dem Lesen oder Rendern; Feedprüfung, Refresh und Read laufen in
-getrennten Session-Scopes.
+ebenfalls vor dem Lesen oder Rendern; Refresh und Read laufen in getrennten
+Session-Scopes.
+Nur `feed_ics` validiert dabei ein Feed-Credential.
 Die Umsetzung von #1078 muss stabile Identitäten und Generationen über
 Wiederholungen und Planänderungen sowie diese Sync-Seiteneffekte erhalten.
-Eine separate Generation-Fencing-Garantie für verspätete Task-Abschlüsse ist
-damit nicht festgelegt.
+Sie bezieht Planungsdaten über einen typisierten Snapshot aus einem
+calendar-eigenen Port, den ein Planning-Adapter erfüllt.
+Umgekehrt erhält der Planning-Folgeauftrag Event-ID und Eventversion über
+einen Planning-eigenen Calendar-Service-Port statt eines direkten
+`CalendarEvent`-Zugriffs.
+Eine zusätzliche Generation-Fencing-Garantie für verspätete Task-Abschlüsse
+ist damit nicht festgelegt.
 Zielverantwortung für Feed-Credentials, lokale Projektion und ICS-Ausgabe ist
 ein eigenständiges `calendar`-Modul.
 `integrations` bleibt konkreten externen Adaptern vorbehalten.

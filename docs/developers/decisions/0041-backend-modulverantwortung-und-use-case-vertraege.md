@@ -44,15 +44,27 @@ Der heutige Legacy-Pfad `integrations.calendar` speichert Kalenderaufträge
 mit der bestätigten Planrevision, materialisiert die lokale Projektion danach
 wiederholbar in einem eigenen Datenbank-UoW und bestätigt den Auftrag mit
 Event-ID und Eventversion in einem weiteren UoW.
+Ein späterer Payloadfehler rollt alle früheren Projektionsänderungen desselben
+Runden-Syncs zurück; diese All-or-nothing-Grenze ist Teil des Zielvertrags.
 Eventgenerationen sind im aktuellen Code in `source_key` und
 `external_event_id` codiert; Inhaltsänderungen behalten die Identität und
 erhöhen die Eventversion, eine Reaktivierung erzeugt eine weitere Generation.
 `list_events`, `feed_ics` und `event_ics` synchronisieren vor dem Read oder
-Rendern; Feedprüfung, Refresh und Read verwenden getrennte Session-Scopes.
+Rendern; nur `feed_ics` validiert ein Feed-Credential und Refresh und Read
+verwenden getrennte Session-Scopes.
 Der Ablauf enthält keinen Provider-Claim oder Provider-I/O.
 Das bestätigte Ziel aus [Issue #1078](https://github.com/lxndrp/lzug/issues/1078)
 ist, stabile Identitäten und Generationen über Wiederholungen und Planänderungen
 sowie die Sync-Seiteneffekte der Reads zu erhalten.
+`calendar` bezieht bestätigte Planungsdaten über einen eigenen typisierten
+Snapshot-Port, den Planning implementiert.
+Der Planning-Folgeauftrag nutzt umgekehrt einen von Planning definierten
+Calendar-Service-Port, der Event-ID und Eventversion als typisiertes Ergebnis
+liefert.
+Planning speichert den Taskabschluss mit diesem Ergebnis in einem getrennten
+UoW.
+Damit entfällt der heutige direkte `CalendarEvent`-Read in
+`PlanConsequence._complete_calendar_task`.
 Eine zusätzliche Generation-Fencing-Garantie für verspätete Task-Abschlüsse
 ist durch #1078 nicht festgelegt.
 Ein konsumierendes Modul definiert ein kleines strukturelles `Protocol` für
