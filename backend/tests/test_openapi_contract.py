@@ -5,13 +5,19 @@ import re
 import unittest
 from http import HTTPStatus
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
+from fastapi import FastAPI, Request
+from fastapi.testclient import TestClient
 from sqlalchemy import text
 
+from backend.api_contracts import ExamResultResponse
+from backend.application import ApplicationResult
 from backend.application.contract import ContractValidationError, validate_response
 from backend.application.repositories import REST_RESOURCES
 from backend.fastapi_assembly import FastAPIConfig, create_app
+from backend.fastapi_http import finish
 from backend.persistence.database import connect
 from backend.tests.helpers import ApiServer, TempDatabase, openapi_document
 
@@ -627,6 +633,110 @@ class OpenApiContractTests(unittest.TestCase):
         }
         requested = {(method, _route_shape(path)) for method, path in operations}
         self.assertSetEqual(requested - documented, set())
+
+    def test_demo_session_operation_has_a_concrete_openapi_contract(self) -> None:
+        with TempDatabase() as db_path:
+            document = openapi_document(
+                create_app(
+                    FastAPIConfig(
+                        db_path=db_path,
+                        session_cookie_name="lzug_session",
+                        cookie_secure=False,
+                        https_only=False,
+                    )
+                )
+            )
+
+        operation = document["paths"]["/api/demo/session"]["post"]
+        self.assertEqual(
+            "#/components/schemas/DemoSessionStartResponse",
+            operation["responses"]["201"]["content"]["application/json"]["schema"]["$ref"],
+        )
+
+    def test_session_cookie_scheme_uses_the_active_configuration(self) -> None:
+        with TempDatabase() as db_path:
+            document = create_app(
+                FastAPIConfig(
+                    db_path=db_path,
+                    session_cookie_name="custom_lzug_session",
+                    cookie_secure=False,
+                    https_only=False,
+                )
+            ).openapi()
+
+        self.assertEqual(
+            "custom_lzug_session",
+            document["components"]["securitySchemes"]["sessionCookie"]["name"],
+        )
+
+    def test_venue_item_operations_expose_session_and_csrf_dependencies(self) -> None:
+        with TempDatabase() as db_path:
+            document = openapi_document(
+                create_app(
+                    FastAPIConfig(
+                        db_path=db_path,
+                        session_cookie_name="lzug_session",
+                        cookie_secure=False,
+                        https_only=False,
+                    )
+                )
+            )
+
+        for path in (
+            "/api/exam-venues/{id}",
+            "/api/exam-rooms/{id}",
+            "/api/exam-venue-contacts/{id}",
+        ):
+            with self.subTest(path=path):
+                read = document["paths"][path]["get"]
+                self.assertEqual([{"sessionCookie": []}], read["security"])
+                write = document["paths"][path]["patch"]
+                self.assertEqual([{"sessionCookie": []}], write["security"])
+                self.assertIn(
+                    "X-CSRF-Token",
+                    {parameter["name"] for parameter in write["parameters"]},
+                )
+
+    def test_result_and_protocol_operations_reference_concrete_success_schemas(self) -> None:
+        with TempDatabase() as db_path:
+            document = openapi_document(
+                create_app(
+                    FastAPIConfig(
+                        db_path=db_path,
+                        session_cookie_name="lzug_session",
+                        cookie_secure=False,
+                        https_only=False,
+                    )
+                )
+            )
+
+        result_schema = "#/components/schemas/ExamResultResponse"
+        protocol_schema = "#/components/schemas/ExamProtocolResponse"
+        self.assertEqual(
+            result_schema,
+            document["paths"]["/api/exam-results/{result_id}"]["get"]["responses"]["200"][
+                "content"
+            ]["application/json"]["schema"]["$ref"],
+        )
+        self.assertEqual(
+            protocol_schema,
+            document["paths"]["/api/exam-protocols/{protocol_id}"]["get"]["responses"]["200"][
+                "content"
+            ]["application/json"]["schema"]["$ref"],
+        )
+
+    def test_declared_success_model_rejects_an_invalid_application_payload(self) -> None:
+        app = FastAPI()
+
+        @app.get("/result", response_model=ExamResultResponse)
+        def result(request: Request):
+            context = SimpleNamespace(request=request, response_headers=[])
+            return finish(context, ApplicationResult({"id": 7}))
+
+        with TestClient(app, raise_server_exceptions=False) as client:
+            response = client.get("/result")
+
+        self.assertEqual(500, response.status_code)
 
 
 def _angular_operations(source: str) -> list[tuple[str, str]]:

@@ -13,6 +13,7 @@ from backend.persistence.models import EXAM_SLOT
 from .api_contracts import (
     AssessmentModelBindingRequest,
     DomainResourceWrite,
+    ExamResultResponse,
     IndividualAssessmentRequest,
 )
 from .fastapi_dependencies import BoundedBodyRoute, ReadContext, WriteContext
@@ -132,6 +133,7 @@ def _add_assessment_model_routes(router, *, finish, not_found, read_security, wr
 def _add_result_read_routes(router, *, finish, not_found, read_security):
     @router.get(
         "/api/confirmed-plan-days/{day_id}/slots/{slot_id}/result",
+        response_model=ExamResultResponse,
         openapi_extra=read_security,
     )
     def slot_result(context: ReadContext, day_id: int, slot_id: int):
@@ -141,7 +143,11 @@ def _add_result_read_routes(router, *, finish, not_found, read_security):
         result = context.exam_result_service.get_by_slot(context.authorization_scope, slot_id)
         return not_found() if result is None else finish(context, context.respond(result))
 
-    @router.get("/api/exam-results/{result_id}", openapi_extra=read_security)
+    @router.get(
+        "/api/exam-results/{result_id}",
+        response_model=ExamResultResponse,
+        openapi_extra=read_security,
+    )
     def exam_result(context: ReadContext, result_id: int):
         result = context.exam_result_service.get(context.authorization_scope, result_id)
         return not_found() if result is None else finish(context, context.respond(result))
@@ -150,6 +156,7 @@ def _add_result_read_routes(router, *, finish, not_found, read_security):
 def _add_individual_result_routes(router, *, finish, write_security):
     @router.post(
         "/api/exam-results/{result_id}/individual-assessments",
+        response_model=ExamResultResponse,
         openapi_extra=write_security,
     )
     def save_individual_assessment(
@@ -167,6 +174,7 @@ def _add_individual_result_routes(router, *, finish, write_security):
 
     @router.post(
         "/api/exam-results/{result_id}/individual-assessments/{assessment_id}/withdraw",
+        response_model=ExamResultResponse,
         openapi_extra=write_security,
     )
     def withdraw_individual_assessment(
@@ -184,7 +192,11 @@ def _add_individual_result_routes(router, *, finish, write_security):
             nested_id=assessment_id,
         )
 
-    @router.post("/api/exam-results/{result_id}/disclosures", openapi_extra=write_security)
+    @router.post(
+        "/api/exam-results/{result_id}/disclosures",
+        response_model=ExamResultResponse,
+        openapi_extra=write_security,
+    )
     def disclose_individual_assessments(
         context: WriteContext,
         result_id: int,
@@ -196,6 +208,7 @@ def _add_individual_result_routes(router, *, finish, write_security):
 
     @router.post(
         "/api/exam-results/{result_id}/committee-assessments",
+        response_model=ExamResultResponse,
         openapi_extra=write_security,
     )
     def determine_committee_assessment(
@@ -209,7 +222,11 @@ def _add_individual_result_routes(router, *, finish, write_security):
 
 
 def _add_final_result_routes(router, *, finish, write_security):
-    @router.post("/api/exam-results/{result_id}/external-results", openapi_extra=write_security)
+    @router.post(
+        "/api/exam-results/{result_id}/external-results",
+        response_model=ExamResultResponse,
+        openapi_extra=write_security,
+    )
     def record_external_result(
         context: WriteContext,
         result_id: int,
@@ -221,6 +238,7 @@ def _add_final_result_routes(router, *, finish, write_security):
 
     @router.post(
         "/api/exam-results/{result_id}/external-results/{external_result_id}/confirm",
+        response_model=ExamResultResponse,
         openapi_extra=write_security,
     )
     def confirm_external_result(
@@ -238,7 +256,11 @@ def _add_final_result_routes(router, *, finish, write_security):
             nested_id=external_result_id,
         )
 
-    @router.post("/api/exam-results/{result_id}/determine", openapi_extra=write_security)
+    @router.post(
+        "/api/exam-results/{result_id}/determine",
+        response_model=ExamResultResponse,
+        openapi_extra=write_security,
+    )
     def determine_exam_result(
         context: WriteContext,
         result_id: int,
@@ -250,6 +272,7 @@ def _add_final_result_routes(router, *, finish, write_security):
 
     @router.post(
         "/api/exam-results/{result_id}/record-confirmations",
+        response_model=ExamResultResponse,
         openapi_extra=write_security,
     )
     def confirm_result_record(
@@ -261,7 +284,11 @@ def _add_final_result_routes(router, *, finish, write_security):
             context, result_id, "record-confirmations", finish, payload_data(context, payload)
         )
 
-    @router.post("/api/exam-results/{result_id}/corrections", openapi_extra=write_security)
+    @router.post(
+        "/api/exam-results/{result_id}/corrections",
+        response_model=ExamResultResponse,
+        openapi_extra=write_security,
+    )
     def open_result_correction(
         context: WriteContext,
         result_id: int,
@@ -271,7 +298,11 @@ def _add_final_result_routes(router, *, finish, write_security):
             context, result_id, "corrections", finish, payload_data(context, payload)
         )
 
-    @router.post("/api/exam-results/{result_id}/communications", openapi_extra=write_security)
+    @router.post(
+        "/api/exam-results/{result_id}/communications",
+        response_model=ExamResultResponse,
+        openapi_extra=write_security,
+    )
     def communicate_exam_result(
         context: WriteContext,
         result_id: int,
@@ -281,7 +312,11 @@ def _add_final_result_routes(router, *, finish, write_security):
             context, result_id, "communications", finish, payload_data(context, payload)
         )
 
-    @router.put("/api/exam-results/{result_id}/retention", openapi_extra=write_security)
+    @router.put(
+        "/api/exam-results/{result_id}/retention",
+        response_model=ExamResultResponse,
+        openapi_extra=write_security,
+    )
     def set_result_retention(
         context: WriteContext,
         result_id: int,

@@ -65,7 +65,7 @@ class FastAPIAssemblyTests(unittest.TestCase):
             {parameter["name"] for parameter in operation["parameters"]},
         )
         self.assertEqual(
-            {"type": "apiKey", "in": "cookie", "name": "lzug_session"},
+            {"type": "apiKey", "in": "cookie", "name": "session"},
             document["components"]["securitySchemes"]["sessionCookie"],
         )
         self.assertEqual(

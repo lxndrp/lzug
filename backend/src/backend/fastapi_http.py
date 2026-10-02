@@ -72,9 +72,25 @@ def not_found() -> Response:
     return json_response(ApplicationResult({"error": "Not found"}, HTTPStatus.NOT_FOUND))
 
 
-def finish(context: RequestContext, result: ApplicationResult | None = None) -> Response:
-    """Finish a request with its explicit or context-owned result and headers."""
-    return json_response(result or context.response_result or ApplicationResult({}), context)
+def finish(context: RequestContext, result: ApplicationResult | None = None) -> Any | Response:
+    """Finish a request while preserving FastAPI validation on declared success models.
+
+    An explicitly declared response model is the transport boundary: return its
+    ordinary payload so FastAPI validates and serializes it. Non-success status
+    codes and routes without a declared model retain the established response
+    adapter, including application-owned headers.
+    """
+    resolved = result or context.response_result or ApplicationResult({})
+    route = context.request.scope.get("route")
+    expected_status = getattr(route, "status_code", None) or HTTPStatus.OK
+    if (
+        getattr(route, "response_model", None) is not None
+        and int(resolved.status) == expected_status
+        and 200 <= int(resolved.status) < 300
+    ):
+        context.request.state.lzug_response_headers = tuple(context.response_headers)
+        return resolved.payload
+    return json_response(resolved, context)
 
 
 def calendar_text(context: RequestContext, value: str) -> Response:
