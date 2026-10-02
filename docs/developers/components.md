@@ -82,6 +82,12 @@ Unabhängige Komponenten bleiben parallel ausführbar.
 
 ## Backend
 
+Der verbindliche Zielvertrag für Modulverantwortungen, Portinventar,
+Transaktionsmatrix, Lebensdauern und Migration steht im
+[Backend-Vertrag](backend-architecture-contract.md).
+Die folgende Beschreibung dokumentiert die konkrete Implementierung dieser
+Revision und ersetzt den Zielvertrag nicht.
+
 `backend.fastapi_assembly.create_app` ist die produktive HTTP-Assembly innerhalb
 des einen autoritativen Backendprozesses.
 Sie ordnet Konfiguration, Transportgrenze, Fehlerabbildung, fachliche
@@ -137,9 +143,9 @@ Benannte Vorbedingungsprüfungen lesen den aktuellen Stand in derselben Session;
 Versions- und Replay-Prüfungen behalten ihre Reihenfolge vor der Mutation.
 Audit, Wiederöffnungsaufgaben und die Kennzeichnung überholter Exporte werden
 mit dem Zustandswechsel atomar gespeichert.
-Kalenderabgleich und Benachrichtigungen behalten ihre bisherigen Aufrufgrenzen
-außerhalb der Transaktion; eine Wiederholung erzeugt keine zusätzlichen
-Rundenentscheidungen oder Wiederöffnungsaufgaben.
+Kalenderprojektion und Benachrichtigungen behalten ihre bisherigen
+Aufrufgrenzen nach der Plantransaktion; eine Wiederholung erzeugt keine
+zusätzlichen Rundenentscheidungen oder Wiederöffnungsaufgaben.
 `identity.committee_admin` prüft die Wiedereinladungsberechtigung vor dem
 Austausch abgelaufener Tokens in der bestehenden Schreibtransaktion.
 `identity.local_auth` trennt Konto- und Kennwortprüfung von der atomaren
@@ -148,14 +154,28 @@ TOTP-Replay-Schutz, Recovery-Code-Verbrauch, Kennwort-Rehash und Sessionwechsel
 bleiben Teil einer gemeinsamen Transaktion mit generischen Anmeldefehlern und
 Dummy-Hash-Prüfung für unbekannte Konten oder Konten ohne Kennwort.
 
-`integrations.calendar` gleicht einzelne Zuweisungen und entfallene Termine
-innerhalb der bestehenden Rundentransaktion ab.
-Die Kalenderinhalte werden aus den geladenen Daten abgeleitet; Identität,
-Generation und Versionsänderungen werden beim Speichern zusammengeführt.
-`planning.plan_consequences` leitet Kalenderaktionen und Empfängerkategorien
-rein aus den Revisionsständen ab und ergänzt die aktuelle Ausschussleitung
-in der bestehenden Ableitungstransaktion.
-Die bisherigen eindeutigen Auftragsschlüssel sichern Wiederholungen ab.
+`integrations.calendar` ist der heutige Legacy-Pfad für lokale Kalenderlogik:
+`CalendarService` materialisiert bestätigte Zuweisungen als `CalendarEvent`-
+Projektion in SQLite und rendert daraus ICS.
+Er ruft keinen externen Kalenderprovider auf.
+Der aktuelle Code codiert Eventgenerationen in `source_key` und
+`external_event_id`; Inhaltsänderungen erhöhen die Eventversion und eine
+Reaktivierung erzeugt eine weitere Generation.
+`planning.plan_consequences` speichert Kalenderaufträge atomar mit der
+Planrevision.
+`_process_calendars` gruppiert sie pro Runde, aktualisiert die Projektion in
+einem separaten Datenbank-UoW und speichert danach Auftragsstatus, Event-ID
+und Eventversion in einem weiteren UoW.
+`list_events`, `feed_ics` und `event_ics` synchronisieren über `sync_person`
+ebenfalls vor dem Lesen oder Rendern; Feedprüfung, Refresh und Read laufen in
+getrennten Session-Scopes.
+Die Umsetzung von #1078 muss stabile Identitäten und Generationen über
+Wiederholungen und Planänderungen sowie diese Sync-Seiteneffekte erhalten.
+Eine separate Generation-Fencing-Garantie für verspätete Task-Abschlüsse ist
+damit nicht festgelegt.
+Zielverantwortung für Feed-Credentials, lokale Projektion und ICS-Ausgabe ist
+ein eigenständiges `calendar`-Modul.
+`integrations` bleibt konkreten externen Adaptern vorbehalten.
 `integrations.notifications` entscheidet terminale Zustellfälle vor dem
 Providerzugriff und bildet dessen Ergebnis auf den Retry- oder Bestätigungsstatus ab.
 Der Providerzugriff erfolgt nach dem Commit des Claims; nur der weiterhin
@@ -438,7 +458,7 @@ Zyklen zwischen den acht Kernpaketen.
 | `execution/` | Ausfall und Ersatz, Protokolle, Tagesabschluss und Rundenlebenszyklus | `identity`, `integrations`, `persistence` |
 | `assessment/` | individuelle Bewertungen und festgestellte Ergebnisse | `execution`, `identity`, `persistence` |
 | `identity/` | Authentisierung, Autorisierung, Mitgliedschaften und lokale Betreiberidentität | `persistence` |
-| `integrations/` | Kalender, Benachrichtigungen, Dokumentablage, Feiertage und Kartenanbieter | `identity`, `persistence` |
+| `integrations/` | Benachrichtigungen, Dokumentablage, Feiertage, Kartenanbieter und künftige externe Adapter | `identity`, `persistence` |
 | `persistence/` | Modelle, Datenbank, Migrationen und niedrige Store-Primitive | keine anderen Kernpakete |
 | `operations/` | Backup und Export, Empfängerverwaltung, Diagnose und Lifecycle | `identity`, `integrations`, `persistence` |
 
