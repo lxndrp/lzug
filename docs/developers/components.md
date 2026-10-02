@@ -262,12 +262,32 @@ Der alte Token ist ab diesem Commit ungültig, auch wenn der folgende Sync
 scheitert; der Pending-Stand bleibt für einen ausdrücklichen Retry erhalten.
 Ein Retry synchronisiert erneut und darf die neue Token-Generation nur per
 CAS auf genau diesen Pending-Stand aktivieren.
-Ein pro-Feed Lifecycle-Lock serialisiert Requests über Sync und Finalisierung;
-Requests prüfen danach erneut ihre beobachtete aktive oder Pending-Generation.
+Der bestehende Aktivierungs-POST prüft diesen persistierten Pending-Stand
+unabhängig vom `rotate`-Argument zuerst und setzt ihn fort, ohne ein weiteres
+Pending anzulegen oder erneut zu widerrufen.
+Damit setzt auch `rotate=false` nach Reload den Retry fort; ebenso setzt
+`rotate=true` aus einem noch aktiven, inzwischen veralteten UI-Zustand denselben
+Pending-Stand fort.
+Der Statusvertrag zeigt kein Pending-Feld: nach dem Widerrufscommit meldet er
+`active=false`, sodass die bestehende UI nach Reload den Button
+„Persönlichen Feed aktivieren“ zeigt.
+Ein Syncfehler liefert den stabilen Retry-Fehler im bestehenden HTTP-Format
+ohne Secret; der folgende POST setzt den gespeicherten Pending-Stand fort.
+Ein pro-Feed Lifecycle-Lock aus der Composition Root serialisiert Requests
+über Sync und Finalisierung; sein Registry-/Serviceobjekt wird prozessweit
+geteilt und nicht pro `RequestContext` oder `CalendarService` instanziiert.
+Requests prüfen nach Lock-Erwerb erneut ihre beobachtete aktive oder
+Pending-Generation.
 Konkurrierende und veraltete Requests erhalten stabile
 `FeedAlreadyActive`-, `FeedRotationPending`- oder `FeedConflict`-Fehler ohne
 Secret und können weder die Gewinner-URL ungültig machen noch rohe
 Unique-Constraint-Fehler auslösen.
+Token-ICS-Reads und Rotation halten dieselbe Sperre: der Read ab Tokenvalidierung
+über Sync und Ausgabe, Rotation ab Scope-/Generationsvalidierung über
+Widerrufscommit, Sync und Finalisierung.
+Wartende Reads validieren das Token nach Lock-Erwerb erneut.
+Die Garantie gilt prozessweit im einzelnen autoritativen Backendprozess;
+mehrere Serverprozesse für dieselbe Datenbank sind nicht unterstützt.
 Erst der erfolgreiche Finalisierungscommit gibt die neue URL einmalig aus.
 Bei Commitfehler wird kein Secret ausgegeben; bleibt der Pending-Stand
 erhalten, kann der Sync mit einer neuen Secret-Erzeugung wiederholt werden.

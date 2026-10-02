@@ -365,15 +365,46 @@ Ist der Commit erfolgt, aber die Antwort verloren, bleibt das Secret
 unverfügbar; eine neue ausdrückliche Rotation widerruft die unbekannte
 Generation und beginnt den Ablauf erneut.
 
-Ein pro-Feed Lifecycle-Lock serialisiert Requests über Rotation, Sync und
-Finalisierung.
-Jeder Request revalidiert nach Lock-Erwerb seine beim Start beobachtete
+Der pro-Feed Lifecycle-Lock lebt in einem vom Composition Root erzeugten,
+prozessweit geteilten Registry-/Serviceobjekt, nicht in `RequestContext` oder
+einer pro Request neu erzeugten `CalendarService`-Instanz.
+Token-ICS-Reads und Rotation verwenden dieselbe Sperre, die nach aufgelöster
+Datenbankidentität und Feed-Person indiziert ist.
+Ein Token-ICS-Request ermittelt zunächst nur den möglichen Sperrschlüssel aus
+dem Tokenhash, erwirbt die Sperre und validiert danach Token und Identity-Scope
+erneut unter der Sperre.
+Er hält sie über Sync, Read-Snapshot und vollständige ICS-Ausgabe.
+Rotation erwirbt dieselbe Sperre vor Scope-/Generationsvalidierung und hält
+sie über Widerrufscommit, Sync und CAS-Finalisierung.
+Damit müssen bereits zugelassene Feed-Reads vor dem Widerrufscommit enden;
+nach dessen Commit kann kein wartender oder späterer Read den alten Token
+ausgeben, weil er nach Sperrerwerb erneut validiert.
+Jeder wartende Request revalidiert nach Sperrerwerb die beim Start beobachtete
 Credential- oder Pending-Generation.
-Nur ein Request kann die Pending-Generation finalisieren; wartende Requests
-mit veraltetem Stand erhalten stabile `FeedAlreadyActive`,
-`FeedRotationPending` oder `FeedConflict` ohne Secret.
+Nur ein Request kann die Pending-Generation finalisieren; veraltete Requests
+erhalten stabile `FeedAlreadyActive`, `FeedRotationPending` oder
+`FeedConflict` ohne Secret.
+Die Sperre gilt prozessweit im einzelnen autoritativen Backendprozess und ist
+nicht mehrprozessfähig.
+Das bestehende Runtime-Lease lässt für dieselbe Datenbank nur einen
+autoritativen Backendprozess zu; mehrere Serverprozesse, die eine Datenbank
+gemeinsam bedienen, sind kein unterstütztes Laufzeitmodell.
 CAS-, Insert- und Unique-Konflikte werden auf diese Domainfehler abgebildet;
 rohe Datenbankfehler verlassen den Adapter nicht.
+Der bestehende `POST`-Use-Case prüft einen gespeicherten Pending-Stand vor
+dem `rotate`-Argument.
+Solange er besteht, setzt jeder explizite Aktivierungsaufruf genau diese
+Generation fort, auch `rotate=false` nach Reload oder `rotate=true` aus einem
+veralteten aktiven UI-Zustand; er ersetzt den Pending-Stand nicht und widerruft
+keine Generation ein zweites Mal.
+`GET` behält sein bestehendes Statusformat ohne Pending-Feld und meldet nach
+dem ersten Widerrufscommit `active=false`.
+Ein fehlgeschlagener Sync liefert den stabilen Retry-Fehler im vorhandenen
+HTTP-Fehlerformat, ohne Secret; ein erneuter `POST` setzt den persistierten
+Pending-Stand fort.
+Ist die Finalisierung bereits committet, meldet `GET` `active=true`, aber das
+verlorene Secret bleibt unlesbar und nur eine ausdrückliche Rotation erzeugt
+eine neue einmalige URL.
 Der Sync ist eine lokale Projektion und hat keine externe Providerwirkung.
 
 Das Ziel aus [Issue #1078](https://github.com/lxndrp/lzug/issues/1078) ist,
