@@ -310,6 +310,11 @@ def _http_route_template(request: Request) -> str:
     return "/static"
 
 
+def _append_application_response_headers(request: Request, response: Response) -> None:
+    for name, value in getattr(request.state, "lzug_response_headers", ()):
+        response.raw_headers.append((name.lower().encode("latin-1"), value.encode("latin-1")))
+
+
 async def _transport_guard(request: Request, call_next, config: FastAPIConfig) -> Response:
     origin = request.headers.get("Origin")
     cross_origin = (
@@ -348,6 +353,7 @@ async def _transport_guard(request: Request, call_next, config: FastAPIConfig) -
             )
         else:
             response = await call_next(request)
+    _append_application_response_headers(request, response)
     for name, value in _security_headers(config, request).items():
         if name.lower() not in response.headers:
             response.headers[name] = value

@@ -1,3 +1,5 @@
+import AxeBuilder from '@axe-core/playwright';
+
 import { expect, test } from './fixtures';
 import { confirmedPlan, examProtocolView, examResultView } from './quality-support';
 
@@ -392,6 +394,8 @@ test.describe('exam execution workflows', () => {
     day.slots[0].actual_started_at = '2026-11-16T08:31:00+01:00';
     day.slots[0].execution_status = 'running';
     const result = examResultView();
+    result.model_version.rules.quorum.minimum_members = 2;
+    let determinationRequestBody: Record<string, unknown> | null = null;
 
     await page.route('**/api/confirmed-plan-days/1', (route) =>
       route.fulfill({
@@ -476,14 +480,15 @@ test.describe('exam execution workflows', () => {
           },
         };
       } else if (path.endsWith('/determine')) {
+        determinationRequestBody = body;
         result.version += 1;
         result.state = 'determined';
         const determination = {
           id: 31,
           revision: 1,
-          participant_member_ids: [1, 2, 3],
-          vote: { yes: [1, 2, 3], no: [], abstain: [] },
-          dissent: [],
+          participant_member_ids: body?.['participant_member_ids'] as number[],
+          vote: body?.['vote'] as { yes: number[]; no: number[]; abstain: number[] },
+          dissent: body?.['dissent'] as Array<{ member_id: number; statement: string }>,
           status: 'current' as const,
           determined_at: '2026-11-16T10:00:00+01:00',
           confirmation_member_ids: [],
@@ -492,7 +497,8 @@ test.describe('exam execution workflows', () => {
         result.current_determination = determination;
       } else if (path.endsWith('/record-confirmations')) {
         result.version += 1;
-        result.current_determination!.confirmation_member_ids = [1, 2, 3];
+        result.current_determination!.confirmation_member_ids =
+          result.current_determination!.participant_member_ids;
       } else if (path.endsWith('/communications')) {
         result.version += 1;
         result.state = 'communicated';
@@ -535,7 +541,21 @@ test.describe('exam execution workflows', () => {
 
     await editor.getByRole('button', { name: 'Unabhängig bestätigen' }).click();
     await expect(editor.getByText('Nachvollziehbarer Ergebnisvorschlag')).toBeVisible();
+    await editor.getByLabel('Mitglied 1 stimmt mit').check();
+    await editor.getByLabel('Mitglied 2 stimmt mit').check();
+    await expect(editor.getByLabel('Stimme von Mitglied 3')).toHaveCount(0);
+    await editor.getByLabel('Stimme von Mitglied 1').selectOption('yes');
+    await editor.getByLabel('Stimme von Mitglied 2').selectOption('yes');
+    const voteAccessibility = await new AxeBuilder({ page })
+      .include('#result-vote-group-1')
+      .analyze();
+    expect(voteAccessibility.violations).toEqual([]);
     await editor.getByRole('button', { name: 'Gesamtergebnis feststellen' }).click();
+    expect(determinationRequestBody).toMatchObject({
+      participant_member_ids: [1, 2],
+      vote: { yes: [1, 2], no: [], abstain: [] },
+      dissent: [],
+    });
     await expect(editor.getByText('Ergebnisniederschrift · Feststellung 1')).toBeVisible();
     await editor.getByRole('button', { name: 'Sachliche Richtigkeit bestätigen' }).click();
     await editor.getByRole('button', { name: 'Mitteilung dokumentieren' }).click();
@@ -544,6 +564,13 @@ test.describe('exam execution workflows', () => {
     await editor.getByLabel('Begründung', { exact: true }).fill('Übertragungsfehler korrigieren');
     await editor.getByRole('button', { name: 'Korrektur öffnen' }).click();
     await expect(editor.getByText('Korrektur offen', { exact: true })).toBeVisible();
+    await expect(editor.getByText('Mitgeteilt')).toBeVisible();
+    await expect(editor.getByLabel('Mitglied 1 stimmt mit')).not.toBeChecked();
+    await expect(editor.getByLabel('Mitglied 2 stimmt mit')).not.toBeChecked();
+    const correctionVoteAccessibility = await new AxeBuilder({ page })
+      .include('#result-vote-group-1')
+      .analyze();
+    expect(correctionVoteAccessibility.violations).toEqual([]);
     await editor.getByText('Feststellungs-, Korrektur-, Mitteilungs- und Exporthistorie').click();
     await expect(editor.getByText(/Korrektur 61 · open/)).toBeVisible();
   });

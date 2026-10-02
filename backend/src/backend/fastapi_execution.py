@@ -13,6 +13,7 @@ from .api_contracts import (
     DomainResourceWrite,
     ExamAttendanceUpdateRequest,
     ExamProtocolContentRequest,
+    ExamProtocolResponse,
     ExamProtocolResponseRequest,
     ExamSlotStartRequest,
     ExamSlotStatusUpdateRequest,
@@ -98,6 +99,7 @@ def _add_slot_start_route(router, *, finish, not_found, write_security):
 def _add_protocol_read_routes(router, *, finish, not_found, read_security):
     @router.get(
         "/api/confirmed-plan-days/{day_id}/slots/{slot_id}/protocol",
+        response_model=ExamProtocolResponse,
         openapi_extra=read_security,
     )
     def slot_protocol(context: ReadContext, day_id: int, slot_id: int):
@@ -107,7 +109,11 @@ def _add_protocol_read_routes(router, *, finish, not_found, read_security):
         protocol = context.exam_protocol_service.get_by_slot(context.authorization_scope, slot_id)
         return not_found() if protocol is None else finish(context, context.respond(protocol))
 
-    @router.get("/api/exam-protocols/{protocol_id}", openapi_extra=read_security)
+    @router.get(
+        "/api/exam-protocols/{protocol_id}",
+        response_model=ExamProtocolResponse,
+        openapi_extra=read_security,
+    )
     def exam_protocol(context: ReadContext, protocol_id: int):
         protocol = context.exam_protocol_service.get(context.authorization_scope, protocol_id)
         return not_found() if protocol is None else finish(context, context.respond(protocol))
@@ -116,6 +122,7 @@ def _add_protocol_read_routes(router, *, finish, not_found, read_security):
 def _add_protocol_write_routes(router, *, finish, write_security):
     @router.patch(
         "/api/exam-protocols/{protocol_id}",
+        response_model=ExamProtocolResponse,
         openapi_extra=write_security,
     )
     def update_exam_protocol(
@@ -127,7 +134,11 @@ def _add_protocol_write_routes(router, *, finish, write_security):
             context, protocol_id, "content", finish, payload_data(context, payload)
         )
 
-    @router.post("/api/exam-protocols/{protocol_id}/submit", openapi_extra=write_security)
+    @router.post(
+        "/api/exam-protocols/{protocol_id}/submit",
+        response_model=ExamProtocolResponse,
+        openapi_extra=write_security,
+    )
     def submit_exam_protocol(
         context: WriteContext,
         protocol_id: int,
@@ -139,6 +150,7 @@ def _add_protocol_write_routes(router, *, finish, write_security):
 
     @router.post(
         "/api/exam-protocols/{protocol_id}/responses",
+        response_model=ExamProtocolResponse,
         openapi_extra=write_security,
     )
     def respond_to_exam_protocol(
@@ -152,6 +164,7 @@ def _add_protocol_write_routes(router, *, finish, write_security):
 
     @router.post(
         "/api/exam-protocols/{protocol_id}/correction-requests",
+        response_model=ExamProtocolResponse,
         openapi_extra=write_security,
     )
     def request_exam_protocol_correction(
@@ -165,6 +178,7 @@ def _add_protocol_write_routes(router, *, finish, write_security):
 
     @router.post(
         "/api/exam-protocols/{protocol_id}/open-correction",
+        response_model=ExamProtocolResponse,
         openapi_extra=write_security,
     )
     def open_exam_protocol_correction(
@@ -176,7 +190,11 @@ def _add_protocol_write_routes(router, *, finish, write_security):
             context, protocol_id, "open-correction", finish, payload_data(context, payload)
         )
 
-    @router.put("/api/exam-protocols/{protocol_id}/retention", openapi_extra=write_security)
+    @router.put(
+        "/api/exam-protocols/{protocol_id}/retention",
+        response_model=ExamProtocolResponse,
+        openapi_extra=write_security,
+    )
     def set_exam_protocol_retention(
         context: WriteContext,
         protocol_id: int,

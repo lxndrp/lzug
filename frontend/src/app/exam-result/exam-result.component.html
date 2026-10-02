@@ -201,6 +201,45 @@
                   (ngModelChange)="componentReasons.set(component.key, $event)"
                 ></textarea>
               </label>
+              <fieldset class="app-result-vote" [disabled]="busy()">
+                <legend>Abstimmung zur Ausschussbewertung</legend>
+                <p>
+                  Wählen Sie mindestens {{ current.modelVersion.rules.quorum.minimumMembers }}
+                  anwesende Mitglieder aus und ordnen Sie jedem genau eine Stimme zu.
+                </p>
+                @for (memberId of current.participants; track memberId) {
+                  <div>
+                    <label
+                      [for]="'component-voter-' + slotId + '-' + component.key + '-' + memberId"
+                    >
+                      <input
+                        type="checkbox"
+                        [id]="'component-voter-' + slotId + '-' + component.key + '-' + memberId"
+                        [ngModel]="componentVoterSelected(component.key, memberId)"
+                        (ngModelChange)="setComponentVoter(component.key, memberId, $event)"
+                      />
+                      Mitglied {{ memberId }} stimmt mit
+                    </label>
+                    @if (componentVoterSelected(component.key, memberId)) {
+                      <label
+                        [for]="'component-vote-' + slotId + '-' + component.key + '-' + memberId"
+                      >
+                        Stimme von Mitglied {{ memberId }}
+                        <select
+                          [id]="'component-vote-' + slotId + '-' + component.key + '-' + memberId"
+                          [ngModel]="componentVoteFor(component.key, memberId)"
+                          (ngModelChange)="setComponentVote(component.key, memberId, $event)"
+                        >
+                          <option [ngValue]="null">Stimme auswählen</option>
+                          <option value="yes">Ja</option>
+                          <option value="no">Nein</option>
+                          <option value="abstain">Enthaltung</option>
+                        </select>
+                      </label>
+                    }
+                  </div>
+                }
+              </fieldset>
               <button
                 tuiButton
                 appearance="primary"
@@ -332,19 +371,54 @@
           {{ calculation.path.roundedTotal }}. Dieser Vorschlag ist noch keine Feststellung.
         </p>
         @if (
-          current.state === 'calculation_ready' &&
+          (current.state === 'calculation_ready' || current.correctionOpen) &&
           current.permissions.determineResult &&
           can('exam-result:determine')
         ) {
-          <button
-            tuiButton
-            appearance="primary"
-            type="button"
-            [disabled]="busy()"
-            (click)="determineResult()"
-          >
-            Gesamtergebnis feststellen
-          </button>
+          <fieldset id="result-vote-group-{{ slotId }}" class="app-result-vote" [disabled]="busy()">
+            <legend>Abstimmung über das Gesamtergebnis</legend>
+            <p>
+              Wählen Sie mindestens {{ current.modelVersion.rules.quorum.minimumMembers }}
+              anwesende Mitglieder aus und ordnen Sie jedem genau eine Stimme zu.
+            </p>
+            @for (memberId of current.participants; track memberId) {
+              <div>
+                <label [for]="'result-voter-' + slotId + '-' + memberId">
+                  <input
+                    type="checkbox"
+                    [id]="'result-voter-' + slotId + '-' + memberId"
+                    [ngModel]="examResultVoterSelected(memberId)"
+                    (ngModelChange)="setExamResultVoter(memberId, $event)"
+                  />
+                  Mitglied {{ memberId }} stimmt mit
+                </label>
+                @if (examResultVoterSelected(memberId)) {
+                  <label [for]="'result-vote-' + slotId + '-' + memberId">
+                    Stimme von Mitglied {{ memberId }}
+                    <select
+                      [id]="'result-vote-' + slotId + '-' + memberId"
+                      [ngModel]="examResultVoteFor(memberId)"
+                      (ngModelChange)="setExamResultVote(memberId, $event)"
+                    >
+                      <option [ngValue]="null">Stimme auswählen</option>
+                      <option value="yes">Ja</option>
+                      <option value="no">Nein</option>
+                      <option value="abstain">Enthaltung</option>
+                    </select>
+                  </label>
+                }
+              </div>
+            }
+            <button
+              tuiButton
+              appearance="primary"
+              type="button"
+              [disabled]="busy()"
+              (click)="determineResult()"
+            >
+              Gesamtergebnis feststellen
+            </button>
+          </fieldset>
         }
       </section>
     }
@@ -360,6 +434,7 @@
         @if (
           current.permissions.confirmRecord &&
           can('exam-result:confirm-record') &&
+          canConfirmRecord(current) &&
           !hasConfirmedRecord(current) &&
           !current.correctionOpen
         ) {

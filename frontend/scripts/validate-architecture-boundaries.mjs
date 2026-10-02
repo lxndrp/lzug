@@ -575,6 +575,7 @@ const examResultFacadePath = path.join(root, 'exam-result', 'exam-result.facade.
 const examResultApplicationPath = path.join(root, 'exam-result', 'exam-result.application.ts');
 const examResultPortPath = path.join(root, 'exam-result', 'exam-result.port.ts');
 const examResultModelsPath = path.join(root, 'exam-result', 'exam-result.models.ts');
+const examResultVotingPath = path.join(root, 'exam-result', 'exam-result.voting.ts');
 const examResultSpecPath = path.join(root, 'exam-result', 'exam-result.component.spec.ts');
 const examResultAdapterPath = path.join(root, 'api', 'http-exam-result.adapter.ts');
 const examResultAdapterSpecPath = path.join(root, 'api', 'http-exam-result.adapter.spec.ts');
@@ -584,6 +585,7 @@ const [
   examResultApplication,
   examResultPort,
   examResultModels,
+  examResultVoting,
   examResultSpec,
   examResultAdapter,
   examResultAdapterSpec,
@@ -594,6 +596,7 @@ const [
     examResultApplicationPath,
     examResultPortPath,
     examResultModelsPath,
+    examResultVotingPath,
     examResultSpecPath,
     examResultAdapterPath,
     examResultAdapterSpecPath,
@@ -607,8 +610,9 @@ assert.deepEqual(
     '../auth/auth.service',
     './exam-result.facade',
     './exam-result.models',
+    './exam-result.voting',
   ],
-  'exam-result component imports its facade, feature models and shared application/auth contracts',
+  'exam-result component imports its facade, feature models and feature voting rule',
 );
 assert.doesNotMatch(
   importsOf(examResultComponent),
@@ -645,12 +649,18 @@ assert.deepEqual(
   ['./exam-result.models'],
   'exam-result port exposes only feature-owned models',
 );
+assert.deepEqual(
+  relativeImportsOf(examResultVoting),
+  ['./exam-result.models'],
+  'exam-result voting rule depends only on feature-owned models',
+);
 for (const [name, source] of [
   ['exam-result component', examResultComponent],
   ['exam-result facade', examResultFacade],
   ['exam-result application', examResultApplication],
   ['exam-result port', examResultPort],
   ['exam-result models', examResultModels],
+  ['exam-result voting rule', examResultVoting],
   ['exam-result behavior tests', examResultSpec],
 ]) {
   assert.doesNotMatch(
@@ -659,6 +669,11 @@ for (const [name, source] of [
     `${name} must not import HTTP or generated transport models`,
   );
 }
+assert.doesNotMatch(
+  importsOf(examResultVoting),
+  /@angular|rxjs|HttpClient|\bfetch\s*\(/,
+  'exam-result voting rule stays independent of framework and transport primitives',
+);
 assert.match(examResultFacade, /ExamResultApplication/);
 assert.match(examResultApplication, /EXAM_RESULT_PORT/);
 assert.match(examResultSpec, /EXAM_RESULT_PORT/);
