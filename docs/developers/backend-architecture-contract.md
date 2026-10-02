@@ -402,6 +402,11 @@ dem ersten Widerrufscommit `active=false`.
 Ein fehlgeschlagener Sync liefert den stabilen Retry-Fehler im vorhandenen
 HTTP-Fehlerformat, ohne Secret; ein erneuter `POST` setzt den persistierten
 Pending-Stand fort.
+Nach jedem fehlgeschlagenen Aktivierungs-`POST` liest der UI-Adapter den
+Status erneut und ersetzt seinen lokalen Feedstatus durch diese Antwort.
+Scheitert auch der Status-Read, wird ein zuvor geladenes `active=true` als
+veraltet/unbekannt markiert und darf nicht als aktuell aktiv dargestellt
+werden.
 Ist die Finalisierung bereits committet, meldet `GET` `active=true`, aber das
 verlorene Secret bleibt unlesbar und nur eine ausdrückliche Rotation erzeugt
 eine neue einmalige URL.

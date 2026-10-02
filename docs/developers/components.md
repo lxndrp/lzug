@@ -273,6 +273,12 @@ Der Statusvertrag zeigt kein Pending-Feld: nach dem Widerrufscommit meldet er
 „Persönlichen Feed aktivieren“ zeigt.
 Ein Syncfehler liefert den stabilen Retry-Fehler im bestehenden HTTP-Format
 ohne Secret; der folgende POST setzt den gespeicherten Pending-Stand fort.
+Nach jedem fehlgeschlagenen Aktivierungs-POST lädt die UI den Feedstatus neu
+und aktualisiert ihr `calendar`-Signal mit der Serverantwort.
+Nach einem Widerrufscommit zeigt dieser Read `active=false` und die vorhandene
+Aktivierungsaktion führt den Pending-Retry aus.
+Scheitert auch der Status-Read, wird der zuvor geladene Status als veraltet
+oder unbekannt behandelt und nicht als aktuell aktiv bestätigt.
 Ein pro-Feed Lifecycle-Lock aus der Composition Root serialisiert Requests
 über Sync und Finalisierung; sein Registry-/Serviceobjekt wird prozessweit
 geteilt und nicht pro `RequestContext` oder `CalendarService` instanziiert.
