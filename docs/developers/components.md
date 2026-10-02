@@ -138,19 +138,28 @@ HTTP-Rand, während der synchrone Anwendungskern frameworkunabhängig bleibt.
 
 In `execution.absence` und `execution.exam_protocols` bleiben die öffentlichen
 Servicebefehle die autoritative Grenze für Zustandsübergänge.
-Der Runden-Lifecycle ist dagegen ein Cross-Domain-Use-Case: `application`
-koordiniert Planning-Rundenentscheidung und -revision, Execution-Tages-/Slot-
-Folgen und Wiederöffnungsaufgaben sowie benötigte Assessment-Ergebnis-Snapshots
-in einem gemeinsamen UoW; die Regeln und Aggregate bleiben in ihren
-Eigentümermodulen.
+Der Runden-Lifecycle ist im Ist-Zustand noch nicht in diese Modulgrenzen
+aufgeteilt: FastAPI ruft `context.exam_round_lifecycle_service` auf, und der
+Service öffnet eigene Sessions und greift direkt auf Planning-, Execution-
+und Assessment-Daten zu.
+Der gemeinsame Application-UoW mit Planning-, Execution- und Assessment-Ports
+ist der Zielvertrag aus
+[Backend-Vertrag](backend-architecture-contract.md#port-inventar), keine
+bereits umgesetzte Laufzeitarchitektur.
+Die Ergebnisänderung auf einem geschlossenen Prüfungstag verwendet heute
+`ExamResultService` mit Execution-Prüfung und -Abschluss im selben
+Session-Kontext; die Ziel-Orchestrierung über Application-Ports steht separat
+im Backend-Vertrag.
 Benannte Vorbedingungsprüfungen lesen den aktuellen Stand in derselben Session;
 Versions- und Replay-Prüfungen behalten ihre Reihenfolge vor der Mutation.
-Audit, Wiederöffnungsaufgaben und die Kennzeichnung überholter Exporte werden
-mit dem Zustandswechsel atomar gespeichert.
-Kalenderfolgen laufen nach dem jeweiligen Planning- oder Execution-Commit über
-den `application`-Calendar-Port und bleiben bei Fehlern wiederholbar offen.
-Benachrichtigungen folgen dem jeweiligen Domain-Commit. Eine Wiederholung
-erzeugt keine zusätzlichen Rundenentscheidungen oder Wiederöffnungsaufgaben.
+Audit und die jeweils zugehörigen Änderungen werden innerhalb der
+Servicetransaktion atomar gespeichert.
+Kalenderfolgen folgen nach dem Planning- oder Execution-Fach-Commit und bleiben
+bei Fehlern getrennt wiederholbar offen.
+Benachrichtigungen folgen jeweils dem Commit des auslösenden Fachbefehls:
+Planereignisse dem Planning-Commit, Execution-Ereignisse dem Execution-Commit.
+Eine Wiederholung erzeugt keine zusätzlichen Rundenentscheidungen oder
+Wiederöffnungsaufgaben.
 `identity.committee_admin` prüft die Wiedereinladungsberechtigung vor dem
 Austausch abgelaufener Tokens in der bestehenden Schreibtransaktion.
 `identity.local_auth` trennt Konto- und Kennwortprüfung von der atomaren

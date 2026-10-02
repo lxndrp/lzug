@@ -59,6 +59,10 @@ Calendar-Service-Port nach dem jeweiligen Fach-Commit aus und besitzt den
 dauerhaften Folgeauftragszustand mit stabiler Ursprungsidentität, Claim, Retry
 und Ergebnis. Ein fehlgeschlagener Kalender-UoW setzt den Fach-Commit nicht
 zurück und lässt die Folgearbeit wiederholbar offen.
+Der heutige `PlanConsequenceService` speichert Batch und Task noch in Planning;
+das ist ein Übergangspfad. Im Ziel leitet Planning nur typisierte
+Folgeauftragsbeschreibungen ab und Application persistiert sowie verarbeitet
+ihren eigenen dauerhaften Zustand.
 Nach einem Neustart stößt der bestehende Admin-Processing-Command den
 Re-Drive aus unveränderlichen Domainquellen an; ein automatischer
 Startup-Hook oder Hintergrundworker ist nicht vorausgesetzt.
