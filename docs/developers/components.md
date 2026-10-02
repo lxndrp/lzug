@@ -228,9 +228,21 @@ einen offenen Prüfungstag und ruft dann `sync_round` vor der
 Abwesenheitsmutation auf.
 Nach dem Commit ruft es `sync_round` erneut auf, ebenfalls nur bei offenem
 Prüfungstag.
-Wiederöffnung ruft `sync_round` nach dem Abwesenheitscommit nur für einen
-offenen Prüfungstag auf; dieser Sync hat für die Wiederherstellung der
-ursprünglichen Zuweisung keinen Kalenderereignis- oder Versions-Effekt.
+Der Zielvertrag entfernt diesen Pre-Sync.
+Die Execution-Folgequelle speichert stattdessen im selben Mutation-UoW ein
+unveränderliches Calendar-Before-Image mit Assignment-ID, alter
+Empfänger-Membership-ID, Generation und materialisiertem Eventinhalt.
+Application übergibt es an den Calendar-Port: dieser storniert die alte
+Generation und erzeugt die stornierte Zeile aus dem Before-Image auch dann,
+wenn noch keine Projektion existiert; danach synchronisiert er die neue
+Zuweisungsgeneration.
+So bleiben Abwesenheitsmutation und Wiederherstellung der alten
+Kalenderprojektion/Eventzeile nach Prozessabbruch wiederholbar.
+Wiederöffnung stellt im Execution-Zustand den ursprünglichen
+Assignee wieder her und ruft `sync_round` nach dem Commit nur für einen
+offenen Prüfungstag auf.
+Dieser Sync storniert das Ersatz-Event mit Versionssprung und erzeugt für den
+ursprünglichen Assignee eine neue Eventgeneration.
 Abbruch ruft `cancel_assignment` nach dem Commit ebenfalls nur für einen
 offenen Prüfungstag auf.
 Diese Aufrufe sind direkte synchrone Folgen ohne dauerhaften Application-
@@ -244,6 +256,25 @@ und späterer Tage, auch wenn ein Eventzeitpunkt am Entscheidungstag bereits
 vergangen ist.
 Damit committen Rundungsentscheidung und lokale Kalenderstornierung gemeinsam;
 es gibt für diesen Pfad keinen nachgelagerten Calendar-Sync-Auftrag.
+
+Die Feed-Lifecycle-Sperre teilt der Composition Root prozessweit mit
+Token-ICS-Reads und Rotation.
+Explizites `DELETE /api/calendar/feed` erwirbt dieselbe Sperre, revalidiert
+Status und Generation danach erneut und committet Widerruf sowie Löschen oder
+Fencing eines Pending-Standes atomar.
+Ein wartender Rotationsfinalizer kann den widerrufenen Feed dadurch nicht
+reaktivieren.
+
+Bei fehlgeschlagenem Aktivierungs-/Rotations-POST gehören Status-Reload und
+Einmal-URL-Löschung zur UI-Feature-Adapter-/State-Orchestrierung;
+die reine `presentation` rendert nur den resultierenden Zustand.
+Die URL wird vor dem Reload verborgen und nie aus dem status-only GET
+rekonstruiert, auch wenn dieser `active=true` meldet.
+Scheitert der Reload, darf ein zuvor aktiver Status nicht als aktuell gelten.
+Diese Stelle dokumentiert den Vertrag; #1070 ändert keinen
+Frontend-Produktcode.
+Die Calendar-Garantie, dass das alte Token nach dem Widerrufscommit ungültig
+ist, gilt unabhängig vom Frontend-Fehlerpfad.
 
 Heute speichert `activate` beziehungsweise `rotate` das Credential vor dem
 anschließenden Sync.
