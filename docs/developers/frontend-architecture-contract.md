@@ -83,7 +83,7 @@ flowchart TB
   Locations -. Orts- / Raumreferenz .-> Planning
   Planning -. erstmalige Planbestätigung .-> ConfirmedPlans
   ConfirmedPlans -. ausgewählte Plan-/Tagreferenz .-> Day
-  Day -. Tag- / Protokollreferenz .-> Protocol
+  Day -. Tag-/Slot-ID und Tagesrevision .-> Protocol
   Day -. geteilter Runden-/Tagkontext .-> Result
 ```
 
