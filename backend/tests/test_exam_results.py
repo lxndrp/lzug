@@ -1,20 +1,26 @@
 from __future__ import annotations
 
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
 from http import HTTPStatus
+from threading import Barrier
+from unittest.mock import patch
 
-from backend.assessment.exam_results import ExamResultService
+from backend.assessment.exam_results import ExamResultConflictError, ExamResultService
 from backend.execution.exam_protocols import create_protocol_for_started_slot
 from backend.identity.auth import AuthenticationRepository
+from backend.identity.authorization import AuthorizationService
 from backend.persistence.database import session_scope
 from backend.persistence.models import (
     CandidateExamAttendance,
     ExamDay,
     ExamDayAssignment,
+    ExamResult,
     ExamRound,
     ExamSlot,
     MemberExamAttendance,
+    ResultRetention,
 )
 from backend.tests.fixture_data import FIXTURE_ROOT, ORGANIZATION_NAMES
 from backend.tests.helpers import ApiServer, TempDatabase, assert_status
@@ -379,6 +385,57 @@ class ExamResultTests(unittest.TestCase):
         )
         assert_status(status, HTTPStatus.OK)
         return result
+
+    def test_parallel_retention_changes_claim_one_result_version_atomically(self) -> None:
+        with ApiServer(self.db_path) as api:
+            result = self.prepare_result(api)
+
+        context = AuthenticationRepository(self.db_path).authenticate(self.chair.token)
+        self.assertIsNotNone(context)
+        scope = AuthorizationService(self.db_path).scope(context)
+        initial_version = result["version"]
+        with session_scope(self.db_path) as session:
+            initial_day_revision = session.get(ExamDay, self.day_id).revision
+
+        barrier = Barrier(2)
+        original_claim = ExamResultService._claim_version
+
+        def synchronized_claim(session, aggregate, expected_version):
+            barrier.wait(timeout=10)
+            original_claim(session, aggregate, expected_version)
+
+        def update_retention(retain_until: str) -> str:
+            try:
+                ExamResultService(self.db_path).set_retention(
+                    scope,
+                    result["id"],
+                    {
+                        "version": initial_version,
+                        "period_start": "2026-11-16",
+                        "retain_until": retain_until,
+                        "legal_hold": False,
+                    },
+                )
+            except ExamResultConflictError:
+                return "conflict"
+            return "committed"
+
+        with patch.object(ExamResultService, "_claim_version", staticmethod(synchronized_claim)):
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                outcomes = list(executor.map(update_retention, ("2041-11-16", "2042-11-16")))
+
+        self.assertCountEqual(["committed", "conflict"], outcomes)
+        with session_scope(self.db_path) as session:
+            stored_result = session.get(ExamResult, result["id"])
+            retention = session.query(ResultRetention).filter_by(exam_result_id=result["id"]).one()
+            day = session.get(ExamDay, self.day_id)
+            final_version = stored_result.version
+            final_retain_until = retention.retain_until
+            final_day_revision = day.revision
+
+        self.assertEqual(initial_version + 1, final_version)
+        self.assertIn(final_retain_until, {"2041-11-16", "2042-11-16"})
+        self.assertEqual(initial_day_revision + 1, final_day_revision)
 
     def test_calculation_history_and_exports_wait_for_component_disclosure(self) -> None:
         rules = assessment_rules()
