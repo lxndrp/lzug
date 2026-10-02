@@ -10,8 +10,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import select, update
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import set_committed_value
 
 from backend.identity.authorization import AuthorizationScope
 from backend.integrations.notifications import NotificationService
@@ -1814,12 +1816,11 @@ class ExamDayClosureService:
         )
         if determination is None:
             return
+        self._claim_result_version(session, result, now)
         self._ensure_result_correction(
             session, result, determination, reopening, actor_id, reason, now
         )
         result.correction_open = 1
-        result.version += 1
-        result.updated_at = now
         participants = set(json.loads(determination.participant_member_ids_json))
         self._add_reopening_tasks(
             session,
@@ -1835,6 +1836,32 @@ class ExamDayClosureService:
         self._add_result_follow_up_tasks(
             session, day, reopening, result, determination, reason, now
         )
+
+    @staticmethod
+    def _claim_result_version(session: Session, result: ExamResult, now: str) -> None:
+        expected_version = result.version
+        try:
+            claim = session.execute(
+                update(ExamResult)
+                .where(
+                    ExamResult.id == result.id,
+                    ExamResult.version == expected_version,
+                )
+                .values(version=expected_version + 1, updated_at=now)
+                .execution_options(synchronize_session=False)
+            )
+        except OperationalError as error:
+            # A concurrent SQLite snapshot writer means this aggregate changed
+            # after it was read. Other busy errors remain retryable DB failures.
+            if getattr(error.orig, "sqlite_errorname", None) == "SQLITE_BUSY_SNAPSHOT":
+                raise ExamDayConflictError(
+                    "Der Ergebnisstand wurde zwischenzeitlich geändert"
+                ) from error
+            raise
+        if claim.rowcount != 1:
+            raise ExamDayConflictError("Der Ergebnisstand wurde zwischenzeitlich geändert")
+        set_committed_value(result, "version", expected_version + 1)
+        set_committed_value(result, "updated_at", now)
 
     @staticmethod
     def _ensure_result_correction(

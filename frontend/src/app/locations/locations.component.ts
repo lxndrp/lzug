@@ -31,6 +31,7 @@ import type {
   VenueContactUpdate,
 } from './locations.models';
 import { VenueContactsComponent } from './venue-contacts.component';
+import type { VenueViewEffect } from './venue-view-effect';
 import { VenueRoomsComponent } from './venue-rooms.component';
 
 export type { GeocodeCandidate, VenueCreate, VenueUpdate } from './locations.models';
@@ -71,6 +72,7 @@ export class LocationsComponent implements OnChanges {
   @Input() detailVenueId: number | null = null;
   @Input() canCreateVenue = false;
   @Input() geocodeCandidate: GeocodeCandidate | null = null;
+  @Input() workflowEffect: VenueViewEffect | null = null;
 
   @Output() openVenue = new EventEmitter<number>();
   @Output() closeDetail = new EventEmitter<void>();
@@ -127,6 +129,12 @@ export class LocationsComponent implements OnChanges {
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['detailVenueId']) this.mapLoadError.set(false);
+    const effectChange = changes['workflowEffect'];
+    const effect = effectChange?.currentValue as VenueViewEffect | null | undefined;
+    const previous = effectChange?.previousValue as VenueViewEffect | null | undefined;
+    if (!effect || effect.version === previous?.version) return;
+    if (effect.type === 'reset-draft') this.resetDraft();
+    if (effect.type === 'finish-editing') this.finishEditing(effect.id);
   }
 
   protected venues(): Venue[] {

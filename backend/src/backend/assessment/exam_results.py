@@ -10,8 +10,10 @@ from pathlib import Path
 from typing import Any
 
 from pydantic import ValidationError
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import set_committed_value
 
 from backend.assessment.rules import AssessmentRules
 from backend.execution.exam_day_closures import (
@@ -289,7 +291,7 @@ class ExamResultService:
                 current, raw_points, normalized, rationale, desired_status
             ):
                 return self._view(session, result, scope)
-            self._assert_version(result, expected_version)
+            self._claim_version(session, result, expected_version)
             self._assert_inputs_mutable(result)
             disclosed = self._is_disclosed(session, result.id, component_key)
             if (disclosed or result.correction_open) and change_reason is None:
@@ -322,7 +324,7 @@ class ExamResultService:
                     created_at=created_at,
                 )
             )
-            self._touch(result)
+
             session.flush()
             self._refresh_calculation(session, result, rules)
             self._complete_day_mutations(
@@ -355,7 +357,7 @@ class ExamResultService:
                 )
             if current.status == "withdrawn":
                 return self._view(session, result, scope)
-            self._assert_version(result, expected_version)
+            self._claim_version(session, result, expected_version)
             self._assert_inputs_mutable(result)
             reason = self._required_text(payload.get("reason"), "reason", 2000)
             day_guards = self._guard_day_mutations(
@@ -382,7 +384,7 @@ class ExamResultService:
                     created_at=_now(),
                 )
             )
-            self._touch(result)
+
             session.flush()
             _binding, _model, rules = self._model_context(session, result)
             self._refresh_calculation(session, result, rules)
@@ -412,7 +414,7 @@ class ExamResultService:
             )
             if existing is not None:
                 return self._view(session, result, scope)
-            self._assert_version(result, expected_version)
+            self._claim_version(session, result, expected_version)
             self._assert_inputs_mutable(result)
             if actor_id not in participants or not can_manage:
                 raise PermissionError("Forbidden.")
@@ -441,7 +443,7 @@ class ExamResultService:
                     disclosed_at=_now(),
                 )
             )
-            self._touch(result)
+
             session.flush()
             self._complete_day_mutations(session, day_guards, actor_member_id=actor_id)
             return self._view(session, result, scope)
@@ -487,7 +489,7 @@ class ExamResultService:
                 raise ExamResultConflictError(
                     "Eine festgestellte Komponentenbewertung benötigt einen Korrekturvorgang"
                 )
-            self._assert_version(result, expected_version)
+            self._claim_version(session, result, expected_version)
             self._assert_inputs_mutable(result)
             individual_points = [
                 Decimal(item.normalized_points)
@@ -527,7 +529,7 @@ class ExamResultService:
                     determined_at=_now(),
                 )
             )
-            self._touch(result)
+
             session.flush()
             self._refresh_calculation(session, result, rules)
             self._complete_day_mutations(
@@ -549,7 +551,7 @@ class ExamResultService:
             actor_id, _participants, can_manage = self._require_access(session, result, scope)
             _binding, _model, rules = self._model_context(session, result)
             self._external_area(rules, area_key)
-            self._assert_version(result, expected_version)
+            self._claim_version(session, result, expected_version)
             self._assert_inputs_mutable(result)
             if actor_id is None or not can_manage:
                 raise PermissionError("Forbidden.")
@@ -589,7 +591,7 @@ class ExamResultService:
                     correction_reason=correction_reason,
                 )
             )
-            self._touch(result)
+
             session.flush()
             self._refresh_calculation(session, result, rules)
             self._complete_day_mutations(
@@ -616,7 +618,7 @@ class ExamResultService:
                 raise ValueError("Eingangsergebnis nicht gefunden")
             if external.status == "confirmed" and external.confirmed_by_member_id == actor_id:
                 return self._view(session, result, scope)
-            self._assert_version(result, expected_version)
+            self._claim_version(session, result, expected_version)
             self._assert_inputs_mutable(result)
             if actor_id is None or not can_manage:
                 raise PermissionError("Forbidden.")
@@ -636,7 +638,7 @@ class ExamResultService:
             external.status = "confirmed"
             external.confirmed_by_member_id = actor_id
             external.confirmed_at = _now()
-            self._touch(result)
+
             session.flush()
             _binding, _model, rules = self._model_context(session, result)
             self._refresh_calculation(session, result, rules)
@@ -666,7 +668,7 @@ class ExamResultService:
                 ):
                     return self._view(session, result, scope)
                 raise ExamResultConflictError("Das Ergebnis wurde bereits festgestellt")
-            self._assert_version(result, expected_version)
+            self._claim_version(session, result, expected_version)
             calculation = self._refresh_calculation(session, result, rules)
             if calculation is None:
                 raise ValueError("Das Ergebnis ist noch nicht berechnungsbereit")
@@ -719,7 +721,7 @@ class ExamResultService:
                 correction.completed_at = determination.determined_at
             result.current_state = "determined"
             result.correction_open = 0
-            self._touch(result)
+
             session.flush()
             self._complete_day_mutations(session, day_guards, actor_member_id=actor_id)
             return self._view(session, result, scope)
@@ -745,7 +747,7 @@ class ExamResultService:
             )
             if existing is not None:
                 return self._view(session, result, scope)
-            self._assert_version(result, expected_version)
+            self._claim_version(session, result, expected_version)
             if result.correction_open:
                 raise ExamResultConflictError(
                     "Während einer Korrektur kann die Niederschrift nicht bestätigt werden"
@@ -764,7 +766,7 @@ class ExamResultService:
                     confirmed_at=_now(),
                 )
             )
-            self._touch(result)
+
             session.flush()
             self._complete_day_mutations(session, day_guards, actor_member_id=actor_id)
             return self._view(session, result, scope)
@@ -790,7 +792,7 @@ class ExamResultService:
             )
             if existing is not None and existing.reason == reason:
                 return self._view(session, result, scope)
-            self._assert_version(result, expected_version)
+            self._claim_version(session, result, expected_version)
             if existing is not None:
                 raise ExamResultConflictError("Für das Ergebnis ist bereits eine Korrektur offen")
             day_guards = self._guard_day_mutations(
@@ -817,7 +819,7 @@ class ExamResultService:
                 )
             )
             result.correction_open = 1
-            self._touch(result)
+
             session.flush()
             self._complete_day_mutations(
                 session,
@@ -858,7 +860,7 @@ class ExamResultService:
                 and existing.communicated_at == communicated_at
             ):
                 return self._view(session, result, scope)
-            self._assert_version(result, expected_version)
+            self._claim_version(session, result, expected_version)
             day_guards = self._guard_day_mutations(
                 session,
                 result,
@@ -886,7 +888,7 @@ class ExamResultService:
                 )
             )
             result.current_state = "communicated"
-            self._touch(result)
+
             session.flush()
             self._complete_day_mutations(session, day_guards, actor_member_id=actor_id)
             return self._view(session, result, scope)
@@ -910,7 +912,7 @@ class ExamResultService:
             retention["hold_reason"] = self._retention_hold_reason(existing, retention)
             if self._same_retention(existing, model, retention):
                 return self._view(session, result, scope)
-            self._assert_version(result, expected_version)
+            self._claim_version(session, result, expected_version)
             day_guards = self._guard_day_mutations(
                 session,
                 result,
@@ -926,7 +928,7 @@ class ExamResultService:
                 )
                 session.add(existing)
             self._apply_retention(existing, model, retention, actor_id)
-            self._touch(result)
+
             session.flush()
             self._complete_day_mutations(session, day_guards, actor_member_id=actor_id)
             return self._view(session, result, scope)
@@ -1612,9 +1614,35 @@ class ExamResultService:
         return result
 
     @staticmethod
-    def _assert_version(result: ExamResult, expected_version: int) -> None:
+    def _claim_version(session: Session, result: ExamResult, expected_version: int) -> None:
+        """Atomically reserve the next aggregate version before writing children."""
         if result.version != expected_version:
             raise ExamResultConflictError("Der Ergebnisstand wurde zwischenzeitlich geändert")
+        next_version = expected_version + 1
+        updated_at = _now()
+        try:
+            update_result = session.execute(
+                update(ExamResult)
+                .where(
+                    ExamResult.id == result.id,
+                    ExamResult.version == expected_version,
+                )
+                .values(version=next_version, updated_at=updated_at)
+                .execution_options(synchronize_session=False)
+            )
+        except OperationalError as error:
+            # SQLite WAL may reject a concurrent read-to-write upgrade with
+            # SQLITE_BUSY_SNAPSHOT before the UPDATE can report rowcount zero.
+            error_name = getattr(error.orig, "sqlite_errorname", None)
+            if error_name == "SQLITE_BUSY_SNAPSHOT":
+                raise ExamResultConflictError(
+                    "Der Ergebnisstand wurde zwischenzeitlich geändert"
+                ) from error
+            raise
+        if update_result.rowcount != 1:
+            raise ExamResultConflictError("Der Ergebnisstand wurde zwischenzeitlich geändert")
+        set_committed_value(result, "version", next_version)
+        set_committed_value(result, "updated_at", updated_at)
 
     @staticmethod
     def _assert_inputs_mutable(result: ExamResult) -> None:
@@ -1622,11 +1650,6 @@ class ExamResultService:
             raise ExamResultConflictError(
                 "Ein festgestelltes Ergebnis benötigt einen begründeten Korrekturvorgang"
             )
-
-    @staticmethod
-    def _touch(result: ExamResult) -> None:
-        result.version += 1
-        result.updated_at = _now()
 
     def _participant_ids(self, session: Session, result: ExamResult) -> set[int]:
         round_candidate = session.get(RoundCandidate, result.round_candidate_id)

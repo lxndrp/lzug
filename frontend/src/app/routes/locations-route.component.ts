@@ -1,4 +1,4 @@
-import { Component, ViewChild, computed, inject } from '@angular/core';
+import { Component, OnDestroy, computed, inject } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { map } from 'rxjs';
@@ -26,7 +26,7 @@ import { ApplicationWorkspaceService } from '../shell/application-workspace.serv
   template: `
     <app-locations
       [snapshot]="locations.snapshot()"
-      [actionBusy]="workspace.actionBusy()"
+      [actionBusy]="workflow.actionBusy()"
       [isOperator]="auth.session()?.is_operator ?? false"
       [readOnly]="demoSession() !== null"
       [loading]="workspace.loading()"
@@ -34,6 +34,7 @@ import { ApplicationWorkspaceService } from '../shell/application-workspace.serv
       [detailVenueId]="detailVenueId()"
       [canCreateVenue]="canCreateVenue()"
       [geocodeCandidate]="workflow.geocodeCandidate()"
+      [workflowEffect]="workflow.viewEffect()"
       (openVenue)="openVenue($event)"
       (closeDetail)="closeDetail()"
       (createVenue)="createVenue($event)"
@@ -52,14 +53,14 @@ import { ApplicationWorkspaceService } from '../shell/application-workspace.serv
     />
   `,
 })
-export class LocationsRouteComponent {
+export class LocationsRouteComponent implements OnDestroy {
   protected readonly workspace = inject(ApplicationWorkspaceService);
   protected readonly locations = inject(LocationsWorkspaceFacade);
   protected readonly workflow = inject(VenueWorkflowService);
   protected readonly auth = inject(AuthService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
-  @ViewChild(LocationsComponent) private component?: LocationsComponent;
+  private readonly viewId = Symbol('locations-route-view');
   protected readonly detailVenueId = toSignal(
     this.route.paramMap.pipe(map((params) => this.positiveInteger(params.get('id')))),
     { initialValue: this.positiveInteger(this.route.snapshot.paramMap.get('id')) },
@@ -68,6 +69,14 @@ export class LocationsRouteComponent {
     const session = this.auth.session();
     return session?.demo_role ? session : null;
   });
+  constructor() {
+    this.workflow.activateView(this.viewId);
+  }
+
+  ngOnDestroy(): void {
+    this.workflow.deactivateView(this.viewId);
+  }
+
   protected readonly canCreateVenue = computed(
     () =>
       !this.demoSession() &&
@@ -84,68 +93,55 @@ export class LocationsRouteComponent {
   }
 
   protected requestVenueDeletion(venue: Venue): void {
-    this.connect();
-    this.workflow.requestVenueDeletion(venue);
+    this.workflow.requestVenueDeletion(venue, this.viewId);
   }
 
   protected createVenue(payload: VenueCreate): void {
-    this.connect();
-    this.workflow.createVenue(payload);
+    this.workflow.createVenue(payload, this.viewId);
   }
 
   protected updateVenue(update: VenueUpdate): void {
-    this.connect();
-    this.workflow.updateVenue(update);
+    this.workflow.updateVenue(update, this.viewId);
   }
 
   protected geocodeVenue(venue: Venue): void {
-    this.connect();
-    this.workflow.geocodeVenue(venue);
+    this.workflow.geocodeVenue(venue, this.viewId);
   }
 
   protected deleteVenue(venue: Venue): void {
-    this.connect();
-    this.workflow.deleteVenue(venue);
+    this.workflow.deleteVenue(venue, this.viewId);
   }
 
   protected createRoom(command: VenueRoomCreate): void {
-    this.connect();
-    this.workflow.createRoom(command);
+    this.workflow.createRoom(command, this.viewId);
   }
 
   protected updateRoom(command: VenueRoomUpdate): void {
-    this.connect();
-    this.workflow.updateRoom(command);
+    this.workflow.updateRoom(command, this.viewId);
   }
 
   protected deleteRoom(room: VenueRoom): void {
-    this.connect();
-    this.workflow.deleteRoom(room);
+    this.workflow.deleteRoom(room, this.viewId);
   }
 
   protected retryConsequences(auditId: number): void {
-    this.connect();
-    this.workflow.retryVenueConsequences(auditId);
+    this.workflow.retryVenueConsequences(auditId, this.viewId);
   }
 
   protected createContact(command: VenueContactCreate): void {
-    this.connect();
-    this.workflow.createContact(command);
+    this.workflow.createContact(command, this.viewId);
   }
 
   protected updateContact(command: VenueContactUpdate): void {
-    this.connect();
-    this.workflow.updateContact(command);
+    this.workflow.updateContact(command, this.viewId);
   }
 
   protected deleteContact(contact: VenueContact): void {
-    this.connect();
-    this.workflow.deleteContact(contact);
+    this.workflow.deleteContact(contact, this.viewId);
   }
 
   protected requestPromotion(command: { venue: Venue; reason: string }): void {
-    this.connect();
-    this.workflow.requestPromotion(command);
+    this.workflow.requestPromotion(command, this.viewId);
   }
 
   protected decidePromotion(command: {
@@ -153,12 +149,7 @@ export class LocationsRouteComponent {
     decision: 'approve' | 'reject';
     reason: string;
   }): void {
-    this.connect();
-    this.workflow.decidePromotion(command);
-  }
-
-  private connect(): void {
-    this.workflow.connect(this.component);
+    this.workflow.decidePromotion(command, this.viewId);
   }
 
   private positiveInteger(parameter: string | null): number | null {

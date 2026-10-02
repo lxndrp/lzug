@@ -1,4 +1,4 @@
-import { Component, ViewChild, computed, inject } from '@angular/core';
+import { Component, OnDestroy, computed, inject } from '@angular/core';
 import { Router } from '@angular/router';
 
 import type {
@@ -26,7 +26,8 @@ import { ApplicationWorkspaceService } from '../shell/application-workspace.serv
       [summary]="workspace.summary()"
       [board]="workspace.board()"
       [masterData]="workspace.masterData()"
-      [actionBusy]="workspace.actionBusy()"
+      [actionBusy]="workflow.actionBusy()"
+      [workflowEffects]="workflow.viewEffects()"
       [candidateDayGenerationResult]="workflow.candidateDayGeneration()"
       [planningResult]="workflow.lastResult()"
       [availabilityOnly]="isDemoExaminer()"
@@ -49,71 +50,78 @@ import { ApplicationWorkspaceService } from '../shell/application-workspace.serv
       (loadPlanningProposal)="loadPlanningProposal()"
       (reloadPlanningProposal)="reloadPlanningProposal()"
       (savePlanningProposal)="savePlanningProposal($event)"
+      (workflowEffectsConsumed)="acknowledgeWorkflowEffects($event)"
       (confirmPlan)="requestPlanConfirmation()"
       (cancel)="cancel()"
     />
   `,
 })
-export class PlanningRouteComponent {
+export class PlanningRouteComponent implements OnDestroy {
   protected readonly workspace = inject(ApplicationWorkspaceService);
   protected readonly workflow = inject(PlanningWorkflowService);
   protected readonly auth = inject(AuthService);
   private readonly router = inject(Router);
-  @ViewChild(PlanningComponent) private component?: PlanningComponent;
+  private readonly viewId = Symbol('planning-route-view');
+  constructor() {
+    this.workflow.activateView(this.viewId);
+  }
+
+  ngOnDestroy(): void {
+    this.workflow.deactivateView(this.viewId);
+  }
+
   protected readonly isDemoExaminer = computed(() => this.auth.session()?.demo_role === 'examiner');
 
   protected savePlanningSettings(payload: PlanningSettingsPayload): void {
-    this.workflow.savePlanningSettings(payload);
+    this.workflow.savePlanningSettings(payload, this.viewId);
   }
 
   protected saveExamRound(payload: ExamRoundUpdate): void {
-    this.workflow.saveExamRound(payload);
+    this.workflow.saveExamRound(payload, this.viewId);
   }
 
   protected requestAvailabilities(payload: AvailabilityRequest): void {
-    this.workflow.requestAvailabilities(payload);
+    this.workflow.requestAvailabilities(payload, this.viewId);
   }
 
   protected createCandidateDay(payload: CandidateExamDayPayload): void {
-    this.workflow.connect(this.component);
-    this.workflow.createCandidateDay(payload);
+    this.workflow.createCandidateDay(payload, this.viewId);
   }
 
   protected generateCandidateDays(payload: PlanningSettingsPayload): void {
-    this.workflow.generateCandidateDays(payload);
+    this.workflow.generateCandidateDays(payload, this.viewId);
   }
 
   protected toggleCandidateDay(day: CandidateExamDay): void {
-    this.workflow.toggleCandidateDay(day);
+    this.workflow.toggleCandidateDay(day, this.viewId);
   }
 
   protected saveAvailability(payload: AvailabilityPayload): void {
-    this.workflow.connect(this.component);
-    this.workflow.saveAvailability(payload);
+    this.workflow.saveAvailability(payload, this.viewId);
   }
 
   protected generateProposal(): void {
-    this.workflow.generateProposal();
+    this.workflow.generateProposal(this.viewId);
   }
 
   protected requestPlanConfirmation(): void {
-    this.workflow.connect(this.component);
-    this.workflow.requestPlanConfirmation();
+    this.workflow.requestPlanConfirmation(this.viewId);
   }
 
   protected loadPlanningProposal(): void {
-    this.workflow.connect(this.component);
-    this.workflow.loadPlanningProposal();
+    this.workflow.loadPlanningProposal(this.viewId);
   }
 
   protected reloadPlanningProposal(): void {
-    this.workflow.connect(this.component);
-    this.workflow.reloadPlanningProposal();
+    this.workflow.reloadPlanningProposal(this.viewId);
   }
 
   protected savePlanningProposal(proposal: EditablePlanningProposal): void {
-    this.workflow.connect(this.component);
-    this.workflow.savePlanningProposal(proposal);
+    this.workflow.savePlanningProposal(proposal, this.viewId);
+  }
+
+  protected acknowledgeWorkflowEffects(throughVersion: number): void {
+    this.workflow.acknowledgeViewEffects(this.viewId, throughVersion);
   }
 
   protected cancel(): void {

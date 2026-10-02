@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
 import { PlanningComponent } from './planning.component';
+import type { PlanningViewEffect } from './planning-view-effect';
 import {
   athenChairMembershipFixture,
   athenCourtLocationFixture,
@@ -52,6 +53,38 @@ describe('PlanningComponent', () => {
     expect(
       (fixture.nativeElement as HTMLElement).querySelector('.app-availability-scroll'),
     ).toBeTruthy();
+  });
+
+  it('applies every queued availability effect from parallel cell saves', () => {
+    const first = {
+      type: 'availability-saved',
+      payload: {
+        committee_member_id: 11,
+        candidate_exam_day_id: 21,
+        availability: 'morning',
+      },
+      availability: 'morning',
+      version: 31,
+    } satisfies PlanningViewEffect;
+    const second = {
+      type: 'availability-error',
+      payload: {
+        committee_member_id: 12,
+        candidate_exam_day_id: 22,
+        availability: 'afternoon',
+      },
+      version: 32,
+    } satisfies PlanningViewEffect;
+    const saved = vi.spyOn(fixture.componentInstance, 'markAvailabilitySaved');
+    const failed = vi.spyOn(fixture.componentInstance, 'markAvailabilityError');
+    const consumed = vi.spyOn(fixture.componentInstance.workflowEffectsConsumed, 'emit');
+
+    fixture.componentRef.setInput('workflowEffects', [first, second]);
+    fixture.detectChanges();
+
+    expect(saved).toHaveBeenCalledWith(first.payload);
+    expect(failed).toHaveBeenCalledWith(second.payload, undefined);
+    expect(consumed).toHaveBeenCalledWith(32);
   });
 
   it('separates generation, manual creation, and activation capabilities', () => {

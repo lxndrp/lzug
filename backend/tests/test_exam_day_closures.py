@@ -6,7 +6,10 @@ from unittest.mock import patch
 
 from sqlalchemy import event, text
 
-from backend.execution.exam_day_closures import ExamDayClosureService
+from backend.execution.exam_day_closures import (
+    ExamDayClosureService,
+    ExamDayConflictError,
+)
 from backend.identity.auth import AuthenticationRepository
 from backend.persistence.database import session_scope
 from backend.persistence.models import (
@@ -14,6 +17,7 @@ from backend.persistence.models import (
     ExamDayClosure,
     ExamDayExport,
     ExamDayTask,
+    ExamResult,
     Notification,
 )
 from backend.tests.fixture_data import prepare_exam_protocol_scenario
@@ -79,6 +83,24 @@ class ExamDayClosureTests(unittest.TestCase):
 
         self.assertEqual(1, len(snapshot.slots))
         self.assertEqual(6, len(statements))
+
+    def test_result_reopening_version_claim_rejects_a_stale_sqlite_snapshot(self) -> None:
+        with session_scope(self.db_path) as session:
+            result = session.get(ExamResult, 2)
+            expected_version = result.version
+
+            with session_scope(self.db_path) as concurrent_session:
+                concurrent_session.execute(
+                    text("UPDATE exam_result SET version = version + 1 WHERE id = 2")
+                )
+
+            with self.assertRaises(ExamDayConflictError):
+                ExamDayClosureService._claim_result_version(
+                    session, result, "2026-10-02T12:00:00+00:00"
+                )
+
+        with session_scope(self.db_path) as session:
+            self.assertEqual(expected_version + 1, session.get(ExamResult, 2).version)
 
     def test_regular_cancelled_day_close_is_atomic_idempotent_locked_and_exportable(
         self,

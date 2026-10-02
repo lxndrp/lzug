@@ -25,10 +25,8 @@ import {
   ExamRoundUpdate,
   Location,
   MasterData,
-  MemberAvailability,
   PlanningBoard,
   PlanningResult,
-  PlanningSettings,
   PlanningValidationViolation,
   RoundSummary,
 } from '../api/api.models';
@@ -39,17 +37,19 @@ import {
   PlanningProposalEditorComponent,
   ProposalEditorState,
 } from './planning-proposal-editor.component';
+import type {
+  AvailabilityPayload,
+  CandidateExamDayPayload,
+  PlanningSettingsPayload,
+  PlanningViewEffect,
+} from './planning-view-effect';
+export type {
+  AvailabilityPayload,
+  CandidateExamDayPayload,
+  PlanningSettingsPayload,
+} from './planning-view-effect';
 
-export type PlanningSettingsPayload = Omit<
-  PlanningSettings,
-  'id' | 'exam_round_id' | 'updated_by_member_id'
->;
-export type CandidateExamDayPayload = Omit<CandidateExamDay, 'id' | 'exam_round_id'>;
 export type RoundUpdatePayload = ExamRoundUpdate;
-export type AvailabilityPayload = Pick<
-  MemberAvailability,
-  'committee_member_id' | 'candidate_exam_day_id' | 'availability'
->;
 /** Transient UI state for one optimistic availability update. */
 export type AvailabilityCellState = {
   status: 'saving' | 'saved' | 'error';
@@ -108,6 +108,7 @@ export class PlanningComponent implements OnChanges, OnDestroy {
   @Input() allowCandidateDayGeneration = true;
   @Input() canCreateCandidateDay = true;
   @Input() canToggleCandidateDay = true;
+  @Input() workflowEffects: PlanningViewEffect[] = [];
 
   @Output() saveSettings = new EventEmitter<PlanningSettingsPayload>();
   @Output() saveRound = new EventEmitter<RoundUpdatePayload>();
@@ -121,6 +122,7 @@ export class PlanningComponent implements OnChanges, OnDestroy {
   @Output() loadPlanningProposal = new EventEmitter<void>();
   @Output() reloadPlanningProposal = new EventEmitter<void>();
   @Output() savePlanningProposal = new EventEmitter<EditablePlanningProposal>();
+  @Output() workflowEffectsConsumed = new EventEmitter<number>();
   @Output() cancel = new EventEmitter<void>();
 
   protected readonly currentStep = signal<WizardStep>('period');
@@ -161,6 +163,7 @@ export class PlanningComponent implements OnChanges, OnDestroy {
   private readonly availabilityOverrides = signal<Record<string, AvailabilityValue>>({});
   private readonly savedStateTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private workflowKey = '';
+  private lastWorkflowEffectVersion = 0;
   protected readonly federalStates = [
     { code: 'DE-BW', name: 'Baden-Württemberg' },
     { code: 'DE-BY', name: 'Bayern' },
@@ -196,6 +199,18 @@ export class PlanningComponent implements OnChanges, OnDestroy {
     if (changes['round'] || changes['summary'] || changes['board']) {
       this.syncWorkflowState();
     }
+    const effects = changes['workflowEffects']?.currentValue as PlanningViewEffect[] | undefined;
+    if (!effects?.length) return;
+    for (const effect of effects) {
+      if (effect.version <= this.lastWorkflowEffectVersion) continue;
+      if (effect.type === 'reset-candidate-day-draft') this.resetCandidateDayDraft();
+      if (effect.type === 'availability-saved') this.markAvailabilitySaved(effect.payload);
+      if (effect.type === 'availability-error') {
+        this.markAvailabilityError(effect.payload, effect.usePersistedValue);
+      }
+      this.lastWorkflowEffectVersion = effect.version;
+    }
+    this.workflowEffectsConsumed.emit(this.lastWorkflowEffectVersion);
   }
 
   ngOnDestroy(): void {
