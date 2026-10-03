@@ -16,7 +16,9 @@ Die Planung möglicher Prüfungstage muss bundesweite und landesweit geltende ge
 ## Entscheidung
 
 Dafür verwendet das Backend die kuratierte Python-Bibliothek `holidays` hinter
-der eigenen `HolidayProvider`-Schnittstelle in
+dem Planning-owned `HolidayProvider`-Port in
+`backend/src/backend/planning/candidate_days.py`.
+`PythonHolidaysProvider` implementiert diesen Port in
 `backend/src/backend/integrations/holiday_provider.py`.
 
 ## Konsequenzen

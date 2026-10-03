@@ -7,6 +7,7 @@ It deliberately does not know about ASGI, Starlette, or any HTTP server.
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import timedelta
 from http import HTTPStatus
@@ -69,6 +70,7 @@ class RequestContext:
     session_ttl: timedelta
     max_request_bytes: int
     runtime_policy: RuntimePolicy
+    candidate_day_service_factory: Callable[[Path], CandidateDayService]
     auth_rate_limiter: RequestRateLimiter
     observability_rate_limiter: RequestRateLimiter
     observability_global_rate_limiter: RequestRateLimiter
@@ -93,7 +95,7 @@ class RequestContext:
 
     @property
     def candidate_day_service(self) -> CandidateDayService:
-        return CandidateDayService(self.db_path)
+        return self.candidate_day_service_factory(self.db_path)
 
     @property
     def authentication_repository(self) -> AuthenticationRepository:

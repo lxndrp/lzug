@@ -987,6 +987,19 @@ class ApiTests(unittest.TestCase):
             self.assertEqual(4, result["counts"]["created"])
             self.assertEqual("2026-06-04", result["excluded_holidays"][0]["date"])
             self.assertEqual(
+                {
+                    "id",
+                    "exam_round_id",
+                    "date",
+                    "is_active",
+                    "created_at",
+                    "updated_at",
+                },
+                set(result["created_days"][0]),
+            )
+            self.assertIsInstance(result["created_days"][0]["created_at"], str)
+            self.assertIsInstance(result["created_days"][0]["updated_at"], str)
+            self.assertEqual(
                 "/api/candidate-exam-days?round_id=1",
                 result["_links"]["candidate-exam-days"]["href"],
             )

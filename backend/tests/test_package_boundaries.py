@@ -33,6 +33,7 @@ ROOT_MODULE_OWNERS = {
     "admin_socket_path.py": "operations-adapter",
     "admin_socket_protocol.py": "operations-adapter",
     "api_contracts.py": "api",
+    "composition.py": "composition-root",
     "e2e_server.py": "api-bootstrap",
     "fastapi_app.py": "api",
     "fastapi_assembly.py": "api",
@@ -184,7 +185,27 @@ def _package_dependencies(package: str) -> set[str]:
     dependencies: set[str] = set()
     for path in (BACKEND_ROOT / package).glob("*.py"):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-        for node in ast.walk(tree):
+
+        class RuntimeImports(ast.NodeVisitor):
+            def __init__(self) -> None:
+                self.nodes: list[ast.AST] = []
+
+            def visit_If(self, node: ast.If) -> None:
+                if isinstance(node.test, ast.Name) and node.test.id == "TYPE_CHECKING":
+                    for item in node.orelse:
+                        self.visit(item)
+                    return
+                self.generic_visit(node)
+
+            def visit_Import(self, node: ast.Import) -> None:
+                self.nodes.append(node)
+
+            def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+                self.nodes.append(node)
+
+        visitor = RuntimeImports()
+        visitor.visit(tree)
+        for node in visitor.nodes:
             names: list[str] = []
             if isinstance(node, ast.Import):
                 names.extend(alias.name for alias in node.names)

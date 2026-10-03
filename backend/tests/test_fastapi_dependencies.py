@@ -8,9 +8,11 @@ from unittest.mock import patch
 
 from fastapi import APIRouter, Depends
 from fastapi.testclient import TestClient
+from starlette.requests import Request
 
 from backend.application.repositories import ResourceRepository
 from backend.application.transport import RequestContext
+from backend.composition import candidate_day_service
 from backend.fastapi_assembly import FastAPIConfig, create_app
 from backend.fastapi_dependencies import (
     BodyContext,
@@ -23,7 +25,14 @@ from backend.fastapi_dependencies import (
 )
 from backend.identity.auth import AuthenticationRepository
 from backend.persistence.database import session_scope
-from backend.persistence.models import COMMITTEE, COMMITTEE_MEMBER, EXAM_ROUND, Committee
+from backend.persistence.models import (
+    CANDIDATE_EXAM_DAY,
+    COMMITTEE,
+    COMMITTEE_MEMBER,
+    EXAM_ROUND,
+    Committee,
+)
+from backend.planning.candidate_days import GenerateCandidateDays
 from backend.runtime_policy import ProductRuntimePolicy
 from backend.tests.helpers import TempDatabase, openapi_document
 
@@ -366,6 +375,72 @@ class FastAPIDependencyTests(unittest.TestCase):
                         parameter["name"],
                         {"context", "request", "body", "actor", "csrf", "mutation", "operator"},
                     )
+
+    def test_candidate_day_composition_uses_selected_product_and_demo_databases(self) -> None:
+        databases = {
+            "product": self.enterContext(TempDatabase()),
+            "demo": self.enterContext(TempDatabase()),
+        }
+        tokens = {}
+        for name, db_path in databases.items():
+            tokens[name] = AuthenticationRepository(db_path).create_session(1).token
+            ResourceRepository(db_path).save_planning_settings(
+                {
+                    "exam_round_id": 1,
+                    "calendar_week_from": "2026-W23" if name == "product" else "2026-W24",
+                    "calendar_week_to": "2026-W23" if name == "product" else "2026-W24",
+                    "exams_per_day": 6,
+                    "max_exam_days_per_week": 3,
+                    "lunch_break_enabled": 1,
+                    "exclude_public_holidays": 0,
+                    "holiday_subdivision_code": None,
+                    "default_room_id": 1,
+                    "updated_by_member_id": 1,
+                }
+            )
+
+        class Policy(ProductRuntimePolicy):
+            def database_for_request(self, base_db_path, session_token):
+                del base_db_path
+                return databases[
+                    next(name for name, token in tokens.items() if token == session_token)
+                ]
+
+        self.app.state.lzug_config = replace(self.config, runtime_policy=Policy())
+        selected_paths = []
+
+        def service_factory(db_path):
+            selected_paths.append(db_path)
+            return candidate_day_service(db_path)
+
+        self.app.state.candidate_day_service_factory = service_factory
+        results = {}
+        for name in ("product", "demo"):
+            request = Request(
+                {
+                    "type": "http",
+                    "method": "POST",
+                    "path": "/api/candidate-exam-days/generate",
+                    "headers": [(b"cookie", f"session={tokens[name]}".encode())],
+                    "app": self.app,
+                }
+            )
+            context = request_context(request)
+            results[name] = context.candidate_day_service.generate(GenerateCandidateDays(1))
+
+        self.assertEqual([databases["product"], databases["demo"]], selected_paths)
+        self.assertEqual("2026-W23", results["product"].calendar_week_from)
+        self.assertEqual("2026-W24", results["demo"].calendar_week_from)
+        for name, db_path in databases.items():
+            rows = ResourceRepository(db_path).list_filtered(
+                CANDIDATE_EXAM_DAY, {"exam_round_id": 1}
+            )
+            self.assertEqual(5, len(results[name].created_days))
+            persisted_dates = {row["date"] for row in rows}
+            self.assertTrue({day.date for day in results[name].created_days} <= persisted_dates)
+        product_dates = {day.date for day in results["product"].created_days}
+        demo_dates = {day.date for day in results["demo"].created_days}
+        self.assertTrue(product_dates.isdisjoint(demo_dates))
 
 
 if __name__ == "__main__":

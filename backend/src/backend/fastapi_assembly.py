@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from datetime import timedelta
 from pathlib import Path
 
@@ -12,6 +12,7 @@ from fastapi import FastAPI
 
 from .application import ApplicationServices, ReadApplication
 from .application.admin import AdminApplication, AdminServices
+from .composition import candidate_day_service as compose_candidate_day_service
 from .fastapi_app import (
     FastAPIConfig,
     register_application_routes,
@@ -32,6 +33,7 @@ from .operations.backup_restore import ArtifactService
 from .operations.diagnostics import run_diagnostics
 from .operations.lifecycle import LifecycleService
 from .persistence.database import PersistencePaths, database_readiness, persistence_paths
+from .planning.candidate_days import CandidateDayService
 from .planning.plan_consequences import PlanConsequenceService
 from .runtime import RuntimeCoordinator
 from .security import RequestRateLimiter
@@ -102,6 +104,7 @@ def create_app(
     services: ApplicationServices | None = None,
     *,
     runtime: RuntimeCoordinator | None = None,
+    candidate_day_service_factory: Callable[[Path], CandidateDayService] | None = None,
 ) -> FastAPI:
     """Create the single FastAPI application used by product and demo images."""
     resolved = config or FastAPIConfig.from_environment()
@@ -120,6 +123,9 @@ def create_app(
     app.router.route_class = BoundedBodyRoute
     app.state.lzug_config = resolved
     app.state.runtime = runtime
+    app.state.candidate_day_service_factory = (
+        candidate_day_service_factory or compose_candidate_day_service
+    )
     app.state.auth_rate_limiter = resolved.auth_rate_limiter or RequestRateLimiter(
         resolved.auth_rate_limit, resolved.auth_rate_window
     )
