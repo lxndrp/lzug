@@ -127,9 +127,10 @@ class NotificationService:
                 notification_ids.append(write.id)
                 if write.created:
                     created += 1
-                    unit_of_work.queue_deliveries(
-                        write.id, member_id, self._channel_configuration()
-                    )
+                    if self.external_delivery_enabled:
+                        unit_of_work.queue_deliveries(
+                            write.id, member_id, self._channel_configuration()
+                        )
         dispatched = self.process_deliveries()
         with self._notification_unit_of_work_factory() as unit_of_work:
             problems = unit_of_work.problem_count(tuple(notification_ids))
@@ -171,7 +172,7 @@ class NotificationService:
                     )
                 )
                 created_ids.append(write.id)
-                if write.created:
+                if write.created and self.external_delivery_enabled:
                     unit_of_work.queue_deliveries(
                         write.id,
                         member_id,
@@ -356,7 +357,7 @@ class NotificationService:
                 )
             )
             notice_id = write.id
-            if write.created:
+            if write.created and self.external_delivery_enabled:
                 unit_of_work.queue_deliveries(
                     notice_id,
                     member.id,

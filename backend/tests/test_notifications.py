@@ -116,6 +116,23 @@ class NotificationServiceTests(unittest.TestCase):
         self.assertEqual(8, len(overview))
         self.assertNotIn("message", overview[0])
 
+    def test_disabled_external_delivery_does_not_create_delivery_problems(self) -> None:
+        service = NotificationService(
+            external_delivery_enabled=False,
+            delivery_gateway=NotificationDeliveryGateway(),
+            delivery_unit_of_work_factory=SQLiteNotificationDeliveryUnitOfWorkFactory(self.db_path),
+            notification_unit_of_work_factory=SQLiteNotificationUnitOfWorkFactory(self.db_path),
+        )
+
+        result = service.create_for_event("availability_requested", 1)
+
+        self.assertEqual({"created": 8, "dispatched": 0, "problems": 0}, result)
+        with closing(sqlite3.connect(self.db_path)) as connection:
+            delivery_count = connection.execute(
+                "SELECT COUNT(*) FROM notification_delivery"
+            ).fetchone()[0]
+        self.assertEqual(0, delivery_count)
+
     def test_reminder_and_deadline_target_only_open_members_plus_management(self) -> None:
         reminder = self.service.create_for_event("availability_reminder", 1)
         deadline = self.service.create_for_event("availability_deadline_expired", 1)
