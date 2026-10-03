@@ -433,15 +433,13 @@ export class VenueWorkflowService {
       warning ?? detail,
     );
     this.refreshView();
-    if (refreshLocations) {
-      this.refreshLocationProjections();
-      this.referenceDataWrites.notifyCommitted('locations');
-    }
+    if (refreshLocations) this.refreshLocationProjections();
   }
 
   private refreshLocationProjections(): void {
     this.dashboard.refreshLocations();
     this.workspace.refreshLocations();
+    this.referenceDataWrites.notifyCommitted('locations');
   }
 
   private runOperation<T>(
