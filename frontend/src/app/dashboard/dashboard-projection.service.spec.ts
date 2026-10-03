@@ -83,6 +83,7 @@ describe('DashboardProjectionService', () => {
     service.activate();
     expect(service.loading()).toBe(true);
     service.deactivate();
+    expect(pending.observed).toBe(false);
     pending.next({
       applicationVersion: 'stale',
       round: examRoundFixture,
@@ -92,6 +93,32 @@ describe('DashboardProjectionService', () => {
 
     expect(service.projection()).toBeNull();
     expect(service.loading()).toBe(false);
+  });
+
+  it('cancels all targeted dashboard GETs when its route closes', () => {
+    const service = TestBed.inject(DashboardProjectionService);
+    service.activate();
+    const locations = new Subject<never>();
+    const candidates = new Subject<never>();
+    const members = new Subject<never>();
+    loadLocations.mockReturnValueOnce(locations);
+    loadCandidateReferences.mockReturnValueOnce(candidates);
+    loadCommitteeMembers.mockReturnValueOnce(members);
+
+    service.refreshLocations();
+    service.refreshCandidateReferences();
+    service.refreshCommitteeMembers();
+
+    expect(locations.observed).toBe(true);
+    expect(candidates.observed).toBe(true);
+    expect(members.observed).toBe(true);
+    service.deactivate();
+
+    expect(locations.observed).toBe(false);
+    expect(candidates.observed).toBe(false);
+    expect(members.observed).toBe(false);
+    expect(service.candidateRefreshLoading()).toBe(false);
+    expect(service.committeeRefreshLoading()).toBe(false);
   });
 
   it('loads an independent projection and exposes its own failure state', () => {

@@ -1,6 +1,6 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import { finalize } from 'rxjs';
+import { Subscription, finalize } from 'rxjs';
 
 import { ApplicationError } from '../application/application-error';
 import { RoundContextService } from '../api/round-context.service';
@@ -18,6 +18,10 @@ export class DashboardProjectionService {
   private readonly roundContext = inject(RoundContextService);
   private readonly router = inject(Router);
   private active = false;
+  private fullRead: Subscription | null = null;
+  private locationRead: Subscription | null = null;
+  private candidateReferenceRead: Subscription | null = null;
+  private committeeMemberRead: Subscription | null = null;
   private generation = 0;
   private locationGeneration = 0;
   private candidateReferenceGeneration = 0;
@@ -85,6 +89,7 @@ export class DashboardProjectionService {
     )
       return;
     const generation = ++this.generation;
+    this.fullRead?.unsubscribe();
     const locationRevision = this.locationRevision;
     const candidateReferenceRevision = this.candidateReferenceRevision;
     const committeeMemberRevision = this.committeeMemberRevision;
@@ -94,7 +99,7 @@ export class DashboardProjectionService {
     this.loading.set(true);
     this.error.set(false);
 
-    this.sessionScope
+    this.fullRead = this.sessionScope
       .forCurrentSession(this.port.load(roundId))
       .pipe(
         finalize(() => {
@@ -167,9 +172,10 @@ export class DashboardProjectionService {
     if (!this.active || !this.projection()) return;
     const roundId = this.roundContext.roundId();
     const generation = ++this.locationGeneration;
+    this.locationRead?.unsubscribe();
     const sessionGeneration = this.sessionScope.generation();
     this.locationRefreshError.set(false);
-    this.sessionScope.forCurrentSession(this.port.loadLocations()).subscribe({
+    this.locationRead = this.sessionScope.forCurrentSession(this.port.loadLocations()).subscribe({
       next: (locations) => {
         if (
           generation !== this.locationGeneration ||
@@ -205,10 +211,11 @@ export class DashboardProjectionService {
     if (!this.active || !this.hasProjectionOrPendingLoad()) return;
     const roundId = this.roundContext.roundId();
     const generation = ++this.candidateReferenceGeneration;
+    this.candidateReferenceRead?.unsubscribe();
     const sessionGeneration = this.sessionScope.generation();
     this.candidateRefreshLoading.set(true);
     this.candidateRefreshError.set(false);
-    this.sessionScope
+    this.candidateReferenceRead = this.sessionScope
       .forCurrentSession(this.port.loadCandidateReferences(roundId))
       .pipe(
         finalize(() => {
@@ -259,10 +266,11 @@ export class DashboardProjectionService {
     if (!this.active || !this.hasProjectionOrPendingLoad()) return;
     const roundId = this.roundContext.roundId();
     const generation = ++this.committeeMemberGeneration;
+    this.committeeMemberRead?.unsubscribe();
     const sessionGeneration = this.sessionScope.generation();
     this.committeeRefreshLoading.set(true);
     this.committeeRefreshError.set(false);
-    this.sessionScope
+    this.committeeMemberRead = this.sessionScope
       .forCurrentSession(this.port.loadCommitteeMembers())
       .pipe(
         finalize(() => {
@@ -336,6 +344,14 @@ export class DashboardProjectionService {
     this.locationGeneration += 1;
     this.candidateReferenceGeneration += 1;
     this.committeeMemberGeneration += 1;
+    this.fullRead?.unsubscribe();
+    this.locationRead?.unsubscribe();
+    this.candidateReferenceRead?.unsubscribe();
+    this.committeeMemberRead?.unsubscribe();
+    this.fullRead = null;
+    this.locationRead = null;
+    this.candidateReferenceRead = null;
+    this.committeeMemberRead = null;
     this.latestLocations = null;
     this.latestCandidateReferences = null;
     this.latestCommitteeMembers = null;
