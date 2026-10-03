@@ -20,6 +20,30 @@
         </p>
       </div>
     }
+    @if (candidateRefreshLoading) {
+      <div class="app-page-full">
+        <p class="app-state" role="status">Prüflingsdaten werden aktualisiert.</p>
+      </div>
+    }
+    @if (candidateRefreshError) {
+      <div class="app-page-full">
+        <p class="app-state app-state-error" role="alert">
+          Prüflingsdaten konnten nicht aktualisiert werden. Bitte laden Sie die Übersicht erneut.
+        </p>
+      </div>
+    }
+    @if (committeeRefreshLoading) {
+      <div class="app-page-full">
+        <p class="app-state" role="status">Ausschussdaten werden aktualisiert.</p>
+      </div>
+    }
+    @if (committeeRefreshError) {
+      <div class="app-page-full">
+        <p class="app-state app-state-error" role="alert">
+          Ausschussdaten konnten nicht aktualisiert werden. Bitte laden Sie die Übersicht erneut.
+        </p>
+      </div>
+    }
     <div class="app-page-full">
       @if (contextualHelp(); as help) {
         <section class="app-context-help" aria-labelledby="dashboard-help-title">

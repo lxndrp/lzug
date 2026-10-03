@@ -19,20 +19,41 @@ export class DashboardProjectionService {
   private readonly router = inject(Router);
   private generation = 0;
   private locationGeneration = 0;
+  private candidateReferenceGeneration = 0;
+  private committeeMemberGeneration = 0;
   private loadingRoundId: number | null = null;
   private loadingSessionGeneration: number | null = null;
   private locationRevision = 0;
+  private candidateReferenceRevision = 0;
+  private committeeMemberRevision = 0;
   private latestLocations: {
     revision: number;
     roundId: number;
     sessionGeneration: number;
     locations: Location[];
   } | null = null;
+  private latestCandidateReferences: {
+    revision: number;
+    roundId: number;
+    sessionGeneration: number;
+    candidates: DashboardProjection['board']['candidates'];
+    summary: DashboardProjection['summary'];
+  } | null = null;
+  private latestCommitteeMembers: {
+    revision: number;
+    roundId: number;
+    sessionGeneration: number;
+    members: DashboardProjection['board']['members'];
+  } | null = null;
 
   readonly projection = signal<DashboardProjection | null>(null);
   readonly loading = signal(false);
   readonly error = signal(false);
   readonly locationRefreshError = signal(false);
+  readonly candidateRefreshLoading = signal(false);
+  readonly candidateRefreshError = signal(false);
+  readonly committeeRefreshLoading = signal(false);
+  readonly committeeRefreshError = signal(false);
 
   constructor() {
     this.sessionScope.changes$.subscribe(() => this.clear());
@@ -51,6 +72,8 @@ export class DashboardProjectionService {
       return;
     const generation = ++this.generation;
     const locationRevision = this.locationRevision;
+    const candidateReferenceRevision = this.candidateReferenceRevision;
+    const committeeMemberRevision = this.committeeMemberRevision;
     this.loadingRoundId = roundId;
     this.loadingSessionGeneration = sessionGeneration;
     if (this.projection()?.round.id !== roundId) this.projection.set(null);
@@ -75,8 +98,39 @@ export class DashboardProjectionService {
             latestLocations.sessionGeneration === sessionGeneration
               ? withLocations(projection, latestLocations.locations)
               : projection;
-          this.projection.set(currentProjection);
+          const latestCandidateReferences = this.latestCandidateReferences;
+          const projectionWithCandidates =
+            latestCandidateReferences &&
+            latestCandidateReferences.revision > candidateReferenceRevision &&
+            latestCandidateReferences.roundId === roundId &&
+            latestCandidateReferences.sessionGeneration === sessionGeneration
+              ? {
+                  ...currentProjection,
+                  summary: latestCandidateReferences.summary,
+                  board: {
+                    ...currentProjection.board,
+                    candidates: latestCandidateReferences.candidates,
+                  },
+                }
+              : currentProjection;
+          const latestCommitteeMembers = this.latestCommitteeMembers;
+          const projectionWithMembers =
+            latestCommitteeMembers &&
+            latestCommitteeMembers.revision > committeeMemberRevision &&
+            latestCommitteeMembers.roundId === roundId &&
+            latestCommitteeMembers.sessionGeneration === sessionGeneration
+              ? {
+                  ...projectionWithCandidates,
+                  board: {
+                    ...projectionWithCandidates.board,
+                    members: latestCommitteeMembers.members,
+                  },
+                }
+              : projectionWithCandidates;
+          this.projection.set(projectionWithMembers);
           this.locationRefreshError.set(false);
+          this.candidateRefreshError.set(false);
+          this.committeeRefreshError.set(false);
           if (
             this.router.url.startsWith('/scheduling-overview/') &&
             projection.round.status === 'plan_confirmed'
@@ -132,6 +186,112 @@ export class DashboardProjectionService {
     });
   }
 
+  /** Refresh candidate references and the candidate count without reloading the board. */
+  refreshCandidateReferences(): void {
+    if (!this.hasProjectionOrPendingLoad()) return;
+    const roundId = this.roundContext.roundId();
+    const generation = ++this.candidateReferenceGeneration;
+    const sessionGeneration = this.sessionScope.generation();
+    this.candidateRefreshLoading.set(true);
+    this.candidateRefreshError.set(false);
+    this.sessionScope
+      .forCurrentSession(this.port.loadCandidateReferences(roundId))
+      .pipe(
+        finalize(() => {
+          if (generation === this.candidateReferenceGeneration) {
+            this.candidateRefreshLoading.set(false);
+          }
+        }),
+      )
+      .subscribe({
+        next: ({ candidates, summary }) => {
+          if (
+            generation !== this.candidateReferenceGeneration ||
+            sessionGeneration !== this.sessionScope.generation() ||
+            roundId !== this.roundContext.roundId()
+          )
+            return;
+          this.latestCandidateReferences = {
+            revision: ++this.candidateReferenceRevision,
+            roundId,
+            sessionGeneration,
+            candidates,
+            summary,
+          };
+          const projection = this.projection();
+          if (projection?.round.id === roundId) {
+            this.projection.set({
+              ...projection,
+              summary,
+              board: { ...projection.board, candidates },
+            });
+          }
+        },
+        error: (error: ApplicationError) => {
+          if (
+            generation !== this.candidateReferenceGeneration ||
+            sessionGeneration !== this.sessionScope.generation() ||
+            roundId !== this.roundContext.roundId()
+          )
+            return;
+          this.candidateRefreshError.set(true);
+          if (error.kind === 'unauthenticated') this.auth.markAnonymous();
+        },
+      });
+  }
+
+  /** Refresh committee member references without reloading the board. */
+  refreshCommitteeMembers(): void {
+    if (!this.hasProjectionOrPendingLoad()) return;
+    const roundId = this.roundContext.roundId();
+    const generation = ++this.committeeMemberGeneration;
+    const sessionGeneration = this.sessionScope.generation();
+    this.committeeRefreshLoading.set(true);
+    this.committeeRefreshError.set(false);
+    this.sessionScope
+      .forCurrentSession(this.port.loadCommitteeMembers())
+      .pipe(
+        finalize(() => {
+          if (generation === this.committeeMemberGeneration) {
+            this.committeeRefreshLoading.set(false);
+          }
+        }),
+      )
+      .subscribe({
+        next: (members) => {
+          if (
+            generation !== this.committeeMemberGeneration ||
+            sessionGeneration !== this.sessionScope.generation() ||
+            roundId !== this.roundContext.roundId()
+          )
+            return;
+          this.latestCommitteeMembers = {
+            revision: ++this.committeeMemberRevision,
+            roundId,
+            sessionGeneration,
+            members,
+          };
+          const projection = this.projection();
+          if (projection?.round.id === roundId) {
+            this.projection.set({
+              ...projection,
+              board: { ...projection.board, members },
+            });
+          }
+        },
+        error: (error: ApplicationError) => {
+          if (
+            generation !== this.committeeMemberGeneration ||
+            sessionGeneration !== this.sessionScope.generation() ||
+            roundId !== this.roundContext.roundId()
+          )
+            return;
+          this.committeeRefreshError.set(true);
+          if (error.kind === 'unauthenticated') this.auth.markAnonymous();
+        },
+      });
+  }
+
   applyLocations(locations: Location[]): void {
     const current = this.projection();
     if (!current) return;
@@ -160,13 +320,32 @@ export class DashboardProjectionService {
   private clear(): void {
     this.generation += 1;
     this.locationGeneration += 1;
+    this.candidateReferenceGeneration += 1;
+    this.committeeMemberGeneration += 1;
     this.latestLocations = null;
+    this.latestCandidateReferences = null;
+    this.latestCommitteeMembers = null;
     this.loadingRoundId = null;
     this.loadingSessionGeneration = null;
     this.projection.set(null);
     this.loading.set(false);
     this.error.set(false);
     this.locationRefreshError.set(false);
+    this.candidateRefreshError.set(false);
+    this.committeeRefreshError.set(false);
+    this.candidateRefreshLoading.set(false);
+    this.committeeRefreshLoading.set(false);
+  }
+
+  private hasProjectionOrPendingLoad(): boolean {
+    const roundId = this.roundContext.roundId();
+    const sessionGeneration = this.sessionScope.generation();
+    return (
+      this.projection()?.round.id === roundId ||
+      (this.loading() &&
+        this.loadingRoundId === roundId &&
+        this.loadingSessionGeneration === sessionGeneration)
+    );
   }
 }
 

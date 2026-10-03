@@ -71,8 +71,14 @@ describe('App', () => {
     loading: ReturnType<typeof signal<boolean>>;
     error: ReturnType<typeof signal<boolean>>;
     locationRefreshError: ReturnType<typeof signal<boolean>>;
+    candidateRefreshLoading: ReturnType<typeof signal<boolean>>;
+    candidateRefreshError: ReturnType<typeof signal<boolean>>;
+    committeeRefreshLoading: ReturnType<typeof signal<boolean>>;
+    committeeRefreshError: ReturnType<typeof signal<boolean>>;
     refresh: ReturnType<typeof vi.fn>;
     refreshLocations: ReturnType<typeof vi.fn>;
+    refreshCandidateReferences: ReturnType<typeof vi.fn>;
+    refreshCommitteeMembers: ReturnType<typeof vi.fn>;
   };
   beforeAll(() => {
     Object.defineProperty(HTMLSelectElement.prototype, 'readOnly', {
@@ -101,8 +107,14 @@ describe('App', () => {
       loading: signal(false),
       error: signal(false),
       locationRefreshError: signal(false),
+      candidateRefreshLoading: signal(false),
+      candidateRefreshError: signal(false),
+      committeeRefreshLoading: signal(false),
+      committeeRefreshError: signal(false),
       refresh: vi.fn(),
       refreshLocations: vi.fn(),
+      refreshCandidateReferences: vi.fn(),
+      refreshCommitteeMembers: vi.fn(),
     };
     const session = signal<ReturnType<AuthService['session']>>(null);
     await TestBed.configureTestingModule({

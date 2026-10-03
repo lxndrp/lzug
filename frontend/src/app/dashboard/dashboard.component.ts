@@ -55,6 +55,10 @@ export class DashboardComponent {
   @Input() loading = false;
   @Input() error = false;
   @Input() locationRefreshError = false;
+  @Input() candidateRefreshLoading = false;
+  @Input() candidateRefreshError = false;
+  @Input() committeeRefreshLoading = false;
+  @Input() committeeRefreshError = false;
   @Input() actionBusy = false;
 
   @Output() openView = new EventEmitter<AppView>();

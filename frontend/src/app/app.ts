@@ -68,7 +68,12 @@ export class App {
   protected readonly message = this.workspace.message;
   protected readonly loading = this.workspace.loading;
   protected readonly refreshBusy = computed(
-    () => this.workspace.loading() || this.shellContext.loading() || this.dashboard.loading(),
+    () =>
+      this.workspace.loading() ||
+      this.shellContext.loading() ||
+      this.dashboard.loading() ||
+      this.dashboard.candidateRefreshLoading() ||
+      this.dashboard.committeeRefreshLoading(),
   );
   protected readonly applicationVersion = computed(
     () => this.shellContext.context()?.applicationVersion ?? null,
