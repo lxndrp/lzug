@@ -26,6 +26,7 @@ describe('ConfirmedPlansRouteComponent', () => {
     });
     const params = convertToParamMap({ roundId: '2' });
     const refresh = vi.fn();
+    const loading = signal(false);
     TestBed.configureTestingModule({
       providers: [
         {
@@ -38,7 +39,7 @@ describe('ConfirmedPlansRouteComponent', () => {
             },
           },
         },
-        { provide: ApplicationWorkspaceService, useValue: { round, board, refresh } },
+        { provide: ApplicationWorkspaceService, useValue: { round, board, refresh, loading } },
         { provide: AuthService, useValue: { hasCapability: () => true } },
       ],
     });
@@ -76,5 +77,38 @@ describe('ConfirmedPlansRouteComponent', () => {
       members: [{ id: 22, firstName: 'Neues', lastName: 'Mitglied' }],
       locations: [{ id: 32, name: 'Neuer Ort', room: 'B', city: 'Neustadt' }],
     });
+  });
+
+  it('does not start a duplicate workspace read while the resolver-triggered refresh is loading', () => {
+    const params = convertToParamMap({ roundId: '2' });
+    const refresh = vi.fn();
+    TestBed.configureTestingModule({
+      providers: [
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            paramMap: of(params),
+            snapshot: {
+              paramMap: params,
+              routeConfig: { path: 'confirmed-plans/:roundId/edit' },
+            },
+          },
+        },
+        {
+          provide: ApplicationWorkspaceService,
+          useValue: {
+            round: signal(null),
+            board: signal(null),
+            loading: signal(true),
+            refresh,
+          },
+        },
+        { provide: AuthService, useValue: { hasCapability: () => true } },
+      ],
+    });
+
+    TestBed.runInInjectionContext(() => new ConfirmedPlansRouteComponent());
+
+    expect(refresh).not.toHaveBeenCalled();
   });
 });

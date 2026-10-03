@@ -75,7 +75,11 @@ export class ConfirmedPlansRouteComponent {
         takeUntilDestroyed(),
       )
       .subscribe((roundId) => {
-        if (roundId !== null && this.workspace.round()?.id !== roundId) {
+        if (
+          roundId !== null &&
+          this.workspace.round()?.id !== roundId &&
+          !this.workspace.loading()
+        ) {
           this.workspace.refresh();
         }
       });
