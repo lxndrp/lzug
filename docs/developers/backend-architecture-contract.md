@@ -621,6 +621,9 @@ sequenceDiagram
 Das Serviceobjekt wird für den Request mit dessen ausgewähltem Datenbankpfad
 komponiert; es hält weder Session noch Datenbankzustand. Der UoW umfasst
 Einstellungen, bestehende Tage und sämtliche neuen Tage eines Befehls.
+Ein sequenzieller Retry liest die bereits angelegten Tage erneut und legt sie
+nicht doppelt an; das Ergebnis beschreibt den aktuellen Lesezustand und
+verspricht keine identische Antwortwiedergabe oder Exactly-once-Garantie.
 Provider- und Persistenzfehler verlassen ihre jeweiligen Adapter und werden
 durch den bestehenden HTTP-Fehlervertrag abgebildet. Der Adapter bildet das
 typisierte Ergebnis auf das unveränderte JSON-Antwortformat ab.
