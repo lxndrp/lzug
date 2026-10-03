@@ -7,6 +7,7 @@ export type CommitteeSummary = { id: number; name: string };
 export type LocationSnapshot = {
   committees: CommitteeSummary[];
   venues: Venue[];
+  canCreateVenue: boolean;
 };
 
 export type VenueRoom = {

@@ -93,6 +93,7 @@ export class LocationsComponent implements OnChanges {
   }>();
   @Output() geocodeVenue = new EventEmitter<Venue>();
   @Output() retryConsequences = new EventEmitter<number>();
+  @Output() retryLoad = new EventEmitter<void>();
 
   protected readonly creating = signal(false);
   protected readonly editingVenueId = signal<number | null>(null);

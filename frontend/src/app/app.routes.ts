@@ -13,6 +13,7 @@ import type { AppView } from './app-view';
 import { AuthService } from './auth/auth.service';
 import { PlanningWorkflowService } from './planning/planning-workflow.service';
 import { ApplicationWorkspaceService } from './shell/application-workspace.service';
+import { LocationsWorkspaceFacade } from './locations/locations-workspace.facade';
 
 export type AppRouteData = {
   view: AppView;
@@ -149,12 +150,14 @@ const routeDefinitions: Routes = [
   { path: 'planning', pathMatch: 'full', redirectTo: 'scheduling-overview' },
   {
     path: 'locations',
+    providers: [LocationsWorkspaceFacade],
     loadComponent: () =>
       import('./routes/locations-route.component').then((module) => module.LocationsRouteComponent),
     data: routeData('locations', 'Prüfungsorte', 'Globale Bereiche', false),
   },
   {
     path: 'locations/:id',
+    providers: [LocationsWorkspaceFacade],
     loadComponent: () =>
       import('./routes/locations-route.component').then((module) => module.LocationsRouteComponent),
     data: routeData('locations', 'Prüfungsorte', 'Globale Bereiche', false),

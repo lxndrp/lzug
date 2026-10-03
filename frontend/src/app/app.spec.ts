@@ -525,7 +525,6 @@ describe('App', () => {
       ...create,
       duplicatesReviewed: false,
     });
-    flushDashboardRequests(http);
     const update: VenueUpdate = {
       id: venue.id,
       payload: { expectedRevision: venue.revision, name: 'Prüfungszentrum Neu' },
@@ -537,7 +536,6 @@ describe('App', () => {
       confirmFutureAssignments: false,
       duplicatesReviewed: false,
     });
-    flushDashboardRequests(http);
     const roomUpdate: VenueRoomUpdate = {
       id: venue.rooms[0].id,
       payload: { expectedRevision: venue.rooms[0].revision, name: 'A-102' },
@@ -551,7 +549,6 @@ describe('App', () => {
       ...roomUpdate,
       confirmFutureAssignments: false,
     });
-    flushDashboardRequests(http);
     locationsPort.checkDuplicates.mockReturnValueOnce(throwError(() => new Error('unavailable')));
     workflow.createVenue(create);
     fixture.detectChanges();
@@ -596,7 +593,6 @@ describe('App', () => {
     };
     workflow.updateVenue(update);
     expect(workflow.geocodeCandidate()).toBeNull();
-    flushDashboardRequests(http);
     workflow.geocodeVenue(venue);
     locationsPort.updateVenue.mockReturnValueOnce(throwError(() => new Error('unavailable')));
     workflow.updateVenue(update);
@@ -608,14 +604,18 @@ describe('App', () => {
     const router = TestBed.inject(Router);
     flushDashboardRequests(http);
     await router.navigateByUrl('/locations');
+    fixture.detectChanges();
+    flushLocationRead(http);
     await stabilizeRoute(fixture);
     const route = routeComponent(fixture, LocationsRouteComponent) as unknown as {
       openVenue(id: number): void;
       closeDetail(): void;
+      locations: LocationsWorkspaceFacade;
     };
 
-    const locations = TestBed.inject(LocationsWorkspaceFacade);
+    const locations = route.locations;
     const snapshot = locations.snapshot();
+    expect(snapshot).not.toBeNull();
     fixture.detectChanges();
     expect(locations.snapshot()).toBe(snapshot);
     const workspace = TestBed.inject(ApplicationWorkspaceService);
@@ -628,10 +628,13 @@ describe('App', () => {
         { ...currentMasterData!.examVenues[0], id: 999 },
       ],
     });
-    expect(locations.snapshot()).not.toBe(snapshot);
+    expect(locations.snapshot()).toBe(snapshot);
 
     route.openVenue(masterDataFixture.examVenues[0].id);
     await fixture.whenStable();
+    fixture.detectChanges();
+    flushLocationReads(http);
+    await stabilizeRoute(fixture);
     expect(router.url).toBe(`/locations/${masterDataFixture.examVenues[0].id}`);
     expect((fixture.componentInstance as unknown as { breadcrumb(): string }).breadcrumb()).toBe(
       'Globale Bereiche',
@@ -642,6 +645,9 @@ describe('App', () => {
     };
     detailRoute.closeDetail();
     await fixture.whenStable();
+    fixture.detectChanges();
+    flushLocationReads(http);
+    await stabilizeRoute(fixture);
     expect(router.url).toBe('/locations');
   });
 
@@ -898,4 +904,20 @@ function flushDashboardRequests(http: HttpTestingController, round = examRoundFi
   const locationRequests = http.match('/api/locations');
   expect(locationRequests.length).toBe(2);
   locationRequests.forEach((request) => request.flush({ items: locationsFixture, _links: {} }));
+}
+
+function flushLocationRead(http: HttpTestingController): void {
+  const requests = http.match('/api/exam-venues');
+  expect(requests).toHaveLength(1);
+  requests.forEach((request) =>
+    request.flush({
+      items: masterDataFixture.examVenues,
+      _links: { create: { href: '/api/exam-venues' } },
+    }),
+  );
+}
+
+function flushLocationReads(http: HttpTestingController): void {
+  const requests = http.match('/api/exam-venues');
+  requests.forEach((request) => request.flush({ items: masterDataFixture.examVenues, _links: {} }));
 }

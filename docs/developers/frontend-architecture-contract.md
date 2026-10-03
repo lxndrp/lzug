@@ -254,10 +254,15 @@ flowchart LR
   WorkspaceAdapter --> Adapters
 ```
 
-`LOCATIONS_READ_PORT` ist im aktuellen Code an `HttpLocationsReadAdapter`
-gebunden, dessen Snapshot noch aus dem Workspace projiziert wird.
-Das ist eine befristete Ist-Kopplung und wird mit dem Orts-Piloten #1067
-entfernt.
+`LOCATIONS_READ_PORT` ist an `HttpLocationsReadAdapter` gebunden und lädt die
+Prüfungsorte über `/api/exam-venues` unabhängig vom Dashboard und der
+Rundenauswahl.
+`LocationsWorkspaceFacade` besitzt Lade-, Fehler- und Snapshotzustand
+pro Ortsroute; Session- und Ansichtswechsel verwerfen geschützte Ergebnisse.
+Erfolgreiche Ortscommands invalidieren gezielt diesen Read.
+Für Mitglieder mit Ausschusskontext lädt der Adapter zusätzlich die
+Ausschussnamen; ein Operator ohne aktive Mitgliedschaft benötigt diesen
+separaten Read nicht.
 Die globalen Workspace-Projektionen und ihre Verbraucher werden in den
 Feature-Slices rückgebaut; die Root-Provider der Ports belegen keine
 Workspace-Zuständigkeit.
@@ -424,7 +429,7 @@ Command im Ursprungsworkflow noch abgeschlossen wird.
 
 | Bestehender Pfad | Befristeter Besitzer | Ziel und zuständiger Rückbau |
 | --- | --- | --- |
-| `ApplicationWorkspaceService` bündelt Runde, Summary, Board und Stammdaten; mehrere Ansichten lesen daraus. | Aktuell globaler Workspace; nicht Zielbesitzer der jeweiligen Fachdaten. | Ortsprojektion und Ortsladezustand entfernen: #1067. Dashboard-/Stammdatenzustand trennen: #1092. |
+| `ApplicationWorkspaceService` bündelt Runde, Summary, Board und Stammdaten; mehrere Ansichten lesen daraus. | Globaler Workspace für Dashboard und Kompatibilitätsverbraucher; Prüfungsorte gehören nicht dazu. | Dashboard-/Stammdatenzustand trennen: #1092. |
 | Planung liest Runde, Summary, Board und Stammdaten aus dem Workspace. | `PlanningWorkflowService` besitzt bereits Planungscommands und lokale Proposal-/Editorzustände; Workspace bleibt nur Kompatibilitätsleser. | Eigenständige Planung-Reads und Ursprungskontext; Workspace-Abhängigkeit entfernen: #1093. |
 | Prüfungstag, Protokoll und Ergebnis verwenden eigene Featureports, aber Teile des Shell-/Workspacekontexts und bestehende mehrstufige Ketten. | Jeweilige Featurekomponente und vorhandene Application/Facade/Port; IDs/Revisionen bleiben explizit. | Prüfungstagszustand verantworten: #1094; Protokoll-/Ergebniszustand und Grenzen bereinigen: #1095. |
 | Persönliche Ansichten und Ansichten für Halbjahre, bestätigte Pläne, Produktinformation konsumieren teils geteilte Workspacewerte oder breite Einstiege. | Das jeweilige Feature bleibt fachlicher Besitzer; Workspace ist Kompatibilität. Produktinformation erhält vor dem Abbau der Workspace-Abhängigkeit einen eigenen Build-Info-Port, der `applicationVersion` aus der API-Root-Version lädt. | Personal lokal und mit gezielten Fähigkeiten: #1096; Produkt-Build-Info-Port sowie tabübergreifende Auth-Response-Fencing-, Recovery- und sensible Draft-Lebensdauer, verbleibende Einstiege und Workspace-/Session-Übergänge: #1097. |

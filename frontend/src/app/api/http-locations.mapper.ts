@@ -69,11 +69,12 @@ export function toVenue(value: ApiVenue): Venue {
 }
 
 export function toLocationSnapshot(
-  value: Pick<MasterData, 'committees' | 'examVenues'>,
+  value: Pick<MasterData, 'committees' | 'examVenues' | 'examVenuesCanCreate'>,
 ): LocationSnapshot {
   return {
     committees: value.committees.map(({ id, name }) => ({ id, name })),
     venues: value.examVenues.map(toVenue),
+    canCreateVenue: Boolean(value.examVenuesCanCreate),
   };
 }
 

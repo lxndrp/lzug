@@ -897,6 +897,10 @@ Lesezustand des gewählten Prüfungskontexts und hängt dafür an
 `HttpWorkspaceAdapter` übersetzt das Dashboard-Transportmodell in einen
 Snapshot ohne HAL-Links; die anwendungsweite Bindung liegt in
 `app.config.ts`.
+Die Ortsroute lädt über `LOCATIONS_READ_PORT` und den
+`HttpLocationsReadAdapter` direkt `/api/exam-venues`.
+`LocationsWorkspaceFacade` hält Lade-, Fehler- und Snapshotzustand
+routegebunden; Ortscommands lösen keinen vollständigen Workspace-Refresh aus.
 `PlanningWorkflowService` koordiniert Planungsbefehle über `PlanningPort`;
 `HttpPlanningAdapter` übersetzt diese Aufrufe in den vorhandenen API-Client.
 Vorschlagserzeugung und Vorschlagsspeicherung sind dabei persistierende

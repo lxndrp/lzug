@@ -26,6 +26,10 @@ import { ApiClient } from './api-client.service';
 @Injectable({ providedIn: 'root' })
 export class VenueApiService {
   private readonly client = inject(ApiClient);
+  listExamVenues() {
+    return this.client.collection<ExamVenue>('/api/exam-venues');
+  }
+
   createExamVenue(payload: ExamVenueCreateRequest) {
     return this.client.post<ExamVenue>('/api/exam-venues', payload);
   }

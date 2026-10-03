@@ -627,6 +627,9 @@
             <span
               >Die aktuelle Ortsansicht bleibt erhalten, sofern bereits Daten geladen wurden.</span
             >
+            <button tuiButton type="button" appearance="secondary" (click)="retryLoad.emit()">
+              Erneut versuchen
+            </button>
           </div>
         }
 
@@ -638,7 +641,10 @@
         } @else if (!snapshot) {
           <div class="locations-state locations-state-error" role="alert">
             <strong>Keine Ortsdaten verfügbar</strong>
-            <span>Bitte versuchen Sie die Synchronisierung erneut.</span>
+            <span>Die Ortsdaten konnten nicht geladen werden.</span>
+            <button tuiButton type="button" appearance="secondary" (click)="retryLoad.emit()">
+              Erneut versuchen
+            </button>
           </div>
         } @else {
           <section

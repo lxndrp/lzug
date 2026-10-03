@@ -1,16 +1,34 @@
-import { Injectable, computed, inject } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
+import { forkJoin, map, of } from 'rxjs';
 
-import { toLocationSnapshot } from './http-locations.mapper';
+import { AuthService } from '../auth/auth.service';
+import { MasterDataApiService } from './master-data-api.service';
+import { VenueApiService } from './venue-api.service';
+import { toVenue } from './http-locations.mapper';
 import type { LocationsReadPort } from '../locations/locations.port';
-import { ApplicationWorkspaceService } from '../shell/application-workspace.service';
+import type { LocationSnapshot } from '../locations/locations.models';
+import { withoutHttpLinks } from '../application/without-http-links';
 
-/** Maps the shared dashboard workspace into the locations feature read contract. */
+/** Loads examination locations through their dedicated public read endpoint. */
 @Injectable({ providedIn: 'root' })
 export class HttpLocationsReadAdapter implements LocationsReadPort {
-  private readonly workspace = inject(ApplicationWorkspaceService);
+  private readonly auth = inject(AuthService);
+  private readonly masterData = inject(MasterDataApiService);
+  private readonly api = inject(VenueApiService);
 
-  readonly snapshot = computed(() => {
-    const masterData = this.workspace.masterData();
-    return masterData ? toLocationSnapshot(masterData) : null;
-  });
+  load() {
+    const committees = this.auth.session()?.committee_member_id
+      ? this.masterData.getCommittees()
+      : of([]);
+    return forkJoin({ collection: this.api.listExamVenues(), committees }).pipe(
+      map(
+        ({ collection, committees }) =>
+          ({
+            committees: committees.map(({ id, name }) => ({ id, name })),
+            venues: collection.items.map((venue) => toVenue(withoutHttpLinks(venue))),
+            canCreateVenue: Boolean(collection._links['create']),
+          }) satisfies LocationSnapshot,
+      ),
+    );
+  }
 }
