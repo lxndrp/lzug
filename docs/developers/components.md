@@ -900,6 +900,9 @@ Kandidaten- und Ausschussansichten laden über eigene Methoden des
 `MasterDataPort`; deren Fehler und Invalidierung bleiben voneinander getrennt.
 `ApplicationWorkspaceService` hält befristet den Planungs-/Halbjahres-
 Kompatibilitätszustand hinter `WorkspacePort`.
+Die Prüfungshalbjahresroute bezieht die aktive Runde aus `RoundContextService`.
+Weicht sie von der Workspace-Runde ab, aktualisiert sie gezielt die
+rundenabhängigen Prüflingsreferenzen statt den vollständigen Workspace zu laden.
 Nach Venue-/Raumänderungen werden die Dashboard- und Legacy-Board-Ortsreferenzen
 mit gezielten `/api/locations`-Reads aktualisiert; die übrigen Workspace- und
 Dashboarddaten bleiben erhalten.

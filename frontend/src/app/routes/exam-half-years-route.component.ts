@@ -1,6 +1,7 @@
 import { Component, computed, inject } from '@angular/core';
 
 import { AuthService } from '../auth/auth.service';
+import { RoundContextService } from '../api/round-context.service';
 import { ExamHalfYearsComponent } from '../exam-half-years/exam-half-years.component';
 import { ApplicationWorkspaceService } from '../shell/application-workspace.service';
 import type {
@@ -17,7 +18,7 @@ import type {
       [committees]="committees()"
       [candidates]="candidates()"
       [candidateAssignments]="candidateAssignments()"
-      [activeRoundId]="workspace.round()?.id || null"
+      [activeRoundId]="roundContext.roundId()"
       [readOnly]="readOnly()"
       (roundSelected)="selectExamRound($event)"
     />
@@ -25,6 +26,7 @@ import type {
 })
 export class ExamHalfYearsRouteComponent {
   protected readonly workspace = inject(ApplicationWorkspaceService);
+  protected readonly roundContext = inject(RoundContextService);
   private readonly auth = inject(AuthService);
   protected readonly readOnly = computed(
     () =>
@@ -49,6 +51,13 @@ export class ExamHalfYearsRouteComponent {
         endedAt: assignment.ended_at,
       })) ?? [],
   );
+
+  constructor() {
+    const selectedRoundId = this.roundContext.roundId();
+    if (this.workspace.round()?.id !== selectedRoundId) {
+      this.workspace.refreshCandidateReferences(selectedRoundId);
+    }
+  }
 
   protected selectExamRound(id: number): void {
     this.workspace.selectExamRound(id);

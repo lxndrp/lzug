@@ -213,10 +213,9 @@ export class ApplicationWorkspaceService {
     });
   }
 
-  /** Refresh candidate references used by the transitional planning workspace. */
-  refreshCandidateReferences(): void {
+  /** Refresh round-scoped candidate references used by transitional workspace consumers. */
+  refreshCandidateReferences(roundId = this.roundContext.roundId()): void {
     if (!this.board() && !this.masterData()) return;
-    const roundId = this.roundContext.roundId();
     const generation = ++this.candidateReferenceGeneration;
     const sessionGeneration = this.sessionScope.generation();
     this.sessionScope
