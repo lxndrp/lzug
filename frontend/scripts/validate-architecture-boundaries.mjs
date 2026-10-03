@@ -90,8 +90,8 @@ assert.doesNotMatch(
 assert.doesNotMatch(facade, /\bHttpClient\b|\bfetch\s*\(/, 'feature facade performs HTTP directly');
 assert.deepEqual(
   relativeImportsOf(application),
-  ['./scheduling-overview.port'],
-  'application depends only on its port',
+  ['../../application/planning-write-events.service', './scheduling-overview.port'],
+  'application depends on its port and shared planning-write invalidation events',
 );
 assert.doesNotMatch(
   importsOf(application),

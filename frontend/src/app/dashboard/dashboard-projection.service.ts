@@ -3,6 +3,7 @@ import { Router } from '@angular/router';
 import { Subscription, finalize } from 'rxjs';
 
 import { ApplicationError } from '../application/application-error';
+import { PlanningWriteEventsService } from '../application/planning-write-events.service';
 import { RoundContextService } from '../api/round-context.service';
 import { AuthService } from '../auth/auth.service';
 import { SessionScopeService } from '../auth/session-scope.service';
@@ -16,6 +17,7 @@ export class DashboardProjectionService {
   private readonly auth = inject(AuthService);
   private readonly sessionScope = inject(SessionScopeService);
   private readonly roundContext = inject(RoundContextService);
+  private readonly writeEvents = inject(PlanningWriteEventsService);
   private readonly router = inject(Router);
   private active = false;
   private fullRead: Subscription | null = null;
@@ -67,6 +69,11 @@ export class DashboardProjectionService {
       this.cancelTargetedReads();
       this.refresh();
     });
+    this.writeEvents.committed$.subscribe((roundId) => {
+      if (!this.active || this.roundContext.roundId() !== roundId) return;
+      this.cancelTargetedReads();
+      this.refresh(true);
+    });
   }
 
   activate(): void {
@@ -80,12 +87,13 @@ export class DashboardProjectionService {
     this.clear();
   }
 
-  refresh(): void {
+  refresh(force = false): void {
     if (!this.active || this.auth.state() !== 'authenticated') return;
     const roundId = this.roundContext.roundId();
     const sessionGeneration = this.sessionScope.generation();
     if (
       this.loading() &&
+      !force &&
       this.loadingRoundId === roundId &&
       this.loadingSessionGeneration === sessionGeneration
     )

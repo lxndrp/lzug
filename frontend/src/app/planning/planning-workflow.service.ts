@@ -24,6 +24,7 @@ import type {
   PlanningSnapshot,
 } from './planning.models';
 import { ApplicationError } from '../application/application-error';
+import { PlanningWriteEventsService } from '../application/planning-write-events.service';
 import { RoundContextService } from '../api/round-context.service';
 import { AuthService } from '../auth/auth.service';
 import { SessionScopeService } from '../auth/session-scope.service';
@@ -49,6 +50,7 @@ export class PlanningWorkflowService {
   private readonly roundContext = inject(RoundContextService);
   private readonly router = inject(Router);
   private readonly shellContext = inject(ApplicationShellContextService, { optional: true });
+  private readonly writeEvents = inject(PlanningWriteEventsService);
   private readonly pending = signal(false);
   private activeView: symbol | null = null;
   private activeRoundId: number | null = null;
@@ -85,6 +87,7 @@ export class PlanningWorkflowService {
         this.loadPlanning(this.activeRoundId, this.activeView);
       }
     });
+    this.roundContext.changes$.subscribe(() => this.resetForRoundContextChange());
   }
 
   activateView(view: symbol, roundId: number): void {
@@ -560,7 +563,7 @@ export class PlanningWorkflowService {
       )
       .subscribe({
         next: (proposal) => {
-          if (this.skipStaleWrite(roundId, view)) return;
+          if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
           this.proposal.set(proposal);
           this.editorState.set('ready');
         },
@@ -639,6 +642,10 @@ export class PlanningWorkflowService {
     view: symbol | null,
     refreshShellContext = false,
   ): boolean {
+    // This helper is called only from successful command responses. Publish
+    // the commit independently of the initiating view so cross-round readers
+    // can invalidate; response data and drafts remain fenced below.
+    this.writeEvents.notifyCommitted(roundId);
     if (!this.isSelectedRound(roundId)) return true;
     if (this.isCurrentView(view)) return false;
 
@@ -675,6 +682,23 @@ export class PlanningWorkflowService {
     this.activeViewEnded?.next();
     this.activeViewEnded?.complete();
     this.activeViewEnded = null;
+  }
+
+  private resetForRoundContextChange(): void {
+    this.endActiveView();
+    this.activeRoundId = null;
+    this.planningGeneration += 1;
+    this.planningLoad?.unsubscribe();
+    this.planningLoad = undefined;
+    this.proposalLoad?.unsubscribe();
+    this.proposalLoad = undefined;
+    this.loading.set(false);
+    this.viewEffects.set([]);
+    this.snapshot.set(null);
+    this.resetPlanningState();
+    if (this.editorState() === 'loading' || this.editorState() === 'saving') {
+      this.editorState.set('idle');
+    }
   }
 
   private emitViewEffect(view: symbol | null, effect: PlanningViewEffectCommand): void {

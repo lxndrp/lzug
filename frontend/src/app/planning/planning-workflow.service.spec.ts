@@ -8,6 +8,7 @@ import { RoundContextService } from '../api/round-context.service';
 import { AuthService } from '../auth/auth.service';
 import { SessionScopeService } from '../auth/session-scope.service';
 import { ApplicationShellContextService } from '../shell/application-shell-context.service';
+import { PlanningWriteEventsService } from '../application/planning-write-events.service';
 import { UiFeedbackService } from '../shell/ui-feedback.service';
 import { PLANNING_PORT } from './planning.port';
 import { PlanningWorkflowService } from './planning-workflow.service';
@@ -46,6 +47,42 @@ describe('PlanningWorkflowService', () => {
 
     expect(port.updateExamRound).toHaveBeenCalledWith(values, 1);
     expect(workflow.snapshot()?.round.id).toBe(2);
+  });
+
+  it('publishes an accepted write after its planning route has exited', () => {
+    const response = new Subject<unknown>();
+    const { workflow, port } = createHarness({ updateExamRound: vi.fn(() => response) });
+    const writeEvents = TestBed.inject(PlanningWriteEventsService);
+    const committed = vi.fn();
+    writeEvents.committed$.subscribe(committed);
+    const view = Symbol('planning-route-activation');
+
+    workflow.activateView(view, 1);
+    workflow.saveExamRound(
+      { name: 'Runde aktualisiert', availability_deadline: null, availability_reminder_at: null },
+      1,
+      view,
+    );
+    workflow.deactivateView(view);
+    response.next({ id: 1 });
+    response.complete();
+
+    expect(port.updateExamRound).toHaveBeenCalledOnce();
+    expect(committed).toHaveBeenCalledWith(1);
+    expect(workflow.snapshot()).toBeNull();
+  });
+
+  it('clears prior-round workflow reports when the resolved round context changes', () => {
+    const { workflow, roundContext } = createHarness();
+    const view = Symbol('planning-route-activation');
+    workflow.activateView(view, 1);
+    workflow.generateProposal(1, view);
+    expect(workflow.lastResult()).not.toBeNull();
+
+    roundContext.select(2);
+
+    expect(workflow.snapshot()).toBeNull();
+    expect(workflow.lastResult()).toBeNull();
   });
 
   it('passes the proposal source revision and round ID through the port', () => {
@@ -475,6 +512,7 @@ function createHarness(
   feedbackOverrides: Record<string, unknown> = {},
 ) {
   const roundId = signal(1);
+  const roundChanges = new Subject<number>();
   const sessionChanges =
     (overrides['sessionScopeChanges'] as Subject<unknown> | undefined) ?? new Subject<unknown>();
   const sessionScope = {
@@ -484,7 +522,12 @@ function createHarness(
   };
   const roundContext = {
     roundId,
-    select: (id: number) => roundId.set(id),
+    changes$: roundChanges.asObservable(),
+    select: (id: number) => {
+      if (roundId() === id) return;
+      roundId.set(id);
+      roundChanges.next(id);
+    },
   };
   const proposal = { round_id: 1, revision: 2, exam_days: [] };
   const port = {
@@ -526,6 +569,7 @@ function createHarness(
     port,
     feedback,
     roundId,
+    roundContext,
   };
 }
 
