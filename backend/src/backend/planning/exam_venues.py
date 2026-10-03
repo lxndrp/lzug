@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 import unicodedata
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from datetime import date
 from difflib import SequenceMatcher
 from pathlib import Path
@@ -20,6 +20,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from backend.integrations.map_provider import planning_requires_confirmed_coordinates
+from backend.notifications.service import NotificationService
 from backend.persistence.database import DEFAULT_DB_PATH, session_scope
 from backend.persistence.models import (
     EXAM_ROOM,
@@ -140,8 +141,14 @@ def room_is_usable_for_committee(session: Session, room_id: int, committee_id: i
 class ExamVenueService:
     """Create and mutate the venue aggregate in one transaction per command."""
 
-    def __init__(self, db_path: Path = DEFAULT_DB_PATH):
+    def __init__(
+        self,
+        db_path: Path = DEFAULT_DB_PATH,
+        *,
+        notification_service_factory: Callable[[Path], NotificationService],
+    ):
         self.db_path = Path(db_path)
+        self.notification_service_factory = notification_service_factory
 
     def list_venues(self) -> list[dict[str, Any]]:
         with session_scope(self.db_path) as session:
@@ -206,9 +213,7 @@ class ExamVenueService:
                     "longitude",
                     "coordinate_status",
                     "coordinate_source",
-                }.intersection(
-                    command
-                ):
+                }.intersection(command):
                     if after["latitude"] is not None:
                         after["coordinate_status"] = "needs_review"
                 fields = VENUE_FIELDS
@@ -217,7 +222,10 @@ class ExamVenueService:
             resolved_entity_id = entity.id
         from backend.planning.venue_consequences import VenueConsequenceService
 
-        return VenueConsequenceService(self.db_path).preview(
+        return VenueConsequenceService(
+            self.db_path,
+            notification_service=self.notification_service_factory(self.db_path),
+        ).preview(
             venue_id=venue_id,
             entity_type=entity_type,
             entity_id=resolved_entity_id,
@@ -1108,7 +1116,10 @@ class ExamVenueService:
         try:
             from backend.planning.venue_consequences import VenueConsequenceService
 
-            consequence_status = VenueConsequenceService(self.db_path).process_audit(audit_id)
+            consequence_status = VenueConsequenceService(
+                self.db_path,
+                notification_service=self.notification_service_factory(self.db_path),
+            ).process_audit(audit_id)
         except Exception:
             return {
                 **result,
