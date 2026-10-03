@@ -8,7 +8,6 @@ import re
 import secrets
 from collections.abc import Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -16,36 +15,12 @@ from typing import Any
 from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 
+from backend.identity.auth import AuthContext, AuthenticationError, SessionCredentials
 from backend.persistence.database import DEFAULT_DB_PATH, session_scope
 from backend.persistence.models import AuthSession, AuthToken, UserAccount
 
 SESSION_TTL = timedelta(hours=8)
 EMAIL_PATTERN = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
-
-
-class AuthenticationError(ValueError):
-    """Raised for invalid internal account or session operations."""
-
-
-@dataclass(frozen=True)
-class SessionCredentials:
-    """One-time bearer material returned only to the caller creating a session."""
-
-    session_id: int
-    account_id: int
-    token: str = field(repr=False)
-    csrf_token: str = field(repr=False)
-    expires_at: str = ""
-
-
-@dataclass(frozen=True)
-class AuthContext:
-    """Validated identity used by the HTTP layer and later authorization."""
-
-    session_id: int
-    account_id: int
-    person_id: int | None
-    is_operator: bool
 
 
 def _now(value: datetime | None = None) -> datetime:

@@ -8,6 +8,7 @@ from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
 
+from backend.identity.auth import AuthContext, SessionCredentials
 from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.tests.helpers import ApiServer, TempDatabase, assert_status, create_committee_record
 
@@ -21,6 +22,8 @@ class AuthenticationTests(unittest.TestCase):
             )
             credentials = repository.create_session(account["id"])
             context = repository.authenticate(credentials.token)
+            self.assertIsInstance(credentials, SessionCredentials)
+            self.assertIsInstance(context, AuthContext)
 
             with closing(sqlite3.connect(db_path)) as connection, connection:
                 row = connection.execute(
