@@ -273,12 +273,16 @@ vergangen ist.
 Damit committen Rundungsentscheidung und lokale Kalenderstornierung gemeinsam;
 es gibt für diesen Pfad keinen nachgelagerten Calendar-Sync-Auftrag.
 
-Die Feed-Lifecycle-Sperre teilt der Composition Root prozessweit mit
-Token-ICS-Reads und Rotation.
-Explizites `DELETE /api/calendar/feed` erwirbt dieselbe Sperre, revalidiert
-Status und Generation danach erneut und committet Widerruf sowie Löschen oder
-Fencing eines Pending-Standes atomar.
-Ein wartender Rotationsfinalizer kann den widerrufenen Feed dadurch nicht
+Die Composition Root teilt einen prozessweiten Feed-Lifecycle-Lock mit
+Token-ICS-Reads, Rotation und explizitem `DELETE /api/calendar/feed`.
+Der Lock schützt nur kurze Credential-Prüfungen, Revalidierungen und Commits;
+Sync und ICS-Rendering laufen außerhalb.
+Ein Read prüft vor der Arbeit Credential-Generation und Identity-Scope,
+materialisiert den Read-Snapshot unter kurzer Sperre und revalidiert unmittelbar
+vor Rückgabe die aktive Credential-Generation.
+Hat `DELETE` vorher widerrufen, wird das gerenderte Ergebnis verworfen.
+`DELETE` committet Widerruf sowie Löschen oder Fencing eines Pending-Standes
+atomar; ein späterer Rotationsfinalizer kann den widerrufenen Feed dadurch nicht
 reaktivieren.
 
 Bei fehlgeschlagenem Aktivierungs-/Rotations-POST gehören Status-Reload und
@@ -332,19 +336,27 @@ unbekanntem Secret kann die Person bewusst erneut rotieren.
 Scheitert auch der Status-Read, bleibt die alte URL verborgen und der zuvor
 geladene Status wird als veraltet oder unbekannt behandelt, nicht als aktuell
 aktiv bestätigt.
-Ein pro-Feed Lifecycle-Lock aus der Composition Root serialisiert Requests
-über Sync und Finalisierung; sein Registry-/Serviceobjekt wird prozessweit
-geteilt und nicht pro `RequestContext` oder `CalendarService` instanziiert.
-Requests prüfen nach Lock-Erwerb erneut ihre beobachtete aktive oder
-Pending-Generation.
+Ein pro-Feed Lifecycle-Lock aus der Composition Root schützt kurze
+Credential-Prüfungen und -Commits; Sync, Snapshot und Rendering laufen
+außerhalb. Sein Registry-/Serviceobjekt wird prozessweit geteilt und nicht pro
+`RequestContext` oder `CalendarService` instanziiert.
+ICS prüft Credential-Generation und Identity-Scope vor der Arbeit, prüft den
+Read-Snapshot unter kurzer Sperre und unmittelbar vor Rückgabe erneut, dass
+dieselbe Credential-Generation aktiv ist.
+Rotation committet Widerruf und Pending-Generation unter dem Lock, synchronisiert
+außerhalb und finalisiert nach einer erneuten Pending-Prüfung unter dem Lock.
+`DELETE` kann während eines laufenden Syncs oder Renderings widerrufen; ein
+wartender Finalizer mit veraltetem Pending-Stand kann den Feed nicht reaktivieren.
 Konkurrierende und veraltete Requests erhalten stabile
 `FeedAlreadyActive`-, `FeedRotationPending`- oder `FeedConflict`-Fehler ohne
 Secret und können weder die Gewinner-URL ungültig machen noch rohe
 Unique-Constraint-Fehler auslösen.
-Token-ICS-Reads und Rotation halten dieselbe Sperre: der Read ab Tokenvalidierung
-über Sync und Ausgabe, Rotation ab Scope-/Generationsvalidierung über
-Widerrufscommit, Sync und Finalisierung.
-Wartende Reads validieren das Token nach Lock-Erwerb erneut.
+Token-ICS-Reads und Rotation nutzen dieselbe Sperre nur für Credential-Prüfungen
+und -Commits. Der Read prüft die Token- und Identity-Generation vor Sync,
+revalidiert den Snapshot unter kurzer Sperre und prüft das Credential
+unmittelbar vor Rückgabe erneut; Sync, Rendering und Ausgabe liegen außerhalb.
+Rotation hält die Sperre für Widerrufscommit sowie spätere Pending-Revalidierung
+und Finalisierung; ihr Sync läuft außerhalb.
 Die Garantie gilt prozessweit im einzelnen autoritativen Backendprozess;
 mehrere Serverprozesse für dieselbe Datenbank sind nicht unterstützt.
 Erst der erfolgreiche Finalisierungscommit gibt die neue URL einmalig aus.
