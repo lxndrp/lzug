@@ -49,6 +49,7 @@ ROOT_MODULE_OWNERS = {
     "fastapi_runtime.py": "api",
     "healthcheck.py": "operations-adapter",
     "observability.py": "runtime-foundation",
+    "planning_ports.py": "planning-owned-contracts",
     "public_lifecycle.py": "runtime-contract",
     "runtime_policy.py": "runtime-foundation",
     "runtime.py": "runtime-foundation",
@@ -167,6 +168,9 @@ TEST_OWNERS = {
             "test_exam_venues.py",
             "test_plan_consequences.py",
             "test_planning.py",
+            "test_planning_venue_service.py",
+            "test_planning_venue_policy.py",
+            "test_planning_venue_ports.py",
             "test_venue_consequences.py",
         }
     ),

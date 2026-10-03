@@ -16,6 +16,7 @@ from unittest.mock import patch
 import pyotp
 from cryptography.fernet import Fernet
 
+from backend.composition import exam_venue_service
 from backend.identity.auth import AuthenticationRepository
 from backend.identity.local_auth import PASSWORD_HASHER, LocalAuthService, authentication_key
 from backend.integrations.document_storage import FilesystemDocumentStorage
@@ -23,7 +24,6 @@ from backend.integrations.documents import DocumentService
 from backend.operations.artifact_packages import ClearArtifactService
 from backend.operations.backup_restore import FULL_EXPORT_SCHEMA, ArtifactError
 from backend.persistence.database import PersistencePaths, database_readiness, initialize
-from backend.planning.exam_venues import ExamVenueService
 from backend.runtime import Operation, RuntimeConflictError, RuntimeCoordinator
 from backend.tests.fixture_data import DEMO_ROLES
 from backend.tests.helpers import development_seed_sql
@@ -157,7 +157,7 @@ class BackupRestoreTests(unittest.TestCase):
 
     def test_exam_venue_data_preserves_identity_in_export_backup_and_restore(self) -> None:
         source_paths, source = self.runtime("venue-source", seed=True)
-        venues = ExamVenueService(source_paths.database)
+        venues = exam_venue_service(source_paths.database)
         venue = venues.create_venue(
             {
                 "scope": "committee",

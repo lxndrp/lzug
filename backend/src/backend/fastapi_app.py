@@ -34,7 +34,7 @@ from backend.integrations.map_provider import (
 )
 from backend.persistence.database import persistence_paths
 from backend.planning import ConfirmedPlanConflictError, PlanConflictError, PlanValidationError
-from backend.planning.exam_venues import (
+from backend.planning_ports import (
     ExamVenueConfirmationRequiredError,
     ExamVenueConflictError,
     ExamVenueInUseError,

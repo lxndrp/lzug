@@ -96,6 +96,10 @@ class RequestContext:
         return ResourceRepository(
             self.db_path,
             queries,
+            require_confirmed_coordinates=(
+                self.runtime_settings is not None
+                and self.runtime_settings.integrations.map_provider != "off"
+            ),
         )
 
     @property
@@ -112,7 +116,13 @@ class RequestContext:
 
     @property
     def planning_service(self) -> PlanningService:
-        return PlanningService(self.db_path)
+        return PlanningService(
+            self.db_path,
+            require_confirmed_coordinates=(
+                self.runtime_settings is not None
+                and self.runtime_settings.integrations.map_provider != "off"
+            ),
+        )
 
     @property
     def candidate_day_service(self) -> CandidateDayService:
