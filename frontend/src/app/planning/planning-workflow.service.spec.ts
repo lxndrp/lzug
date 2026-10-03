@@ -216,6 +216,37 @@ describe('PlanningWorkflowService', () => {
     expect(workflow.proposalSaveAcknowledgement()).toBe(1);
   });
 
+  it('does not let a proposal read started before an accepted save replace its response', () => {
+    const readResponse = new Subject<EditablePlanningProposal>();
+    const saveResponse = new Subject<EditablePlanningProposal>();
+    const proposal = { round_id: 1, revision: 3, exam_days: [] };
+    const { workflow, port } = createHarness({
+      loadPlanning: vi.fn(() =>
+        of({
+          ...emptySnapshot(1),
+          round: { ...emptySnapshot(1).round, status: 'plan_proposed' },
+        }),
+      ),
+      getPlanningProposal: vi.fn(() => readResponse),
+      savePlanningProposal: vi.fn(() => saveResponse),
+    });
+    const view = Symbol('planning-view');
+    const savedProposal = { ...proposal, revision: 4 };
+
+    workflow.activateView(view, 1);
+    expect(port.getPlanningProposal).toHaveBeenCalledOnce();
+    workflow.savePlanningProposal(proposal, 1, view);
+    saveResponse.next(savedProposal);
+    saveResponse.complete();
+    readResponse.next(proposal);
+    readResponse.complete();
+
+    expect(port.getPlanningProposal).toHaveBeenCalledOnce();
+    expect(workflow.proposal()).toEqual(savedProposal);
+    expect(workflow.editorState()).toBe('ready');
+    expect(workflow.proposalSaveAcknowledgement()).toBe(1);
+  });
+
   it('does not let a late proposal answer replace a later view draft', () => {
     const saveResponse = new Subject<EditablePlanningProposal>();
     const proposal = { round_id: 1, revision: 3, exam_days: [] };

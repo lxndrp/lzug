@@ -62,6 +62,7 @@ export class PlanningWorkflowService {
   private planningGeneration = 0;
   private effectVersion = 0;
   private readonly pendingAvailability = new Set<string>();
+  private acceptedProposalSaveGeneration = 0;
 
   readonly actionBusy = computed(() => this.pending());
   readonly snapshot = signal<PlanningSnapshot | null>(null);
@@ -623,6 +624,7 @@ export class PlanningWorkflowService {
     this.editorState.set('loading');
     this.editorError.set(null);
     this.editorViolations.set([]);
+    const acceptedSaveGeneration = this.acceptedProposalSaveGeneration;
     const subscription = this.sessionScope
       .forCurrentSession(this.planning.getPlanningProposal(roundId))
       .pipe(
@@ -635,12 +637,24 @@ export class PlanningWorkflowService {
       )
       .subscribe({
         next: (proposal) => {
-          if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
+          if (
+            acceptedSaveGeneration !== this.acceptedProposalSaveGeneration ||
+            !this.isSelectedRound(roundId) ||
+            !this.isCurrentView(view)
+          ) {
+            return;
+          }
           this.proposal.set(proposal);
           this.editorState.set('ready');
         },
         error: (error: ApplicationError) => {
-          if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
+          if (
+            acceptedSaveGeneration !== this.acceptedProposalSaveGeneration ||
+            !this.isSelectedRound(roundId) ||
+            !this.isCurrentView(view)
+          ) {
+            return;
+          }
           this.editorState.set('error');
           this.editorError.set(this.proposalErrorMessage(error));
         },
@@ -674,6 +688,7 @@ export class PlanningWorkflowService {
       .subscribe({
         next: (saved) => {
           if (this.skipStaleWrite(roundId, view)) return;
+          this.acceptedProposalSaveGeneration += 1;
           this.proposal.set(saved);
           this.proposalSaveAcknowledgement.update((value) => value + 1);
           this.editorState.set('ready');
