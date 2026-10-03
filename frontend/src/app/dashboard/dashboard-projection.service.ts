@@ -17,6 +17,7 @@ export class DashboardProjectionService {
   private readonly sessionScope = inject(SessionScopeService);
   private readonly roundContext = inject(RoundContextService);
   private readonly router = inject(Router);
+  private active = false;
   private generation = 0;
   private locationGeneration = 0;
   private candidateReferenceGeneration = 0;
@@ -57,11 +58,24 @@ export class DashboardProjectionService {
 
   constructor() {
     this.sessionScope.changes$.subscribe(() => this.clear());
-    this.roundContext.changes$.subscribe(() => this.refresh());
+    this.roundContext.changes$.subscribe(() => {
+      if (this.active) this.refresh();
+    });
+  }
+
+  activate(): void {
+    this.active = true;
+    this.refresh();
+  }
+
+  deactivate(): void {
+    if (!this.active) return;
+    this.active = false;
+    this.clear();
   }
 
   refresh(): void {
-    if (this.auth.state() !== 'authenticated') return;
+    if (!this.active || this.auth.state() !== 'authenticated') return;
     const roundId = this.roundContext.roundId();
     const sessionGeneration = this.sessionScope.generation();
     if (
@@ -150,7 +164,7 @@ export class DashboardProjectionService {
 
   /** Refreshes only venue/room references in an already loaded dashboard board. */
   refreshLocations(): void {
-    if (!this.projection()) return;
+    if (!this.active || !this.projection()) return;
     const roundId = this.roundContext.roundId();
     const generation = ++this.locationGeneration;
     const sessionGeneration = this.sessionScope.generation();
@@ -188,7 +202,7 @@ export class DashboardProjectionService {
 
   /** Refresh candidate references and the candidate count without reloading the board. */
   refreshCandidateReferences(): void {
-    if (!this.hasProjectionOrPendingLoad()) return;
+    if (!this.active || !this.hasProjectionOrPendingLoad()) return;
     const roundId = this.roundContext.roundId();
     const generation = ++this.candidateReferenceGeneration;
     const sessionGeneration = this.sessionScope.generation();
@@ -242,7 +256,7 @@ export class DashboardProjectionService {
 
   /** Refresh committee member references without reloading the board. */
   refreshCommitteeMembers(): void {
-    if (!this.hasProjectionOrPendingLoad()) return;
+    if (!this.active || !this.hasProjectionOrPendingLoad()) return;
     const roundId = this.roundContext.roundId();
     const generation = ++this.committeeMemberGeneration;
     const sessionGeneration = this.sessionScope.generation();

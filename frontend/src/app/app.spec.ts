@@ -76,6 +76,8 @@ describe('App', () => {
     committeeRefreshLoading: ReturnType<typeof signal<boolean>>;
     committeeRefreshError: ReturnType<typeof signal<boolean>>;
     refresh: ReturnType<typeof vi.fn>;
+    activate: ReturnType<typeof vi.fn>;
+    deactivate: ReturnType<typeof vi.fn>;
     refreshLocations: ReturnType<typeof vi.fn>;
     refreshCandidateReferences: ReturnType<typeof vi.fn>;
     refreshCommitteeMembers: ReturnType<typeof vi.fn>;
@@ -112,6 +114,8 @@ describe('App', () => {
       committeeRefreshLoading: signal(false),
       committeeRefreshError: signal(false),
       refresh: vi.fn(),
+      activate: vi.fn(),
+      deactivate: vi.fn(),
       refreshLocations: vi.fn(),
       refreshCandidateReferences: vi.fn(),
       refreshCommitteeMembers: vi.fn(),

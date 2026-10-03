@@ -61,7 +61,7 @@ export class CandidatesRouteComponent implements OnDestroy {
 
   protected createCandidate(payload: CandidateCommand): void {
     this.workflow.createCandidate(payload).subscribe((result) => {
-      if (!result.ok || !result.current) {
+      if (!result.ok) {
         this.feedback.notify(
           'error',
           'Prüfling nicht gespeichert',
@@ -69,6 +69,7 @@ export class CandidatesRouteComponent implements OnDestroy {
         );
         return;
       }
+      if (!result.current) return;
       this.component?.resetDraft();
       this.feedback.notify(
         'success',
@@ -80,7 +81,7 @@ export class CandidatesRouteComponent implements OnDestroy {
 
   protected updateCandidate(update: CandidateUpdate): void {
     this.workflow.updateCandidate(update).subscribe((result) => {
-      if (!result.ok || !result.current) {
+      if (!result.ok) {
         this.feedback.notify(
           'error',
           'Prüfling nicht gespeichert',
@@ -88,6 +89,7 @@ export class CandidatesRouteComponent implements OnDestroy {
         );
         return;
       }
+      if (!result.current) return;
       this.component?.finishEditing(result.value.id);
       this.feedback.notify(
         'success',
@@ -104,10 +106,11 @@ export class CandidatesRouteComponent implements OnDestroy {
       `${label} löschen`,
       () => {
         this.workflow.deleteCandidate(id).subscribe((result) => {
-          if (!result.ok || !result.current) {
+          if (!result.ok) {
             this.feedback.notify('error', 'Prüfling nicht gelöscht', 'Bitte erneut versuchen.');
             return;
           }
+          if (!result.current) return;
           this.feedback.notify('success', 'Prüfling gelöscht', label);
         });
       },

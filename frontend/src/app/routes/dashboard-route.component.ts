@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, OnDestroy, inject } from '@angular/core';
 import { Router } from '@angular/router';
 
 import { RoundContextService } from '../api/round-context.service';
@@ -30,7 +30,7 @@ import { ApplicationWorkspaceService } from '../shell/application-workspace.serv
     />
   `,
 })
-export class DashboardRouteComponent {
+export class DashboardRouteComponent implements OnDestroy {
   protected readonly workspace = inject(ApplicationWorkspaceService);
   protected readonly dashboard = inject(DashboardProjectionService);
   protected readonly planning = inject(PlanningWorkflowService);
@@ -38,7 +38,11 @@ export class DashboardRouteComponent {
   private readonly router = inject(Router);
 
   constructor() {
-    this.dashboard.refresh();
+    this.dashboard.activate();
+  }
+
+  ngOnDestroy(): void {
+    this.dashboard.deactivate();
   }
 
   protected openView(view: AppView): void {

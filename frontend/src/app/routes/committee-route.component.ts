@@ -60,7 +60,7 @@ export class CommitteeRouteComponent implements OnDestroy {
 
   protected createMember(payload: CommitteeMemberCommand): void {
     this.workflow.createMember(payload).subscribe((result) => {
-      if (!result.ok || !result.current) {
+      if (!result.ok) {
         this.feedback.notify(
           'error',
           'Prüfer nicht gespeichert',
@@ -68,6 +68,7 @@ export class CommitteeRouteComponent implements OnDestroy {
         );
         return;
       }
+      if (!result.current) return;
       this.component?.resetMemberForm();
       this.feedback.notify(
         'success',
@@ -79,10 +80,11 @@ export class CommitteeRouteComponent implements OnDestroy {
 
   protected toggleMember(member: CommitteeMember): void {
     this.workflow.toggleMember(member).subscribe((result) => {
-      if (!result.ok || !result.current) {
+      if (!result.ok) {
         this.feedback.notify('error', 'Status nicht geändert', 'Bitte erneut versuchen.');
         return;
       }
+      if (!result.current) return;
       const nextActive = !member.isActive;
       this.feedback.notify(
         'success',

@@ -4,6 +4,7 @@ import { Subject, of, throwError } from 'rxjs';
 
 import { AuthService } from '../auth/auth.service';
 import { SessionScopeService } from '../auth/session-scope.service';
+import { RoundContextService } from '../api/round-context.service';
 import {
   examRoundFixture,
   locationsFixture,
@@ -46,11 +47,58 @@ describe('DashboardProjectionService', () => {
     });
   });
 
+  it('reloads only while its dashboard route is active and reloads on re-entry', () => {
+    const service = TestBed.inject(DashboardProjectionService);
+    const roundContext = TestBed.inject(RoundContextService);
+
+    service.refresh();
+    roundContext.select(2);
+    expect(load).not.toHaveBeenCalled();
+
+    service.activate();
+    expect(load).toHaveBeenCalledOnce();
+    roundContext.select(4);
+    expect(load).toHaveBeenCalledTimes(2);
+    service.deactivate();
+    expect(service.projection()).toBeNull();
+
+    roundContext.select(5);
+    expect(load).toHaveBeenCalledTimes(2);
+    service.refreshLocations();
+    service.refreshCandidateReferences();
+    service.refreshCommitteeMembers();
+    expect(loadLocations).not.toHaveBeenCalled();
+    expect(loadCandidateReferences).not.toHaveBeenCalled();
+    expect(loadCommitteeMembers).not.toHaveBeenCalled();
+
+    service.activate();
+    expect(load).toHaveBeenCalledTimes(3);
+  });
+
+  it('discards a full projection request when the dashboard route closes', () => {
+    const pending = new Subject<never>();
+    load.mockReturnValueOnce(pending);
+    const service = TestBed.inject(DashboardProjectionService);
+
+    service.activate();
+    expect(service.loading()).toBe(true);
+    service.deactivate();
+    pending.next({
+      applicationVersion: 'stale',
+      round: examRoundFixture,
+      summary: summaryFixture,
+      board: planningBoardFixture,
+    } as never);
+
+    expect(service.projection()).toBeNull();
+    expect(service.loading()).toBe(false);
+  });
+
   it('loads an independent projection and exposes its own failure state', () => {
     load.mockReturnValueOnce(throwError(() => new Error('dashboard unavailable')));
     const service = TestBed.inject(DashboardProjectionService);
 
-    service.refresh();
+    service.activate();
 
     expect(service.error()).toBe(true);
     expect(service.projection()).toBeNull();
@@ -62,7 +110,7 @@ describe('DashboardProjectionService', () => {
     load.mockReturnValueOnce(pending);
     const service = TestBed.inject(DashboardProjectionService);
 
-    service.refresh();
+    service.activate();
     service.refresh();
 
     expect(load).toHaveBeenCalledOnce();
@@ -82,7 +130,7 @@ describe('DashboardProjectionService', () => {
       is_operator: false,
     });
 
-    service.refresh();
+    service.activate();
     scope.clear();
     pending.next({
       applicationVersion: 'stale',
@@ -97,7 +145,7 @@ describe('DashboardProjectionService', () => {
 
   it('refreshes only locations in the loaded dashboard and updates day references', () => {
     const service = TestBed.inject(DashboardProjectionService);
-    service.refresh();
+    service.activate();
     const initialBoard = service.projection()!.board;
     const firstLocation = locationsFixture[0];
     const updatedLocation = { ...firstLocation, name: 'Updated venue' };
@@ -114,7 +162,7 @@ describe('DashboardProjectionService', () => {
 
   it('keeps a location refresh error separate from the dashboard read error', () => {
     const service = TestBed.inject(DashboardProjectionService);
-    service.refresh();
+    service.activate();
     loadLocations.mockReturnValueOnce(throwError(() => new Error('locations unavailable')));
 
     service.refreshLocations();
@@ -126,7 +174,7 @@ describe('DashboardProjectionService', () => {
 
   it('keeps the newer targeted location read when an older full projection finishes later', () => {
     const service = TestBed.inject(DashboardProjectionService);
-    service.refresh();
+    service.activate();
     const oldLocation = locationsFixture[0];
     const updatedLocation = { ...oldLocation, name: 'Aktualisierter Prüfungsort' };
     const staleProjection = {
@@ -149,19 +197,19 @@ describe('DashboardProjectionService', () => {
 
   it('clears a targeted location error after a successful full projection read', () => {
     const service = TestBed.inject(DashboardProjectionService);
-    service.refresh();
+    service.activate();
     loadLocations.mockReturnValueOnce(throwError(() => new Error('locations unavailable')));
     service.refreshLocations();
     expect(service.locationRefreshError()).toBe(true);
 
-    service.refresh();
+    service.activate();
 
     expect(service.locationRefreshError()).toBe(false);
   });
 
   it('refreshes only dashboard candidate references and their round summary', () => {
     const service = TestBed.inject(DashboardProjectionService);
-    service.refresh();
+    service.activate();
     const candidates = planningBoardFixture.candidates.map((item) => ({
       ...item,
       candidate: { ...item.candidate, first_name: 'Updated' },
@@ -182,7 +230,7 @@ describe('DashboardProjectionService', () => {
 
   it('refreshes only dashboard committee member references', () => {
     const service = TestBed.inject(DashboardProjectionService);
-    service.refresh();
+    service.activate();
     const members = planningBoardFixture.members.map((item) => ({
       ...item,
       first_name: 'Updated',
@@ -200,7 +248,7 @@ describe('DashboardProjectionService', () => {
 
   it('preserves targeted candidate and member reads when an older dashboard load completes later', () => {
     const service = TestBed.inject(DashboardProjectionService);
-    service.refresh();
+    service.activate();
     const staleProjection = {
       applicationVersion: 'test',
       round: examRoundFixture,
@@ -234,7 +282,6 @@ describe('DashboardProjectionService', () => {
 
   it('discards targeted master-data reads after the authenticated session changes', () => {
     const service = TestBed.inject(DashboardProjectionService);
-    service.refresh();
     const pending = new Subject<{
       candidates: typeof planningBoardFixture.candidates;
       summary: typeof summaryFixture;
@@ -248,6 +295,7 @@ describe('DashboardProjectionService', () => {
       committee_member_id: 3,
       is_operator: false,
     });
+    service.activate();
     service.refreshCandidateReferences();
     scope.clear();
     pending.next({ candidates: planningBoardFixture.candidates, summary: summaryFixture });
@@ -259,7 +307,7 @@ describe('DashboardProjectionService', () => {
 
   it('keeps master-data refresh errors separate from the dashboard and each other', () => {
     const service = TestBed.inject(DashboardProjectionService);
-    service.refresh();
+    service.activate();
     loadCandidateReferences.mockReturnValueOnce(
       throwError(() => new Error('candidate references unavailable')),
     );
