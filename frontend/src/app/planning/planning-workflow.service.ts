@@ -28,6 +28,7 @@ import type {
 } from './planning.models';
 import { ApplicationError } from '../application/application-error';
 import { PlanningWriteEventsService } from '../application/planning-write-events.service';
+import { ReferenceDataWriteEventsService } from '../application/reference-data-write-events.service';
 import { RoundContextService } from '../api/round-context.service';
 import { AuthService } from '../auth/auth.service';
 import { SessionScopeService } from '../auth/session-scope.service';
@@ -52,6 +53,7 @@ export class PlanningWorkflowService {
   private readonly roundContext = inject(RoundContextService);
   private readonly router = inject(Router);
   private readonly writeEvents = inject(PlanningWriteEventsService);
+  private readonly referenceDataWrites = inject(ReferenceDataWriteEventsService);
   private readonly pending = signal(false);
   private activeView: symbol | null = null;
   private activeRoundId: number | null = null;
@@ -63,6 +65,7 @@ export class PlanningWorkflowService {
   private effectVersion = 0;
   private readonly pendingAvailability = new Set<string>();
   private acceptedProposalSaveGeneration = 0;
+  private pendingProposalReload: { roundId: number; view: symbol | null } | null = null;
 
   readonly actionBusy = computed(() => this.pending());
   readonly snapshot = signal<PlanningSnapshot | null>(null);
@@ -114,6 +117,13 @@ export class PlanningWorkflowService {
       }
     });
     this.roundContext.changes$.subscribe(() => this.resetForRoundContextChange());
+    this.referenceDataWrites.committed$.subscribe(() => {
+      const roundId = this.activeRoundId;
+      const view = this.activeView;
+      if (roundId !== null && view && this.isSelectedRound(roundId)) {
+        this.refreshPlanning(roundId);
+      }
+    });
     this.writeEvents.committed$.subscribe(({ sourceRoundId, scope, phase }) => {
       const activeRoundId = this.activeRoundId;
       if (
@@ -613,6 +623,9 @@ export class PlanningWorkflowService {
 
   loadPlanningProposal(roundId: number, view = this.activeView, explicitReload = false): void {
     if (!this.isCurrentView(view)) return;
+    const acknowledgeReload =
+      explicitReload ||
+      (this.pendingProposalReload?.roundId === roundId && this.pendingProposalReload.view === view);
     this.proposalLoad?.unsubscribe();
     this.proposalLoad = undefined;
     if (
@@ -645,8 +658,9 @@ export class PlanningWorkflowService {
           ) {
             return;
           }
-          if (explicitReload) {
+          if (acknowledgeReload) {
             this.proposalReloadAcknowledgement.update((value) => value + 1);
+            this.pendingProposalReload = null;
           }
           this.proposal.set(proposal);
           this.editorState.set('ready');
@@ -661,13 +675,17 @@ export class PlanningWorkflowService {
           }
           this.editorState.set('error');
           this.editorError.set(this.proposalErrorMessage(error));
+          if (acknowledgeReload) this.pendingProposalReload = null;
         },
       });
     this.proposalLoad = subscription;
   }
 
   reloadPlanningProposal(roundId: number, view = this.activeView): void {
-    if (this.activeRoundId === roundId) this.loadPlanningProposal(roundId, view, true);
+    if (this.activeRoundId === roundId) {
+      this.pendingProposalReload = { roundId, view };
+      this.loadPlanningProposal(roundId, view, true);
+    }
   }
 
   savePlanningProposal(
@@ -769,6 +787,7 @@ export class PlanningWorkflowService {
   }
 
   private endActiveView(): void {
+    this.pendingProposalReload = null;
     this.activeView = null;
     this.activeViewEnded?.next();
     this.activeViewEnded?.complete();
@@ -844,6 +863,7 @@ export class PlanningWorkflowService {
   }
 
   private resetPlanningProposal(): void {
+    this.pendingProposalReload = null;
     this.proposal.set(null);
     this.editorState.set('idle');
     this.editorError.set(null);

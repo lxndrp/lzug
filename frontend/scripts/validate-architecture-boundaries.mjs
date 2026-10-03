@@ -154,7 +154,7 @@ assert.doesNotMatch(
 assert.doesNotMatch(planningPort, /HttpClient|fetch\s*\(|types\.gen|['"]\/api\//);
 assert.doesNotMatch(
   importsOf(planningPort + '\n' + planningWorkflow),
-  /(?:^|\/)(?:api\.models|planning\.models\.api)|WithoutHttpLinks|without-http-links/,
+  /(?:^|\/)(?:api\.models|planning\.models\.api|api\/planning\.models)|WithoutHttpLinks|without-http-links/,
   'planning ports and workflows use feature-owned models rather than API/HAL types',
 );
 assert.match(planningPort, /loadPlanning\(roundId: number\)/);

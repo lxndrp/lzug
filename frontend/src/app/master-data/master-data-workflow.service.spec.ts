@@ -5,6 +5,7 @@ import { RoundContextService } from '../api/round-context.service';
 import { AuthService } from '../auth/auth.service';
 import { ApplicationWorkspaceService } from '../shell/application-workspace.service';
 import { DashboardProjectionService } from '../dashboard/dashboard-projection.service';
+import { ReferenceDataWriteEventsService } from '../application/reference-data-write-events.service';
 import type {
   Candidate,
   CandidateWorkspace,
@@ -181,6 +182,8 @@ describe('MasterDataWorkflowService', () => {
 
   it('passes the active round to the port and refreshes after a successful command', () => {
     port.createCandidate.mockReturnValue(of(candidate));
+    const referenceWrites = vi.fn();
+    TestBed.inject(ReferenceDataWriteEventsService).committed$.subscribe(referenceWrites);
     let result: unknown;
 
     service.createCandidate(candidateCommand).subscribe((value) => (result = value));
@@ -189,6 +192,7 @@ describe('MasterDataWorkflowService', () => {
     expect(result).toMatchObject({ ok: true, value: candidate, current: true });
     expect(workspace.refreshCandidateReferences).toHaveBeenCalledOnce();
     expect(dashboard.refreshCandidateReferences).toHaveBeenCalledOnce();
+    expect(referenceWrites).toHaveBeenCalledWith('candidates');
     expect(service.actionBusy()).toBe(false);
     expect(port.loadCandidateWorkspace).toHaveBeenCalledWith(12);
     expect(port.loadCommitteeWorkspace).not.toHaveBeenCalled();
@@ -306,6 +310,8 @@ describe('MasterDataWorkflowService', () => {
 
   it('toggles a committee member through the feature port', () => {
     service.selectedCommitteeId.set(3);
+    const referenceWrites = vi.fn();
+    TestBed.inject(ReferenceDataWriteEventsService).committed$.subscribe(referenceWrites);
     port.updateCommitteeMember.mockReturnValue(of({ ...member, isActive: false }));
     let result: unknown;
 
@@ -318,6 +324,7 @@ describe('MasterDataWorkflowService', () => {
       current: true,
     });
     expect(port.loadCommitteeWorkspace).toHaveBeenCalledOnce();
+    expect(referenceWrites).toHaveBeenCalledWith('committee-members');
   });
 
   it('marks candidate responses stale after the selected round changes', () => {

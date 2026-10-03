@@ -6,6 +6,7 @@ import { toLocationSnapshot } from '../api/http-locations.mapper';
 import { UiFeedbackService } from '../shell/ui-feedback.service';
 import { ApplicationWorkspaceService } from '../shell/application-workspace.service';
 import { DashboardProjectionService } from '../dashboard/dashboard-projection.service';
+import { ReferenceDataWriteEventsService } from '../application/reference-data-write-events.service';
 import { LOCATIONS_PORT, type LocationsPort } from './locations.port';
 import { VenueWorkflowService } from './venue-workflow.service';
 
@@ -229,6 +230,8 @@ describe('VenueWorkflowService', () => {
     });
     const { workflow, feedback, workspaceRefreshLocations, dashboardRefreshLocations } =
       configure(port);
+    const referenceWrites = vi.fn();
+    TestBed.inject(ReferenceDataWriteEventsService).committed$.subscribe(referenceWrites);
 
     workflow.createRoom({
       venueId: venue.id,
@@ -244,6 +247,9 @@ describe('VenueWorkflowService', () => {
       venue.name,
     );
     expect(workspaceRefreshLocations).toHaveBeenCalledTimes(2);
+    expect(referenceWrites).toHaveBeenCalledTimes(2);
+    expect(referenceWrites).toHaveBeenNthCalledWith(1, 'locations');
+    expect(referenceWrites).toHaveBeenNthCalledWith(2, 'locations');
     expect(dashboardRefreshLocations).toHaveBeenCalledTimes(2);
   });
 

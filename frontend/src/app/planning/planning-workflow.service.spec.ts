@@ -9,6 +9,7 @@ import { AuthService } from '../auth/auth.service';
 import { SessionScopeService } from '../auth/session-scope.service';
 import { ApplicationShellContextService } from '../shell/application-shell-context.service';
 import { PlanningWriteEventsService } from '../application/planning-write-events.service';
+import { ReferenceDataWriteEventsService } from '../application/reference-data-write-events.service';
 import { UiFeedbackService } from '../shell/ui-feedback.service';
 import { PLANNING_PORT } from './planning.port';
 import { PlanningWorkflowService } from './planning-workflow.service';
@@ -24,6 +25,18 @@ describe('PlanningWorkflowService', () => {
     expect(port.loadPlanning).toHaveBeenCalledWith(8);
     expect(workflow.snapshot()?.round.id).toBe(8);
     expect(workflow.snapshot()?.board).toEqual(emptySnapshot(8).board);
+  });
+
+  it('refreshes the active planning snapshot after reference data writes', () => {
+    const { workflow, port, roundId } = createHarness();
+    const view = Symbol('planning-view');
+
+    roundId.set(8);
+    workflow.activateView(view, 8);
+    TestBed.inject(ReferenceDataWriteEventsService).notifyCommitted('locations');
+
+    expect(port.loadPlanning).toHaveBeenCalledTimes(2);
+    expect(port.loadPlanning).toHaveBeenLastCalledWith(8);
   });
 
   it('keeps an accepted mutation bound to its captured round after selection changes', () => {
@@ -241,6 +254,37 @@ describe('PlanningWorkflowService', () => {
 
     reloadResponse.next({ ...proposal, revision: 4 });
     reloadResponse.complete();
+
+    expect(workflow.proposal()?.revision).toBe(4);
+    expect(workflow.proposalReloadAcknowledgement()).toBe(1);
+  });
+
+  it('preserves explicit proposal reload intent across a snapshot refresh', () => {
+    const explicitResponse = new Subject<EditablePlanningProposal>();
+    const automaticResponse = new Subject<EditablePlanningProposal>();
+    const proposal: EditablePlanningProposal = { round_id: 1, revision: 3, exam_days: [] };
+    const proposedSnapshot = {
+      ...emptySnapshot(1),
+      round: { ...emptySnapshot(1).round, status: 'plan_proposed' as const },
+    };
+    const { workflow, port } = createHarness({
+      loadPlanning: vi.fn(() => of(proposedSnapshot)),
+      getPlanningProposal: vi
+        .fn(() => of(proposal))
+        .mockReturnValueOnce(of(proposal))
+        .mockReturnValueOnce(explicitResponse)
+        .mockReturnValueOnce(automaticResponse),
+    });
+    const view = Symbol('planning-view');
+
+    workflow.activateView(view, 1);
+    workflow.reloadPlanningProposal(1, view);
+    TestBed.inject(ReferenceDataWriteEventsService).notifyCommitted('candidates');
+
+    expect(port.getPlanningProposal).toHaveBeenCalledTimes(3);
+    expect(workflow.proposalReloadAcknowledgement()).toBe(0);
+    automaticResponse.next({ ...proposal, revision: 4 });
+    automaticResponse.complete();
 
     expect(workflow.proposal()?.revision).toBe(4);
     expect(workflow.proposalReloadAcknowledgement()).toBe(1);
