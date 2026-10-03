@@ -31,6 +31,30 @@ export class ApplicationWorkspaceService {
   readonly masterDataError = signal(false);
   private refreshGeneration = 0;
   private locationRefreshGeneration = 0;
+  private locationRevision = 0;
+  private candidateReferenceGeneration = 0;
+  private candidateReferenceRevision = 0;
+  private committeeMemberGeneration = 0;
+  private committeeMemberRevision = 0;
+  private latestLocations: {
+    revision: number;
+    roundId: number;
+    sessionGeneration: number;
+    locations: Location[];
+  } | null = null;
+  private latestCandidateReferences: {
+    revision: number;
+    roundId: number;
+    sessionGeneration: number;
+    candidates: WorkspaceSnapshot['masterData']['candidates'];
+    candidateAssignments: WorkspaceSnapshot['masterData']['candidateAssignments'];
+  } | null = null;
+  private latestCommitteeMembers: {
+    revision: number;
+    roundId: number;
+    sessionGeneration: number;
+    members: WorkspaceSnapshot['masterData']['members'];
+  } | null = null;
 
   constructor() {
     this.sessionScope.changes$.subscribe(() => this.clear());
@@ -41,6 +65,9 @@ export class ApplicationWorkspaceService {
     const roundId = this.roundContext.roundId();
     const generation = ++this.refreshGeneration;
     const sessionGeneration = this.sessionScope.generation();
+    const locationRevision = this.locationRevision;
+    const candidateReferenceRevision = this.candidateReferenceRevision;
+    const committeeMemberRevision = this.committeeMemberRevision;
     if (this.round() && this.round()?.id !== roundId) {
       this.round.set(null);
       this.summary.set(null);
@@ -65,12 +92,51 @@ export class ApplicationWorkspaceService {
           ) {
             return;
           }
+          const newerLocations =
+            this.latestLocations &&
+            this.latestLocations.revision > locationRevision &&
+            this.latestLocations.roundId === roundId &&
+            this.latestLocations.sessionGeneration === sessionGeneration
+              ? this.latestLocations.locations
+              : null;
+          const newerCandidates =
+            this.latestCandidateReferences &&
+            this.latestCandidateReferences.revision > candidateReferenceRevision &&
+            this.latestCandidateReferences.roundId === roundId &&
+            this.latestCandidateReferences.sessionGeneration === sessionGeneration
+              ? this.latestCandidateReferences
+              : null;
+          const newerMembers =
+            this.latestCommitteeMembers &&
+            this.latestCommitteeMembers.revision > committeeMemberRevision &&
+            this.latestCommitteeMembers.roundId === roundId &&
+            this.latestCommitteeMembers.sessionGeneration === sessionGeneration
+              ? this.latestCommitteeMembers.members
+              : null;
+          const currentBoard = newerLocations ? withLocations(board, newerLocations) : board;
+          const currentBoardWithMembers = newerMembers
+            ? { ...currentBoard, members: newerMembers }
+            : currentBoard;
+          const currentBoardWithReferences = newerCandidates
+            ? { ...currentBoardWithMembers, candidates: newerCandidates.candidates }
+            : currentBoardWithMembers;
+          const currentMasterData = {
+            ...masterData,
+            ...(newerLocations ? { locations: newerLocations } : {}),
+            ...(newerCandidates
+              ? {
+                  candidates: newerCandidates.candidates,
+                  candidateAssignments: newerCandidates.candidateAssignments,
+                }
+              : {}),
+            ...(newerMembers ? { members: newerMembers } : {}),
+          };
           this.masterDataError.set(false);
           this.applicationVersion.set(applicationVersion);
           this.round.set(round);
           this.summary.set(summary);
-          this.board.set(board);
-          this.masterData.set(masterData);
+          this.board.set(currentBoardWithReferences);
+          this.masterData.set(currentMasterData);
           if (
             this.router.url.startsWith('/scheduling-overview/') &&
             round.status === 'plan_confirmed'
@@ -120,6 +186,12 @@ export class ApplicationWorkspaceService {
         if (board) this.board.set(withLocations(board, locations));
         const masterData = this.masterData();
         if (masterData) this.masterData.set({ ...masterData, locations });
+        this.latestLocations = {
+          revision: ++this.locationRevision,
+          roundId,
+          sessionGeneration,
+          locations,
+        };
       },
       error: (error: ApplicationError) => {
         if (
@@ -141,6 +213,95 @@ export class ApplicationWorkspaceService {
     });
   }
 
+  /** Refresh candidate references used by the transitional planning workspace. */
+  refreshCandidateReferences(): void {
+    if (!this.board() && !this.masterData()) return;
+    const roundId = this.roundContext.roundId();
+    const generation = ++this.candidateReferenceGeneration;
+    const sessionGeneration = this.sessionScope.generation();
+    this.sessionScope
+      .forCurrentSession(this.workspacePort.loadCandidateReferences(roundId))
+      .subscribe({
+        next: ({ candidates, candidateAssignments }) => {
+          if (
+            generation !== this.candidateReferenceGeneration ||
+            sessionGeneration !== this.sessionScope.generation() ||
+            roundId !== this.roundContext.roundId()
+          )
+            return;
+          this.latestCandidateReferences = {
+            revision: ++this.candidateReferenceRevision,
+            roundId,
+            sessionGeneration,
+            candidates,
+            candidateAssignments,
+          };
+          const board = this.board();
+          if (board) this.board.set({ ...board, candidates });
+          const masterData = this.masterData();
+          if (masterData) this.masterData.set({ ...masterData, candidates, candidateAssignments });
+        },
+        error: (error: ApplicationError) => {
+          if (
+            generation !== this.candidateReferenceGeneration ||
+            sessionGeneration !== this.sessionScope.generation() ||
+            roundId !== this.roundContext.roundId()
+          )
+            return;
+          if (error.kind === 'unauthenticated') this.auth.markAnonymous();
+          else
+            this.feedback.notify(
+              'error',
+              'Prüflingsdaten nicht aktualisiert',
+              'Die bisher geladenen Planungsdaten bleiben erhalten. Bitte erneut laden.',
+            );
+        },
+      });
+  }
+
+  /** Refresh committee members used by the transitional planning workspace. */
+  refreshCommitteeReferences(): void {
+    if (!this.board() && !this.masterData()) return;
+    const roundId = this.roundContext.roundId();
+    const generation = ++this.committeeMemberGeneration;
+    const sessionGeneration = this.sessionScope.generation();
+    this.sessionScope.forCurrentSession(this.workspacePort.loadCommitteeMembers()).subscribe({
+      next: (members) => {
+        if (
+          generation !== this.committeeMemberGeneration ||
+          sessionGeneration !== this.sessionScope.generation() ||
+          roundId !== this.roundContext.roundId()
+        )
+          return;
+        this.latestCommitteeMembers = {
+          revision: ++this.committeeMemberRevision,
+          roundId,
+          sessionGeneration,
+          members,
+        };
+        const board = this.board();
+        if (board) this.board.set({ ...board, members });
+        const masterData = this.masterData();
+        if (masterData) this.masterData.set({ ...masterData, members });
+      },
+      error: (error: ApplicationError) => {
+        if (
+          generation !== this.committeeMemberGeneration ||
+          sessionGeneration !== this.sessionScope.generation() ||
+          roundId !== this.roundContext.roundId()
+        )
+          return;
+        if (error.kind === 'unauthenticated') this.auth.markAnonymous();
+        else
+          this.feedback.notify(
+            'error',
+            'Ausschussdaten nicht aktualisiert',
+            'Die bisher geladenen Planungsdaten bleiben erhalten. Bitte erneut laden.',
+          );
+      },
+    });
+  }
+
   selectExamRound(id: number): void {
     this.roundContext.select(id);
     this.refresh();
@@ -150,6 +311,11 @@ export class ApplicationWorkspaceService {
   private clear(): void {
     this.refreshGeneration += 1;
     this.locationRefreshGeneration += 1;
+    this.candidateReferenceGeneration += 1;
+    this.committeeMemberGeneration += 1;
+    this.latestLocations = null;
+    this.latestCandidateReferences = null;
+    this.latestCommitteeMembers = null;
     this.round.set(null);
     this.summary.set(null);
     this.board.set(null);

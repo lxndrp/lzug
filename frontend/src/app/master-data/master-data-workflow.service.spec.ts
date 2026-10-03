@@ -3,6 +3,7 @@ import { of, Subject, throwError } from 'rxjs';
 
 import { RoundContextService } from '../api/round-context.service';
 import { AuthService } from '../auth/auth.service';
+import { ApplicationWorkspaceService } from '../shell/application-workspace.service';
 import type {
   Candidate,
   CandidateWorkspace,
@@ -24,6 +25,10 @@ describe('MasterDataWorkflowService', () => {
     updateCommitteeMember: ReturnType<typeof vi.fn>;
   };
   let roundContext: { roundId: ReturnType<typeof vi.fn> };
+  let workspace: {
+    refreshCandidateReferences: ReturnType<typeof vi.fn>;
+    refreshCommitteeReferences: ReturnType<typeof vi.fn>;
+  };
 
   const candidate: Candidate = {
     id: 7,
@@ -66,10 +71,15 @@ describe('MasterDataWorkflowService', () => {
       updateCommitteeMember: vi.fn(),
     };
     roundContext = { roundId: vi.fn(() => 12) };
+    workspace = {
+      refreshCandidateReferences: vi.fn(),
+      refreshCommitteeReferences: vi.fn(),
+    };
     TestBed.configureTestingModule({
       providers: [
         MasterDataWorkflowService,
         { provide: MASTER_DATA_PORT, useValue: port },
+        { provide: ApplicationWorkspaceService, useValue: workspace },
         { provide: RoundContextService, useValue: roundContext },
         {
           provide: AuthService,
@@ -146,6 +156,19 @@ describe('MasterDataWorkflowService', () => {
     expect(service.committeeWorkspace()).toEqual({ committees: [], members: [], persons: [] });
   });
 
+  it('discards a candidate read that completes after its route closes', () => {
+    const pending = new Subject<CandidateWorkspace>();
+    port.loadCandidateWorkspace.mockReturnValueOnce(pending);
+
+    service.loadCandidates();
+    service.clearCandidates();
+    pending.next({ ...emptyCandidates, candidates: [{ candidate }] });
+    pending.complete();
+
+    expect(service.candidateWorkspace()).toBeNull();
+    expect(service.candidateLoading()).toBe(false);
+  });
+
   it('passes the active round to the port and refreshes after a successful command', () => {
     port.createCandidate.mockReturnValue(of(candidate));
     let result: unknown;
@@ -154,6 +177,7 @@ describe('MasterDataWorkflowService', () => {
 
     expect(port.createCandidate).toHaveBeenCalledWith({ ...candidateCommand, examRoundId: 12 });
     expect(result).toMatchObject({ ok: true, value: candidate, current: true });
+    expect(workspace.refreshCandidateReferences).toHaveBeenCalledOnce();
     expect(service.actionBusy()).toBe(false);
     expect(port.loadCandidateWorkspace).toHaveBeenCalledWith(12);
     expect(port.loadCommitteeWorkspace).not.toHaveBeenCalled();
@@ -242,6 +266,16 @@ describe('MasterDataWorkflowService', () => {
   it('marks a member response stale after the selected committee changes', () => {
     const pending = new Subject<CommitteeMember>();
     port.createCommitteeMember.mockReturnValue(pending);
+    port.loadCommitteeWorkspace.mockReturnValue(
+      of({
+        committees: [
+          { id: 3, name: 'Ausschuss 3', occupation: null, ihk: null },
+          { id: 4, name: 'Ausschuss 4', occupation: null, ihk: null },
+        ],
+        members: [member],
+        persons: [],
+      }),
+    );
     let result: unknown;
     service.createMember({ committeeId: 3 } as never).subscribe((value) => (result = value));
     service.selectedCommitteeId.set(4);
@@ -250,6 +284,10 @@ describe('MasterDataWorkflowService', () => {
     pending.complete();
 
     expect(result).toMatchObject({ ok: true, value: member, current: false });
+    expect(port.loadCommitteeWorkspace).toHaveBeenCalledOnce();
+    expect(workspace.refreshCommitteeReferences).toHaveBeenCalledOnce();
+    expect(service.committeeWorkspace()?.members).toEqual([member]);
+    expect(service.selectedCommitteeId()).toBe(4);
     expect(service.actionBusy()).toBe(false);
     expect(service.requestState().status).toBe('idle');
   });

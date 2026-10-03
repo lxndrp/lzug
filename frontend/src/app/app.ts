@@ -29,6 +29,7 @@ import { RuntimeNoticeComponent } from './runtime/runtime-notice.component';
 import { ApplicationWorkspaceService } from './shell/application-workspace.service';
 import { ApplicationShellContextService } from './shell/application-shell-context.service';
 import { DashboardProjectionService } from './dashboard/dashboard-projection.service';
+import { MasterDataWorkflowService } from './master-data/master-data-workflow.service';
 import { UiFeedbackService } from './shell/ui-feedback.service';
 
 @Component({
@@ -55,6 +56,7 @@ export class App {
   private readonly workspace = inject(ApplicationWorkspaceService);
   protected readonly shellContext = inject(ApplicationShellContextService);
   private readonly dashboard = inject(DashboardProjectionService);
+  private readonly masterData = inject(MasterDataWorkflowService);
   private readonly feedbackService = inject(UiFeedbackService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly injector = inject(Injector);
@@ -65,6 +67,9 @@ export class App {
   protected readonly icons = appIcons;
   protected readonly message = this.workspace.message;
   protected readonly loading = this.workspace.loading;
+  protected readonly refreshBusy = computed(
+    () => this.workspace.loading() || this.shellContext.loading() || this.dashboard.loading(),
+  );
   protected readonly applicationVersion = computed(
     () => this.shellContext.context()?.applicationVersion ?? null,
   );
@@ -140,6 +145,9 @@ export class App {
     this.workspace.refresh();
     this.shellContext.refresh();
     this.dashboard.refresh();
+    const path = this.router.url.split(/[?#]/, 1)[0];
+    if (path === '/candidates') this.masterData.loadCandidates();
+    else if (path === '/committee') this.masterData.loadCommittees();
   }
 
   protected closeSidebarOnMobile(): void {

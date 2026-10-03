@@ -1,6 +1,7 @@
-import { Component, ViewChild, inject } from '@angular/core';
+import { Component, OnDestroy, ViewChild, effect, inject, untracked } from '@angular/core';
 import { TuiButton } from '@taiga-ui/core';
 
+import { AuthService } from '../auth/auth.service';
 import { CandidatesComponent } from '../candidates/candidates.component';
 import { MasterDataWorkflowService } from '../master-data/master-data-workflow.service';
 import type { CandidateCommand, CandidateUpdate } from '../master-data/master-data.models';
@@ -40,13 +41,22 @@ import { UiFeedbackService } from '../shell/ui-feedback.service';
     />
   `,
 })
-export class CandidatesRouteComponent {
+export class CandidatesRouteComponent implements OnDestroy {
   protected readonly workflow = inject(MasterDataWorkflowService);
+  private readonly auth = inject(AuthService);
   private readonly feedback = inject(UiFeedbackService);
   @ViewChild(CandidatesComponent) private component?: CandidatesComponent;
 
   constructor() {
-    this.workflow.loadCandidates();
+    effect(() => {
+      if (this.auth.state() === 'authenticated') {
+        untracked(() => this.workflow.loadCandidates());
+      }
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.workflow.clearCandidates();
   }
 
   protected createCandidate(payload: CandidateCommand): void {

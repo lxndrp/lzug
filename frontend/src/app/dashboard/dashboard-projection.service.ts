@@ -19,6 +19,15 @@ export class DashboardProjectionService {
   private readonly router = inject(Router);
   private generation = 0;
   private locationGeneration = 0;
+  private loadingRoundId: number | null = null;
+  private loadingSessionGeneration: number | null = null;
+  private locationRevision = 0;
+  private latestLocations: {
+    revision: number;
+    roundId: number;
+    sessionGeneration: number;
+    locations: Location[];
+  } | null = null;
 
   readonly projection = signal<DashboardProjection | null>(null);
   readonly loading = signal(false);
@@ -33,8 +42,17 @@ export class DashboardProjectionService {
   refresh(): void {
     if (this.auth.state() !== 'authenticated') return;
     const roundId = this.roundContext.roundId();
-    const generation = ++this.generation;
     const sessionGeneration = this.sessionScope.generation();
+    if (
+      this.loading() &&
+      this.loadingRoundId === roundId &&
+      this.loadingSessionGeneration === sessionGeneration
+    )
+      return;
+    const generation = ++this.generation;
+    const locationRevision = this.locationRevision;
+    this.loadingRoundId = roundId;
+    this.loadingSessionGeneration = sessionGeneration;
     if (this.projection()?.round.id !== roundId) this.projection.set(null);
     this.loading.set(true);
     this.error.set(false);
@@ -49,7 +67,16 @@ export class DashboardProjectionService {
       .subscribe({
         next: (projection) => {
           if (!this.isCurrent(generation, sessionGeneration, roundId)) return;
-          this.projection.set(projection);
+          const latestLocations = this.latestLocations;
+          const currentProjection =
+            latestLocations &&
+            latestLocations.revision > locationRevision &&
+            latestLocations.roundId === roundId &&
+            latestLocations.sessionGeneration === sessionGeneration
+              ? withLocations(projection, latestLocations.locations)
+              : projection;
+          this.projection.set(currentProjection);
+          this.locationRefreshError.set(false);
           if (
             this.router.url.startsWith('/scheduling-overview/') &&
             projection.round.status === 'plan_confirmed'
@@ -83,6 +110,12 @@ export class DashboardProjectionService {
         ) {
           return;
         }
+        this.latestLocations = {
+          revision: ++this.locationRevision,
+          roundId,
+          sessionGeneration,
+          locations,
+        };
         this.applyLocations(locations);
       },
       error: (error: ApplicationError) => {
@@ -127,9 +160,30 @@ export class DashboardProjectionService {
   private clear(): void {
     this.generation += 1;
     this.locationGeneration += 1;
+    this.latestLocations = null;
+    this.loadingRoundId = null;
+    this.loadingSessionGeneration = null;
     this.projection.set(null);
     this.loading.set(false);
     this.error.set(false);
     this.locationRefreshError.set(false);
   }
+}
+
+function withLocations(
+  projection: DashboardProjection,
+  locations: Location[],
+): DashboardProjection {
+  const byId = new Map(locations.map((location) => [location.id, location]));
+  return {
+    ...projection,
+    board: {
+      ...projection.board,
+      locations,
+      days: projection.board.days.map((item) => ({
+        ...item,
+        location: byId.get(item.day.location_id),
+      })),
+    },
+  };
 }

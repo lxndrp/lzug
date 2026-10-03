@@ -8,11 +8,14 @@ import { SessionScopeService } from '../auth/session-scope.service';
 import { UiFeedbackService } from './ui-feedback.service';
 import { ApplicationWorkspaceService } from './application-workspace.service';
 import { WORKSPACE_PORT } from './workspace.port';
+import { locationsFixture } from '../testing/fixtures';
 
 describe('ApplicationWorkspaceService', () => {
   let requests: Subject<unknown>[];
   let loadDashboard: ReturnType<typeof vi.fn>;
   let loadLocations: ReturnType<typeof vi.fn>;
+  let loadCandidateReferences: ReturnType<typeof vi.fn>;
+  let loadCommitteeMembers: ReturnType<typeof vi.fn>;
   let feedback: { notify: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
@@ -23,12 +26,17 @@ describe('ApplicationWorkspaceService', () => {
       return request;
     });
     loadLocations = vi.fn(() => of([]));
+    loadCandidateReferences = vi.fn(() => of({ candidates: [], candidateAssignments: [] }));
+    loadCommitteeMembers = vi.fn(() => of([]));
     feedback = { notify: vi.fn() };
 
     TestBed.configureTestingModule({
       providers: [
         provideRouter([]),
-        { provide: WORKSPACE_PORT, useValue: { loadDashboard, loadLocations } },
+        {
+          provide: WORKSPACE_PORT,
+          useValue: { loadDashboard, loadLocations, loadCandidateReferences, loadCommitteeMembers },
+        },
         {
           provide: AuthService,
           useValue: { state: () => 'authenticated', markAnonymous: vi.fn() },
@@ -100,6 +108,66 @@ describe('ApplicationWorkspaceService', () => {
 
     expect(loadDashboard).toHaveBeenCalledOnce();
     expect(loadLocations).toHaveBeenCalledOnce();
+  });
+
+  it('preserves a newer targeted location read when an older full refresh finishes later', () => {
+    const workspace = TestBed.inject(ApplicationWorkspaceService);
+    const oldLocation = locationsFixture[0];
+    const updatedLocation = { ...oldLocation, name: 'Aktualisierter Prüfungsort' };
+    workspace.refresh();
+    requests[0].next({
+      ...dashboard(1, 'Runde A'),
+      board: { days: [], locations: [oldLocation] },
+      masterData: { committees: [], locations: [oldLocation] },
+    });
+    requests[0].complete();
+
+    workspace.refresh();
+    loadLocations.mockReturnValueOnce(of([updatedLocation]));
+    workspace.refreshLocations();
+    requests[1].next({
+      ...dashboard(1, 'Runde A'),
+      board: { days: [], locations: [oldLocation] },
+      masterData: { committees: [], locations: [oldLocation] },
+    });
+    requests[1].complete();
+
+    expect(workspace.board()?.locations[0].name).toBe('Aktualisierter Prüfungsort');
+    expect(workspace.masterData()?.locations[0].name).toBe('Aktualisierter Prüfungsort');
+  });
+
+  it('updates only the candidate references used by the transitional planning workspace', () => {
+    const workspace = TestBed.inject(ApplicationWorkspaceService);
+    workspace.refresh();
+    requests[0].next(dashboard(1, 'Runde A'));
+    requests[0].complete();
+    const candidates = [{ candidate: { id: 7 }, roundCandidate: null }];
+    const candidateAssignments = [{ id: 8 }];
+    loadCandidateReferences.mockReturnValueOnce(of({ candidates, candidateAssignments }));
+
+    workspace.refreshCandidateReferences();
+
+    expect(loadCandidateReferences).toHaveBeenCalledWith(1);
+    expect(workspace.board()?.candidates).toEqual(candidates);
+    expect(workspace.masterData()?.candidates).toEqual(candidates);
+    expect(workspace.masterData()?.candidateAssignments).toEqual(candidateAssignments);
+    expect(loadDashboard).toHaveBeenCalledOnce();
+  });
+
+  it('updates only committee members in the transitional planning workspace', () => {
+    const workspace = TestBed.inject(ApplicationWorkspaceService);
+    workspace.refresh();
+    requests[0].next(dashboard(1, 'Runde A'));
+    requests[0].complete();
+    const members = [{ id: 9, committee_id: 3 }];
+    loadCommitteeMembers.mockReturnValueOnce(of(members));
+
+    workspace.refreshCommitteeReferences();
+
+    expect(loadCommitteeMembers).toHaveBeenCalledOnce();
+    expect(workspace.board()?.members).toEqual(members);
+    expect(workspace.masterData()?.members).toEqual(members);
+    expect(loadDashboard).toHaveBeenCalledOnce();
   });
 
   it('clears cached workspace and ignores a response from the previous session', () => {

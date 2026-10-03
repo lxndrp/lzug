@@ -48,6 +48,18 @@ describe('DashboardProjectionService', () => {
     expect(loadLocations).not.toHaveBeenCalled();
   });
 
+  it('reuses an in-flight projection for a round selected before dashboard route entry', () => {
+    const pending = new Subject<never>();
+    load.mockReturnValueOnce(pending);
+    const service = TestBed.inject(DashboardProjectionService);
+
+    service.refresh();
+    service.refresh();
+
+    expect(load).toHaveBeenCalledOnce();
+    expect(service.loading()).toBe(true);
+  });
+
   it('ignores a projection response after the authenticated session changes', () => {
     const pending = new Subject<never>();
     load.mockReturnValueOnce(pending);
@@ -101,5 +113,40 @@ describe('DashboardProjectionService', () => {
     expect(service.locationRefreshError()).toBe(true);
     expect(service.error()).toBe(false);
     expect(service.projection()).not.toBeNull();
+  });
+
+  it('keeps the newer targeted location read when an older full projection finishes later', () => {
+    const service = TestBed.inject(DashboardProjectionService);
+    service.refresh();
+    const oldLocation = locationsFixture[0];
+    const updatedLocation = { ...oldLocation, name: 'Aktualisierter Prüfungsort' };
+    const staleProjection = {
+      applicationVersion: 'test',
+      round: examRoundFixture,
+      summary: summaryFixture,
+      board: { ...planningBoardFixture, locations: [oldLocation] },
+    };
+    const pending = new Subject<typeof staleProjection>();
+    load.mockReturnValueOnce(pending);
+
+    service.refresh();
+    loadLocations.mockReturnValueOnce(of([updatedLocation]));
+    service.refreshLocations();
+    pending.next(staleProjection);
+    pending.complete();
+
+    expect(service.projection()?.board.locations[0].name).toBe('Aktualisierter Prüfungsort');
+  });
+
+  it('clears a targeted location error after a successful full projection read', () => {
+    const service = TestBed.inject(DashboardProjectionService);
+    service.refresh();
+    loadLocations.mockReturnValueOnce(throwError(() => new Error('locations unavailable')));
+    service.refreshLocations();
+    expect(service.locationRefreshError()).toBe(true);
+
+    service.refresh();
+
+    expect(service.locationRefreshError()).toBe(false);
   });
 });

@@ -11,6 +11,7 @@ import { of, throwError } from 'rxjs';
 import { App } from './app';
 import { DashboardProjectionService } from './dashboard/dashboard-projection.service';
 import { APPLICATION_SHELL_CONTEXT_PORT } from './shell/application-shell-context.port';
+import { ApplicationShellContextService } from './shell/application-shell-context.service';
 import type {
   VenueContact,
   VenueChangeImpact,
@@ -170,6 +171,7 @@ describe('App', () => {
           useValue: {
             state: signal('authenticated'),
             session,
+            sessionRevocationPending: signal(false),
             hasCapability: (capability: string) => {
               const capabilities = session()?.capabilities;
               return capabilities == null || capabilities.includes(capability);
@@ -222,6 +224,46 @@ describe('App', () => {
     fixture.detectChanges();
 
     flushDashboardRequests(http);
+  });
+
+  it('loads the active master-data view after authentication completes on a deep link', async () => {
+    const fixture = TestBed.createComponent(App);
+    const http = TestBed.inject(HttpTestingController);
+    flushDashboardRequests(http);
+    const auth = TestBed.inject(AuthService) as unknown as {
+      state: { set(value: 'checking' | 'authenticated'): void };
+    };
+    auth.state.set('checking');
+    fixture.detectChanges();
+    const workflow = TestBed.inject(MasterDataWorkflowService);
+    const loadCandidates = vi.spyOn(workflow, 'loadCandidates');
+
+    await TestBed.inject(Router).navigateByUrl('/candidates');
+    fixture.detectChanges();
+    expect(loadCandidates).not.toHaveBeenCalled();
+
+    auth.state.set('authenticated');
+    fixture.detectChanges();
+
+    expect(loadCandidates).toHaveBeenCalledOnce();
+  });
+
+  it('shows shell-context retry progress and disables global refresh while it loads', () => {
+    const fixture = TestBed.createComponent(App);
+    const http = TestBed.inject(HttpTestingController);
+    flushDashboardRequests(http);
+    const shellContext = TestBed.inject(ApplicationShellContextService);
+    shellContext.context.set(null);
+    shellContext.loading.set(true);
+    fixture.detectChanges();
+
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      'Prüfungskontext wird geladen',
+    );
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('.app-refresh-button')
+        ?.disabled,
+    ).toBe(true);
   });
 
   it('reloads the workspace after an authenticated demo role changes', () => {

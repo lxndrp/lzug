@@ -4,6 +4,11 @@ import { Observable } from 'rxjs';
 import type { ExamRound, MasterData, PlanningBoard, RoundSummary } from '../api/api.models';
 import type { WithoutHttpLinks } from '../application/without-http-links';
 import type { Location } from '../api/master-data.models';
+import type {
+  CandidateCommitteeAssignment,
+  CandidateView,
+  CommitteeMember,
+} from '../api/master-data.models';
 
 /** Shared workspace data for route-level features, without HAL navigation links. */
 export type WorkspaceSnapshot = {
@@ -17,6 +22,11 @@ export type WorkspaceSnapshot = {
 export interface WorkspacePort {
   loadDashboard(roundId: number): Observable<WorkspaceSnapshot>;
   loadLocations(): Observable<WithoutHttpLinks<Location>[]>;
+  loadCandidateReferences(roundId: number): Observable<{
+    candidates: WithoutHttpLinks<CandidateView>[];
+    candidateAssignments: WithoutHttpLinks<CandidateCommitteeAssignment>[];
+  }>;
+  loadCommitteeMembers(): Observable<WithoutHttpLinks<CommitteeMember>[]>;
 }
 
 export const WORKSPACE_PORT = new InjectionToken<WorkspacePort>('WORKSPACE_PORT');

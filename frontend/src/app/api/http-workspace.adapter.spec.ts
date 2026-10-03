@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { firstValueFrom, of } from 'rxjs';
 
 import { PlanningApiService } from './planning-api.service';
+import { MasterDataApiService } from './master-data-api.service';
 import { HttpWorkspaceAdapter } from './http-workspace.adapter';
 
 describe('HttpWorkspaceAdapter', () => {
@@ -114,6 +115,14 @@ describe('HttpWorkspaceAdapter', () => {
       providers: [
         HttpWorkspaceAdapter,
         { provide: PlanningApiService, useValue: { refreshDashboard } },
+        {
+          provide: MasterDataApiService,
+          useValue: {
+            getCandidateViews: vi.fn(),
+            getCandidateAssignments: vi.fn(),
+            getCommitteeMembers: vi.fn(),
+          },
+        },
       ],
     });
 
@@ -138,5 +147,34 @@ describe('HttpWorkspaceAdapter', () => {
         ],
       }),
     });
+  });
+
+  it('loads candidate references and committee members through targeted reads', async () => {
+    const candidates = [{ candidate: { id: 6 }, _links: { self: { href: '/candidate' } } }];
+    const assignments = [{ id: 8, _links: { self: { href: '/assignment' } } }];
+    const members = [{ id: 9, _links: { self: { href: '/member' } } }];
+    const masterDataApi = {
+      getCandidateViews: vi.fn(() => of(candidates)),
+      getCandidateAssignments: vi.fn(() => of(assignments)),
+      getCommitteeMembers: vi.fn(() => of(members)),
+    };
+    TestBed.configureTestingModule({
+      providers: [
+        HttpWorkspaceAdapter,
+        { provide: PlanningApiService, useValue: {} },
+        { provide: MasterDataApiService, useValue: masterDataApi },
+      ],
+    });
+
+    const adapter = TestBed.inject(HttpWorkspaceAdapter);
+    const candidateReferences = await firstValueFrom(adapter.loadCandidateReferences(7));
+    const committeeMembers = await firstValueFrom(adapter.loadCommitteeMembers());
+
+    expect(masterDataApi.getCandidateViews).toHaveBeenCalledWith(7);
+    expect(candidateReferences).toEqual({
+      candidates: [{ candidate: { id: 6 } }],
+      candidateAssignments: [{ id: 8 }],
+    });
+    expect(committeeMembers).toEqual([{ id: 9 }]);
   });
 });

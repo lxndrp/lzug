@@ -1,6 +1,7 @@
-import { Component, ViewChild, inject } from '@angular/core';
+import { Component, OnDestroy, ViewChild, effect, inject, untracked } from '@angular/core';
 import { TuiButton } from '@taiga-ui/core';
 
+import { AuthService } from '../auth/auth.service';
 import type { CommitteeMember } from '../master-data/master-data.models';
 import { CommitteeComponent } from '../committee/committee.component';
 import type { CommitteeMemberCommand } from '../master-data/master-data.models';
@@ -39,13 +40,22 @@ import { UiFeedbackService } from '../shell/ui-feedback.service';
     />
   `,
 })
-export class CommitteeRouteComponent {
+export class CommitteeRouteComponent implements OnDestroy {
   protected readonly workflow = inject(MasterDataWorkflowService);
+  private readonly auth = inject(AuthService);
   private readonly feedback = inject(UiFeedbackService);
   @ViewChild(CommitteeComponent) private component?: CommitteeComponent;
 
   constructor() {
-    this.workflow.loadCommittees();
+    effect(() => {
+      if (this.auth.state() === 'authenticated') {
+        untracked(() => this.workflow.loadCommittees());
+      }
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.workflow.clearCommittees();
   }
 
   protected createMember(payload: CommitteeMemberCommand): void {
