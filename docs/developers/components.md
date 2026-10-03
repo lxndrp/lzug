@@ -281,6 +281,11 @@ Ein Read prüft vor der Arbeit Credential-Generation und Identity-Scope,
 materialisiert den Read-Snapshot unter kurzer Sperre und revalidiert unmittelbar
 vor Rückgabe die aktive Credential-Generation.
 Hat `DELETE` vorher widerrufen, wird das gerenderte Ergebnis verworfen.
+Parallele GET-Refreshes werden je Feed zu höchstens einem laufenden Sync-UoW
+zusammengeführt. `DELETE` setzt zuerst den Revocation-Fence; wartende Reads starten
+keinen Sync, und ein aktiver Sync bricht seinen begrenzten UoW ab.
+Initiale Aktivierung verwendet ebenfalls eine nicht-geheime Pending-Generation,
+die `DELETE` fencen kann, bevor ein Credential angelegt wird.
 `DELETE` committet Widerruf sowie Löschen oder Fencing eines Pending-Standes
 atomar; ein späterer Rotationsfinalizer kann den widerrufenen Feed dadurch nicht
 reaktivieren.
