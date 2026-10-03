@@ -6,6 +6,7 @@ import type {
   ResolveFn,
   Route,
   Routes,
+  UrlTree,
 } from '@angular/router';
 
 import { RoundContextService } from './api/round-context.service';
@@ -28,10 +29,18 @@ const routeData = (
   contextual = true,
 ): AppRouteData => ({ view, title, breadcrumb, contextual });
 
-export const roundContextResolver: ResolveFn<number | null> = (route: ActivatedRouteSnapshot) => {
+export const roundContextResolver: ResolveFn<number | UrlTree> = (
+  route: ActivatedRouteSnapshot,
+) => {
   const value = Number(route.paramMap.get('roundId'));
   const roundId = Number.isInteger(value) && value > 0 ? value : null;
-  if (roundId === null) return null;
+  if (roundId === null) {
+    const router = inject(Router);
+    const fallback = route.routeConfig?.path?.startsWith('confirmed-plans')
+      ? '/confirmed-plans'
+      : '/scheduling-overview';
+    return router.parseUrl(fallback);
+  }
 
   const context = inject(RoundContextService);
   if (context.roundId() === roundId) return roundId;

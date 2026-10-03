@@ -164,6 +164,10 @@ export class PlanningWorkflowService {
             this.roundContext.roundId() !== roundId
           )
             return;
+          if (snapshot.round.status === 'plan_confirmed') {
+            void this.router.navigateByUrl(`/confirmed-plans/${roundId}`, { replaceUrl: true });
+            return;
+          }
           this.snapshot.set(snapshot);
           this.loadError.set(false);
           if (snapshot.round.status === 'plan_proposed') this.loadPlanningProposal(roundId, view);
@@ -598,7 +602,13 @@ export class PlanningWorkflowService {
       .pipe(finalize(() => this.pending.set(false)))
       .subscribe({
         next: (saved) => {
-          if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
+          if (!this.isSelectedRound(roundId)) return;
+          if (!this.isCurrentView(view)) {
+            if (this.activeRoundId === roundId && this.activeView) {
+              this.loadPlanningProposal(roundId, this.activeView);
+            }
+            return;
+          }
           this.proposal.set(saved);
           this.editorState.set('ready');
           this.feedback.notify(

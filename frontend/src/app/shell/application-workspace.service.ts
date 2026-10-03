@@ -241,9 +241,11 @@ export class ApplicationWorkspaceService {
           };
           this.candidateReferenceSnapshot.set({ roundId, candidates, candidateAssignments });
           const board = this.board();
-          if (board) this.board.set({ ...board, candidates });
+          if (board && this.round()?.id === roundId) this.board.set({ ...board, candidates });
           const masterData = this.masterData();
-          if (masterData) this.masterData.set({ ...masterData, candidates, candidateAssignments });
+          if (masterData && this.round()?.id === roundId) {
+            this.masterData.set({ ...masterData, candidates, candidateAssignments });
+          }
         },
         error: (error: ApplicationError) => {
           if (

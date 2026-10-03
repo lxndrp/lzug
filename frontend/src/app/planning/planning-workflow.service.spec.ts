@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { Router } from '@angular/router';
 import { signal } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { Observable, Subject, of, throwError } from 'rxjs';
@@ -27,6 +28,24 @@ describe('PlanningWorkflowService', () => {
     expect(port.loadPlanning).toHaveBeenCalledWith(8);
     expect(workflow.snapshot()?.round.id).toBe(8);
     expect(workflow.snapshot()?.board).toEqual(emptySnapshot(8).board);
+  });
+
+  it('redirects a stale planning deep link when the round is already confirmed', () => {
+    const { workflow } = createHarness({
+      loadPlanning: vi.fn((id: number) =>
+        of({
+          ...emptySnapshot(id),
+          round: { ...emptySnapshot(id).round, status: 'plan_confirmed' },
+        }),
+      ),
+    });
+    const router = TestBed.inject(Router);
+    const navigateByUrl = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+
+    workflow.activateView(Symbol('planning-view'), 1);
+
+    expect(navigateByUrl).toHaveBeenCalledWith('/confirmed-plans/1', { replaceUrl: true });
+    expect(workflow.snapshot()).toBeNull();
   });
 
   it('keeps an accepted mutation bound to its captured round after selection changes', () => {
@@ -76,9 +95,20 @@ describe('PlanningWorkflowService', () => {
 
   it('does not let a late proposal answer replace a later view draft', () => {
     const saveResponse = new Subject<EditablePlanningProposal>();
+    const proposalResponses: Subject<EditablePlanningProposal>[] = [];
     const proposal = { round_id: 1, revision: 3, exam_days: [] };
     const { workflow, port } = createHarness({
-      getPlanningProposal: vi.fn(() => of(proposal)),
+      loadPlanning: vi.fn((id: number) =>
+        of({
+          ...emptySnapshot(id),
+          round: { ...emptySnapshot(id).round, status: 'plan_proposed' },
+        }),
+      ),
+      getPlanningProposal: vi.fn(() => {
+        const response = new Subject<EditablePlanningProposal>();
+        proposalResponses.push(response);
+        return response;
+      }),
       savePlanningProposal: vi.fn(() => saveResponse),
     });
     const viewA = Symbol('planning-view-a');
@@ -86,14 +116,22 @@ describe('PlanningWorkflowService', () => {
     const staleCommand = { ...proposal, revision: 7 };
 
     workflow.activateView(viewA, 1);
+    proposalResponses[0]!.next(proposal);
+    proposalResponses[0]!.complete();
     workflow.savePlanningProposal(staleCommand, 1, viewA);
     workflow.activateView(viewB, 1);
+    proposalResponses[1]!.next({ ...proposal, revision: 7 });
+    proposalResponses[1]!.complete();
     const viewBProposal = workflow.proposal();
     saveResponse.next({ ...staleCommand, revision: 8 });
     saveResponse.complete();
 
     expect(port.savePlanningProposal).toHaveBeenCalledWith(1, staleCommand);
     expect(workflow.proposal()).toBe(viewBProposal);
+    expect(port.getPlanningProposal).toHaveBeenCalledTimes(3);
+    proposalResponses[2]!.next({ ...proposal, revision: 8 });
+    proposalResponses[2]!.complete();
+    expect(workflow.proposal()?.revision).toBe(8);
   });
 
   it('holds pending through confirmation and the resulting mutation', () => {
