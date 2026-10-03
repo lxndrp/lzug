@@ -99,6 +99,7 @@ export class PlanningComponent implements OnChanges, OnDestroy {
   @Input() candidateDayGenerationResult: CandidateDayGenerationResult | null = null;
   @Input() planningResult: PlanningResult | null = null;
   @Input() planningProposal: EditablePlanningProposal | null = null;
+  @Input() proposalSaveAcknowledgement = 0;
   @Input() proposalEditorState: ProposalEditorState = 'idle';
   @Input() proposalEditorError: string | null = null;
   @Input() proposalEditorViolations: PlanningValidationViolation[] = [];

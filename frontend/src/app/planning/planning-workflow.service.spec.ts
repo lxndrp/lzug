@@ -205,6 +205,7 @@ describe('PlanningWorkflowService', () => {
     workflow.activateView(view, 1);
     workflow.savePlanningProposal(proposal, 1, view);
 
+    expect(workflow.proposalSaveAcknowledgement()).toBe(0);
     expect(port.savePlanningProposal).toHaveBeenCalledWith(1, {
       ...proposal,
       revision: 17,
@@ -212,6 +213,7 @@ describe('PlanningWorkflowService', () => {
     response.next({ ...proposal, revision: 18 });
     response.complete();
     expect(workflow.proposal()?.revision).toBe(18);
+    expect(workflow.proposalSaveAcknowledgement()).toBe(1);
   });
 
   it('does not let a late proposal answer replace a later view draft', () => {

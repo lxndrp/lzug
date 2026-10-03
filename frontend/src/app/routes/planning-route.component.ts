@@ -46,6 +46,7 @@ import { PlanningWorkflowService } from '../planning/planning-workflow.service';
         [canCreateCandidateDay]="workflow.canCreateCandidateDay()"
         [canToggleCandidateDay]="workflow.canToggleCandidateDay()"
         [planningProposal]="workflow.proposal()"
+        [proposalSaveAcknowledgement]="workflow.proposalSaveAcknowledgement()"
         [proposalEditorState]="workflow.editorState()"
         [proposalEditorError]="workflow.editorError()"
         [proposalEditorViolations]="workflow.editorViolations()"

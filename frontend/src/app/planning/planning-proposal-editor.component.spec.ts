@@ -21,6 +21,7 @@ describe('PlanningProposalEditorComponent', () => {
 
     fixture = TestBed.createComponent(PlanningProposalEditorComponent);
     fixture.componentRef.setInput('state', 'ready');
+    fixture.componentRef.setInput('saveAcknowledgement', 0);
     fixture.componentRef.setInput('proposal', proposal());
     fixture.componentRef.setInput('locations', locationsFixture as Location[]);
     fixture.componentRef.setInput('candidates', candidateViewsFixture as CandidateView[]);
@@ -99,9 +100,16 @@ describe('PlanningProposalEditorComponent', () => {
 
     fixture.componentRef.setInput('state', 'saving');
     fixture.detectChanges();
+    fixture.componentRef.setInput('proposal', { ...proposal(), revision: 4 });
+    fixture.componentRef.setInput('state', 'ready');
+    fixture.detectChanges();
+
+    expect(component.dirty()).toBe(true);
+    expect(component.draft()?.exam_days[0].candidate_exam_day_id).toBe(2);
+
     fixture.componentRef.setInput('proposal', {
       ...proposal(),
-      revision: 4,
+      revision: 5,
       exam_days: [
         {
           ...proposal().exam_days[0],
@@ -119,11 +127,11 @@ describe('PlanningProposalEditorComponent', () => {
         },
       ],
     });
-    fixture.componentRef.setInput('state', 'ready');
+    fixture.componentRef.setInput('saveAcknowledgement', 1);
     fixture.detectChanges();
 
     expect(component.dirty()).toBe(false);
-    expect(component.draft()?.revision).toBe(4);
+    expect(component.draft()?.revision).toBe(5);
     expect(component.draft()?.exam_days[0].slots[0]).toMatchObject({ id: 99, room_id: 7 });
   });
 

@@ -70,6 +70,7 @@ export class PlanningWorkflowService {
   readonly viewEffects = signal<PlanningViewEffect[]>([]);
   readonly lastResult = signal<PlanningResult | null>(null);
   readonly proposal = signal<EditablePlanningProposal | null>(null);
+  readonly proposalSaveAcknowledgement = signal(0);
   readonly editorState = signal<ProposalEditorState>('idle');
   readonly editorError = signal<string | null>(null);
   readonly editorViolations = signal<PlanningValidationViolation[]>([]);
@@ -674,6 +675,7 @@ export class PlanningWorkflowService {
         next: (saved) => {
           if (this.skipStaleWrite(roundId, view)) return;
           this.proposal.set(saved);
+          this.proposalSaveAcknowledgement.update((value) => value + 1);
           this.editorState.set('ready');
           this.feedback.notify(
             'success',
