@@ -10,7 +10,7 @@ from backend.execution.exam_day_closures import (
     ExamDayClosureService,
     ExamDayConflictError,
 )
-from backend.identity.auth import AuthenticationRepository
+from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.persistence.database import session_scope
 from backend.persistence.models import (
     ExamDay,
@@ -29,7 +29,7 @@ class ExamDayClosureTests(unittest.TestCase):
         self.database = TempDatabase()
         self.db_path = self.database.__enter__()
         prepare_exam_protocol_scenario(self.db_path)
-        authentication = AuthenticationRepository(self.db_path)
+        authentication = SQLiteAuthenticationRepository(self.db_path)
         self.chair = authentication.create_session(1)
         self.examiner = authentication.create_session(2)
         self.deputy = authentication.create_session(3)
@@ -565,7 +565,7 @@ class ExamDayClosureTests(unittest.TestCase):
         for name, finding_code, statement in scenarios:
             with self.subTest(prerequisite=name), TempDatabase() as db_path:
                 prepare_exam_protocol_scenario(db_path)
-                authentication = AuthenticationRepository(db_path)
+                authentication = SQLiteAuthenticationRepository(db_path)
                 chair = authentication.create_session(1)
                 with session_scope(db_path) as session:
                     session.execute(text(statement))

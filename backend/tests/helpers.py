@@ -16,8 +16,8 @@ from typing import Any, Protocol
 from fastapi.testclient import TestClient
 
 from backend.fastapi_assembly import FastAPIConfig, create_app
-from backend.identity.auth import AuthenticationRepository, SessionCredentials
 from backend.integrations.map_provider import MapProviderConfig
+from backend.persistence.auth import SessionCredentials, SQLiteAuthenticationRepository
 from backend.persistence.database import initialize, is_ready, session_scope
 from backend.persistence.models import COMMITTEE
 from backend.persistence.store import Store
@@ -181,7 +181,7 @@ class FastAPIAdapter(AbstractContextManager):
             app.openapi_schema = deepcopy(_OPENAPI_DOCUMENT)
         self.client = TestClient(app, base_url="http://127.0.0.1")
         if is_ready(self.db_path):
-            self.credentials = AuthenticationRepository(self.db_path).create_session(1)
+            self.credentials = SQLiteAuthenticationRepository(self.db_path).create_session(1)
         return self
 
     def __exit__(self, exc_type, exc_value, traceback) -> None:

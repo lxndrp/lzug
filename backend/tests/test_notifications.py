@@ -17,12 +17,12 @@ from pywebpush import WebPushException
 from requests.exceptions import Timeout
 
 from backend.composition import authorization_service
-from backend.identity.auth import AuthenticationRepository
 from backend.integrations.notifications import (
     DELIVERY_CLAIM_TTL,
     ClaimedDelivery,
     NotificationService,
 )
+from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.persistence.database import session_scope
 from backend.persistence.models import ExamDay, ExamDayAssignment, NotificationDelivery
 from backend.tests.fixture_data import DEMO_ROLES, DISPLAY_NAMES, FIXTURE_ROOT
@@ -46,7 +46,7 @@ class NotificationServiceTests(unittest.TestCase):
         self.database = TempDatabase()
         self.db_path = self.database.__enter__()
         self.service = NotificationService(self.db_path)
-        self.authentication = AuthenticationRepository(self.db_path)
+        self.authentication = SQLiteAuthenticationRepository(self.db_path)
 
     def tearDown(self) -> None:
         self.database.__exit__(None, None, None)
@@ -643,7 +643,7 @@ class NotificationApiTests(unittest.TestCase):
         with TempDatabase() as db_path:
             service = NotificationService(db_path)
             service.create_for_event("availability_requested", 1)
-            authentication = AuthenticationRepository(db_path)
+            authentication = SQLiteAuthenticationRepository(db_path)
             chair = authentication.create_session(1)
             member = authentication.create_session(2)
 

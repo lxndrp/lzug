@@ -23,7 +23,7 @@ from backend.fastapi_dependencies import (
     request_context,
     round_access,
 )
-from backend.identity.auth import AuthenticationRepository
+from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.persistence.database import session_scope
 from backend.persistence.models import (
     CANDIDATE_EXAM_DAY,
@@ -39,7 +39,7 @@ class FastAPIDependencyTests(unittest.TestCase):
     def setUp(self) -> None:
         self.db_path = self.enterContext(TempDatabase())
         self.repository = ResourceRepository(self.db_path)
-        self.auth = AuthenticationRepository(self.db_path)
+        self.auth = SQLiteAuthenticationRepository(self.db_path)
         self.chair = self.auth.create_session(1)
         self.member = self.auth.create_session(2)
         operator = self.auth.create_account("operator@demo.lzug.invalid", is_operator=True)
@@ -331,7 +331,7 @@ class FastAPIDependencyTests(unittest.TestCase):
 
     def test_context_uses_runtime_database_and_response_cookies_are_preserved(self) -> None:
         selected = self.enterContext(TempDatabase())
-        selected_auth = AuthenticationRepository(selected)
+        selected_auth = SQLiteAuthenticationRepository(selected)
         credentials = selected_auth.create_session(1)
         calls = []
 
@@ -391,7 +391,7 @@ class FastAPIDependencyTests(unittest.TestCase):
         }
         tokens = {}
         for name, db_path in databases.items():
-            tokens[name] = AuthenticationRepository(db_path).create_session(1).token
+            tokens[name] = SQLiteAuthenticationRepository(db_path).create_session(1).token
             ResourceRepository(db_path).save_planning_settings(
                 {
                     "exam_round_id": 1,
