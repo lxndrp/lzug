@@ -14,7 +14,10 @@ from urllib.parse import urlsplit
 from backend.healthcheck import public_health_ready
 from backend.integrations.documents import document_upload_policy
 from backend.integrations.map_provider import MapProviderConfig
-from backend.integrations.notification_delivery import NotificationDeliveryGateway
+from backend.integrations.notification_delivery import (
+    NotificationDeliveryGateway,
+    NotificationProviderConfigurationError,
+)
 from backend.persistence.database import (
     DEFAULT_MIN_FREE_BYTES,
     PersistencePaths,
@@ -252,7 +255,14 @@ def _notification_configuration(environment: Mapping[str, str]) -> dict[str, Any
             raise ValueError(
                 "LZUG_WEB_PUSH_VAPID_PRIVATE_KEY and LZUG_WEB_PUSH_SUBJECT must be set together"
             )
-        NotificationDeliveryGateway(RuntimeSettings.from_environment()).channels()
+        NotificationDeliveryGateway().channels()
+    except NotificationProviderConfigurationError:
+        return _check(
+            "notification_configuration",
+            "error",
+            "configuration_invalid",
+            "Notification provider configuration is invalid",
+        )
     except ValueError as error:
         return _check(
             "notification_configuration",

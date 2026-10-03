@@ -32,6 +32,7 @@ from backend.integrations.map_provider import (
     MapProviderDisabledError,
     MapProviderUnavailableError,
 )
+from backend.integrations.notification_delivery import NotificationProviderConfigurationError
 from backend.persistence.database import persistence_paths
 from backend.planning import ConfirmedPlanConflictError, PlanConflictError, PlanValidationError
 from backend.planning.exam_venues import (
@@ -702,6 +703,22 @@ def _register_request_errors(app, resolved, application, read_security, write_se
         return _json_response(
             ApplicationResult(
                 {"error": {"code": "map_provider_unavailable", "message": str(error)}},
+                HTTPStatus.SERVICE_UNAVAILABLE,
+            )
+        )
+
+    @app.exception_handler(NotificationProviderConfigurationError)
+    def notification_provider_configuration_invalid(
+        _request: Request, _error: NotificationProviderConfigurationError
+    ):
+        return _json_response(
+            ApplicationResult(
+                {
+                    "error": {
+                        "code": "notification_provider_configuration_invalid",
+                        "message": "Notification provider configuration is invalid",
+                    }
+                },
                 HTTPStatus.SERVICE_UNAVAILABLE,
             )
         )

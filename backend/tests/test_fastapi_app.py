@@ -12,6 +12,7 @@ from unittest.mock import Mock, patch
 
 from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
+from pydantic import SecretStr
 
 from backend.api_contracts import (
     ApiRootResponse,
@@ -56,10 +57,15 @@ from backend.api_contracts import (
     TokenRequest,
 )
 from backend.application import ApplicationServices
+from backend.composition import notification_service as compose_notification_service
 from backend.fastapi_app import MIGRATED_DOMAIN_RESOURCES
 from backend.fastapi_assembly import FastAPIConfig, create_app
 from backend.fastapi_planning_router import MIGRATED_PLANNING_RESOURCES
-from backend.persistence.auth import SessionCredentials, SQLiteAuthenticationRepository
+from backend.persistence.auth import (
+    SessionCredentials,
+    SQLiteAuthenticationRepository,
+)
+from backend.settings import NotificationSettings, RuntimeSettings
 from backend.tests.helpers import ApiServer, TempDatabase, TestLzugHandler
 
 
@@ -74,6 +80,34 @@ def api_routes(routes):
 
 
 class FastAPIApplicationTests(unittest.TestCase):
+    def test_invalid_vapid_key_is_a_safe_provider_error_not_bad_request(self) -> None:
+        secret_marker = "PRIVATE-VAPID-KEY-MUST-NOT-LEAK"
+        with TempDatabase() as db_path:
+            credentials = SQLiteAuthenticationRepository(db_path).create_session(1)
+            invalid_settings = RuntimeSettings.model_construct(
+                notifications=NotificationSettings.model_construct(
+                    web_push_vapid_private_key=SecretStr(secret_marker),
+                    web_push_subject="mailto:operator@example.invalid",
+                    notification_sink="",
+                    smtp_host=None,
+                )
+            )
+            app = create_app(replace(self.config(db_path), runtime_settings=invalid_settings))
+            app.state.notification_service_factory = lambda path: compose_notification_service(
+                path,
+                external_delivery_enabled=True,
+                settings=invalid_settings,
+            )
+            with TestClient(app) as client:
+                status, body = self.fastapi_get(client, "/api/notification-channels", credentials)
+
+        self.assertEqual(HTTPStatus.SERVICE_UNAVAILABLE, status)
+        self.assertEqual(
+            "notification_provider_configuration_invalid",
+            body["error"]["code"],
+        )
+        self.assertNotIn(secret_marker, str(body))
+
     def test_routes_use_the_extracted_api_contract_models(self) -> None:
         """Keep FastAPI's model identities stable while isolating their type-check scope."""
         from backend import fastapi_app

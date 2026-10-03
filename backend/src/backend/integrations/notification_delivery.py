@@ -20,6 +20,13 @@ from backend.notifications.delivery import (
 from backend.settings import RuntimeSettings
 
 
+class NotificationProviderConfigurationError(RuntimeError):
+    """A safe, provider-specific failure caused by invalid runtime settings."""
+
+
+_SAFE_CONFIGURATION_MESSAGE = "Notification provider configuration is invalid"
+
+
 def _base64url(value: bytes) -> str:
     return base64.urlsafe_b64encode(value).rstrip(b"=").decode("ascii")
 
@@ -31,7 +38,15 @@ class NotificationDeliveryGateway:
         self._settings_override = settings
 
     def _runtime_settings(self) -> RuntimeSettings:
-        return self._settings_override or RuntimeSettings.from_environment()
+        if self._settings_override is not None:
+            return self._settings_override
+        try:
+            return RuntimeSettings.from_environment()
+        except ValueError as error:
+            detail = str(error)
+            if "VAPID" in detail or "Web Push" in detail:
+                raise NotificationProviderConfigurationError(_SAFE_CONFIGURATION_MESSAGE) from None
+            raise
 
     def channels(self) -> tuple[str | None, bool, bool]:
         notification_settings = self._runtime_settings().notifications
@@ -122,12 +137,12 @@ class NotificationDeliveryGateway:
             return None
         try:
             key = serialization.load_pem_private_key(value.replace("\\n", "\n").encode(), None)
-        except ValueError as error:
-            raise ValueError("Invalid Web Push VAPID private key") from error
+        except ValueError:
+            raise NotificationProviderConfigurationError(_SAFE_CONFIGURATION_MESSAGE) from None
         if not isinstance(key, ec.EllipticCurvePrivateKey) or not isinstance(
             key.curve, ec.SECP256R1
         ):
-            raise ValueError("Web Push VAPID key must use P-256")
+            raise NotificationProviderConfigurationError(_SAFE_CONFIGURATION_MESSAGE)
         return key
 
     def _push_public_key(self) -> str | None:
@@ -150,4 +165,4 @@ class NotificationDeliveryGateway:
             return value
         if parsed.scheme == "https" and parsed.netloc:
             return value
-        raise ValueError("Web Push subject must be a mailto or HTTPS URI")
+        raise NotificationProviderConfigurationError(_SAFE_CONFIGURATION_MESSAGE)

@@ -10,7 +10,11 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from backend.identity.admin_service import OperatorAuthService
-from backend.operations.diagnostics import EXIT_DIAGNOSTIC_ERROR, EXIT_DIAGNOSTIC_WARNING
+from backend.operations.diagnostics import (
+    EXIT_DIAGNOSTIC_ERROR,
+    EXIT_DIAGNOSTIC_WARNING,
+    _notification_configuration,
+)
 from backend.persistence.auth import SQLiteOperatorAuthUnitOfWorkFactory
 from backend.tests.helpers import TempDatabase, run_admin
 from backend.version import BuildMetadata
@@ -22,6 +26,23 @@ class OperatorDiagnosticsTests(unittest.TestCase):
     revision = "a" * 40
     metadata = BuildMetadata.create(revision)
     client = {"identity": metadata.identity, "revision": revision}
+
+    def test_invalid_vapid_key_is_reported_without_exposing_key_material(self) -> None:
+        secret_marker = "PRIVATE-VAPID-KEY-MUST-NOT-LEAK"
+        with patch.dict(
+            os.environ,
+            {
+                "LZUG_WEB_PUSH_VAPID_PRIVATE_KEY": secret_marker,
+                "LZUG_WEB_PUSH_SUBJECT": "mailto:operator@example.invalid",
+            },
+            clear=True,
+        ):
+            result = _notification_configuration({})
+
+        self.assertEqual("error", result["status"])
+        self.assertEqual("configuration_invalid", result["code"])
+        self.assertEqual("Notification provider configuration is invalid", result["message"])
+        self.assertNotIn(secret_marker, str(result))
 
     def _environment(self, db_path: Path) -> dict[str, str]:
         return {
