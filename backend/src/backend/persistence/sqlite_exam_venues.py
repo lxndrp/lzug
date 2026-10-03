@@ -219,13 +219,15 @@ class SQLiteExamVenueRepository:
                 VenueCommandKind.REQUEST_PROMOTION,
                 VenueCommandKind.DECIDE_PROMOTION,
             }
-            else room
-            if kind
-            in {
-                VenueCommandKind.UPDATE_ROOM,
-                VenueCommandKind.DELETE_ROOM,
-            }
-            else contact
+            else (
+                room
+                if kind
+                in {
+                    VenueCommandKind.UPDATE_ROOM,
+                    VenueCommandKind.DELETE_ROOM,
+                }
+                else contact
+            )
         )
         if entity is not None and command.expected_revision is not None:
             self._assert_revision(entity.revision, command.expected_revision)
