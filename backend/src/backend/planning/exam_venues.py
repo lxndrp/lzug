@@ -3,21 +3,29 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from difflib import SequenceMatcher
 from typing import Any
 
 from backend.planning_ports import (
     ACCESSIBILITY_STATUSES,
     COMMAND_META_FIELDS,
+    CONTACT_FIELDS,
     COORDINATE_STATUSES,
+    ROOM_FIELDS,
+    VENUE_DUPLICATE_FIELDS,
     VENUE_FIELDS,
     VENUE_SCOPES,
+    ExamVenueConfirmationRequiredError,
+    ExamVenueConflictError,
     ExamVenueError,
     GeocodeCandidate,
     Geocoder,
     VenueChangeFollowUp,
     VenueCommand,
+    VenueCommandFacts,
     VenueCommandKind,
     VenueCommandResult,
+    VenueMutationPlan,
     VenueQuery,
     VenueQueryKind,
     VenueRepository,
@@ -131,6 +139,184 @@ class ExamVenuePolicy:
             raise ExamVenueError("An active venue needs an active room")
 
     @staticmethod
+    def room_values(
+        payload: Mapping[str, object], current: Mapping[str, object] | None = None
+    ) -> tuple[dict[str, object], str | None]:
+        command, reason = ExamVenuePolicy._command(payload, ROOM_FIELDS)
+        source = {
+            field: command.get(
+                field,
+                current.get(field) if current else (1 if field == "is_active" else None),
+            )
+            for field in ROOM_FIELDS
+        }
+        name = ExamVenuePolicy._text(source["name"])
+        if not name:
+            raise ExamVenueError("Room name is required")
+        capacity = ExamVenuePolicy._optional_integer(source["capacity"], "capacity")
+        if capacity is not None and capacity <= 0:
+            raise ExamVenueError("Room capacity must be positive")
+        return (
+            {
+                "name": name,
+                "normalized_name": normalize_venue_text(name),
+                "building": ExamVenuePolicy._optional_text(source["building"]),
+                "wing": ExamVenuePolicy._optional_text(source["wing"]),
+                "floor": ExamVenuePolicy._optional_text(source["floor"]),
+                "room_number": ExamVenuePolicy._optional_text(source["room_number"]),
+                "access_notes": ExamVenuePolicy._optional_text(source["access_notes"]),
+                "capacity": capacity,
+                "is_active": ExamVenuePolicy._boolean(source["is_active"], "is_active"),
+            },
+            reason,
+        )
+
+    @staticmethod
+    def contact_values(
+        payload: Mapping[str, object], current: Mapping[str, object] | None = None
+    ) -> tuple[dict[str, object], tuple[int, ...] | None, str | None]:
+        command, reason = ExamVenuePolicy._command(payload, CONTACT_FIELDS)
+        source = {
+            field: command.get(
+                field,
+                current.get(field) if current else (1 if field == "is_active" else None),
+            )
+            for field in CONTACT_FIELDS - {"room_ids"}
+        }
+        label = ExamVenuePolicy._text(source["label"])
+        if not label:
+            raise ExamVenueError("Contact label is required")
+        values = {
+            "label": label,
+            "role": ExamVenuePolicy._optional_text(source["role"]),
+            "phone": ExamVenuePolicy._optional_text(source["phone"]),
+            "email": ExamVenuePolicy._optional_text(source["email"]),
+            "availability_notes": ExamVenuePolicy._optional_text(source["availability_notes"]),
+            "is_active": ExamVenuePolicy._boolean(source["is_active"], "is_active"),
+        }
+        if not any(values[field] for field in ("phone", "email", "availability_notes")):
+            raise ExamVenueError("A contact needs phone, email, or availability information")
+        room_ids = ExamVenuePolicy._room_ids(command["room_ids"]) if "room_ids" in command else None
+        return values, room_ids, reason
+
+    @staticmethod
+    def assert_contact_rooms_belong_to_venue(
+        venue_id: int, room_ids: tuple[int, ...], room_venue_ids: Mapping[int, int]
+    ) -> None:
+        if any(room_venue_ids.get(room_id) != venue_id for room_id in room_ids):
+            raise ExamVenueError("A contact can only reference rooms at its own venue")
+
+    @staticmethod
+    def assert_duplicate_confirmation(
+        values: Mapping[str, object],
+        payload: Mapping[str, object],
+        duplicate_candidates: tuple[Mapping[str, object], ...],
+        *,
+        creating: bool,
+    ) -> None:
+        relevant_change = creating or bool(VENUE_DUPLICATE_FIELDS.intersection(payload))
+        if not relevant_change:
+            return
+        matches = ExamVenuePolicy.duplicate_matches(
+            values, duplicate_candidates, restrict_scope=True
+        )
+        if not matches:
+            return
+        if payload.get("duplicates_reviewed") is not True:
+            raise ExamVenueConfirmationRequiredError("Duplicate candidates must be reviewed")
+        if values["scope"] == "committee" and any(
+            candidate["scope"] == "global" for candidate in matches
+        ):
+            if not ExamVenuePolicy._optional_text(payload.get("duplicate_reason")):
+                raise ExamVenueConfirmationRequiredError(
+                    "A committee venue similar to a global venue needs a reason"
+                )
+
+    @staticmethod
+    def assert_future_impact_confirmation(
+        changed_fields: set[str],
+        payload: Mapping[str, object],
+        has_future_confirmed_assignments: bool,
+    ) -> None:
+        if (
+            changed_fields
+            and has_future_confirmed_assignments
+            and payload.get("confirm_future_assignments") is not True
+        ):
+            raise ExamVenueConfirmationRequiredError(
+                "Future confirmed appointments must be reviewed and confirmed"
+            )
+
+    @staticmethod
+    def assert_no_global_promotion_collision(
+        values: Mapping[str, object], duplicate_candidates: tuple[Mapping[str, object], ...]
+    ) -> None:
+        matches = ExamVenuePolicy.duplicate_matches(
+            values, duplicate_candidates, restrict_scope=True
+        )
+        if any(candidate["scope"] == "global" for candidate in matches):
+            raise ExamVenueConflictError("A colliding global venue prevents promotion")
+
+    @staticmethod
+    def duplicate_matches(
+        values: Mapping[str, object],
+        candidates: tuple[Mapping[str, object], ...],
+        *,
+        restrict_scope: bool,
+    ) -> list[dict[str, object]]:
+        normalized_name = normalize_venue_text(values.get("name"))
+        normalized_address = ExamVenuePolicy.normalized_address(values)
+        matches: list[dict[str, object]] = []
+        for candidate in candidates:
+            if (
+                restrict_scope
+                and values.get("scope") == "global"
+                and candidate.get("scope") != "global"
+            ):
+                continue
+            if (
+                restrict_scope
+                and values.get("scope") == "committee"
+                and candidate.get("scope") == "committee"
+                and candidate.get("committee_id") != values.get("committee_id")
+            ):
+                continue
+            name_score = SequenceMatcher(
+                None, normalized_name, str(candidate.get("normalized_name") or "")
+            ).ratio()
+            same_address = normalized_address == ExamVenuePolicy.normalized_address(candidate)
+            if name_score < 0.9 and not same_address:
+                continue
+            matches.append(
+                {
+                    **dict(candidate),
+                    "same_address": same_address,
+                    "name_similarity": round(name_score, 2),
+                }
+            )
+        return matches
+
+    @staticmethod
+    def normalized_address(source: Mapping[str, object]) -> str:
+        return "|".join(
+            normalize_venue_text(source.get(field))
+            for field in ("street", "postal_code", "city", "country")
+        )
+
+    @staticmethod
+    def _room_ids(value: object) -> tuple[int, ...]:
+        if not isinstance(value, (tuple, list)):
+            raise ExamVenueError("room_ids must be an array")
+        identifiers: list[int] = []
+        for item in value:
+            if not isinstance(item, int) or isinstance(item, bool) or item < 1:
+                raise ExamVenueError("room_ids must contain positive integers")
+            identifiers.append(item)
+        if len(set(identifiers)) != len(identifiers):
+            raise ExamVenueError("room_ids must not contain duplicates")
+        return tuple(sorted(identifiers))
+
+    @staticmethod
     def venue_source(
         current: Mapping[str, object] | None, command: Mapping[str, object]
     ) -> dict[str, object]:
@@ -220,6 +406,10 @@ class ExamVenuePolicy:
         if not lower <= parsed <= upper:
             raise ExamVenueError(f"{name} is out of range")
         return parsed
+
+    @staticmethod
+    def _required_choice(value: object, name: str, choices: frozenset[str]) -> str:
+        return ExamVenuePolicy._choice(value, name, choices)
 
 
 class ExamVenueService:
@@ -511,11 +701,11 @@ class ExamVenueService:
         ).value
 
     def _query(self, query: VenueQuery):
-        return self.repository.query(query).value
+        return self.repository.query(query, planner=self).value
 
     def execute(self, command: VenueCommand) -> VenueCommandResult:
         """Return the detached mutation result and committed follow-up basis."""
-        result = self.repository.execute(command)
+        result = self.repository.execute(command, planner=self)
         change = result.change
         if change is None or not change.changed_fields or self.follow_up is None:
             return result
@@ -543,6 +733,144 @@ class ExamVenueService:
                     "Kalender- oder Benachrichtigungsfolge ist noch offen."
                 )
         return VenueCommandResult(value, change)
+
+    def plan(self, command: VenueCommand, facts: VenueCommandFacts) -> VenueMutationPlan:
+        """Build a validated mutation plan from facts read inside the adapter UoW."""
+        values = dict(command.values or {})
+        match command.kind:
+            case VenueCommandKind.CREATE_VENUE | VenueCommandKind.UPDATE_VENUE:
+                normalized, reason = self.policy.venue_values(values, facts.current)
+                audit_values = dict(values)
+                if command.kind == VenueCommandKind.CREATE_VENUE:
+                    self.policy.assert_new_venue_is_inactive(normalized)
+                else:
+                    if facts.current is None:
+                        return VenueMutationPlan({}, audit_values=values)
+                    if self.policy.coordinate_status_after_address_change(
+                        normalized, facts.current, set(values)
+                    ):
+                        audit_values["coordinate_status"] = "needs_review"
+                    if normalized["is_active"]:
+                        self.policy.assert_venue_can_be_active(
+                            normalized, has_active_room=facts.has_active_room
+                        )
+                if facts.duplicate_candidates is not None:
+                    self.policy.assert_duplicate_confirmation(
+                        normalized,
+                        values,
+                        facts.duplicate_candidates,
+                        creating=command.kind == VenueCommandKind.CREATE_VENUE,
+                    )
+                if facts.has_future_confirmed_assignments is not None:
+                    changed_fields = (
+                        {
+                            field
+                            for field in VENUE_FIELDS
+                            if facts.current is not None
+                            and facts.current.get(field) != normalized[field]
+                        }
+                        if command.kind == VenueCommandKind.UPDATE_VENUE
+                        else set()
+                    )
+                    self.policy.assert_future_impact_confirmation(
+                        changed_fields, values, facts.has_future_confirmed_assignments
+                    )
+                return VenueMutationPlan(normalized, reason, audit_values)
+            case VenueCommandKind.CREATE_ROOM | VenueCommandKind.UPDATE_ROOM:
+                normalized, reason = self.policy.room_values(values, facts.current)
+                if (
+                    command.kind == VenueCommandKind.UPDATE_ROOM
+                    and facts.room_active
+                    and not normalized["is_active"]
+                ):
+                    self.policy.assert_room_can_be_deactivated(
+                        venue_active=facts.venue_active,
+                        room_active=facts.room_active,
+                        has_another_active_room=facts.has_another_active_room,
+                    )
+                if facts.has_future_confirmed_assignments is not None:
+                    changed_fields = {
+                        field
+                        for field in ROOM_FIELDS
+                        if facts.current is not None
+                        and facts.current.get(field) != normalized[field]
+                    }
+                    self.policy.assert_future_impact_confirmation(
+                        changed_fields, values, facts.has_future_confirmed_assignments
+                    )
+                return VenueMutationPlan(normalized, reason, values)
+            case VenueCommandKind.DELETE_ROOM:
+                self.policy.assert_room_can_be_deactivated(
+                    venue_active=facts.venue_active,
+                    room_active=facts.room_active,
+                    has_another_active_room=facts.has_another_active_room,
+                )
+                return VenueMutationPlan({}, command.reason)
+            case VenueCommandKind.CREATE_CONTACT | VenueCommandKind.UPDATE_CONTACT:
+                normalized, room_ids, reason = self.policy.contact_values(values, facts.current)
+                if room_ids is not None:
+                    if facts.venue_id is None or facts.room_venue_ids is None:
+                        raise ExamVenueError("Contact room ownership facts are unavailable")
+                    self.policy.assert_contact_rooms_belong_to_venue(
+                        facts.venue_id, room_ids, facts.room_venue_ids
+                    )
+                return VenueMutationPlan(normalized, reason, values, room_ids)
+            case VenueCommandKind.REQUEST_PROMOTION:
+                if facts.current is None:
+                    return VenueMutationPlan({})
+                if facts.current.get("scope") != "committee":
+                    raise ExamVenueError("Only committee venues can be promoted")
+                if facts.promotion_status == "pending":
+                    raise ExamVenueConflictError("A promotion request is already pending")
+                request_reason = self.policy._optional_text(command.reason)
+                if not request_reason:
+                    raise ExamVenueError("A promotion request needs a reason")
+                return VenueMutationPlan({}, request_reason)
+            case VenueCommandKind.DECIDE_PROMOTION:
+                if facts.promotion_status != "pending":
+                    raise ExamVenueConflictError("No pending promotion request exists")
+                decision = command.decision or ""
+                if decision not in {"approve", "reject"}:
+                    raise ExamVenueError("Promotion decision must be approve or reject")
+                decision_reason = self.policy._optional_text(command.reason)
+                if not decision_reason:
+                    raise ExamVenueError("A promotion decision needs a reason")
+                if facts.current is None:
+                    return VenueMutationPlan({})
+                if decision == "approve":
+                    normalized = self.policy.venue_source(
+                        facts.current, {"scope": "global", "committee_id": None}
+                    )
+                    self.policy.assert_venue_can_be_active(
+                        normalized, has_active_room=facts.has_active_room
+                    )
+                    if facts.duplicate_candidates is not None:
+                        self.policy.assert_no_global_promotion_collision(
+                            normalized, facts.duplicate_candidates
+                        )
+                    return VenueMutationPlan(normalized, decision_reason, values)
+                return VenueMutationPlan({}, decision_reason, values)
+            case _:
+                return VenueMutationPlan({}, command.reason, values)
+
+    def plan_query(self, query: VenueQuery, facts: VenueCommandFacts) -> VenueMutationPlan:
+        """Prepare proposed venue values for a query without adapter-owned rules."""
+        values = dict(query.values or {})
+        if query.kind == VenueQueryKind.FIND_DUPLICATES:
+            source = self.policy.venue_source(None, values)
+            matches = self.policy.duplicate_matches(
+                source, facts.duplicate_candidates or (), restrict_scope=False
+            )
+            return VenueMutationPlan({"matches": matches})
+        if query.room_id is not None:
+            normalized, reason = self.policy.room_values(values, facts.current)
+        else:
+            normalized, reason = self.policy.venue_values(values, facts.current)
+            if facts.current is not None:
+                self.policy.coordinate_status_after_address_change(
+                    normalized, facts.current, set(values)
+                )
+        return VenueMutationPlan(normalized, reason)
 
     def _execute(self, command: VenueCommand) -> VenueCommandResult:
         return self.execute(command)

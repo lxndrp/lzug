@@ -182,6 +182,49 @@ class VenueCommand:
 
 
 @dataclass(frozen=True)
+class VenueCommandFacts:
+    """Detached facts read by a write adapter inside the command transaction."""
+
+    current: Mapping[str, object] | None = None
+    venue_id: int | None = None
+    venue_active: bool = False
+    has_active_room: bool = False
+    room_active: bool = False
+    has_another_active_room: bool = False
+    promotion_status: str | None = None
+    room_venue_ids: Mapping[int, int] | None = None
+    duplicate_candidates: tuple[Mapping[str, object], ...] | None = None
+    has_future_confirmed_assignments: bool | None = None
+
+    def __post_init__(self) -> None:
+        if self.current is not None:
+            object.__setattr__(self, "current", MappingProxyType(dict(self.current)))
+        if self.room_venue_ids is not None:
+            object.__setattr__(self, "room_venue_ids", MappingProxyType(dict(self.room_venue_ids)))
+        if self.duplicate_candidates is not None:
+            object.__setattr__(
+                self,
+                "duplicate_candidates",
+                tuple(MappingProxyType(dict(candidate)) for candidate in self.duplicate_candidates),
+            )
+
+
+@dataclass(frozen=True)
+class VenueMutationPlan:
+    """Planning-validated values and audit basis passed back to Persistence."""
+
+    values: Mapping[str, object]
+    reason: str | None = None
+    audit_values: Mapping[str, object] | None = None
+    room_ids: tuple[int, ...] | None = None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "values", MappingProxyType(dict(self.values)))
+        if self.audit_values is not None:
+            object.__setattr__(self, "audit_values", MappingProxyType(dict(self.audit_values)))
+
+
+@dataclass(frozen=True)
 class VenueQuery:
     """Typed request to read a venue aggregate or its planning impact."""
 
@@ -215,35 +258,19 @@ class VenueQueryResult:
 class VenueRepository(Protocol):
     """Planning-owned read/query and write-command port for exam venues."""
 
-    def execute(self, command: VenueCommand) -> VenueCommandResult: ...
+    def execute(
+        self, command: VenueCommand, planner: VenueCommandPlanner
+    ) -> VenueCommandResult: ...
 
-    def query(self, query: VenueQuery) -> VenueQueryResult: ...
+    def query(self, query: VenueQuery, planner: VenueCommandPlanner) -> VenueQueryResult: ...
 
 
-class VenuePolicy(Protocol):
-    """Planning-owned decisions applied to detached facts inside a write UoW."""
+class VenueCommandPlanner(Protocol):
+    """Planning application behavior that builds a mutation from UoW facts."""
 
-    def venue_values(
-        self, payload: Mapping[str, object], current: Mapping[str, object] | None = None
-    ) -> tuple[dict[str, object], str | None]: ...
+    def plan(self, command: VenueCommand, facts: VenueCommandFacts) -> VenueMutationPlan: ...
 
-    def venue_source(
-        self, current: Mapping[str, object] | None, command: Mapping[str, object]
-    ) -> dict[str, object]: ...
-
-    def coordinate_status_after_address_change(
-        self, values: dict[str, object], before: Mapping[str, object], supplied_fields: set[str]
-    ) -> bool: ...
-
-    def assert_venue_can_be_active(
-        self, values: Mapping[str, object], *, has_active_room: bool
-    ) -> None: ...
-
-    def assert_new_venue_is_inactive(self, values: Mapping[str, object]) -> None: ...
-
-    def assert_room_can_be_deactivated(
-        self, *, venue_active: bool, room_active: bool, has_another_active_room: bool
-    ) -> None: ...
+    def plan_query(self, query: VenueQuery, facts: VenueCommandFacts) -> VenueMutationPlan: ...
 
 
 class VenueImpactQuery(Protocol):

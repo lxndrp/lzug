@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import unittest
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
 
 from sqlalchemy import func, select
 
@@ -158,6 +160,43 @@ class ExamVenueServiceTests(unittest.TestCase):
                 service.delete_room(1, expected_revision=1, actor_member_id=1)
 
         self.assertEqual(venue["revision"] + 1, updated["revision"])
+
+    def test_concurrent_venue_updates_with_same_revision_commit_once(self) -> None:
+        with TempDatabase() as db_path:
+            service = exam_venue_service(db_path)
+            venue = service.create_venue(self._venue_payload(), actor_member_id=1)
+            start = Barrier(2)
+
+            def update(name: str) -> str:
+                start.wait()
+                try:
+                    result = service.update_venue(
+                        venue["id"],
+                        {"expected_revision": venue["revision"], "name": name},
+                        actor_member_id=1,
+                    )
+                except ExamVenueConflictError:
+                    return "conflict"
+                self.assertIsNotNone(result)
+                return "committed"
+
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                outcomes = list(executor.map(update, ("Nord A", "Nord B")))
+
+            stored = service.get_venue(venue["id"])
+            with session_scope(db_path) as session:
+                audit_rows = (
+                    session.query(ExamVenueAuditEvent)
+                    .filter_by(entity_type="venue", entity_id=venue["id"])
+                    .all()
+                )
+
+        self.assertCountEqual(["committed", "conflict"], outcomes)
+        self.assertIsNotNone(stored)
+        assert stored is not None
+        self.assertIn(stored["name"], {"Nord A", "Nord B"})
+        self.assertEqual(venue["revision"] + 1, stored["revision"])
+        self.assertEqual(2, len(audit_rows))
 
     def test_global_active_rooms_are_usable_for_any_committee(self) -> None:
         with TempDatabase() as db_path:

@@ -13,8 +13,10 @@ from backend.planning_ports import (
     GeocodeCandidate,
     VenueChange,
     VenueCommand,
+    VenueCommandFacts,
     VenueCommandKind,
     VenueCommandResult,
+    VenueMutationPlan,
     VenueQuery,
     VenueQueryKind,
     VenueQueryResult,
@@ -28,11 +30,23 @@ class _VenueRepositoryDouble:
     def __init__(self) -> None:
         self.commands: list[VenueCommand] = []
         self.queries: list[VenueQuery] = []
+        self.plans: list[VenueMutationPlan] = []
 
-    def execute(self, command: VenueCommand) -> VenueCommandResult:
+    def execute(self, command: VenueCommand, planner) -> VenueCommandResult:
         self.commands.append(command)
+        facts = VenueCommandFacts()
+        if command.kind == VenueCommandKind.UPDATE_VENUE:
+            current = planner.policy.venue_source(None, {})
+            current.update({"scope": "committee", "committee_id": 1, "name": "Nord"})
+            facts = VenueCommandFacts(
+                current=current,
+                venue_id=command.entity_id,
+                has_active_room=True,
+            )
+        plan = planner.plan(command, facts)
+        self.plans.append(plan)
         return VenueCommandResult(
-            {"id": command.entity_id or 7, "name": str((command.values or {}).get("name", ""))},
+            {"id": command.entity_id or 7, "name": str(plan.values.get("name", ""))},
             VenueChange(
                 11,
                 command.entity_id or 7,
@@ -43,7 +57,7 @@ class _VenueRepositoryDouble:
             ),
         )
 
-    def query(self, query: VenueQuery) -> VenueQueryResult:
+    def query(self, query: VenueQuery, planner) -> VenueQueryResult:
         self.queries.append(query)
         return VenueQueryResult([{"id": 7, "name": "Nord"}])
 
@@ -63,13 +77,35 @@ class PlanningVenuePortTests(unittest.TestCase):
         service = ExamVenueService(repository)
 
         rows = service.list_venues()
-        created = service.create_venue({"name": "Nord"}, actor_member_id=4)
+        created = service.create_venue(
+            {
+                "scope": "committee",
+                "committee_id": 4,
+                "name": "Nord",
+                "accessibility_status": "needs_clarification",
+            },
+            actor_member_id=4,
+        )
 
         self.assertEqual([{"id": 7, "name": "Nord"}], rows)
         self.assertEqual({"id": 7, "name": "Nord"}, created)
         self.assertEqual(VenueQueryKind.LIST_VENUES, repository.queries[0].kind)
         self.assertEqual(VenueCommandKind.CREATE_VENUE, repository.commands[0].kind)
         self.assertEqual(4, repository.commands[0].actor_member_id)
+        self.assertEqual("nord", repository.plans[0].values["normalized_name"])
+
+    def test_fake_uow_executes_service_policy_without_sqlalchemy(self) -> None:
+        repository = _VenueRepositoryDouble()
+        service = ExamVenueService(repository)
+
+        with self.assertRaisesRegex(ValueError, "scope and committee"):
+            service.create_venue(
+                {"scope": "global", "committee_id": 4, "name": "Invalid"},
+                actor_member_id=4,
+            )
+
+        self.assertEqual(1, len(repository.commands))
+        self.assertEqual([], repository.plans)
 
     def test_explicit_execute_returns_committed_change_basis(self) -> None:
         repository = _VenueRepositoryDouble()

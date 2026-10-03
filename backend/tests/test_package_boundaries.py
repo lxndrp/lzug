@@ -168,6 +168,7 @@ TEST_OWNERS = {
             "test_exam_venues.py",
             "test_plan_consequences.py",
             "test_planning.py",
+            "test_planning_venue_service.py",
             "test_planning_venue_policy.py",
             "test_planning_venue_ports.py",
             "test_venue_consequences.py",
