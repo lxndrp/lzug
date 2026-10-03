@@ -687,8 +687,8 @@ export class PlanningWorkflowService {
       .pipe(finalize(() => this.pending.set(false)))
       .subscribe({
         next: (saved) => {
+          if (this.isSelectedRound(roundId)) this.acceptedProposalSaveGeneration += 1;
           if (this.skipStaleWrite(roundId, view)) return;
-          this.acceptedProposalSaveGeneration += 1;
           this.proposal.set(saved);
           this.proposalSaveAcknowledgement.update((value) => value + 1);
           this.editorState.set('ready');

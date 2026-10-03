@@ -247,6 +247,48 @@ describe('PlanningWorkflowService', () => {
     expect(workflow.proposalSaveAcknowledgement()).toBe(1);
   });
 
+  it('fences an active view proposal read after a save from an older view is accepted', () => {
+    const proposalReadA = new Subject<EditablePlanningProposal>();
+    const proposalReadB = new Subject<EditablePlanningProposal>();
+    const saveResponse = new Subject<EditablePlanningProposal>();
+    const refreshResponse = new Subject<PlanningSnapshot>();
+    const proposedSnapshot = {
+      ...emptySnapshot(1),
+      round: { ...emptySnapshot(1).round, status: 'plan_proposed' },
+    } satisfies PlanningSnapshot;
+    const { workflow, port } = createHarness({
+      loadPlanning: vi
+        .fn()
+        .mockReturnValueOnce(of(proposedSnapshot))
+        .mockReturnValueOnce(of(proposedSnapshot))
+        .mockReturnValueOnce(refreshResponse),
+      getPlanningProposal: vi
+        .fn()
+        .mockReturnValueOnce(proposalReadA)
+        .mockReturnValueOnce(proposalReadB),
+      savePlanningProposal: vi.fn(() => saveResponse),
+    });
+    const viewA = Symbol('planning-view-a');
+    const viewB = Symbol('planning-view-b');
+    const proposal = { round_id: 1, revision: 3, exam_days: [] };
+
+    workflow.activateView(viewA, 1);
+    workflow.savePlanningProposal(proposal, 1, viewA);
+    workflow.activateView(viewB, 1);
+    expect(port.getPlanningProposal).toHaveBeenCalledTimes(2);
+    expect(workflow.editorState()).toBe('loading');
+
+    saveResponse.next({ ...proposal, revision: 4 });
+    saveResponse.complete();
+    expect(workflow.loading()).toBe(true);
+
+    proposalReadB.next(proposal);
+    proposalReadB.complete();
+
+    expect(workflow.proposal()).toBeNull();
+    expect(workflow.editorState()).toBe('idle');
+  });
+
   it('does not let a late proposal answer replace a later view draft', () => {
     const saveResponse = new Subject<EditablePlanningProposal>();
     const proposal = { round_id: 1, revision: 3, exam_days: [] };
