@@ -32,13 +32,16 @@ class IdentityUnitOfWork(Protocol):
         member_id: int | None,
         values: Mapping[str, Any],
         actor_memberships: Mapping[int, int],
+        actor_person_id: int | None,
     ) -> None: ...
 
     def require_person_manager(
-        self, person_id: int, actor_memberships: Mapping[int, int]
+        self, person_id: int, actor_memberships: Mapping[int, int], actor_person_id: int | None
     ) -> None: ...
 
-    def require_any_membership_manager(self, actor_memberships: Mapping[int, int]) -> None: ...
+    def require_any_membership_manager(
+        self, actor_memberships: Mapping[int, int], actor_person_id: int | None
+    ) -> None: ...
 
 
 class IdentityUnitOfWorkFactory(Protocol):
@@ -120,10 +123,11 @@ class IdentityService:
         values: dict[str, Any],
         *,
         actor_memberships: Mapping[int, int] | None = None,
+        actor_person_id: int | None = None,
     ) -> dict[str, Any]:
         with self.unit_of_work_factory.unit_of_work() as uow:
             if actor_memberships is not None:
-                uow.require_any_membership_manager(actor_memberships)
+                uow.require_any_membership_manager(actor_memberships, actor_person_id)
             return uow.create_person(self.normalize_person(values))
 
     def update_person(
@@ -132,11 +136,12 @@ class IdentityService:
         values: dict[str, Any],
         *,
         actor_memberships: Mapping[int, int] | None = None,
+        actor_person_id: int | None = None,
     ) -> dict[str, Any] | None:
         values = self.normalize_person(values)
         with self.unit_of_work_factory.unit_of_work() as uow:
             if actor_memberships is not None:
-                uow.require_person_manager(person_id, actor_memberships)
+                uow.require_person_manager(person_id, actor_memberships, actor_person_id)
             return uow.update_person(person_id, values)
 
     def delete_person(
@@ -144,10 +149,11 @@ class IdentityService:
         person_id: int,
         *,
         actor_memberships: Mapping[int, int] | None = None,
+        actor_person_id: int | None = None,
     ) -> bool:
         with self.unit_of_work_factory.unit_of_work() as uow:
             if actor_memberships is not None:
-                uow.require_person_manager(person_id, actor_memberships)
+                uow.require_person_manager(person_id, actor_memberships, actor_person_id)
             return uow.delete_person(person_id)
 
     def create_membership(
@@ -155,6 +161,7 @@ class IdentityService:
         values: dict[str, Any],
         *,
         actor_memberships: Mapping[int, int] | None = None,
+        actor_person_id: int | None = None,
     ) -> dict[str, Any]:
         membership = dict(values)
         person_fields: dict[str, Any] = {
@@ -165,7 +172,7 @@ class IdentityService:
         membership.update(self.normalize_person(person_fields))
         with self.unit_of_work_factory.unit_of_work() as uow:
             if actor_memberships is not None:
-                uow.require_membership_manager(None, membership, actor_memberships)
+                uow.require_membership_manager(None, membership, actor_memberships, actor_person_id)
             return uow.create_membership(membership)
 
     def update_membership(
@@ -174,10 +181,13 @@ class IdentityService:
         values: dict[str, Any],
         *,
         actor_memberships: Mapping[int, int] | None = None,
+        actor_person_id: int | None = None,
     ) -> dict[str, Any] | None:
         with self.unit_of_work_factory.unit_of_work() as uow:
             if actor_memberships is not None:
-                uow.require_membership_manager(member_id, values, actor_memberships)
+                uow.require_membership_manager(
+                    member_id, values, actor_memberships, actor_person_id
+                )
             return uow.update_membership(member_id, values)
 
     def delete_membership(
@@ -185,10 +195,11 @@ class IdentityService:
         member_id: int,
         *,
         actor_memberships: Mapping[int, int] | None = None,
+        actor_person_id: int | None = None,
     ) -> bool:
         with self.unit_of_work_factory.unit_of_work() as uow:
             if actor_memberships is not None:
-                uow.require_membership_manager(member_id, {}, actor_memberships)
+                uow.require_membership_manager(member_id, {}, actor_memberships, actor_person_id)
             return uow.delete_membership(member_id)
 
     @staticmethod

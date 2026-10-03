@@ -232,6 +232,7 @@ def _resource_create_route(resolved: FastAPIConfig, resource_name: str, resource
                 row = context.identity_service.create_membership(
                     payload,
                     actor_memberships=context.authorization_scope.member_by_committee,
+                    actor_person_id=context.authorization_scope.person_id,
                 )
             except PermissionError as error:
                 raise ForbiddenRequestError("Forbidden.") from error
@@ -240,6 +241,7 @@ def _resource_create_route(resolved: FastAPIConfig, resource_name: str, resource
                 row = context.identity_service.create_person(
                     payload,
                     actor_memberships=context.authorization_scope.member_by_committee,
+                    actor_person_id=context.authorization_scope.person_id,
                 )
             except PermissionError as error:
                 raise ForbiddenRequestError("Forbidden.") from error
@@ -254,6 +256,55 @@ def _resource_create_route(resolved: FastAPIConfig, resource_name: str, resource
 
     create.__annotations__["request"] = MASTER_DATA_CONTRACTS[resource_name][0]
     return create
+
+
+def _identity_resource_update(context, resource_name: str, resource, identifier: int, payload):
+    try:
+        if resource_name == "committees":
+            return context.committee_admin_service.update_master_data(
+                identifier,
+                payload,
+                actor_memberships=context.authorization_scope.member_by_committee,
+                actor_person_id=context.authorization_scope.person_id,
+            )
+        if resource_name in {"members", "memberships"}:
+            return context.identity_service.update_membership(
+                identifier,
+                payload,
+                actor_memberships=context.authorization_scope.member_by_committee,
+                actor_person_id=context.authorization_scope.person_id,
+            )
+        return context.identity_service.update_person(
+            identifier,
+            payload,
+            actor_memberships=context.authorization_scope.member_by_committee,
+            actor_person_id=context.authorization_scope.person_id,
+        )
+    except PermissionError as error:
+        raise ForbiddenRequestError("Forbidden.") from error
+
+
+def _identity_resource_delete(context, resource_name: str, resource, identifier: int):
+    try:
+        if resource_name == "committees":
+            return context.committee_admin_service.delete_master_data(
+                identifier,
+                actor_memberships=context.authorization_scope.member_by_committee,
+                actor_person_id=context.authorization_scope.person_id,
+            )
+        if resource_name in {"members", "memberships"}:
+            return context.identity_service.delete_membership(
+                identifier,
+                actor_memberships=context.authorization_scope.member_by_committee,
+                actor_person_id=context.authorization_scope.person_id,
+            )
+        return context.identity_service.delete_person(
+            identifier,
+            actor_memberships=context.authorization_scope.member_by_committee,
+            actor_person_id=context.authorization_scope.person_id,
+        )
+    except PermissionError as error:
+        raise ForbiddenRequestError("Forbidden.") from error
 
 
 def _resource_update_route(resolved: FastAPIConfig, resource_name: str, resource):
@@ -278,24 +329,10 @@ def _resource_update_route(resolved: FastAPIConfig, resource_name: str, resource
             row = context.repository.update_exam_round(
                 identifier, payload, authorization_scope=context.authorization_scope
             )
-        elif resource_name in {"members", "memberships"}:
-            try:
-                row = context.identity_service.update_membership(
-                    identifier,
-                    payload,
-                    actor_memberships=context.authorization_scope.member_by_committee,
-                )
-            except PermissionError as error:
-                raise ForbiddenRequestError("Forbidden.") from error
-        elif resource.table == "person":
-            try:
-                row = context.identity_service.update_person(
-                    identifier,
-                    payload,
-                    actor_memberships=context.authorization_scope.member_by_committee,
-                )
-            except PermissionError as error:
-                raise ForbiddenRequestError("Forbidden.") from error
+        elif (
+            resource_name in {"committees", "members", "memberships"} or resource.table == "person"
+        ):
+            row = _identity_resource_update(context, resource_name, resource, identifier, payload)
         else:
             row = context.repository.update(
                 resource,
@@ -326,22 +363,10 @@ def _resource_delete_route(resolved: FastAPIConfig, resource_name: str, resource
             deleted = context.exam_round_lifecycle_service.delete_empty_draft(
                 context.authorization_scope, id
             )
-        elif resource_name in {"members", "memberships"}:
-            try:
-                deleted = context.identity_service.delete_membership(
-                    id,
-                    actor_memberships=context.authorization_scope.member_by_committee,
-                )
-            except PermissionError as error:
-                raise ForbiddenRequestError("Forbidden.") from error
-        elif resource.table == "person":
-            try:
-                deleted = context.identity_service.delete_person(
-                    id,
-                    actor_memberships=context.authorization_scope.member_by_committee,
-                )
-            except PermissionError as error:
-                raise ForbiddenRequestError("Forbidden.") from error
+        elif (
+            resource_name in {"committees", "members", "memberships"} or resource.table == "person"
+        ):
+            deleted = _identity_resource_delete(context, resource_name, resource, id)
         else:
             deleted = context.repository.delete(
                 resource, id, authorization_scope=context.authorization_scope

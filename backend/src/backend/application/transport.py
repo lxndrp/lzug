@@ -31,6 +31,7 @@ from backend.application.resource_access import ResourceAccessQueryFactory, Reso
 from backend.application.resource_authorization import ResourceAuthorizer
 from backend.assessment.exam_results import ExamResultService
 from backend.composition import authorization_service as compose_authorization_service
+from backend.composition import committee_admin_service as compose_committee_admin_service
 from backend.composition import identity_service as compose_identity_service
 from backend.execution.absence import AbsenceService
 from backend.execution.exam_day_closures import ExamDayClosureService
@@ -38,6 +39,7 @@ from backend.execution.exam_protocols import ExamProtocolService
 from backend.execution.exam_round_lifecycle import ExamRoundLifecycleService
 from backend.identity.auth import AuthContext, AuthenticationRepository, SessionCredentials
 from backend.identity.authorization import AuthorizationScope, AuthorizationService
+from backend.identity.committee_admin import CommitteeAdminService
 from backend.identity.local_auth import LocalAuthService
 from backend.identity.people import IdentityService
 from backend.integrations.calendar import CalendarService
@@ -99,6 +101,10 @@ class RequestContext:
     @property
     def identity_service(self) -> IdentityService:
         return compose_identity_service(self.db_path)
+
+    @property
+    def committee_admin_service(self) -> CommitteeAdminService:
+        return compose_committee_admin_service(self.db_path)
 
     @property
     def resource_access_queries(self) -> ResourceAccessQueryFactory:

@@ -67,9 +67,41 @@ class SQLiteCommitteeAdminUnitOfWork:
         row = self._session.get(Committee, committee.id)
         if row is None:
             raise ValueError("Committee no longer exists")
+        row.name = committee.name
+        row.occupation = committee.occupation
+        row.ihk = committee.ihk
         row.is_active = committee.is_active
         row.bootstrap_state = committee.bootstrap_state
         row.updated_at = committee.updated_at
+
+    def delete_committee(self, committee_id: int) -> bool:
+        row = self._session.get(Committee, committee_id)
+        if row is None:
+            return False
+        self._session.delete(row)
+        self._session.flush()
+        return True
+
+    def require_committee_manager(
+        self,
+        committee_id: int,
+        actor_memberships: Mapping[int, int],
+        actor_person_id: int | None,
+    ) -> None:
+        committee = self._session.get(Committee, committee_id)
+        actor_id = actor_memberships.get(committee_id)
+        actor = self._session.get(CommitteeMember, actor_id) if actor_id is not None else None
+        if (
+            committee is None
+            or not committee.is_active
+            or actor is None
+            or actor_person_id is None
+            or actor.person_id != actor_person_id
+            or actor.committee_id != committee_id
+            or not actor.is_active
+            or actor.committee_role not in {"chair", "deputy_chair"}
+        ):
+            raise PermissionError("Forbidden.")
 
     def person_by_email(self, email: str) -> PersonRecord | None:
         return cast(

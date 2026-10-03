@@ -267,11 +267,7 @@ def create_session_router(resolved: FastAPIConfig) -> APIRouter:
     )
     def session(context: SessionContext):
         auth = context.auth_context
-        member_ids = (
-            context.authorization_service.scope(auth).member_ids
-            if auth.person_id is not None
-            else frozenset()
-        )
+        member_ids = context.authorization_scope.member_ids
         return finish(
             context,
             context.respond(

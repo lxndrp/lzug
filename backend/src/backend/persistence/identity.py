@@ -118,6 +118,7 @@ class SQLiteIdentityUnitOfWork:
         member_id: int | None,
         values: Mapping[str, Any],
         actor_memberships: Mapping[int, int],
+        actor_person_id: int | None,
     ) -> None:
         queries = SQLiteResourceAccessQueries(self._store)
         current = self._store.get(COMMITTEE_MEMBER, member_id) if member_id is not None else None
@@ -130,13 +131,20 @@ class SQLiteIdentityUnitOfWork:
         actor = queries.committee_member(actor_id) if actor_id is not None else None
         if (
             actor is None
+            or actor_person_id is None
+            or actor.person_id != actor_person_id
             or not actor.is_active
             or actor.committee_id != committee_id
             or actor.committee_role not in {"chair", "deputy_chair"}
         ):
             raise PermissionError("Forbidden.")
 
-    def require_person_manager(self, person_id: int, actor_memberships: Mapping[int, int]) -> None:
+    def require_person_manager(
+        self,
+        person_id: int,
+        actor_memberships: Mapping[int, int],
+        actor_person_id: int | None,
+    ) -> None:
         queries = SQLiteResourceAccessQueries(self._store)
         owner = queries.ownership(_ResourceKind.PERSON, person_id)
         committee_id = owner.committee_id
@@ -144,18 +152,24 @@ class SQLiteIdentityUnitOfWork:
         actor = queries.committee_member(actor_id) if actor_id is not None else None
         if (
             actor is None
+            or actor_person_id is None
+            or actor.person_id != actor_person_id
             or not actor.is_active
             or actor.committee_id != committee_id
             or actor.committee_role not in {"chair", "deputy_chair"}
         ):
             raise PermissionError("Forbidden.")
 
-    def require_any_membership_manager(self, actor_memberships: Mapping[int, int]) -> None:
+    def require_any_membership_manager(
+        self, actor_memberships: Mapping[int, int], actor_person_id: int | None
+    ) -> None:
         queries = SQLiteResourceAccessQueries(self._store)
         for committee_id, actor_id in actor_memberships.items():
             actor = queries.committee_member(actor_id)
             if (
                 actor is not None
+                and actor_person_id is not None
+                and actor.person_id == actor_person_id
                 and actor.is_active
                 and actor.committee_id == committee_id
                 and actor.committee_role in {"chair", "deputy_chair"}

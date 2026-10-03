@@ -66,6 +66,30 @@ class CommitteeAdminTests(unittest.TestCase):
     def setUp(self) -> None:
         self.now = datetime(2026, 8, 30, 10, 0, tzinfo=UTC)
 
+    def test_committee_master_data_update_uses_identity_uow_and_saved_actor(self) -> None:
+        with TempDatabase(with_seed=False) as db_path:
+            service = committee_admin_service(db_path)
+            created = service.bootstrap(bootstrap_arguments(), now=self.now)
+            committee_id = created["committee_id"]
+            actor_id = created["membership_ids"][0]
+            actor_person_id = created["person_ids"][0]
+
+            updated = service.update_master_data(
+                committee_id,
+                {"name": "Prüfungsausschuss Süd"},
+                actor_memberships={committee_id: actor_id},
+                actor_person_id=actor_person_id,
+                now=self.now + timedelta(minutes=1),
+            )
+
+            self.assertIsNotNone(updated)
+            self.assertEqual("Prüfungsausschuss Süd", updated["name"])
+            self.assertEqual("ready", updated["bootstrap_state"])
+            with session_scope(db_path) as session:
+                committee = session.get(Committee, committee_id)
+                self.assertIsNotNone(committee)
+                self.assertEqual("Prüfungsausschuss Süd", committee.name)
+
     def test_bootstrap_creates_complete_committee_and_secret_free_evidence(self) -> None:
         with TempDatabase(with_seed=False) as db_path:
             arguments = bootstrap_arguments()

@@ -257,6 +257,7 @@ class ResourceAccessTests(unittest.TestCase):
                 2,
                 {"member_status": "deputy"},
                 actor_memberships=self.scope.member_by_committee,
+                actor_person_id=self.scope.person_id,
             )
 
     def test_membership_write_rechecks_saved_actor_activity_inside_write_uow(self) -> None:
@@ -268,6 +269,30 @@ class ResourceAccessTests(unittest.TestCase):
                 2,
                 {"member_status": "deputy"},
                 actor_memberships=self.scope.member_by_committee,
+                actor_person_id=self.scope.person_id,
+            )
+
+    def test_membership_write_rejects_actor_membership_reassigned_to_another_person(self) -> None:
+        actor_membership_id = self.scope.member_by_committee[1]
+        with session_scope(self.db_path) as session:
+            store = Store(session)
+            other_person = store.create(
+                PERSON,
+                {
+                    "first_name": "Other",
+                    "last_name": "Actor",
+                    "email": "other-actor@example.test",
+                    "mobile": None,
+                },
+            )
+            store.update(COMMITTEE_MEMBER, actor_membership_id, {"person_id": other_person["id"]})
+
+        with self.assertRaisesRegex(PermissionError, "^Forbidden\\.$"):
+            self.identity.update_membership(
+                2,
+                {"member_status": "deputy"},
+                actor_memberships=self.scope.member_by_committee,
+                actor_person_id=self.scope.person_id,
             )
 
     def test_history_inactive_members_and_mixed_availability_keep_distinct_rules(self) -> None:
@@ -340,6 +365,7 @@ class ResourceAccessTests(unittest.TestCase):
                     "representing_side": "employer",
                 },
                 actor_memberships=self.scope.member_by_committee,
+                actor_person_id=self.scope.person_id,
             )
         after = check_counts()
         for resource in (
@@ -444,7 +470,10 @@ class ResourceAccessTests(unittest.TestCase):
         with database_activity() as (_, sessions):
             with self.assertRaisesRegex(PermissionError, "^Forbidden\\.$"):
                 self.identity.update_membership(
-                    1, payload, actor_memberships=self.scope.member_by_committee
+                    1,
+                    payload,
+                    actor_memberships=self.scope.member_by_committee,
+                    actor_person_id=self.scope.person_id,
                 )
         self.assertEqual(1, len(sessions))
 
@@ -464,8 +493,12 @@ class ResourceAccessTests(unittest.TestCase):
             if "update committee_member" in statement.lower():
                 writer_attempted_update.set()
 
-        def pause_after_authorization(unit_of_work, member_id, payload, actor_memberships):
-            result = original_authorize(unit_of_work, member_id, payload, actor_memberships)
+        def pause_after_authorization(
+            unit_of_work, member_id, payload, actor_memberships, actor_person_id
+        ):
+            result = original_authorize(
+                unit_of_work, member_id, payload, actor_memberships, actor_person_id
+            )
             authorization_complete.set()
             if not allow_mutation.wait(5):
                 raise TimeoutError("timed out waiting to finish the authorized mutation")
@@ -479,6 +512,7 @@ class ResourceAccessTests(unittest.TestCase):
                     1,
                     {"member_status": "ordinary"},
                     actor_memberships=self.scope.member_by_committee,
+                    actor_person_id=self.scope.person_id,
                 )
             except BaseException as error:
                 errors.append(error)

@@ -32,6 +32,13 @@ class CommitteeAdminUnitOfWork(Protocol):
     def create_committee(self, values: Mapping[str, Any]) -> CommitteeRecord: ...
     def get_committee(self, committee_id: int) -> CommitteeRecord | None: ...
     def save_committee(self, committee: CommitteeRecord) -> None: ...
+    def delete_committee(self, committee_id: int) -> bool: ...
+    def require_committee_manager(
+        self,
+        committee_id: int,
+        actor_memberships: Mapping[int, int],
+        actor_person_id: int | None,
+    ) -> None: ...
     def person_by_email(self, email: str) -> PersonRecord | None: ...
     def account_by_email(self, email: str) -> AccountRecord | None: ...
     def account_by_person(self, person_id: int) -> AccountRecord | None: ...
@@ -57,8 +64,12 @@ class CommitteeAdminUnitOfWork(Protocol):
 
 class CommitteeRecord(Protocol):
     id: int
+    name: str
+    occupation: str
+    ihk: str
     is_active: int
     bootstrap_state: str
+    created_at: str
     updated_at: str
 
 
@@ -262,6 +273,55 @@ class CommitteeAdminService:
 
     def __init__(self, unit_of_work_factory: CommitteeAdminUnitOfWorkFactory):
         self.unit_of_work_factory = unit_of_work_factory
+
+    def update_master_data(
+        self,
+        committee_id: int,
+        values: Mapping[str, Any],
+        *,
+        actor_memberships: Mapping[int, int],
+        actor_person_id: int | None,
+        now: datetime | None = None,
+    ) -> dict[str, Any] | None:
+        """Update committee master data inside an authorized Identity UoW."""
+        with self.unit_of_work_factory.unit_of_work() as session:
+            session.begin_write()
+            session.require_committee_manager(committee_id, actor_memberships, actor_person_id)
+            committee = session.get_committee(committee_id)
+            if committee is None:
+                return None
+            for field in ("name", "occupation", "ihk"):
+                if field in values:
+                    setattr(committee, field, values[field])
+            committee.updated_at = _timestamp(_now(now))
+            session.save_committee(committee)
+            return self._committee_view(committee)
+
+    def delete_master_data(
+        self,
+        committee_id: int,
+        *,
+        actor_memberships: Mapping[int, int],
+        actor_person_id: int | None,
+    ) -> bool:
+        """Delete a committee through the Identity-owned transaction boundary."""
+        with self.unit_of_work_factory.unit_of_work() as session:
+            session.begin_write()
+            session.require_committee_manager(committee_id, actor_memberships, actor_person_id)
+            return session.delete_committee(committee_id)
+
+    @staticmethod
+    def _committee_view(committee: CommitteeRecord) -> dict[str, Any]:
+        return {
+            "id": committee.id,
+            "name": committee.name,
+            "occupation": committee.occupation,
+            "ihk": committee.ihk,
+            "is_active": committee.is_active,
+            "bootstrap_state": committee.bootstrap_state,
+            "created_at": committee.created_at,
+            "updated_at": committee.updated_at,
+        }
 
     def bootstrap(
         self, arguments: Mapping[str, Any], *, now: datetime | None = None

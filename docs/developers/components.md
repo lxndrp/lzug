@@ -153,10 +153,13 @@ Mitgliedschaften für Listen über die bestehende Query-Grenze aus #1072.
 `composition` wählt beide Identity-Adapter.
 Personen- und Membership-Änderungen öffnen ihren Schreib-UoW über Identity;
 die Membership-Autorisierung verwendet darin die Ownership-Abfragen aus #1072
-und prüft die gespeicherte aktive Managementrolle des Actors erneut.
-Der HTTP-Rand übergibt nur Actor-Membership-IDs als Werte.
+und prüft die gespeicherte Actor-Mitgliedschaft, ihre Managementrolle und die
+authentisierte Person erneut.
+Der HTTP-Rand übergibt Actor-Membership-IDs und die authentisierte Person-ID
+als Werte.
 `identity.committee_admin` verwendet ebenfalls einen Identity-eigenen UoW-Port
-für Bootstrap, Abschluss, Wiedereinladung und Ausschuss-Lifecycle.
+für Ausschuss-Masterdaten und ihre PATCH-/DELETE-Routen sowie für Bootstrap,
+Abschluss, Wiedereinladung und Ausschuss-Lifecycle.
 Seine Committee-, Person-, Membership-, Account-, Invitation- und
 Operationsergebnisse sind strukturelle Werte; SQLAlchemy-Objekte verlassen
 Persistence nicht.
