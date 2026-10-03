@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from backend.execution.exam_day_closures import complete_day_mutation, guard_day_mutation
 from backend.identity.authorization import AuthorizationScope
 from backend.integrations.calendar import CalendarService
-from backend.integrations.notifications import NotificationService
+from backend.notifications.service import NotificationService
 from backend.persistence.database import DEFAULT_DB_PATH, session_scope
 from backend.persistence.models import (
     AbsenceAuditEvent,
@@ -59,11 +59,12 @@ class AbsenceService:
     def __init__(
         self,
         db_path: Path = DEFAULT_DB_PATH,
-        notification_service: NotificationService | None = None,
+        *,
+        notification_service: NotificationService,
         calendar_service: CalendarService | None = None,
     ) -> None:
         self.db_path = db_path
-        self.notification_service = notification_service or NotificationService(db_path)
+        self.notification_service = notification_service
         self.calendar_service = calendar_service or CalendarService(db_path)
 
     def list(self, scope: AuthorizationScope) -> list[dict[str, Any]]:

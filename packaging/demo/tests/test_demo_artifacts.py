@@ -10,6 +10,7 @@ from pathlib import Path
 
 from backend.application.exam_venue_api import ExamVenueApi
 from backend.application.repositories import ResourceRepository
+from backend.composition import notification_service as compose_notification_service
 from backend.identity.authorization import AuthorizationScope
 from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.persistence.models import CANDIDATE
@@ -54,7 +55,12 @@ class DemoArtifactTests(unittest.TestCase):
                 product_tag=self.product_tag,
                 product_commit=self.product_commit,
             )
-            api = ExamVenueApi(database)
+            api = ExamVenueApi(
+                database,
+                notification_service_factory=lambda db_path: compose_notification_service(
+                    db_path, external_delivery_enabled=False
+                ),
+            )
             athens = api.list_venues(self._scope(1))
             feenwald = api.list_venues(self._scope(2))
 

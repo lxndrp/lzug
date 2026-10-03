@@ -12,6 +12,8 @@ from backend.identity.committee_admin import CommitteeAdminService
 from backend.identity.local_auth import LocalAuthService
 from backend.identity.people import IdentityService
 from backend.integrations.holiday_provider import PythonHolidaysProvider
+from backend.integrations.notification_delivery import NotificationDeliveryGateway
+from backend.notifications.service import NotificationService
 from backend.persistence.auth import (
     SQLiteAuthenticationRepository,
     SQLiteOperatorAuthUnitOfWorkFactory,
@@ -26,6 +28,10 @@ from backend.persistence.local_auth import (
     SQLiteLocalAuthenticationKey,
     SQLiteLocalAuthUnitOfWorkFactory,
 )
+from backend.persistence.notifications import (
+    SQLiteNotificationDeliveryUnitOfWorkFactory,
+    SQLiteNotificationUnitOfWorkFactory,
+)
 from backend.planning.candidate_days import CandidateDayService
 from backend.settings import RuntimeSettings
 
@@ -35,6 +41,21 @@ def candidate_day_service(db_path: Path) -> CandidateDayService:
     return CandidateDayService(
         SQLiteCandidateDayUnitOfWorkFactory(db_path),
         PythonHolidaysProvider(),
+    )
+
+
+def notification_service(
+    db_path: Path,
+    *,
+    settings: RuntimeSettings | None = None,
+    external_delivery_enabled: bool = True,
+) -> NotificationService:
+    """Compose notification policy with its SQLite and provider adapters."""
+    return NotificationService(
+        external_delivery_enabled=external_delivery_enabled,
+        delivery_gateway=NotificationDeliveryGateway(settings),
+        delivery_unit_of_work_factory=SQLiteNotificationDeliveryUnitOfWorkFactory(db_path),
+        notification_unit_of_work_factory=SQLiteNotificationUnitOfWorkFactory(db_path),
     )
 
 
