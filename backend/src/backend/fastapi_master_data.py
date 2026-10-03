@@ -154,8 +154,18 @@ def _resource_collection_route(resolved: FastAPIConfig, resource_name: str, reso
             rows = context.identity_service.members(
                 context.resource_filters(resource, params), context.authorization_scope
             )
-        elif resource_name == "candidates":
-            rows = context.repository.candidate_list(context.authorization_scope)
+        elif resource.table in {
+            "exam_half_year",
+            "exam_round",
+            "round_candidate",
+            "candidate",
+            "candidate_committee_assignment",
+            "planning_settings",
+            "member_availability",
+        }:
+            rows = context.visible_planning_records(
+                resource, context.resource_filters(resource, params)
+            )
         else:
             rows = context.repository.list_visible(
                 resource,
@@ -186,7 +196,20 @@ def _resource_item_route(resolved: FastAPIConfig, resource_name: str, resource):
         row = (
             context.identity_service.member(id, context.authorization_scope)
             if resource_name in {"members", "memberships"}
-            else context.repository.get_visible(resource, id, context.authorization_scope)
+            else (
+                context.visible_planning_record(resource, id)
+                if resource.table
+                in {
+                    "exam_half_year",
+                    "exam_round",
+                    "round_candidate",
+                    "candidate",
+                    "candidate_committee_assignment",
+                    "planning_settings",
+                    "member_availability",
+                }
+                else context.repository.get_visible(resource, id, context.authorization_scope)
+            )
         )
         return (
             _not_found()
@@ -207,26 +230,34 @@ def _resource_item_route(resolved: FastAPIConfig, resource_name: str, resource):
     return get_item
 
 
+def _planning_resource_create(context, resource_name: str, payload):
+    if resource_name == "candidates":
+        row = context.planning_resource_service.create_candidate(payload).as_payload()
+        return row, HTTPStatus.CREATED
+    if resource_name == "exam-rounds":
+        row = context.planning_resource_service.create_round(payload).as_payload()
+        return row, HTTPStatus.CREATED
+    if resource_name == "round-candidates":
+        row = context.planning_resource_service.assign_candidate_to_round(payload).as_payload()
+        return row, HTTPStatus.CREATED
+    if resource_name == "planning-settings":
+        row = context.planning_resource_service.save_settings(payload).as_payload()
+        return row, HTTPStatus.OK
+    if resource_name == "member-availabilities":
+        row = context.planning_resource_service.save_availability(payload).as_payload()
+        return row, HTTPStatus.OK
+    return None
+
+
 def _resource_create_route(resolved: FastAPIConfig, resource_name: str, resource):
     def create(context: ResourceCreateContext, request: DomainResourceWrite):
         payload = context.authorize_resource_action(
             resource_name, None, payload_data(context, request), "create"
         )
         status = HTTPStatus.CREATED
-        if resource_name == "candidates":
-            row = context.repository.create_candidate(
-                payload, authorization_scope=context.authorization_scope
-            )
-        elif resource_name == "planning-settings":
-            row = context.repository.save_planning_settings(
-                payload, authorization_scope=context.authorization_scope
-            )
-            status = HTTPStatus.OK
-        elif resource_name == "member-availabilities":
-            row = context.repository.save_member_availability(
-                payload, authorization_scope=context.authorization_scope
-            )
-            status = HTTPStatus.OK
+        planning_result = _planning_resource_create(context, resource_name, payload)
+        if planning_result is not None:
+            row, status = planning_result
         elif resource_name in {"members", "memberships"}:
             try:
                 row = context.identity_service.create_membership(
@@ -314,21 +345,13 @@ def _resource_update_route(resolved: FastAPIConfig, resource_name: str, resource
             resource_name, identifier, payload_data(context, request), "update"
         )
         if resource_name == "planning-settings":
-            row = context.repository.update_planning_settings(
-                identifier, payload, authorization_scope=context.authorization_scope
-            )
+            row = context.planning_resource_service.update_settings(identifier, payload)
         elif resource_name == "member-availabilities":
-            row = context.repository.update_member_availability(
-                identifier, payload, authorization_scope=context.authorization_scope
-            )
+            row = context.planning_resource_service.update_availability(identifier, payload)
         elif resource_name == "candidates":
-            row = context.repository.update_candidate(
-                identifier, payload, authorization_scope=context.authorization_scope
-            )
+            row = context.planning_resource_service.update_candidate(identifier, payload)
         elif resource_name == "exam-rounds":
-            row = context.repository.update_exam_round(
-                identifier, payload, authorization_scope=context.authorization_scope
-            )
+            row = context.planning_resource_service.update_round(identifier, payload)
         elif (
             resource_name in {"committees", "members", "memberships"} or resource.table == "person"
         ):
@@ -340,6 +363,17 @@ def _resource_update_route(resolved: FastAPIConfig, resource_name: str, resource
                 payload,
                 authorization_scope=context.authorization_scope,
             )
+        if (
+            resource_name
+            in {
+                "exam-rounds",
+                "candidates",
+                "planning-settings",
+                "member-availabilities",
+            }
+            and row is not None
+        ):
+            row = row.as_payload()
         return (
             _not_found()
             if row is None
@@ -356,9 +390,7 @@ def _resource_delete_route(resolved: FastAPIConfig, resource_name: str, resource
     def delete(context: EmptyWriteContext, id: int):
         context.authorize_resource_action(resource_name, id, {}, "delete")
         if resource_name == "candidates":
-            deleted = context.repository.delete_candidate(
-                id, authorization_scope=context.authorization_scope
-            )
+            deleted = context.planning_resource_service.delete_candidate(id)
         elif resource_name == "exam-rounds":
             deleted = context.exam_round_lifecycle_service.delete_empty_draft(
                 context.authorization_scope, id
@@ -368,9 +400,16 @@ def _resource_delete_route(resolved: FastAPIConfig, resource_name: str, resource
         ):
             deleted = _identity_resource_delete(context, resource_name, resource, id)
         else:
-            deleted = context.repository.delete(
-                resource, id, authorization_scope=context.authorization_scope
-            )
+            if resource_name == "member-availabilities":
+                deleted = context.planning_resource_service.delete_availability(id)
+            elif resource_name == "planning-settings":
+                deleted = context.planning_resource_service.delete_settings(id)
+            elif resource_name == "exam-rounds":
+                deleted = context.planning_resource_service.delete_round(id)
+            else:
+                deleted = context.repository.delete(
+                    resource, id, authorization_scope=context.authorization_scope
+                )
         return (
             _not_found()
             if not deleted
@@ -972,8 +1011,9 @@ def _register_assignment_routes(app, resolved, application, read_security, write
     )
     def assignment_collection(request: Request, context: ReadContext):
         value = request.query_params.get("candidate_id")
-        rows = context.repository.candidate_committee_assignments(
-            int(value) if value is not None else None, context.authorization_scope
+        rows = context.visible_planning_records(
+            CANDIDATE_COMMITTEE_ASSIGNMENT,
+            {"candidate_id": int(value)} if value is not None else {},
         )
         return _finish(
             context,
@@ -995,9 +1035,7 @@ def _register_assignment_routes(app, resolved, application, read_security, write
         openapi_extra=read_security,
     )
     def assignment_item(context: ReadContext, id: int):
-        row = context.repository.get_visible(
-            CANDIDATE_COMMITTEE_ASSIGNMENT, id, context.authorization_scope
-        )
+        row = context.visible_planning_record(CANDIDATE_COMMITTEE_ASSIGNMENT, id)
         return (
             _not_found()
             if row is None

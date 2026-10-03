@@ -163,10 +163,13 @@ TEST_OWNERS = {
     ),
     "planning": frozenset(
         {
+            "planning_support.py",
             "test_candidate_days.py",
             "test_exam_venues.py",
             "test_plan_consequences.py",
             "test_planning.py",
+            "test_planning_resource_adapter.py",
+            "test_planning_resources.py",
             "test_venue_consequences.py",
         }
     ),

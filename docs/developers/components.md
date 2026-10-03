@@ -168,7 +168,22 @@ Membership-Projektion auf.
 Die SQLite-Projektionen sind unveränderliche, strukturell kompatible Werte;
 Persistence importiert die Identity-Porttypen dafür nur unter
 `TYPE_CHECKING`.
-Planning behält Kandidaten- und Rundenregeln.
+`backend.planning.resources` besitzt die Use Cases und Portverträge für
+Prüfungshalbjahre, Kandidaten, Prüfungsrunden, Rundenzuordnungen,
+Planungseinstellungen und Mitgliederverfügbarkeiten.
+Die Befehle liefern unveränderliche, materialisierte Werte und öffnen pro
+Use Case einen Planning-UoW; Scope, gespeicherter Besitz, Rolle und veränderliche
+Referenzen werden innerhalb derselben Schreibtransaktion erneut geprüft.
+Planning besitzt Normalisierung und reine Fachvalidierung; der SQLite-Adapter
+liefert dafür materialisierte Referenzfakten und setzt die validierten
+Änderungen mit den relationalen Schreibbedingungen atomar um.
+`backend.persistence.planning_resources` implementiert den UoW für SQLite und
+verwendet den bereits eingeführten Candidate-Day-UoW aus #1071 für den
+Planungssnapshot.
+Der Composition Root wählt den Adapter; weder SQLAlchemy-Modelle noch
+Sessions verlassen Persistence.
+`PlanningService` für Vorschläge und Revisionen bleibt der bisherige Pfad und
+liegt außerhalb dieser Portmigration.
 
 Die Kandidatentage sind der erste Planning-Port-Pilot:
 `backend.planning.candidate_days` enthält den typisierten Generierungsbefehl,
@@ -183,7 +198,8 @@ Runtime-Policy ausgewählten Datenbankpfad. Dadurch bleiben Produkt- und
 Demo-Datenbanken getrennt und jede Generierung erhält ihren eigenen UoW.
 Das Lebensdauerdiagramm und ein konkreter Ablauf stehen im
 [Backend-Vertrag](backend-architecture-contract.md#vertikaler-pilot-kandidatentage).
-Andere Planning-Services verwenden weiterhin ihre dokumentierten Übergangspfade.
+`PlanningService` für Vorschläge und Revisionen verwendet weiterhin den
+dokumentierten Übergangspfad.
 
 In `execution.absence` und `execution.exam_protocols` bleiben die öffentlichen
 Servicebefehle die autoritative Grenze für Zustandsübergänge.

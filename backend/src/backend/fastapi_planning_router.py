@@ -50,6 +50,17 @@ MIGRATED_PLANNING_RESOURCES = (
     "exam-day-assignments",
 )
 PLANNING_DOMAIN_RESOURCES = ("planning-settings", "member-availabilities")
+PLANNING_RESOURCE_TABLES = frozenset(
+    {
+        "exam_half_year",
+        "exam_round",
+        "round_candidate",
+        "candidate",
+        "candidate_committee_assignment",
+        "planning_settings",
+        "member_availability",
+    }
+)
 
 type Finish = Callable[[RequestContext, ApplicationResult | None], Response]
 type NotFound = Callable[[], Response]
@@ -337,10 +348,11 @@ def _planning_collection(
     resource = REST_RESOURCES[resource_name]
 
     def get_collection(request: Request, context: ReadContext):
-        rows = context.repository.list_visible(
-            resource,
-            context.authorization_scope,
-            context.resource_filters(resource, request.query_params),
+        filters = context.resource_filters(resource, request.query_params)
+        rows = (
+            context.visible_planning_records(resource, filters)
+            if resource.table in PLANNING_RESOURCE_TABLES
+            else context.repository.list_visible(resource, context.authorization_scope, filters)
         )
         return finish(
             context,
@@ -363,7 +375,11 @@ def _planning_item(resource_name: str, finish: Finish, not_found: NotFound, *, m
     resource = REST_RESOURCES[resource_name]
 
     def get_item(context: ReadContext, id: int):
-        row = context.repository.get_visible(resource, id, context.authorization_scope)
+        row = (
+            context.visible_planning_record(resource, id)
+            if resource.table in PLANNING_RESOURCE_TABLES
+            else context.repository.get_visible(resource, id, context.authorization_scope)
+        )
         return (
             not_found()
             if row is None
@@ -392,14 +408,10 @@ def _planning_create(resource_name: str, finish: Finish):
         )
         status = HTTPStatus.CREATED
         if resource_name == "planning-settings":
-            row = context.repository.save_planning_settings(
-                payload, authorization_scope=context.authorization_scope
-            )
+            row = context.planning_resource_service.save_settings(payload).as_payload()
             status = HTTPStatus.OK
         elif resource_name == "member-availabilities":
-            row = context.repository.save_member_availability(
-                payload, authorization_scope=context.authorization_scope
-            )
+            row = context.planning_resource_service.save_availability(payload).as_payload()
             status = HTTPStatus.OK
         else:
             row = context.repository.create(
@@ -428,13 +440,9 @@ def _planning_update(
             resource_name, identifier, payload_data(context, request), "update"
         )
         if resource_name == "planning-settings":
-            row = context.repository.update_planning_settings(
-                identifier, payload, authorization_scope=context.authorization_scope
-            )
+            row = context.planning_resource_service.update_settings(identifier, payload)
         elif resource_name == "member-availabilities":
-            row = context.repository.update_member_availability(
-                identifier, payload, authorization_scope=context.authorization_scope
-            )
+            row = context.planning_resource_service.update_availability(identifier, payload)
         else:
             row = context.repository.update(
                 resource,
@@ -442,6 +450,8 @@ def _planning_update(
                 payload,
                 authorization_scope=context.authorization_scope,
             )
+        if resource_name in {"planning-settings", "member-availabilities"} and row is not None:
+            row = row.as_payload()
         return (
             not_found()
             if row is None
@@ -465,9 +475,14 @@ def _planning_delete(
 
     def delete(context: EmptyWriteContext, id: int):
         context.authorize_resource_action(resource_name, id, {}, "delete")
-        deleted = context.repository.delete(
-            resource, id, authorization_scope=context.authorization_scope
-        )
+        if resource_name == "member-availabilities":
+            deleted = context.planning_resource_service.delete_availability(id)
+        elif resource_name == "planning-settings":
+            deleted = context.planning_resource_service.delete_settings(id)
+        else:
+            deleted = context.repository.delete(
+                resource, id, authorization_scope=context.authorization_scope
+            )
         return (
             not_found()
             if not deleted

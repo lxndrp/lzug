@@ -18,10 +18,11 @@ from .composition import authorization_service as compose_authorization_service
 from .composition import (
     candidate_day_service as compose_candidate_day_service,
 )
-from .composition import (
-    committee_admin_service as compose_committee_admin_service,
-)
+from .composition import committee_admin_service as compose_committee_admin_service
 from .composition import identity_service as compose_identity_service
+from .composition import (
+    planning_resource_unit_of_work_factory as compose_planning_resource_unit_of_work_factory,
+)
 from .fastapi_app import (
     FastAPIConfig,
     register_application_routes,
@@ -47,6 +48,7 @@ from .persistence.database import PersistencePaths, database_readiness, persiste
 from .persistence.resource_access import SQLiteResourceAccessQueryFactory
 from .planning.candidate_days import CandidateDayService
 from .planning.plan_consequences import PlanConsequenceService
+from .planning.resources import PlanningResourceUnitOfWorkFactory
 from .runtime import RuntimeCoordinator
 from .security import RequestRateLimiter
 from .settings import RuntimeSettings
@@ -119,6 +121,9 @@ def create_app(
     *,
     runtime: RuntimeCoordinator | None = None,
     candidate_day_service_factory: Callable[[Path], CandidateDayService] | None = None,
+    planning_resource_unit_of_work_factory: (
+        Callable[[Path], PlanningResourceUnitOfWorkFactory] | None
+    ) = None,
     resource_access_query_factory: Callable[[Path], ResourceAccessQueryFactory] | None = None,
     identity_service_factory: Callable[[Path], IdentityService] | None = None,
     authorization_service_factory: Callable[[Path], AuthorizationService] | None = None,
@@ -153,6 +158,9 @@ def create_app(
     app.state.runtime = runtime
     app.state.candidate_day_service_factory = (
         candidate_day_service_factory or compose_candidate_day_service
+    )
+    app.state.planning_resource_unit_of_work_factory = (
+        planning_resource_unit_of_work_factory or compose_planning_resource_unit_of_work_factory
     )
     app.state.resource_access_query_factory = (
         resource_access_query_factory or SQLiteResourceAccessQueryFactory

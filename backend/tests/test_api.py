@@ -164,7 +164,7 @@ class ApiTests(unittest.TestCase):
     def test_database_errors_use_public_messages(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:
             with patch(
-                "backend.application.repositories.ResourceRepository.candidate_list",
+                "backend.application.transport.RequestContext.visible_planning_records",
                 side_effect=SQLAlchemyError("private database details"),
             ):
                 status, body = api.request("GET", "/api/candidates")
@@ -800,6 +800,28 @@ class ApiTests(unittest.TestCase):
             )
             assert_status(status, HTTPStatus.OK)
             self.assertEqual(("summer", 2027), (half_year["season"], half_year["year"]))
+
+            status, error = api.request(
+                "POST",
+                "/api/exam-half-years",
+                {"season": "winter", "year": 2027, "status": "active"},
+            )
+            assert_status(status, HTTPStatus.FORBIDDEN)
+            self.assertEqual(
+                "Prüfungshalbjahre entstehen ausschließlich gemeinsam mit einer Ausschussrunde.",
+                error["error"],
+            )
+
+            status, error = api.request(
+                "PATCH",
+                f"/api/exam-half-years/{half_year['id']}",
+                {"status": "archived"},
+            )
+            assert_status(status, HTTPStatus.FORBIDDEN)
+            self.assertEqual(
+                "Prüfungshalbjahre entstehen ausschließlich gemeinsam mit einer Ausschussrunde.",
+                error["error"],
+            )
 
             status, error = api.request(
                 "POST",

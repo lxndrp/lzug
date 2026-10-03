@@ -12,10 +12,11 @@ from dataclasses import dataclass, field
 from datetime import timedelta
 from http import HTTPStatus
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from backend.application import (
     ApplicationResult,
+    ApplicationServices,
     AuthenticationRequiredError,
     ForbiddenRequestError,
     ReadApplication,
@@ -46,6 +47,11 @@ from backend.persistence.models import Resource
 from backend.planning import PlanningService
 from backend.planning.candidate_days import CandidateDayService
 from backend.planning.plan_consequences import PlanConsequenceService
+from backend.planning.resources import (
+    PlanningResourceService,
+    PlanningResourceUnitOfWorkFactory,
+    PlanningValue,
+)
 from backend.runtime_policy import RuntimePolicy
 from backend.security import RequestRateLimiter
 from backend.settings import RuntimeSettings
@@ -72,6 +78,7 @@ class RequestContext:
     max_request_bytes: int
     runtime_policy: RuntimePolicy
     candidate_day_service_factory: Callable[[Path], CandidateDayService]
+    planning_resource_unit_of_work_factory: Callable[[Path], PlanningResourceUnitOfWorkFactory]
     resource_access_query_factory: Callable[[Path], ResourceAccessQueryFactory]
     identity_service_factory: Callable[[Path], IdentityService]
     authorization_service_factory: Callable[[Path], AuthorizationService]
@@ -117,6 +124,44 @@ class RequestContext:
     @property
     def candidate_day_service(self) -> CandidateDayService:
         return self.candidate_day_service_factory(self.db_path)
+
+    @property
+    def planning_resource_service(self) -> PlanningResourceService:
+        def authorize(queries, resource: str, entity_id: int | None, payload):
+            return ResourceAuthorizer(
+                self.resource_access_queries, self.authorization_scope
+            ).authorize_with_queries(queries, ResourceKind(resource), entity_id, payload)
+
+        def visible(queries, resource, entity_id, filters):
+            resource_kind = ResourceKind(resource)
+            if entity_id is None:
+                return frozenset(
+                    int(row["id"])
+                    for row in queries.list_visible(
+                        resource_kind, self.authorization_scope, filters
+                    )
+                )
+            return (
+                queries.get_visible(resource_kind, entity_id, self.authorization_scope) is not None
+            )
+
+        return PlanningResourceService(
+            self.planning_resource_unit_of_work_factory(self.db_path), authorize, visible
+        )
+
+    def visible_planning_records(
+        self, resource: Resource, filters: dict[str, object]
+    ) -> list[dict[str, object]]:
+        records = self.planning_resource_service.list_visible_records(
+            resource.table, cast("dict[str, PlanningValue]", filters)
+        )
+        return [record.as_payload() for record in records]
+
+    def visible_planning_record(
+        self, resource: Resource, resource_id: int
+    ) -> dict[str, object] | None:
+        record = self.planning_resource_service.get_visible_record(resource.table, resource_id)
+        return record.as_payload() if record is not None else None
 
     @property
     def authentication_repository(self) -> AuthenticationRepository:
@@ -176,7 +221,14 @@ class RequestContext:
 
     @property
     def read_application(self) -> ReadApplication:
-        return ReadApplication(self.db_path)
+        return ReadApplication(
+            self.db_path,
+            ApplicationServices(
+                planning_resource_service_factory=lambda path: PlanningResourceService(
+                    self.planning_resource_unit_of_work_factory(path)
+                ),
+            ),
+        )
 
     @property
     def session_token(self) -> str | None:

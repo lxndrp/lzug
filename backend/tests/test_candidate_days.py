@@ -17,6 +17,7 @@ from backend.planning.candidate_days import (
     GenerateCandidateDays,
 )
 from backend.tests.helpers import TempDatabase
+from backend.tests.planning_support import planning_resource_service
 
 
 class FakeHolidayProvider:
@@ -254,7 +255,7 @@ class CandidateDayServiceTests(unittest.TestCase):
         exclude_public_holidays: int,
         holiday_subdivision_code: str | None,
     ) -> None:
-        repository.save_planning_settings(
+        planning_resource_service(repository.db_path).save_settings(
             {
                 "exam_round_id": 1,
                 "calendar_week_from": calendar_week_from,
