@@ -471,11 +471,12 @@ Identity-Scope noch einmal; Rendering erfolgt danach außerhalb der Sperre.
 Unmittelbar vor Rückgabe erwirbt der Read dieselbe Sperre erneut und prüft,
 dass die beobachtete Credential-Generation unverändert aktiv und der
 Identity-Membership-/Committee-Scope noch aktuell ist. Hat sich der Scope seit
-dem Read-Snapshot geändert, filtert Calendar das materialisierte ICS-Ergebnis
-auf die aktuell aktiven Memberships/Committees oder verwirft es, wenn kein
-zulässiger Scope verbleibt. Ein bereits committeter Credential-Widerruf oder
-eine Scope-Änderung vor diesem finalen Identity-Check verwirft damit die
-unzulässigen Daten.
+dem Read-Snapshot geändert, verwirft Calendar das gesamte materialisierte
+ICS-Ergebnis und gibt keine Events aus diesem Read zurück. Das Rendering
+erzeugt nur das finale ICS-Dokument; Calendar muss keine bereits gerenderte
+Antwort nachträglich parsen oder filtern. Ein bereits committeter
+Credential-Widerruf oder eine Scope-Änderung vor diesem finalen Identity-Check
+verwirft damit das Ergebnis.
 Dieser letzte Credential- und Identity-Check ist der Autorisierungszeitpunkt
 der Antwort; die Sperre wird nicht bis zum Ende des Netzwerktransfers gehalten.
 Rotation validiert Scope und Generation unter der Sperre und committet
@@ -828,8 +829,8 @@ SQLite-Rollback vor dauerhaftem Revocation-Commit und Abbruch
 wartender/aktiver Refreshes aus GET, initialer Aktivierung und Rotation sowie
 den DELETE-Wettlauf mit Aktivierung, Rotation und ICS-Read. Sie prüfen, dass ein Read nach
 Widerrufscommit kein ICS-Ergebnis liefert und dass ein Identity-Teilwiderruf
-zwischen Read-Snapshot und finaler Antwortfreigabe entfernte Committee-Daten
-filtert oder das Ergebnis verwirft.
+zwischen Read-Snapshot und finaler Antwortfreigabe das gesamte ICS-Ergebnis
+verwirft, auch wenn andere Memberships aktiv bleiben.
 Kalenderfolgen-Tests belegen den stabilen `decision_date`-Cutoff über Mitternacht
 und dass ältere Assignment-Folgeversionen nach neueren Mutationen keine Events
 ändern. Planning-Tests belegen, dass Legacy-Availability-Zeilen nicht replayt

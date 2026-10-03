@@ -368,10 +368,10 @@ außerhalb. Sein Registry-/Serviceobjekt wird prozessweit geteilt und nicht pro
 `RequestContext` oder `CalendarService` instanziiert.
 ICS prüft Credential-Generation und Identity-Scope vor der Arbeit, prüft den
 Read-Snapshot unter kurzer Sperre und unmittelbar vor Rückgabe Credential-
-Generation und Identity-Scope erneut. Ein geänderter Scope filtert das
-materialisierte Ergebnis auf aktuell aktive Memberships/Committees oder
-verwirft es ohne zulässigen Scope. Alle Sync-Auslöser gehen durch den
-je Feed serialisierten Coordinator; Rotation committet Widerruf und
+Generation und Identity-Scope erneut. Bei einer Scope-Änderung seit dem
+Snapshot verwirft Calendar das gesamte materialisierte ICS-Ergebnis; es muss
+keine gerenderte Antwort nachträglich parsen oder filtern. Alle Sync-Auslöser
+gehen durch den je Feed serialisierten Coordinator; Rotation committet Widerruf und
 Pending-Generation unter dem Lifecycle-Lock, synchronisiert außerhalb und
 finalisiert nach erneuter Pending-Prüfung unter dem Lock. `DELETE` setzt unter
 dem Commit-Gate zuerst ein prozesslokales Abbruchsignal, wartet ohne beide Locks
@@ -385,9 +385,9 @@ Unique-Constraint-Fehler auslösen.
 Token-ICS-Reads und Rotation nutzen dieselbe Sperre nur für Credential-Prüfungen
 und -Commits. Der Read prüft Token und Identity-Scope vor Sync, revalidiert den
 Snapshot unter kurzer Sperre und liest Credential-Generation sowie Identity-
-Scope unmittelbar vor Rückgabe erneut. Ein geänderter Scope filtert das
-materialisierte Ergebnis auf aktuell aktive Memberships/Committees oder
-verwirft es ohne zulässigen Scope; Sync und Rendering liegen außerhalb.
+Scope unmittelbar vor Rückgabe erneut. Bei einer Scope-Änderung seit dem
+Snapshot verwirft Calendar das gesamte materialisierte ICS-Ergebnis; Sync und
+Rendering liegen außerhalb.
 Rotation hält die Sperre für Widerrufscommit sowie spätere Pending-Revalidierung
 und Finalisierung; ihr Sync läuft außerhalb.
 Die Garantie gilt prozessweit im einzelnen autoritativen Backendprozess;
