@@ -1,4 +1,4 @@
-import { Component, computed, inject } from '@angular/core';
+import { Component, computed, effect, inject } from '@angular/core';
 
 import { AuthService } from '../auth/auth.service';
 import { RoundContextService } from '../api/round-context.service';
@@ -37,18 +37,18 @@ export class ExamHalfYearsRouteComponent {
   );
   protected readonly candidateReferences = computed(() => {
     const selectedRoundId = this.roundContext.roundId();
-    const targeted = this.workspace.candidateReferenceSnapshot();
-    if (targeted?.roundId === selectedRoundId) return targeted;
-
     const masterData =
       this.workspace.round()?.id === selectedRoundId ? this.workspace.masterData() : null;
-    return masterData
-      ? {
-          roundId: selectedRoundId,
-          candidates: masterData.candidates,
-          candidateAssignments: masterData.candidateAssignments,
-        }
-      : null;
+    if (masterData) {
+      return {
+        roundId: selectedRoundId,
+        candidates: masterData.candidates,
+        candidateAssignments: masterData.candidateAssignments,
+      };
+    }
+
+    const targeted = this.workspace.candidateReferenceSnapshot();
+    return targeted?.roundId === selectedRoundId ? targeted : null;
   });
   protected readonly candidates = computed<CandidateOption[]>(
     () =>
@@ -68,10 +68,13 @@ export class ExamHalfYearsRouteComponent {
   );
 
   constructor() {
-    const selectedRoundId = this.roundContext.roundId();
-    if (this.workspace.round()?.id !== selectedRoundId) {
+    effect(() => {
+      if (this.auth.state() !== 'authenticated') return;
+      const selectedRoundId = this.roundContext.roundId();
+      if (this.workspace.round()?.id === selectedRoundId) return;
+
       this.workspace.refreshCandidateReferences(selectedRoundId);
-    }
+    });
   }
 
   protected selectExamRound(id: number): void {
