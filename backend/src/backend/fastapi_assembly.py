@@ -187,7 +187,7 @@ def create_app(
                     "A custom authentication repository must provide a matching "
                     "local-authentication factory"
                 )
-            return compose_local_auth_service(db_path, authentication=authentication, **kwargs)
+            return compose_local_auth_service(db_path, **kwargs)
 
     app.state.local_auth_service_factory = local_authentication_factory
     app.state.auth_rate_limiter = resolved.auth_rate_limiter or RequestRateLimiter(

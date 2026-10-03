@@ -4,6 +4,7 @@ import inspect
 import os
 import unittest
 from dataclasses import replace
+from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -212,7 +213,12 @@ class FastAPIApplicationTests(unittest.TestCase):
                 db_path, session_ttl=app.state.lzug_config.session_ttl, settings=None
             )
 
-            self.assertIs(local_auth.unit_of_work_factory.authentication, selected)
+            account = selected.create_account("local-contract@example.invalid")
+            now = datetime.now(UTC)
+            with local_auth.unit_of_work_factory.unit_of_work() as uow:
+                credentials = uow.create_session(account["id"], now, timedelta(minutes=5))
+
+            self.assertIsNotNone(selected.authenticate(credentials.token, now=now))
 
     def test_custom_authentication_repository_requires_matching_local_auth_factory(self) -> None:
         with TempDatabase() as db_path:

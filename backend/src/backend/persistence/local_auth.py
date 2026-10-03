@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import binascii
+import hashlib
 import os
+import secrets
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
@@ -19,9 +21,8 @@ from backend.identity.local_auth import (
     LocalAuthToken,
     LocalAuthUnitOfWork,
 )
-from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.persistence.database import DEFAULT_DB_PATH, mutation_scope, session_scope
-from backend.persistence.models import AuthRecoveryCode, AuthToken, UserAccount
+from backend.persistence.models import AuthRecoveryCode, AuthSession, AuthToken, UserAccount
 from backend.settings import LocalAuthSettings, RuntimeSettings
 
 
@@ -52,22 +53,18 @@ class SQLiteLocalAuthUnitOfWorkFactory:
     def __init__(
         self,
         db_path: Path = DEFAULT_DB_PATH,
-        *,
-        authentication: SQLiteAuthenticationRepository | None = None,
     ):
         self.db_path = Path(db_path)
-        self.authentication = authentication or SQLiteAuthenticationRepository(self.db_path)
 
     @contextmanager
     def unit_of_work(self) -> Iterator[LocalAuthUnitOfWork]:
         with session_scope(self.db_path) as session:
-            yield _SQLiteLocalAuthUnitOfWork(session, self.authentication)
+            yield _SQLiteLocalAuthUnitOfWork(session)
 
 
 class _SQLiteLocalAuthUnitOfWork:
-    def __init__(self, session, authentication: SQLiteAuthenticationRepository):
+    def __init__(self, session):
         self.session = session
-        self.authentication = authentication
 
     def account_by_email(self, email: str) -> LocalAuthAccount | None:
         row = self.session.scalars(select(UserAccount).where(UserAccount.email == email)).first()
@@ -181,13 +178,42 @@ class _SQLiteLocalAuthUnitOfWork:
         )
 
     def revoke_sessions(self, account_id: int, reason: str) -> None:
-        self.authentication._revoke_account_sessions(self.session, account_id, reason)
+        current = _timestamp(datetime.now(UTC))
+        active = self.session.scalars(
+            select(AuthSession).where(
+                AuthSession.account_id == account_id,
+                AuthSession.revoked_at.is_(None),
+            )
+        ).all()
+        for auth_session in active:
+            auth_session.revoked_at = current
+            auth_session.revoke_reason = reason
 
     def create_session(self, account_id: int, now: datetime, ttl: timedelta) -> SessionCredentials:
+        if ttl <= timedelta(0):
+            raise ValueError("Session lifetime must be positive")
         account = self.session.get(UserAccount, account_id)
         if account is None or not account.is_active:
             raise ValueError("Account is not active")
-        return self.authentication._create_session(self.session, account, now, ttl)
+        token = secrets.token_urlsafe(32)
+        csrf_token = secrets.token_urlsafe(32)
+        auth_session = AuthSession(
+            account_id=account.id,
+            token_hash=hashlib.sha256(token.encode("utf-8")).hexdigest(),
+            csrf_token_hash=hashlib.sha256(csrf_token.encode("utf-8")).hexdigest(),
+            created_at=_timestamp(now),
+            expires_at=_timestamp(now + ttl),
+            last_seen_at=_timestamp(now),
+        )
+        self.session.add(auth_session)
+        self.session.flush()
+        return SessionCredentials(
+            session_id=auth_session.id,
+            account_id=account.id,
+            token=token,
+            csrf_token=csrf_token,
+            expires_at=auth_session.expires_at,
+        )
 
 
 class SQLiteLocalAuthenticationKey:

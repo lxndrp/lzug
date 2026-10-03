@@ -55,11 +55,8 @@ class LocalAuthTests(unittest.TestCase):
 
     @staticmethod
     def _service(db_path: Path) -> LocalAuthService:
-        authentication = SQLiteAuthenticationRepository(db_path)
         return LocalAuthService(
-            unit_of_work_factory=SQLiteLocalAuthUnitOfWorkFactory(
-                db_path, authentication=authentication
-            ),
+            unit_of_work_factory=SQLiteLocalAuthUnitOfWorkFactory(db_path),
             key_provider=SQLiteLocalAuthenticationKey(db_path),
         )
 
@@ -166,6 +163,37 @@ class LocalAuthTests(unittest.TestCase):
                     now=self.now,
                 )
 
+    def test_login_uses_identity_session_port_without_auth_repository_helpers(self) -> None:
+        with TempDatabase(with_seed=False) as db_path:
+            service, account_id, secret, _recovery_codes = self._activate(db_path)
+            authentication = SQLiteAuthenticationRepository(db_path)
+            previous = authentication.create_session(account_id, now=self.now)
+
+            with (
+                patch.object(
+                    SQLiteAuthenticationRepository,
+                    "_create_session",
+                    side_effect=AssertionError("local auth must create sessions through its UoW"),
+                ),
+                patch.object(
+                    SQLiteAuthenticationRepository,
+                    "_revoke_account_sessions",
+                    side_effect=AssertionError("local auth must revoke sessions through its UoW"),
+                ),
+            ):
+                result = service.login(
+                    "member@example.invalid",
+                    "correct horse battery staple",
+                    pyotp.TOTP(secret).at(self.now),
+                    now=self.now,
+                )
+
+            self.assertEqual(account_id, result.account_id)
+            self.assertIsNone(authentication.authenticate(previous.token, now=self.now))
+            self.assertIsNotNone(
+                authentication.authenticate(result.credentials.token, now=self.now)
+            )
+
     def test_recovery_code_is_single_use_and_recovery_token_replaces_factors(self) -> None:
         with TempDatabase(with_seed=False) as db_path:
             service, account_id, _secret, recovery_codes = self._activate(db_path)
@@ -253,15 +281,10 @@ class LocalAuthTests(unittest.TestCase):
                 )
 
             service, account_id, secret, _codes = self._activate(db_path)
-            credentials = service.unit_of_work_factory.authentication.create_session(
-                account_id, now=self.now
-            )
+            authentication = SQLiteAuthenticationRepository(db_path)
+            credentials = authentication.create_session(account_id, now=self.now)
             OperatorAuthService(SQLiteOperatorAuthUnitOfWorkFactory(db_path)).disable(account_id)
-            self.assertIsNone(
-                service.unit_of_work_factory.authentication.authenticate(
-                    credentials.token, now=self.now
-                )
-            )
+            self.assertIsNone(authentication.authenticate(credentials.token, now=self.now))
 
     def test_unknown_and_passwordless_accounts_perform_dummy_hash_verification(self) -> None:
         with TempDatabase(with_seed=False) as db_path:
@@ -287,9 +310,8 @@ class LocalAuthTests(unittest.TestCase):
     def test_login_failure_rolls_back_factor_rehash_and_session_revocation(self) -> None:
         with TempDatabase(with_seed=False) as db_path:
             service, account_id, secret, recovery_codes = self._activate(db_path)
-            previous = service.unit_of_work_factory.authentication.create_session(
-                account_id, now=self.now
-            )
+            authentication = SQLiteAuthenticationRepository(db_path)
+            previous = authentication.create_session(account_id, now=self.now)
             with closing(sqlite3.connect(db_path)) as connection:
                 original_hash = connection.execute(
                     "SELECT password_hash FROM user_account WHERE id = ?", (account_id,)
@@ -301,9 +323,8 @@ class LocalAuthTests(unittest.TestCase):
                         patch.object(
                             local_auth.PasswordHasher, "check_needs_rehash", return_value=True
                         ),
-                        patch.object(
-                            service.unit_of_work_factory.authentication,
-                            "_create_session",
+                        patch(
+                            "backend.persistence.local_auth._SQLiteLocalAuthUnitOfWork.create_session",
                             side_effect=RuntimeError("test failure"),
                         ),
                         self.assertRaisesRegex(RuntimeError, "test failure"),
@@ -314,11 +335,7 @@ class LocalAuthTests(unittest.TestCase):
                             factor,
                             now=self.now,
                         )
-                    self.assertIsNotNone(
-                        service.unit_of_work_factory.authentication.authenticate(
-                            previous.token, now=self.now
-                        )
-                    )
+                    self.assertIsNotNone(authentication.authenticate(previous.token, now=self.now))
                     with closing(sqlite3.connect(db_path)) as connection:
                         state = connection.execute(
                             "SELECT password_hash, totp_last_step, last_login_at "
@@ -340,15 +357,9 @@ class LocalAuthTests(unittest.TestCase):
                 pyotp.TOTP(secret).at(self.now),
                 now=self.now,
             )
-            self.assertIsNone(
-                service.unit_of_work_factory.authentication.authenticate(
-                    previous.token, now=self.now
-                )
-            )
+            self.assertIsNone(authentication.authenticate(previous.token, now=self.now))
             self.assertIsNotNone(
-                service.unit_of_work_factory.authentication.authenticate(
-                    current.credentials.token, now=self.now
-                )
+                authentication.authenticate(current.credentials.token, now=self.now)
             )
             self.assertIsNone(
                 LoginRateLimiter.retry_after("local:member@example.invalid", self.now)
