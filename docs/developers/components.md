@@ -836,6 +836,16 @@ in der Diagnose nur Anbieter und Fehlerklasse.
 
 ## Frontend
 
+### Frontend-Zielvertrag
+
+Datenbesitz, Schreibrechte, Featuregrenzen, Zustandslebensdauern und Übergänge
+sind im [Frontend-Architekturvertrag](frontend-architecture-contract.md)
+verbindlich beschrieben.
+Die langfristige Entscheidung steht in
+[ADR-0042](decisions/0042-frontend-zustandsbesitz-und-feature-lebensdauern.md).
+Die folgenden Abschnitte beschreiben weiterhin die vorhandene Angular- und
+REST-Komponentenstruktur.
+
 Das Angular-Frontend verwendet TypeScript, Angular Router und Taiga UI.
 Es ist ein ruhiges Arbeitswerkzeug für wiederkehrende Ausschussprozesse und
 keine Marketingoberfläche.
@@ -889,6 +899,16 @@ Snapshot ohne HAL-Links; die anwendungsweite Bindung liegt in
 `app.config.ts`.
 `PlanningWorkflowService` koordiniert Planungsbefehle über `PlanningPort`;
 `HttpPlanningAdapter` übersetzt diese Aufrufe in den vorhandenen API-Client.
+Vorschlagserzeugung und Vorschlagsspeicherung sind dabei persistierende
+Planning-Commands; die Leseoperation für den gespeicherten Vorschlag bleibt
+getrennt.
+Einstellungen, Verfügbarkeiten, Vorschauerzeugung und erstmalige Bestätigung
+nehmen keine Quellrevision entgegen.
+`savePlanningProposal()` erhält dagegen die Revision des geladenen Vorschlags
+und übermittelt sie unverändert für die optimistische Sperre.
+Prüfungstag-Anwesenheit übergibt Slot-ID für Prüflinge beziehungsweise
+Assignment-ID für Ausschussmitglieder sowie die vom Befehl akzeptierte
+Tagesrevision.
 Bestätigte Pläne verwenden denselben Schnitt: `ConfirmedPlansWorkflowService`
 ruft `ConfirmedPlansPort` auf, dessen HTTP-Adapter Plan- und Revisionsantworten
 von HAL-Links bereinigt.
