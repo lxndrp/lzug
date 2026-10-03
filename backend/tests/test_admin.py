@@ -11,7 +11,7 @@ import unittest
 from contextlib import closing, redirect_stdout
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from backend.application.admin import EXIT_OK, EXIT_TOKEN_INVALID, AdminServices, _run_command
 from backend.identity.admin_service import AdminOperationError, IssuedAuthToken, OperatorAuthService
@@ -106,6 +106,42 @@ class AdminAuthenticationTests(unittest.TestCase):
                 service.consume(issued.token, "invitation", now=created_at)
             with self.assertRaisesRegex(AdminOperationError, "without accounts"):
                 service.bootstrap("second@example.invalid", now=created_at)
+
+    def test_account_creation_rolls_back_when_token_issuance_fails(self) -> None:
+        with TempDatabase(with_seed=False) as db_path:
+            service = OperatorAuthService(SQLiteOperatorAuthUnitOfWorkFactory(db_path))
+            with patch(
+                "backend.identity.admin_service.secrets.token_urlsafe",
+                side_effect=RuntimeError("token generation failed"),
+            ):
+                with self.assertRaisesRegex(AdminOperationError, "bootstrap failed"):
+                    service.bootstrap("operator@example.invalid")
+
+            with closing(sqlite3.connect(db_path)) as connection:
+                self.assertEqual(
+                    0,
+                    connection.execute(
+                        "SELECT count(*) FROM user_account WHERE email = ?",
+                        ("operator@example.invalid",),
+                    ).fetchone()[0],
+                )
+
+            service.bootstrap("operator@example.invalid")
+            with patch(
+                "backend.identity.admin_service.secrets.token_urlsafe",
+                side_effect=RuntimeError("token generation failed"),
+            ):
+                with self.assertRaisesRegex(AdminOperationError, "Invitation could not be created"):
+                    service.invite("member@example.invalid")
+
+            with closing(sqlite3.connect(db_path)) as connection:
+                self.assertEqual(
+                    0,
+                    connection.execute(
+                        "SELECT count(*) FROM user_account WHERE email = ?",
+                        ("member@example.invalid",),
+                    ).fetchone()[0],
+                )
 
     def test_concurrent_bootstrap_can_create_only_one_operator(self) -> None:
         with TempDatabase(with_seed=False) as db_path:

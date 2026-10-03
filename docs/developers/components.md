@@ -751,9 +751,9 @@ Zyklen zwischen den acht Kernpaketen.
 | `planning/` | Planaggregate, mögliche Prüfungstage, Prüfungsorte und Folgen bestätigter Änderungen; Kandidatentage beginnen mit einem adapterfreien Port-Pilot | `integrations`, `persistence` (Legacy-Aufrufe) |
 | `execution/` | Ausfall und Ersatz, Protokolle, Tagesabschluss und Rundenlebenszyklus | `identity`, `integrations`, `persistence` |
 | `assessment/` | individuelle Bewertungen und festgestellte Ergebnisse | `execution`, `identity`, `persistence` |
-| `identity/` | Authentisierung, Autorisierung, Mitgliedschaften und lokale Betreiberidentität | `persistence` |
+| `identity/` | Authentisierung, Autorisierung, Mitgliedschaften und lokale Betreiberidentität | keine anderen Kernpakete |
 | `integrations/` | Kalender (Übergangspfad), Benachrichtigungen, Dokumentablage, Feiertage, Kartenanbieter und künftige externe Adapter | `identity`, `persistence` |
-| `persistence/` | Modelle, Datenbank, Migrationen und niedrige Store-Primitive | keine anderen Kernpakete |
+| `persistence/` | Modelle, Datenbank, Migrationen und niedrige Store-Primitive | `identity` |
 | `operations/` | Backup und Export, Empfängerverwaltung, Diagnose und Lifecycle | `identity`, `integrations`, `persistence` |
 
 Der Paketroot enthält ausschließlich gemeinsame Runtime-Verträge und die

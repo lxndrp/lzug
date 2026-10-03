@@ -366,5 +366,5 @@ class SQLiteOperatorAuthUnitOfWorkFactory:
 
     @contextmanager
     def unit_of_work(self) -> Iterator[SQLiteOperatorAuthUnitOfWork]:
-        with session_scope(self.db_path) as session:
+        with session_scope(self.db_path, begin_immediate=True) as session:
             yield SQLiteOperatorAuthUnitOfWork(session)

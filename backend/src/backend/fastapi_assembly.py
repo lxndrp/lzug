@@ -177,7 +177,9 @@ def create_app(
         committee_admin_service_factory or compose_committee_admin_service
     )
     app.state.local_auth_service_factory = lambda db_path, **kwargs: compose_local_auth_service(
-        db_path, **kwargs
+        db_path,
+        authentication=active_authentication_factory(db_path),
+        **kwargs,
     )
     app.state.auth_rate_limiter = resolved.auth_rate_limiter or RequestRateLimiter(
         resolved.auth_rate_limit, resolved.auth_rate_window

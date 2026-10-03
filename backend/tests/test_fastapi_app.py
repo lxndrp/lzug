@@ -202,6 +202,18 @@ class FastAPIApplicationTests(unittest.TestCase):
                 self.assertEqual(expected_health, self.fastapi_get(client, "/api/health"))
                 self.assertEqual(expected_readiness, self.fastapi_get(client, "/api/ready"))
 
+    def test_injected_authentication_repository_is_shared_with_local_login(self) -> None:
+        with TempDatabase() as db_path:
+            selected = SQLiteAuthenticationRepository(db_path)
+            services = replace(ApplicationServices(), authentication_factory=lambda _path: selected)
+            app = create_app(self.config(db_path), services)
+
+            local_auth = app.state.local_auth_service_factory(
+                db_path, session_ttl=app.state.lzug_config.session_ttl, settings=None
+            )
+
+            self.assertIs(local_auth.unit_of_work_factory.authentication, selected)
+
     def test_health_is_pure_liveness_and_ready_uses_injected_probe(self) -> None:
         readiness_probe = Mock(return_value={"ready": False})
         services = replace(ApplicationServices(), readiness_probe=readiness_probe)
