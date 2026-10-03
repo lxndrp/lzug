@@ -35,6 +35,7 @@ export type ProposalEditorState = 'idle' | 'loading' | 'ready' | 'saving' | 'err
 export class PlanningProposalEditorComponent implements OnChanges {
   @Input() proposal: EditablePlanningProposal | null = null;
   @Input() saveAcknowledgement = 0;
+  @Input() reloadAcknowledgement = 0;
   @Input() state: ProposalEditorState = 'idle';
   @Input() errorMessage: string | null = null;
   @Input() violations: PlanningValidationViolation[] = [];
@@ -57,10 +58,13 @@ export class PlanningProposalEditorComponent implements OnChanges {
   ngOnChanges(changes: SimpleChanges): void {
     const saveAcknowledged =
       changes['saveAcknowledgement'] && !changes['saveAcknowledgement'].firstChange;
-    if ((changes['proposal'] || saveAcknowledged) && this.proposal) {
+    const reloadAcknowledged =
+      changes['reloadAcknowledgement'] && !changes['reloadAcknowledgement'].firstChange;
+    if ((changes['proposal'] || saveAcknowledged || reloadAcknowledged) && this.proposal) {
       const currentDraft = this.draft();
       if (
         saveAcknowledged ||
+        reloadAcknowledged ||
         !currentDraft ||
         !this.proposalBaseline ||
         this.sameProposal(currentDraft, this.proposalBaseline) ||

@@ -22,6 +22,7 @@ describe('PlanningProposalEditorComponent', () => {
     fixture = TestBed.createComponent(PlanningProposalEditorComponent);
     fixture.componentRef.setInput('state', 'ready');
     fixture.componentRef.setInput('saveAcknowledgement', 0);
+    fixture.componentRef.setInput('reloadAcknowledgement', 0);
     fixture.componentRef.setInput('proposal', proposal());
     fixture.componentRef.setInput('locations', locationsFixture as Location[]);
     fixture.componentRef.setInput('candidates', candidateViewsFixture as CandidateView[]);
@@ -84,6 +85,28 @@ describe('PlanningProposalEditorComponent', () => {
     expect(component.draft().exam_days).toHaveLength(1);
     expect(component.draft().exam_days[0].candidate_exam_day_id).toBe(2);
     expect(component.dirty()).toBe(true);
+  });
+
+  it('replaces unsaved edits after an explicit proposal reload completes', () => {
+    const component = fixture.componentInstance as unknown as {
+      draft: () => EditablePlanningProposal | null;
+      dirty: () => boolean;
+      moveSlotToDay: (
+        day: EditablePlanningProposal['exam_days'][number],
+        index: number,
+        id: number,
+      ) => void;
+    };
+    component.moveSlotToDay(component.draft()!.exam_days[0], 0, 2);
+    expect(component.dirty()).toBe(true);
+
+    const refreshed = { ...proposal(), revision: 4 };
+    fixture.componentRef.setInput('proposal', refreshed);
+    fixture.componentRef.setInput('reloadAcknowledgement', 1);
+    fixture.detectChanges();
+
+    expect(component.dirty()).toBe(false);
+    expect(component.draft()).toEqual(refreshed);
   });
 
   it('reconciles server-assigned proposal fields after a successful save', () => {

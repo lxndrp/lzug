@@ -216,6 +216,36 @@ describe('PlanningWorkflowService', () => {
     expect(workflow.proposalSaveAcknowledgement()).toBe(1);
   });
 
+  it('acknowledges an explicit proposal reload only after its response succeeds', () => {
+    const reloadResponse = new Subject<EditablePlanningProposal>();
+    const proposal: EditablePlanningProposal = { round_id: 1, revision: 3, exam_days: [] };
+    const { workflow, port } = createHarness({
+      getPlanningProposal: vi
+        .fn(() => of(proposal))
+        .mockReturnValueOnce(of(proposal))
+        .mockReturnValueOnce(reloadResponse),
+      loadPlanning: vi.fn(() =>
+        of({
+          ...emptySnapshot(1),
+          round: { ...emptySnapshot(1).round, status: 'plan_proposed' },
+        }),
+      ),
+    });
+    const view = Symbol('planning-view');
+
+    workflow.activateView(view, 1);
+    expect(workflow.proposalReloadAcknowledgement()).toBe(0);
+    workflow.reloadPlanningProposal(1, view);
+    expect(port.getPlanningProposal).toHaveBeenCalledTimes(2);
+    expect(workflow.proposalReloadAcknowledgement()).toBe(0);
+
+    reloadResponse.next({ ...proposal, revision: 4 });
+    reloadResponse.complete();
+
+    expect(workflow.proposal()?.revision).toBe(4);
+    expect(workflow.proposalReloadAcknowledgement()).toBe(1);
+  });
+
   it('does not let a proposal read started before an accepted save replace its response', () => {
     const readResponse = new Subject<EditablePlanningProposal>();
     const saveResponse = new Subject<EditablePlanningProposal>();

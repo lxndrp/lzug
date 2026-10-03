@@ -72,6 +72,7 @@ export class PlanningWorkflowService {
   readonly lastResult = signal<PlanningResult | null>(null);
   readonly proposal = signal<EditablePlanningProposal | null>(null);
   readonly proposalSaveAcknowledgement = signal(0);
+  readonly proposalReloadAcknowledgement = signal(0);
   readonly editorState = signal<ProposalEditorState>('idle');
   readonly editorError = signal<string | null>(null);
   readonly editorViolations = signal<PlanningValidationViolation[]>([]);
@@ -610,7 +611,7 @@ export class PlanningWorkflowService {
     this.submitPlanConfirmation(roundId, view);
   }
 
-  loadPlanningProposal(roundId: number, view = this.activeView): void {
+  loadPlanningProposal(roundId: number, view = this.activeView, explicitReload = false): void {
     if (!this.isCurrentView(view)) return;
     this.proposalLoad?.unsubscribe();
     this.proposalLoad = undefined;
@@ -644,6 +645,9 @@ export class PlanningWorkflowService {
           ) {
             return;
           }
+          if (explicitReload) {
+            this.proposalReloadAcknowledgement.update((value) => value + 1);
+          }
           this.proposal.set(proposal);
           this.editorState.set('ready');
         },
@@ -663,7 +667,7 @@ export class PlanningWorkflowService {
   }
 
   reloadPlanningProposal(roundId: number, view = this.activeView): void {
-    if (this.activeRoundId === roundId) this.loadPlanningProposal(roundId, view);
+    if (this.activeRoundId === roundId) this.loadPlanningProposal(roundId, view, true);
   }
 
   savePlanningProposal(
