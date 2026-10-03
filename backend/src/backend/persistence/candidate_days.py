@@ -32,6 +32,8 @@ class _SQLiteCandidateDayRecord(NamedTuple):
     round_id: int
     date: str
     is_active: int
+    created_at: str
+    updated_at: str
 
 
 class SQLiteCandidateDayUnitOfWorkFactory:
@@ -87,4 +89,6 @@ class SQLiteCandidateDayUnitOfWork:
             round_id=int(row["exam_round_id"]),
             date=str(row["date"]),
             is_active=int(row["is_active"]),
+            created_at=str(row["created_at"]),
+            updated_at=str(row["updated_at"]),
         )

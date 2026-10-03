@@ -34,6 +34,8 @@ class CandidateDayRecord(Protocol):
     round_id: int
     date: str
     is_active: int
+    created_at: str
+    updated_at: str
 
 
 class PublicHoliday(TypedDict):
@@ -100,6 +102,8 @@ class CandidateDayGeneration:
                 "exam_round_id": day.round_id,
                 "date": day.date,
                 "is_active": day.is_active,
+                "created_at": day.created_at,
+                "updated_at": day.updated_at,
             }
             for day in self.created_days
         ]

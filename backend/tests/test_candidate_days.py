@@ -38,6 +38,8 @@ class FakeCandidateDayRecord:
     round_id: int
     date: str
     is_active: int
+    created_at: str
+    updated_at: str
 
 
 class FakeCandidateDayStore:
@@ -77,7 +79,15 @@ class FakeCandidateDayUnitOfWork:
     def create_candidate_day(self, round_id: int, day: date) -> CandidateDayRecord:
         if self.owner.fail_after is not None and len(self.rows) >= self.owner.fail_after:
             raise RuntimeError("simulated persistence failure")
-        record = FakeCandidateDayRecord(len(self.rows) + 1, round_id, day.isoformat(), 1)
+        timestamp = "2026-06-01 00:00:00"
+        record = FakeCandidateDayRecord(
+            len(self.rows) + 1,
+            round_id,
+            day.isoformat(),
+            1,
+            timestamp,
+            timestamp,
+        )
         self.rows.append(record)
         return record
 
@@ -171,6 +181,17 @@ class CandidateDayServiceTests(unittest.TestCase):
         self.assertEqual(5, len(result.created_days))
         self.assertEqual(5, len(store.rows))
         self.assertEqual(7, result.created_days[0].round_id)
+        self.assertEqual(
+            {
+                "id": 1,
+                "exam_round_id": 7,
+                "date": "2026-06-01",
+                "is_active": 1,
+                "created_at": "2026-06-01 00:00:00",
+                "updated_at": "2026-06-01 00:00:00",
+            },
+            result.as_payload()["created_days"][0],
+        )
 
     def test_generation_rolls_back_all_created_days_when_the_port_fails(self) -> None:
         store = FakeCandidateDayStore(fail_after=2)
