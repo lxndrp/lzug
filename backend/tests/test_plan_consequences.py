@@ -9,8 +9,8 @@ from unittest.mock import patch
 
 from sqlalchemy import select
 
-from backend.identity.auth import AuthenticationRepository
 from backend.integrations.calendar import CalendarService
+from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.persistence.database import session_scope
 from backend.persistence.models import (
     CalendarEvent,
@@ -486,7 +486,7 @@ class PlanConsequenceApiTests(unittest.TestCase):
                 actor_member_id=1,
             )
             PlanConsequenceService(db_path).process_revision(revision["id"])
-            authentication = AuthenticationRepository(db_path)
+            authentication = SQLiteAuthenticationRepository(db_path)
             examiner = authentication.create_session(2)
             deputy = authentication.create_session(3)
 

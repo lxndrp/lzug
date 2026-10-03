@@ -10,7 +10,7 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
-from backend.identity.auth import AuthenticationRepository
+from backend.composition import authentication_repository
 from backend.persistence.database import initialize
 
 from .fastapi_assembly import FastAPIConfig, create_app
@@ -38,7 +38,7 @@ def create_e2e_app(config: FastAPIConfig) -> FastAPI:
     def reset():
         with reset_lock:
             initialize(config.db_path, seed_sql=_development_seed_sql(), reset=True)
-            credentials = AuthenticationRepository(config.db_path).create_session(1)
+            credentials = authentication_repository(config.db_path).create_session(1)
         response = JSONResponse({"status": "reset"})
         response.set_cookie(
             config.session_cookie_name,

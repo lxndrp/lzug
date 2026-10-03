@@ -5,7 +5,7 @@ from http import HTTPStatus
 
 from backend.application.repositories import ResourceRepository
 from backend.composition import identity_service
-from backend.identity.auth import AuthenticationRepository
+from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.persistence.database import session_scope
 from backend.persistence.models import (
     CANDIDATE_EXAM_DAY,
@@ -21,7 +21,7 @@ class AuthorizationTests(unittest.TestCase):
         self.database = TempDatabase()
         self.db_path = self.database.__enter__()
         self.repository = ResourceRepository(self.db_path)
-        self.authentication = AuthenticationRepository(self.db_path)
+        self.authentication = SQLiteAuthenticationRepository(self.db_path)
 
         committee = create_committee_record(
             self.db_path, {"name": "Prüfungsausschuss Teststadt 2", "occupation": "FI"}

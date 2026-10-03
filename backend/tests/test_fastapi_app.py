@@ -4,6 +4,7 @@ import inspect
 import os
 import unittest
 from dataclasses import replace
+from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -58,7 +59,7 @@ from backend.application import ApplicationServices
 from backend.fastapi_app import MIGRATED_DOMAIN_RESOURCES
 from backend.fastapi_assembly import FastAPIConfig, create_app
 from backend.fastapi_planning_router import MIGRATED_PLANNING_RESOURCES
-from backend.identity.auth import AuthenticationRepository, SessionCredentials
+from backend.persistence.auth import SessionCredentials, SQLiteAuthenticationRepository
 from backend.tests.helpers import ApiServer, TempDatabase, TestLzugHandler
 
 
@@ -202,6 +203,47 @@ class FastAPIApplicationTests(unittest.TestCase):
                 self.assertEqual(expected_health, self.fastapi_get(client, "/api/health"))
                 self.assertEqual(expected_readiness, self.fastapi_get(client, "/api/ready"))
 
+    def test_injected_authentication_repository_is_shared_with_local_login(self) -> None:
+        with TempDatabase() as db_path:
+            selected = SQLiteAuthenticationRepository(db_path)
+            services = replace(ApplicationServices(), authentication_factory=lambda _path: selected)
+            app = create_app(self.config(db_path), services)
+
+            local_auth = app.state.local_auth_service_factory(
+                db_path, session_ttl=app.state.lzug_config.session_ttl, settings=None
+            )
+
+            account = selected.create_account("local-contract@example.invalid")
+            now = datetime.now(UTC)
+            with local_auth.unit_of_work_factory.unit_of_work() as uow:
+                credentials = uow.create_session(account["id"], now, timedelta(minutes=5))
+
+            self.assertIsNotNone(selected.authenticate(credentials.token, now=now))
+
+    def test_custom_authentication_repository_requires_matching_local_auth_factory(self) -> None:
+        with TempDatabase() as db_path:
+            services = replace(ApplicationServices(), authentication_factory=lambda _path: object())
+            app = create_app(self.config(db_path), services)
+
+            with self.assertRaisesRegex(ValueError, "must provide a matching"):
+                app.state.local_auth_service_factory(
+                    db_path, session_ttl=app.state.lzug_config.session_ttl, settings=None
+                )
+
+            local_auth_service = Mock()
+            paired_services = replace(
+                services, local_authentication_factory=lambda _path, **_kwargs: local_auth_service
+            )
+            paired_app = create_app(self.config(db_path), paired_services)
+            self.assertIs(
+                paired_app.state.local_auth_service_factory(
+                    db_path,
+                    session_ttl=paired_app.state.lzug_config.session_ttl,
+                    settings=None,
+                ),
+                local_auth_service,
+            )
+
     def test_health_is_pure_liveness_and_ready_uses_injected_probe(self) -> None:
         readiness_probe = Mock(return_value={"ready": False})
         services = replace(ApplicationServices(), readiness_probe=readiness_probe)
@@ -221,7 +263,7 @@ class FastAPIApplicationTests(unittest.TestCase):
 
     def test_round_summary_matches_authentication_and_committee_contract(self) -> None:
         with TempDatabase() as db_path:
-            authentication = AuthenticationRepository(db_path)
+            authentication = SQLiteAuthenticationRepository(db_path)
             chair = authentication.create_session(1)
             examiner = authentication.create_session(2)
             operator_account = authentication.create_account(

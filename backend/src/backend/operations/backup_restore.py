@@ -25,7 +25,6 @@ from uuid import UUID, uuid4
 
 from cryptography.fernet import Fernet, InvalidToken
 
-from backend.identity.local_auth import authentication_key, authentication_key_path
 from backend.persistence.artifact_limits import configure_artifact_database
 from backend.persistence.database import (
     BUSY_TIMEOUT_MS,
@@ -38,6 +37,7 @@ from backend.persistence.database import (
     persistence_paths,
     snapshot_scope,
 )
+from backend.persistence.local_auth import SQLiteLocalAuthenticationKey
 from backend.runtime import runtime_for
 from backend.settings import RuntimeSettings
 from backend.version import application_version
@@ -410,7 +410,11 @@ class ArtifactService:
             if entry.is_file() and not entry.is_symlink()
         )
         self._ensure_space(self.paths.backups, max(estimated * 3, 1024 * 1024))
-        key = authentication_key(self.paths.database) if include_authentication_key else None
+        key_store = SQLiteLocalAuthenticationKey(
+            self.paths.database,
+            settings=self.settings.local_auth if self.settings else None,
+        )
+        key = key_store.get_key() if include_authentication_key else None
         root = Path(tempfile.mkdtemp(prefix=".lzug-snapshot-", dir=self.paths.backups))
         os.chmod(root, 0o700)
         try:
@@ -427,7 +431,10 @@ class ArtifactService:
         os.chmod(root, 0o700)
         try:
             with snapshot_scope(self.paths.database):
-                key_path = authentication_key_path(self.paths.database)
+                key_path = SQLiteLocalAuthenticationKey(
+                    self.paths.database,
+                    settings=self.settings.local_auth if self.settings else None,
+                ).path
                 key = key_path.read_bytes() if key_path.exists() else Fernet.generate_key()
                 snapshot = self._copy_snapshot_locked(root, key)
             self._verify_snapshot(snapshot)
@@ -1141,7 +1148,10 @@ class ArtifactService:
     ) -> None:
         retired = Path(tempfile.mkdtemp(prefix=".lzug-retired-", dir=self.paths.data_dir))
         os.chmod(retired, 0o700)
-        target_key = authentication_key_path(self.paths.database)
+        target_key = SQLiteLocalAuthenticationKey(
+            self.paths.database,
+            settings=self.settings.local_auth if self.settings else None,
+        ).path
         moved: list[tuple[Path, Path]] = []
         installed: list[Path] = []
         try:
