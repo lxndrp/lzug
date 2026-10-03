@@ -361,26 +361,31 @@ def read_session_scope(db_path: Path = DEFAULT_DB_PATH) -> Iterator[Session]:
 
 
 @contextmanager
-def session_scope(db_path: Path = DEFAULT_DB_PATH) -> Iterator[Session]:
+def session_scope(
+    db_path: Path = DEFAULT_DB_PATH, *, begin_immediate: bool = False
+) -> Iterator[Session]:
     """Yield a session that commits on success and rolls back on every error.
 
     Services and repositories use this context manager as their transaction
     boundary. ``Store`` only flushes, therefore all writes performed during
-    the yielded block are committed together or rolled back together.
+    the yielded block are committed together or rolled back together. Callers
+    that must serialize reads with a subsequent write can request an immediate
+    SQLite write transaction before yielding.
 
     Args:
         db_path: SQLite database file used for this unit of work.
+        begin_immediate: Acquire SQLite write intent before the first query.
 
     Yields:
         An open SQLAlchemy session.
     """
     with persistence_access(db_path), activation_lock(db_path):
-        with _session_scope(db_path) as session:
+        with _session_scope(db_path, begin_immediate=begin_immediate) as session:
             yield session
 
 
 @contextmanager
-def _session_scope(db_path: Path) -> Iterator[Session]:
+def _session_scope(db_path: Path, *, begin_immediate: bool = False) -> Iterator[Session]:
     db_path = Path(db_path)
     engine = engine_for(db_path)
     session_factory = sessionmaker(bind=engine, future=True)
@@ -400,6 +405,10 @@ def _session_scope(db_path: Path) -> Iterator[Session]:
     try:
         with activation_lock(db_path):
             try:
+                if begin_immediate:
+                    locks.enter_context(file_lock(_snapshot_lock_path(db_path), LOCK_SH))
+                    mutation_locked = True
+                    session.connection().exec_driver_sql("BEGIN IMMEDIATE")
                 yield session
                 session.commit()
             except BaseException:

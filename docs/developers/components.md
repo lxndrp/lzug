@@ -121,17 +121,27 @@ HTTP- und Adminadapter ab.
 `backend.application.planning_payloads` konvertiert Planungsbefehle ohne
 Persistenzzugriff; `resource_authorization` prüft Ressourcenaktionen und bindet
 serverseitige Akteurfelder.
-`resource_ownership` löst Ausschuss- und Rundenbesitz im übergebenen Store auf,
-ohne eine weitere Session zu öffnen.
+`application.resource_access` besitzt die Query-Verträge und materialisierten
+Werte für Ausschuss-/Rundenbesitz, Membership-Fakten und sichtbare Projektionen.
+Die SQLite-Implementierung in `persistence.resource_access` hält Modellzugriff
+und SQL-Prädikate hinter diesen Verträgen.
 Bei Updates wird zuerst der gespeicherte Quellbesitz autorisiert;
 Payloadwerte dürfen die Quelle nicht ersetzen.
 Bereits bestehende Quell-/Zielwechsel prüfen zusätzlich den Zielscope,
 während andere Ownershipfelder über den generischen HTTP-Vertrag unveränderlich bleiben.
-`resource_visibility` begrenzt Listen und Einzelabfragen bereits in SQL;
+Sichtbare Listen und Einzelabfragen werden bereits in SQL begrenzt;
 historische Rundenzuordnungen und aktive Kandidatenzuständigkeit behalten ihre
 unterschiedlichen Sichtbarkeitsregeln.
-Zusammengehörige Autorisierungs- und Sichtbarkeitsabfragen verwenden über
-`read_session_scope` einen expliziten SQLite-Lese-Snapshot.
+Zusammengehörige Autorisierungs- und Sichtbarkeitsabfragen verwenden den
+Query-Port innerhalb eines expliziten SQLite-Lese-Snapshots.
+Technische Abfragefehler bleiben von fachlichen `ForbiddenRequestError`-
+Entscheidungen unterscheidbar.
+Die generischen Schreibübergänge prüfen veränderliche Ownership-Voraussetzungen
+zusätzlich mit demselben Query-Vertrag innerhalb ihrer Schreibtransaktion.
+Bei scoped HTTP-Schreibvorgängen beginnt SQLite den Schreib-UoW mit
+`BEGIN IMMEDIATE`, damit keine konkurrierende Ownership-Änderung zwischen
+Revalidierung und Mutation committet.
+Die vorherige HTTP-Prüfung ersetzt diese UoW-Prüfung nicht.
 Die Ausführung eines Fachbefehls bleibt eine eigene Servicetransaktion.
 Session, CSRF, Actor, Ausschuss-Scope und Fehlerübersetzung liegen am
 HTTP-Rand, während der synchrone Anwendungskern frameworkunabhängig bleibt.

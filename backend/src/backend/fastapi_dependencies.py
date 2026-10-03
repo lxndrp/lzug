@@ -105,6 +105,7 @@ def request_context(request: Request) -> RequestContext:
         max_request_bytes=config.max_request_bytes,
         runtime_policy=config.runtime_policy,
         candidate_day_service_factory=request.app.state.candidate_day_service_factory,
+        resource_access_query_factory=request.app.state.resource_access_query_factory,
         runtime_settings=config.runtime_settings,
         auth_rate_limiter=request.app.state.auth_rate_limiter,
         observability_rate_limiter=request.app.state.observability_rate_limiter,

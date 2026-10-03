@@ -502,6 +502,21 @@ class OpenApiContractTests(unittest.TestCase):
             )
             self.assertEqual(HTTPStatus.OK, status)
 
+            for invalid_round_id in ("1", "", [], False):
+                with self.subTest(exam_round_id=invalid_round_id):
+                    status, error = self.request(
+                        api,
+                        "POST",
+                        "/api/candidate-exam-days",
+                        {
+                            "exam_round_id": invalid_round_id,
+                            "date": "2026-12-01",
+                            "is_active": 1,
+                        },
+                    )
+                    self.assertEqual(HTTPStatus.BAD_REQUEST, status)
+                    self.assertIn("exam_round_id", error["error"])
+
             status, candidate_day = self.request(
                 api,
                 "POST",

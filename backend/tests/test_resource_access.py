@@ -6,6 +6,7 @@ import sqlite3
 import unittest
 from contextlib import closing, contextmanager
 from dataclasses import replace
+from threading import Event, Thread
 
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
@@ -13,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from backend.application import ForbiddenRequestError
 from backend.application.repositories import ResourceRepository
+from backend.application.resource_access import ResourceKind, ResourceOwnership
 from backend.application.resource_authorization import ResourceAuthorizer
 from backend.identity.authorization import AuthorizationScope
 from backend.persistence.database import session_scope
@@ -35,6 +37,7 @@ from backend.persistence.models import (
     PLANNING_SETTINGS,
     ROUND_CANDIDATE,
 )
+from backend.persistence.resource_access import SQLiteResourceAccessQueryFactory
 from backend.persistence.store import Store
 from backend.tests.helpers import TempDatabase
 
@@ -66,7 +69,8 @@ class ResourceAccessTests(unittest.TestCase):
         self.scope = AuthorizationScope(
             1, frozenset({1}), frozenset({1}), frozenset({1}), frozenset({1}), {1: 1}
         )
-        self.authorizer = ResourceAuthorizer(self.db_path, self.scope)
+        self.access_queries = SQLiteResourceAccessQueryFactory(self.db_path)
+        self.authorizer = ResourceAuthorizer(self.access_queries, self.scope)
         with session_scope(self.db_path) as session:
             store = Store(session)
             self.foreign_committee = store.create(
@@ -330,26 +334,51 @@ class ResourceAccessTests(unittest.TestCase):
                     self.assertEqual(1, self.repository.round_id_for_resource(resource, own_id))
                 self.assertEqual(1, len(sessions))
                 with database_activity() as (_, sessions):
-                    self.authorizer.authorize(resource, own_id, {})
+                    self.authorizer.authorize(ResourceKind(resource.table), own_id, {})
                 self.assertEqual(1, len(sessions))
         for call in (
             lambda: self.authorizer.require_round_access(1),
             lambda: self.authorizer.require_day_access(self.own[EXAM_DAY], member_id=1),
             lambda: self.authorizer.require_day_access(self.own[EXAM_DAY], manage=True),
-            lambda: self.authorizer.authorize(CANDIDATE, None, {"exam_round_id": 1}),
+            lambda: self.authorizer.authorize(ResourceKind.CANDIDATE, None, {"exam_round_id": 1}),
         ):
             with database_activity() as (_, sessions):
                 call()
             self.assertEqual(1, len(sessions))
+
+    def test_query_port_returns_typed_owner_values_and_materialized_projections(self) -> None:
+        with self.access_queries.snapshot() as queries:
+            owner = queries.ownership(ResourceKind.CANDIDATE_EXAM_DAY, self.own[CANDIDATE_EXAM_DAY])
+            rows = queries.list_visible(ResourceKind.CANDIDATE_EXAM_DAY, self.scope)
+            round_row = queries.ownership(ResourceKind.EXAM_ROUND, 1)
+            half_year = queries.ownership(
+                ResourceKind.EXAM_HALF_YEAR, round_row.references.exam_half_year_id
+            )
+
+        self.assertIsInstance(owner, ResourceOwnership)
+        self.assertEqual((1, 1), (owner.committee_id, owner.round_id))
+        self.assertTrue(owner.exists)
+        self.assertIsNotNone(half_year.committee_id)
+        self.assertIsNone(half_year.round_id)
+        self.assertTrue(all(isinstance(row, dict) for row in rows))
+        self.assertTrue(all(not hasattr(row, "_sa_instance_state") for row in rows))
+
+    def test_resource_creation_ignores_client_actor_and_binds_session_member(self) -> None:
+        result = self.authorizer.authorize(
+            ResourceKind.EXAM_ROUND,
+            None,
+            {"committee_id": 1, "created_by_member_id": 999},
+        )
+        self.assertEqual(1, result["created_by_member_id"])
 
     def test_foreign_and_missing_owners_remain_forbidden_without_disclosure(self) -> None:
         for resource, (_, foreign_id) in self.matrix.items():
             for entity_id in (foreign_id, 999999):
                 with self.subTest(resource=resource.model.__tablename__, entity_id=entity_id):
                     with self.assertRaisesRegex(ForbiddenRequestError, "^Forbidden\\.$"):
-                        self.authorizer.authorize(resource, entity_id, {})
+                        self.authorizer.authorize(ResourceKind(resource.table), entity_id, {})
         with self.assertRaises(ForbiddenRequestError):
-            self.authorizer.authorize(EXAM_HALF_YEAR, 1, {})
+            self.authorizer.authorize(ResourceKind.EXAM_HALF_YEAR, 1, {})
         for resource in (EXAM_DAY, EXAM_SLOT, CANDIDATE_EXAM_ATTENDANCE, CANDIDATE):
             self.assertIsNone(self.repository.committee_id_for_resource(resource))
             self.assertIsNone(self.repository.round_id_for_resource(resource))
@@ -358,7 +387,7 @@ class ResourceAccessTests(unittest.TestCase):
         foreign_member_before = self.repository.get(COMMITTEE_MEMBER, self.foreign_member)
         with self.assertRaisesRegex(ForbiddenRequestError, "^Forbidden\\.$"):
             self.authorizer.authorize(
-                COMMITTEE_MEMBER,
+                ResourceKind.COMMITTEE_MEMBER,
                 self.foreign_member,
                 {"committee_id": 1, "person_id": 1},
             )
@@ -368,32 +397,120 @@ class ResourceAccessTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(ForbiddenRequestError, "^Forbidden\\.$"):
             self.authorizer.authorize(
-                CANDIDATE,
+                ResourceKind.CANDIDATE,
                 self.foreign_candidate,
                 {"exam_round_id": 1},
             )
 
+    def test_write_unit_rechecks_the_source_after_route_authorization(self) -> None:
+        payload = self.authorizer.authorize(
+            ResourceKind.COMMITTEE_MEMBER,
+            1,
+            {"member_status": "ordinary"},
+        )
+        moved_committee = self.repository.create(
+            COMMITTEE,
+            {"name": "Zwischenzuständigkeit", "occupation": "FI", "bootstrap_state": "ready"},
+        )["id"]
+        with session_scope(self.db_path) as session:
+            Store(session).update(COMMITTEE_MEMBER, 1, {"committee_id": moved_committee})
+
+        with database_activity() as (_, sessions):
+            with self.assertRaisesRegex(ForbiddenRequestError, "^Forbidden\\.$"):
+                self.repository.update_membership(1, payload, authorization_scope=self.scope)
+        self.assertEqual(1, len(sessions))
+
+    def test_write_recheck_serializes_ownership_reads_with_mutation(self) -> None:
+        destination_committee = self.repository.create(
+            COMMITTEE,
+            {"name": "Weiteres Komitee", "occupation": "FI", "bootstrap_state": "ready"},
+        )["id"]
+        authorization_complete = Event()
+        allow_mutation = Event()
+        writer_attempted_update = Event()
+        writer_finished = Event()
+        errors: list[BaseException] = []
+        original_authorize = self.repository._authorize_mutation
+
+        def track_competing_update(_connection, _cursor, statement, _parameters, _context, _many):
+            if "update committee_member" in statement.lower():
+                writer_attempted_update.set()
+
+        def pause_after_authorization(*args, **kwargs):
+            result = original_authorize(*args, **kwargs)
+            if kwargs.get("scope") is self.scope or args[-1] is self.scope:
+                authorization_complete.set()
+                if not allow_mutation.wait(5):
+                    raise TimeoutError("timed out waiting to finish the authorized mutation")
+            return result
+
+        self.repository._authorize_mutation = pause_after_authorization
+
+        def update_membership() -> None:
+            try:
+                self.repository.update_membership(
+                    1, {"member_status": "ordinary"}, authorization_scope=self.scope
+                )
+            except BaseException as error:
+                errors.append(error)
+
+        def move_membership() -> None:
+            try:
+                with session_scope(self.db_path) as session:
+                    Store(session).update(
+                        COMMITTEE_MEMBER, 1, {"committee_id": destination_committee}
+                    )
+            except BaseException as error:
+                errors.append(error)
+            finally:
+                writer_finished.set()
+
+        mutation = Thread(target=update_membership)
+        move = Thread(target=move_membership)
+        event.listen(Engine, "before_cursor_execute", track_competing_update)
+        try:
+            mutation.start()
+            self.assertTrue(authorization_complete.wait(5))
+            move.start()
+            self.assertTrue(writer_attempted_update.wait(5))
+            self.assertFalse(
+                writer_finished.wait(0.2),
+                "a competing ownership write committed after authorization but before mutation",
+            )
+        finally:
+            allow_mutation.set()
+            mutation.join(5)
+            move.join(5)
+            event.remove(Engine, "before_cursor_execute", track_competing_update)
+
+        self.assertFalse(mutation.is_alive())
+        self.assertFalse(move.is_alive())
+        self.assertEqual([], errors)
+        member = self.repository.get(COMMITTEE_MEMBER, 1)
+        self.assertEqual(destination_committee, member["committee_id"])
+        self.assertEqual("ordinary", member["member_status"])
+
     def test_allowed_candidate_round_change_checks_target_scope(self) -> None:
         with self.assertRaisesRegex(ForbiddenRequestError, "^Forbidden\\.$"):
             self.authorizer.authorize(
-                CANDIDATE,
+                ResourceKind.CANDIDATE,
                 1,
                 {"exam_round_id": self.foreign_round},
             )
 
     def test_availability_binds_actor_and_preserves_existing_owner(self) -> None:
         member_scope = replace(self.scope, management_committee_ids=frozenset())
-        member = ResourceAuthorizer(self.db_path, member_scope)
+        member = ResourceAuthorizer(self.access_queries, member_scope)
         payload = {
             "exam_round_id": 1,
             "committee_member_id": self.foreign_member,
             "created_by_member_id": 999,
         }
-        result = member.authorize(MEMBER_AVAILABILITY, None, payload)
+        result = member.authorize(ResourceKind.MEMBER_AVAILABILITY, None, payload)
         self.assertEqual({"exam_round_id": 1, "committee_member_id": 1}, result)
         self.assertEqual(999, payload["created_by_member_id"])
         result = member.authorize(
-            MEMBER_AVAILABILITY,
+            ResourceKind.MEMBER_AVAILABILITY,
             self.own[MEMBER_AVAILABILITY],
             {"exam_round_id": self.foreign_round, "committee_member_id": self.foreign_member},
         )
@@ -401,11 +518,11 @@ class ResourceAccessTests(unittest.TestCase):
         self.assertEqual(1, result["committee_member_id"])
         self.assertEqual(self.own[CANDIDATE_EXAM_DAY], result["candidate_exam_day_id"])
         with self.assertRaises(ForbiddenRequestError):
-            self.authorizer.authorize(MEMBER_AVAILABILITY, None, payload)
+            self.authorizer.authorize(ResourceKind.MEMBER_AVAILABILITY, None, payload)
         with session_scope(self.db_path) as session:
             Store(session).update(COMMITTEE_MEMBER, 1, {"is_active": 0})
         with self.assertRaises(ForbiddenRequestError):
-            member.authorize(MEMBER_AVAILABILITY, self.own[MEMBER_AVAILABILITY], {})
+            member.authorize(ResourceKind.MEMBER_AVAILABILITY, self.own[MEMBER_AVAILABILITY], {})
 
     def test_owner_reads_use_one_snapshot_during_a_concurrent_commit(self) -> None:
         target_committee = self.repository.create(

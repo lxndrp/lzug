@@ -392,13 +392,19 @@ def _planning_create(resource_name: str, finish: Finish):
         )
         status = HTTPStatus.CREATED
         if resource_name == "planning-settings":
-            row = context.repository.save_planning_settings(payload)
+            row = context.repository.save_planning_settings(
+                payload, authorization_scope=context.authorization_scope
+            )
             status = HTTPStatus.OK
         elif resource_name == "member-availabilities":
-            row = context.repository.save_member_availability(payload)
+            row = context.repository.save_member_availability(
+                payload, authorization_scope=context.authorization_scope
+            )
             status = HTTPStatus.OK
         else:
-            row = context.repository.create(resource, payload)
+            row = context.repository.create(
+                resource, payload, authorization_scope=context.authorization_scope
+            )
         return finish(
             context,
             context.respond(hateoas.resource_item(resource_name, resource, row), status),
@@ -422,11 +428,20 @@ def _planning_update(
             resource_name, identifier, payload_data(context, request), "update"
         )
         if resource_name == "planning-settings":
-            row = context.repository.update_planning_settings(identifier, payload)
+            row = context.repository.update_planning_settings(
+                identifier, payload, authorization_scope=context.authorization_scope
+            )
         elif resource_name == "member-availabilities":
-            row = context.repository.update_member_availability(identifier, payload)
+            row = context.repository.update_member_availability(
+                identifier, payload, authorization_scope=context.authorization_scope
+            )
         else:
-            row = context.repository.update(resource, identifier, payload)
+            row = context.repository.update(
+                resource,
+                identifier,
+                payload,
+                authorization_scope=context.authorization_scope,
+            )
         return (
             not_found()
             if row is None
@@ -450,7 +465,9 @@ def _planning_delete(
 
     def delete(context: EmptyWriteContext, id: int):
         context.authorize_resource_action(resource_name, id, {}, "delete")
-        deleted = context.repository.delete(resource, id)
+        deleted = context.repository.delete(
+            resource, id, authorization_scope=context.authorization_scope
+        )
         return (
             not_found()
             if not deleted
