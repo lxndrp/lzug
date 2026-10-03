@@ -68,12 +68,16 @@ describe('PlanningWorkflowService', () => {
     response.complete();
 
     expect(port.updateExamRound).toHaveBeenCalledOnce();
-    expect(committed).toHaveBeenCalledWith({ sourceRoundId: 1, scope: 'round' });
+    expect(committed).toHaveBeenCalledWith({
+      sourceRoundId: 1,
+      scope: 'round',
+      phase: 'complete',
+    });
     expect(workflow.snapshot()).toBeNull();
   });
 
   it('publishes the round metadata commit if availability dispatch then fails', () => {
-    const { workflow } = createHarness({
+    const { workflow, port } = createHarness({
       updateExamRound: vi.fn(() => of({ id: 1 })),
       sendAvailabilityRequests: vi.fn(() => throwError(() => new Error('dispatch failed'))),
     });
@@ -88,11 +92,16 @@ describe('PlanningWorkflowService', () => {
       view,
     );
 
-    expect(committed).toHaveBeenCalledWith({ sourceRoundId: 1, scope: 'round' });
+    expect(committed).toHaveBeenCalledWith({
+      sourceRoundId: 1,
+      scope: 'round',
+      phase: 'partial',
+    });
+    expect(port.loadPlanning).toHaveBeenCalledTimes(2);
   });
 
   it('publishes the settings commit if candidate-day generation then fails', () => {
-    const { workflow } = createHarness({
+    const { workflow, port } = createHarness({
       savePlanningSettings: vi.fn(() => of({})),
       generateCandidateExamDays: vi.fn(() => throwError(() => new Error('generation failed'))),
     });
@@ -112,7 +121,12 @@ describe('PlanningWorkflowService', () => {
       view,
     );
 
-    expect(committed).toHaveBeenCalledWith({ sourceRoundId: 1, scope: 'round' });
+    expect(committed).toHaveBeenCalledWith({
+      sourceRoundId: 1,
+      scope: 'round',
+      phase: 'partial',
+    });
+    expect(port.loadPlanning).toHaveBeenCalledTimes(2);
   });
 
   it('clears prior-round workflow reports when the resolved round context changes', () => {

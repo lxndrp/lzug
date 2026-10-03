@@ -6,12 +6,14 @@ import {
   Subject,
   Subscription,
   defer,
+  catchError,
   filter,
   finalize,
   of,
   switchMap,
   tap,
   takeUntil,
+  throwError,
 } from 'rxjs';
 
 import type {
@@ -89,8 +91,19 @@ export class PlanningWorkflowService {
       }
     });
     this.roundContext.changes$.subscribe(() => this.resetForRoundContextChange());
-    this.writeEvents.committed$.subscribe(({ sourceRoundId, scope }) => {
+    this.writeEvents.committed$.subscribe(({ sourceRoundId, scope, phase }) => {
       const activeRoundId = this.activeRoundId;
+      if (
+        phase === 'partial' &&
+        scope === 'round' &&
+        activeRoundId === sourceRoundId &&
+        this.isSelectedRound(sourceRoundId)
+      ) {
+        // A staged command may have committed round-local data before its
+        // follow-up fails. Refresh this feature without applying its response.
+        this.refreshPlanning(sourceRoundId);
+        return;
+      }
       if (
         scope !== 'related-rounds' ||
         activeRoundId === null ||
@@ -304,11 +317,18 @@ export class PlanningWorkflowService {
     }
     if (!this.ensurePlanningRound(roundId)) return;
     if (!this.beginOperation()) return;
+    let roundMetadataCommitted = false;
     this.sessionScope
       .forCurrentSession(
         this.planning.updateExamRound(payload, roundId).pipe(
-          tap(() => this.writeEvents.notifyCommitted(roundId)),
+          tap(() => (roundMetadataCommitted = true)),
           switchMap(() => this.planning.sendAvailabilityRequests(roundId)),
+          catchError((error: unknown) => {
+            if (roundMetadataCommitted) {
+              this.writeEvents.notifyCommitted(roundId, 'round', 'partial');
+            }
+            return throwError(() => error);
+          }),
         ),
       )
       .pipe(finalize(() => this.pending.set(false)))
@@ -379,11 +399,16 @@ export class PlanningWorkflowService {
     }
     if (!this.ensurePlanningRound(roundId)) return;
     if (!this.beginOperation()) return;
+    let settingsCommitted = false;
     this.sessionScope
       .forCurrentSession(
         this.planning.savePlanningSettings(payload, roundId).pipe(
-          tap(() => this.writeEvents.notifyCommitted(roundId)),
+          tap(() => (settingsCommitted = true)),
           switchMap(() => this.planning.generateCandidateExamDays(roundId)),
+          catchError((error: unknown) => {
+            if (settingsCommitted) this.writeEvents.notifyCommitted(roundId, 'round', 'partial');
+            return throwError(() => error);
+          }),
         ),
       )
       .pipe(finalize(() => this.pending.set(false)))

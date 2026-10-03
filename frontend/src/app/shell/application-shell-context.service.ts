@@ -2,6 +2,7 @@ import { Injectable, inject, signal } from '@angular/core';
 import { finalize } from 'rxjs';
 
 import { ApplicationError } from '../application/application-error';
+import { PlanningWriteEventsService } from '../application/planning-write-events.service';
 import { RoundContextService } from '../api/round-context.service';
 import { AuthService } from '../auth/auth.service';
 import { SessionScopeService } from '../auth/session-scope.service';
@@ -17,6 +18,7 @@ export class ApplicationShellContextService {
   private readonly auth = inject(AuthService);
   private readonly sessionScope = inject(SessionScopeService);
   private readonly roundContext = inject(RoundContextService);
+  private readonly writeEvents = inject(PlanningWriteEventsService);
   private generation = 0;
 
   readonly context = signal<ApplicationShellContext | null>(null);
@@ -31,6 +33,16 @@ export class ApplicationShellContextService {
       this.error.set(false);
     });
     this.roundContext.changes$.subscribe(() => this.refresh());
+    this.writeEvents.committed$.subscribe(({ sourceRoundId, scope, phase }) => {
+      if (
+        phase !== 'partial' ||
+        scope !== 'round' ||
+        this.roundContext.roundId() !== sourceRoundId
+      ) {
+        return;
+      }
+      this.refresh();
+    });
   }
 
   refresh(): void {

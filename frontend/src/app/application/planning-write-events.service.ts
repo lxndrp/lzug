@@ -5,6 +5,7 @@ export type PlanningWriteInvalidationScope = 'round' | 'related-rounds';
 export type PlanningWriteCommit = {
   sourceRoundId: number;
   scope: PlanningWriteInvalidationScope;
+  phase: 'partial' | 'complete';
 };
 
 /** Application-level invalidation events for projections affected by planning writes. */
@@ -14,7 +15,11 @@ export class PlanningWriteEventsService {
 
   readonly committed$ = this.committed.asObservable();
 
-  notifyCommitted(sourceRoundId: number, scope: PlanningWriteInvalidationScope = 'round'): void {
-    this.committed.next({ sourceRoundId, scope });
+  notifyCommitted(
+    sourceRoundId: number,
+    scope: PlanningWriteInvalidationScope = 'round',
+    phase: PlanningWriteCommit['phase'] = 'complete',
+  ): void {
+    this.committed.next({ sourceRoundId, scope, phase });
   }
 }

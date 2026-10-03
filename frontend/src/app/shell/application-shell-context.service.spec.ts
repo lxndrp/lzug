@@ -6,6 +6,7 @@ import { RoundContextService } from '../api/round-context.service';
 import { SessionScopeService } from '../auth/session-scope.service';
 import { APPLICATION_SHELL_CONTEXT_PORT } from './application-shell-context.port';
 import { ApplicationShellContextService } from './application-shell-context.service';
+import { PlanningWriteEventsService } from '../application/planning-write-events.service';
 
 describe('ApplicationShellContextService', () => {
   const context = {
@@ -71,5 +72,16 @@ describe('ApplicationShellContextService', () => {
 
     expect(load).toHaveBeenCalledWith(4);
     expect(service.context()).toMatchObject({ roundId: 4 });
+  });
+
+  it('reloads shell labels after a same-round partial planning commit', () => {
+    const service = TestBed.inject(ApplicationShellContextService);
+    service.refresh();
+    load.mockReturnValueOnce(of({ ...context, round: 'Runde aktualisiert' }));
+
+    TestBed.inject(PlanningWriteEventsService).notifyCommitted(1, 'round', 'partial');
+
+    expect(load).toHaveBeenCalledTimes(2);
+    expect(service.context()?.round).toBe('Runde aktualisiert');
   });
 });
