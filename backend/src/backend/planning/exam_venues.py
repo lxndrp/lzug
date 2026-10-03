@@ -213,7 +213,9 @@ class ExamVenueService:
                     "longitude",
                     "coordinate_status",
                     "coordinate_source",
-                }.intersection(command):
+                }.intersection(
+                    command
+                ):
                     if after["latitude"] is not None:
                         after["coordinate_status"] = "needs_review"
                 fields = VENUE_FIELDS

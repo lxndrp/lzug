@@ -1520,9 +1520,7 @@ class ExamDayClosureService:
         }
 
     @staticmethod
-    def _reopening_entities(
-        session: Session, day: ExamDay
-    ) -> tuple[
+    def _reopening_entities(session: Session, day: ExamDay) -> tuple[
         dict[int, ExamSlot],
         dict[int, ExamDayAssignment],
         dict[int, AbsenceReport],
