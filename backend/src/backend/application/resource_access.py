@@ -142,12 +142,12 @@ class ResourceAccessQueryFactory(Protocol):
 
 
 def reference_changes(payload: Mapping[str, object]) -> tuple[ResourceReferenceChange, ...]:
-    """Extract typed ownership references from a validated transport payload."""
+    """Validate and extract typed ownership references from a transport payload."""
     changes = []
     for field in ResourceReferenceField:
         if field.value in payload:
             value = payload[field.value]
             if value is not None and (isinstance(value, bool) or not isinstance(value, int)):
-                raise TypeError(f"{field.value} must be an integer or None")
+                raise ValueError(f"{field.value} must be an integer or None")
             changes.append(ResourceReferenceChange(field, value))
     return tuple(changes)
