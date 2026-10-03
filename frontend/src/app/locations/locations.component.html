@@ -606,7 +606,7 @@
               >Orte, Räume und zulässige Kontakte im eigenen Verantwortungsbereich</span
             >
           </div>
-          @if (!readOnly && canCreateVenue) {
+          @if (!readOnly && canCreateVenue && (isOperator || !snapshot?.committeeLoadError)) {
             <button
               #venueCreateButton
               tuiButton

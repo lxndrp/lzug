@@ -425,6 +425,22 @@ describe('LocationsComponent', () => {
     expect(visibleButtonText).not.toContain('Global vorschlagen');
   });
 
+  it('keeps committee venue creation unavailable when committee names failed, but allows operators', () => {
+    fixture.componentRef.setInput('snapshot', {
+      ...locationSnapshotFixture,
+      canCreateVenue: true,
+      committeeLoadError: true,
+    });
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('button[aria-controls="location-create-editor"]')).toBeNull();
+
+    fixture.componentRef.setInput('isOperator', true);
+    fixture.detectChanges();
+    expect(root.querySelector('button[aria-controls="location-create-editor"]')).not.toBeNull();
+  });
+
   it('normalizes and emits committee and global venue creation', () => {
     const component = fixture.componentInstance;
     const harness = component as unknown as LocationsHarness;
