@@ -292,8 +292,11 @@ Der Lock schützt nur kurze Credential-Prüfungen, Revalidierungen und Commits;
 Sync und ICS-Rendering laufen außerhalb.
 Ein Read prüft vor der Arbeit Credential-Generation und Identity-Scope,
 materialisiert den Read-Snapshot unter kurzer Sperre und revalidiert unmittelbar
-vor Rückgabe die aktive Credential-Generation.
+vor Rückgabe Credential-Generation und Identity-Scope erneut.
 Hat `DELETE` vorher widerrufen, wird das gerenderte Ergebnis verworfen.
+Hat sich der Scope geändert, filtert Calendar auf die aktuell aktiven
+Memberships/Committees oder verwirft das Ergebnis, wenn kein zulässiger Scope
+verbleibt.
 GET-Refreshes, initiale Aktivierung, Rotation und Pending-Retries nutzen je Feed
 denselben Sync-Coordinator: pro Feed läuft höchstens ein Sync-UoW, und Aufträge
 derselben Credential- oder Pending-Generation teilen ihn. `DELETE` setzt zuerst
@@ -364,8 +367,10 @@ Credential-Prüfungen und -Commits; Sync, Snapshot und Rendering laufen
 außerhalb. Sein Registry-/Serviceobjekt wird prozessweit geteilt und nicht pro
 `RequestContext` oder `CalendarService` instanziiert.
 ICS prüft Credential-Generation und Identity-Scope vor der Arbeit, prüft den
-Read-Snapshot unter kurzer Sperre und unmittelbar vor Rückgabe erneut, dass
-dieselbe Credential-Generation aktiv ist. Alle Sync-Auslöser gehen durch den
+Read-Snapshot unter kurzer Sperre und unmittelbar vor Rückgabe Credential-
+Generation und Identity-Scope erneut. Ein geänderter Scope filtert das
+materialisierte Ergebnis auf aktuell aktive Memberships/Committees oder
+verwirft es ohne zulässigen Scope. Alle Sync-Auslöser gehen durch den
 je Feed serialisierten Coordinator; Rotation committet Widerruf und
 Pending-Generation unter dem Lifecycle-Lock, synchronisiert außerhalb und
 finalisiert nach erneuter Pending-Prüfung unter dem Lock. `DELETE` setzt unter
@@ -378,9 +383,11 @@ Konkurrierende und veraltete Requests erhalten stabile
 Secret und können weder die Gewinner-URL ungültig machen noch rohe
 Unique-Constraint-Fehler auslösen.
 Token-ICS-Reads und Rotation nutzen dieselbe Sperre nur für Credential-Prüfungen
-und -Commits. Der Read prüft die Token- und Identity-Generation vor Sync,
-revalidiert den Snapshot unter kurzer Sperre und prüft das Credential
-unmittelbar vor Rückgabe erneut; Sync, Rendering und Ausgabe liegen außerhalb.
+und -Commits. Der Read prüft Token und Identity-Scope vor Sync, revalidiert den
+Snapshot unter kurzer Sperre und liest Credential-Generation sowie Identity-
+Scope unmittelbar vor Rückgabe erneut. Ein geänderter Scope filtert das
+materialisierte Ergebnis auf aktuell aktive Memberships/Committees oder
+verwirft es ohne zulässigen Scope; Sync und Rendering liegen außerhalb.
 Rotation hält die Sperre für Widerrufscommit sowie spätere Pending-Revalidierung
 und Finalisierung; ihr Sync läuft außerhalb.
 Die Garantie gilt prozessweit im einzelnen autoritativen Backendprozess;
