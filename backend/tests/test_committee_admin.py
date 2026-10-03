@@ -12,9 +12,9 @@ import pyotp
 from sqlalchemy import func, select
 
 from backend.application.repositories import ResourceRepository
+from backend.composition import authorization_service
 from backend.identity.admin_service import AdminOperationError
 from backend.identity.auth import AuthenticationRepository
-from backend.identity.authorization import AuthorizationService
 from backend.identity.committee_admin import CommitteeAdminService
 from backend.identity.local_auth import LocalAuthService
 from backend.persistence.database import session_scope
@@ -529,7 +529,7 @@ class CommitteeAdminTests(unittest.TestCase):
                 credentials = authentication.create_session(account_id)
                 context = authentication.authenticate(credentials.token)
                 assert context is not None
-                scope = AuthorizationService(db_path).scope(context)
+                scope = authorization_service(db_path).scope(context)
                 self.assertEqual({created["committee_id"]}, set(scope.committee_ids))
                 self.assertEqual({created["committee_id"]}, set(scope.management_committee_ids))
 
@@ -556,7 +556,7 @@ class CommitteeAdminTests(unittest.TestCase):
             assert context is not None
             self.assertEqual(
                 {first["committee_id"], second["committee_id"]},
-                set(AuthorizationService(db_path).scope(context).committee_ids),
+                set(authorization_service(db_path).scope(context).committee_ids),
             )
 
             service.deactivate(
@@ -570,7 +570,7 @@ class CommitteeAdminTests(unittest.TestCase):
             self.assertIsNotNone(authentication.authenticate(credentials.token))
             self.assertEqual(
                 {second["committee_id"]},
-                set(AuthorizationService(db_path).scope(context).committee_ids),
+                set(authorization_service(db_path).scope(context).committee_ids),
             )
 
             service.reactivate(
@@ -583,7 +583,7 @@ class CommitteeAdminTests(unittest.TestCase):
             )
             self.assertEqual(
                 {first["committee_id"], second["committee_id"]},
-                set(AuthorizationService(db_path).scope(context).committee_ids),
+                set(authorization_service(db_path).scope(context).committee_ids),
             )
 
     def test_unresolved_committee_cannot_be_reactivated(self) -> None:

@@ -9,13 +9,9 @@ role here.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
-
-from sqlalchemy import select
 
 from backend.identity.auth import AuthContext
-from backend.persistence.database import DEFAULT_DB_PATH, session_scope
-from backend.persistence.models import Committee, CommitteeMember
+from backend.identity.people import IdentityQueryFactory
 
 
 @dataclass(frozen=True)
@@ -52,46 +48,29 @@ class AuthorizationScope:
 class AuthorizationService:
     """Resolve an authenticated session to its active committee scope."""
 
-    def __init__(self, db_path: Path = DEFAULT_DB_PATH):
-        self.db_path = db_path
+    def __init__(
+        self,
+        query_factory: IdentityQueryFactory,
+    ):
+        self.query_factory = query_factory
 
     def scope(self, context: AuthContext) -> AuthorizationScope:
         if context.person_id is None:
             return AuthorizationScope(None, frozenset(), frozenset(), frozenset(), frozenset(), {})
-        with session_scope(self.db_path) as session:
-            memberships = [
-                {
-                    "id": membership.id,
-                    "person_id": membership.person_id,
-                    "committee_id": membership.committee_id,
-                    "committee_role": membership.committee_role,
-                }
-                for membership in session.scalars(
-                    select(CommitteeMember)
-                    .join(Committee, Committee.id == CommitteeMember.committee_id)
-                    .where(
-                        CommitteeMember.person_id == context.person_id,
-                        CommitteeMember.is_active == 1,
-                        Committee.is_active == 1,
-                        Committee.bootstrap_state == "ready",
-                    )
-                    .order_by(CommitteeMember.id)
-                ).all()
-            ]
+        with self.query_factory.snapshot() as queries:
+            memberships = queries.active_memberships(context.person_id)
 
-        member_by_committee = {
-            membership["committee_id"]: membership["id"] for membership in memberships
-        }
+        member_by_committee = {membership.committee_id: membership.id for membership in memberships}
         management_committee_ids = {
-            membership["committee_id"]
+            membership.committee_id
             for membership in memberships
-            if membership["committee_role"] in {"chair", "deputy_chair"}
+            if membership.committee_role in {"chair", "deputy_chair"}
         }
         return AuthorizationScope(
             person_id=context.person_id,
-            person_ids=frozenset(membership["person_id"] for membership in memberships),
+            person_ids=frozenset(membership.person_id for membership in memberships),
             committee_ids=frozenset(member_by_committee),
-            member_ids=frozenset(membership["id"] for membership in memberships),
+            member_ids=frozenset(membership.id for membership in memberships),
             management_committee_ids=frozenset(management_committee_ids),
             member_by_committee=member_by_committee,
         )

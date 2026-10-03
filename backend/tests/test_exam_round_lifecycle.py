@@ -6,9 +6,9 @@ from unittest.mock import patch
 
 from sqlalchemy import select, text
 
+from backend.composition import authorization_service
 from backend.execution.exam_round_lifecycle import ExamRoundConflictError, ExamRoundLifecycleService
 from backend.identity.auth import AuthenticationRepository
-from backend.identity.authorization import AuthorizationService
 from backend.persistence.database import session_scope
 from backend.persistence.models import (
     CalendarEvent,
@@ -350,7 +350,7 @@ class ExamRoundLifecycleTests(unittest.TestCase):
         self._make_round_closable()
         service = ExamRoundLifecycleService(self.db_path)
         context = AuthenticationRepository(self.db_path).authenticate(self.chair.token)
-        scope = AuthorizationService(self.db_path).scope(context)
+        scope = authorization_service(self.db_path).scope(context)
         close = {"revision": 1, "confirmed": True}
         with (
             patch.object(service, "_view", side_effect=RuntimeError("test view failure")),
@@ -408,7 +408,7 @@ class ExamRoundLifecycleTests(unittest.TestCase):
     def test_terminal_candidate_evidence_and_revision_guard_precede_mutation(self) -> None:
         service = ExamRoundLifecycleService(self.db_path)
         context = AuthenticationRepository(self.db_path).authenticate(self.chair.token)
-        scope = AuthorizationService(self.db_path).scope(context)
+        scope = authorization_service(self.db_path).scope(context)
         for details in (
             {"terminal_status": "result_communicated"},
             {"terminal_status": "transferred", "reason": "Wechsel"},
@@ -495,7 +495,7 @@ class ExamRoundLifecycleTests(unittest.TestCase):
     def test_transferred_status_requires_effective_assignment_in_the_target_round(self) -> None:
         service = ExamRoundLifecycleService(self.db_path)
         context = AuthenticationRepository(self.db_path).authenticate(self.chair.token)
-        scope = AuthorizationService(self.db_path).scope(context)
+        scope = authorization_service(self.db_path).scope(context)
         with session_scope(self.db_path) as session:
             target_committee = Committee(
                 name="Zielausschuss", ihk="IHK Teststadt", occupation="Fachinformatiker/in"

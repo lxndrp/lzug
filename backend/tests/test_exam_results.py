@@ -8,9 +8,9 @@ from threading import Barrier
 from unittest.mock import patch
 
 from backend.assessment.exam_results import ExamResultConflictError, ExamResultService
+from backend.composition import authorization_service
 from backend.execution.exam_protocols import create_protocol_for_started_slot
 from backend.identity.auth import AuthenticationRepository
-from backend.identity.authorization import AuthorizationService
 from backend.persistence.database import session_scope
 from backend.persistence.models import (
     CandidateExamAttendance,
@@ -392,7 +392,7 @@ class ExamResultTests(unittest.TestCase):
 
         context = AuthenticationRepository(self.db_path).authenticate(self.chair.token)
         self.assertIsNotNone(context)
-        scope = AuthorizationService(self.db_path).scope(context)
+        scope = authorization_service(self.db_path).scope(context)
         initial_version = result["version"]
         with session_scope(self.db_path) as session:
             initial_day_revision = session.get(ExamDay, self.day_id).revision

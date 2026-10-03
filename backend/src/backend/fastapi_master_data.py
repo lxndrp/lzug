@@ -151,7 +151,7 @@ def _resource_collection_route(resolved: FastAPIConfig, resource_name: str, reso
     def get_collection(request: Request, context: ReadContext):
         params = request.query_params
         if resource_name in {"members", "memberships"}:
-            rows = context.repository.member_list(
+            rows = context.identity_service.members(
                 context.resource_filters(resource, params), context.authorization_scope
             )
         elif resource_name == "candidates":
@@ -184,7 +184,7 @@ def _resource_collection_route(resolved: FastAPIConfig, resource_name: str, reso
 def _resource_item_route(resolved: FastAPIConfig, resource_name: str, resource):
     def get_item(context: ReadContext, id: int):
         row = (
-            context.repository.member_get(id, context.authorization_scope)
+            context.identity_service.member(id, context.authorization_scope)
             if resource_name in {"members", "memberships"}
             else context.repository.get_visible(resource, id, context.authorization_scope)
         )

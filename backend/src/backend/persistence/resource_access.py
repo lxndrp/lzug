@@ -133,6 +133,7 @@ class _SQLiteCommitteeMemberIdentity:
     person_id: int
     committee_id: int
     is_active: bool
+    committee_role: str
 
 
 _RESOURCES: dict[_ResourceKind, Resource] = {
@@ -220,6 +221,7 @@ class SQLiteResourceAccessQueries:
             person_id=int(member["person_id"]),
             committee_id=int(member["committee_id"]),
             is_active=bool(member["is_active"]),
+            committee_role=str(member["committee_role"]),
         )
 
     def list_visible(

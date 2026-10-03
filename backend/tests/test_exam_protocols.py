@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 from sqlalchemy import select
 
+from backend.composition import authorization_service
 from backend.execution.exam_protocols import (
     ENTRY_CATEGORIES,
     ExamProtocolConflictError,
@@ -15,7 +16,6 @@ from backend.execution.exam_protocols import (
     create_protocol_for_started_slot,
 )
 from backend.identity.auth import AuthenticationRepository
-from backend.identity.authorization import AuthorizationService
 from backend.persistence.database import initialize, session_scope
 from backend.persistence.models import (
     CandidateExamAttendance,
@@ -401,7 +401,7 @@ class ExamProtocolTests(unittest.TestCase):
     def test_response_validation_and_failed_day_completion_leave_no_partial_response(self) -> None:
         service = ExamProtocolService(self.db_path)
         context = self.authentication.authenticate(self.chair.token)
-        scope = AuthorizationService(self.db_path).scope(context)
+        scope = authorization_service(self.db_path).scope(context)
         protocol = service.update_content(
             scope,
             self.protocol_id,

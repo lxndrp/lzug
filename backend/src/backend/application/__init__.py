@@ -18,6 +18,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 
 from backend.application import hateoas
 from backend.application.repositories import ResourceRepository
+from backend.composition import authorization_service as compose_authorization_service
 from backend.identity.auth import AuthenticationRepository
 from backend.identity.authorization import AuthorizationScope, AuthorizationService
 from backend.persistence.database import DEFAULT_DB_PATH, database_readiness
@@ -48,7 +49,7 @@ class ApplicationServices:
     readiness_probe: Callable[[Path], dict[str, object]] = database_readiness
     repository_factory: Callable[[Path], ResourceRepository] = ResourceRepository
     authentication_factory: Callable[[Path], AuthenticationRepository] = AuthenticationRepository
-    authorization_factory: Callable[[Path], AuthorizationService] = AuthorizationService
+    authorization_factory: Callable[[Path], AuthorizationService] = compose_authorization_service
 
 
 class ReadApplication:

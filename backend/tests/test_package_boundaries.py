@@ -137,6 +137,7 @@ TEST_OWNERS = {
             "test_auth.py",
             "test_authorization.py",
             "test_committee_admin.py",
+            "test_identity_ports.py",
             "test_local_auth.py",
         }
     ),

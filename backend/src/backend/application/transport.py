@@ -30,6 +30,8 @@ from backend.application.repositories import REST_RESOURCES, ResourceRepository
 from backend.application.resource_access import ResourceAccessQueryFactory, ResourceKind
 from backend.application.resource_authorization import ResourceAuthorizer
 from backend.assessment.exam_results import ExamResultService
+from backend.composition import authorization_service as compose_authorization_service
+from backend.composition import identity_service as compose_identity_service
 from backend.execution.absence import AbsenceService
 from backend.execution.exam_day_closures import ExamDayClosureService
 from backend.execution.exam_protocols import ExamProtocolService
@@ -37,6 +39,7 @@ from backend.execution.exam_round_lifecycle import ExamRoundLifecycleService
 from backend.identity.auth import AuthContext, AuthenticationRepository, SessionCredentials
 from backend.identity.authorization import AuthorizationScope, AuthorizationService
 from backend.identity.local_auth import LocalAuthService
+from backend.identity.people import IdentityService
 from backend.integrations.calendar import CalendarService
 from backend.integrations.notifications import NotificationService
 from backend.observability import emit_event
@@ -87,7 +90,16 @@ class RequestContext:
 
     @property
     def repository(self) -> ResourceRepository:
-        return ResourceRepository(self.db_path, self.resource_access_query_factory(self.db_path))
+        queries = self.resource_access_query_factory(self.db_path)
+        return ResourceRepository(
+            self.db_path,
+            queries,
+            self.identity_service,
+        )
+
+    @property
+    def identity_service(self) -> IdentityService:
+        return compose_identity_service(self.db_path)
 
     @property
     def resource_access_queries(self) -> ResourceAccessQueryFactory:
@@ -107,7 +119,7 @@ class RequestContext:
 
     @property
     def authorization_service(self) -> AuthorizationService:
-        return AuthorizationService(self.db_path)
+        return compose_authorization_service(self.db_path)
 
     @property
     def local_auth_service(self) -> LocalAuthService:

@@ -245,6 +245,28 @@ class ResourceAccessTests(unittest.TestCase):
             else:
                 self.assertIsNotNone(self.repository.get_visible(resource, foreign_id, multi))
 
+    def test_membership_write_rechecks_saved_actor_role_inside_write_uow(self) -> None:
+        with session_scope(self.db_path) as session:
+            Store(session).update(COMMITTEE_MEMBER, 1, {"committee_role": "member"})
+
+        with self.assertRaises(ForbiddenRequestError):
+            self.repository.update_membership(
+                2,
+                {"member_status": "deputy"},
+                authorization_scope=self.scope,
+            )
+
+    def test_membership_write_rechecks_saved_actor_activity_inside_write_uow(self) -> None:
+        with session_scope(self.db_path) as session:
+            Store(session).update(COMMITTEE_MEMBER, 1, {"is_active": 0})
+
+        with self.assertRaises(ForbiddenRequestError):
+            self.repository.update_membership(
+                2,
+                {"member_status": "deputy"},
+                authorization_scope=self.scope,
+            )
+
     def test_history_inactive_members_and_mixed_availability_keep_distinct_rules(self) -> None:
         with session_scope(self.db_path) as session:
             store = Store(session)
@@ -267,7 +289,7 @@ class ResourceAccessTests(unittest.TestCase):
             self.assertIsNotNone(
                 self.repository.get_visible(resource, self.own[resource], self.scope)
             )
-        members = self.repository.member_list(scope=self.scope)
+        members = self.repository.identity_service.members({}, self.scope)
         self.assertIn(2, [member["id"] for member in members])
         self.assertEqual(0, members[-1]["is_active"])
         self.assertIsNone(self.repository.get_visible(MEMBER_AVAILABILITY, mixed["id"], self.scope))
@@ -282,7 +304,7 @@ class ResourceAccessTests(unittest.TestCase):
                 self.assertEqual(1, len(sessions))
                 sizes[resource] = len(rows)
             for call, count in (
-                (lambda: self.repository.member_list(scope=self.scope), 2),
+                (lambda: self.repository.identity_service.members({}, self.scope), 2),
                 (lambda: self.repository.candidate_list(self.scope), 1),
                 (lambda: self.repository.candidate_committee_assignments(scope=self.scope), 1),
             ):
