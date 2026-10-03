@@ -21,7 +21,7 @@ from backend.application.repositories import ResourceRepository
 from backend.identity.auth import AuthenticationRepository
 from backend.identity.authorization import AuthorizationScope, AuthorizationService
 from backend.persistence.database import DEFAULT_DB_PATH, database_readiness
-from backend.persistence.models import EXAM_ROUND
+from backend.planning.resources import PlanningResourceService
 from backend.runtime import RuntimeCoordinator
 
 
@@ -49,6 +49,7 @@ class ApplicationServices:
     repository_factory: Callable[[Path], ResourceRepository] = ResourceRepository
     authentication_factory: Callable[[Path], AuthenticationRepository] = AuthenticationRepository
     authorization_factory: Callable[[Path], AuthorizationService] | None = None
+    planning_resource_service_factory: Callable[[Path], PlanningResourceService] | None = None
 
 
 class ReadApplication:
@@ -106,18 +107,20 @@ class ReadApplication:
 
     def round_summary(self, scope: AuthorizationScope, round_id: int) -> ApplicationResult:
         """Return the existing linked read model after committee authorization."""
-        repository = self.services.repository_factory(self.db_path)
-        round_data = repository.get(EXAM_ROUND, round_id)
-        committee_id = round_data["committee_id"] if round_data is not None else None
+        if self.services.planning_resource_service_factory is None:
+            raise RuntimeError("Planning resource service factory must be injected by composition")
+        summary = self.services.planning_resource_service_factory(self.db_path).round_summary(
+            round_id
+        )
+        committee_id = summary.committee_id if summary is not None else None
         if not scope.can_read_committee(committee_id):
             raise ForbiddenRequestError("Forbidden.")
-        summary = repository.round_summary(round_id)
         if summary is None:
             return ApplicationResult(
                 {"error": "Exam round not found"},
                 HTTPStatus.NOT_FOUND,
             )
-        return ApplicationResult(hateoas.round_summary(summary, round_id))
+        return ApplicationResult(hateoas.round_summary(summary.as_payload(), round_id))
 
 
 def database_error_result(error: SQLAlchemyError) -> ApplicationResult:

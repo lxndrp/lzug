@@ -27,12 +27,12 @@ from backend.identity.auth import AuthenticationRepository
 from backend.persistence.database import session_scope
 from backend.persistence.models import (
     CANDIDATE_EXAM_DAY,
-    EXAM_ROUND,
     Committee,
 )
 from backend.planning.candidate_days import GenerateCandidateDays
 from backend.runtime_policy import ProductRuntimePolicy
 from backend.tests.helpers import TempDatabase, create_committee_record, openapi_document
+from backend.tests.planning_support import planning_resource_service
 
 
 class FastAPIDependencyTests(unittest.TestCase):
@@ -279,14 +279,17 @@ class FastAPIDependencyTests(unittest.TestCase):
                 "is_active": 1,
             },
         )
-        foreign_round = self.repository.create(
-            EXAM_ROUND,
-            {
-                "committee_id": foreign["id"],
-                "exam_half_year_id": 1,
-                "name": "Fremde Runde",
-                "created_by_member_id": foreign_member["id"],
-            },
+        foreign_round = (
+            planning_resource_service(self.db_path)
+            .create_round(
+                {
+                    "committee_id": foreign["id"],
+                    "exam_half_year_id": 1,
+                    "name": "Fremde Runde",
+                    "created_by_member_id": foreign_member["id"],
+                },
+            )
+            .as_payload()
         )
         self.assertEqual(
             200,
@@ -389,7 +392,7 @@ class FastAPIDependencyTests(unittest.TestCase):
         tokens = {}
         for name, db_path in databases.items():
             tokens[name] = AuthenticationRepository(db_path).create_session(1).token
-            ResourceRepository(db_path).save_planning_settings(
+            planning_resource_service(db_path).save_settings(
                 {
                     "exam_round_id": 1,
                     "calendar_week_from": "2026-W23" if name == "product" else "2026-W24",

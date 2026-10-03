@@ -8,12 +8,14 @@ from backend.identity.authorization import AuthorizationService
 from backend.identity.committee_admin import CommitteeAdminService
 from backend.identity.people import IdentityService
 from backend.integrations.holiday_provider import PythonHolidaysProvider
+from backend.integrations.map_provider import planning_requires_confirmed_coordinates
 from backend.persistence.candidate_days import SQLiteCandidateDayUnitOfWorkFactory
 from backend.persistence.committee_admin import SQLiteCommitteeAdminUnitOfWorkFactory
 from backend.persistence.identity import (
     SQLiteIdentityQueryFactory,
     SQLiteIdentityUnitOfWorkFactory,
 )
+from backend.persistence.planning_resources import SQLitePlanningResourceUnitOfWorkFactory
 from backend.planning.candidate_days import CandidateDayService
 
 
@@ -22,6 +24,16 @@ def candidate_day_service(db_path: Path) -> CandidateDayService:
     return CandidateDayService(
         SQLiteCandidateDayUnitOfWorkFactory(db_path),
         PythonHolidaysProvider(),
+    )
+
+
+def planning_resource_unit_of_work_factory(
+    db_path: Path,
+) -> SQLitePlanningResourceUnitOfWorkFactory:
+    """Wire Planning master-data commands to SQLite and current room policy."""
+    return SQLitePlanningResourceUnitOfWorkFactory(
+        db_path,
+        require_confirmed_coordinates=planning_requires_confirmed_coordinates(),
     )
 
 
