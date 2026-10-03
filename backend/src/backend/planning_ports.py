@@ -220,6 +220,32 @@ class VenueRepository(Protocol):
     def query(self, query: VenueQuery) -> VenueQueryResult: ...
 
 
+class VenuePolicy(Protocol):
+    """Planning-owned decisions applied to detached facts inside a write UoW."""
+
+    def venue_values(
+        self, payload: Mapping[str, object], current: Mapping[str, object] | None = None
+    ) -> tuple[dict[str, object], str | None]: ...
+
+    def venue_source(
+        self, current: Mapping[str, object] | None, command: Mapping[str, object]
+    ) -> dict[str, object]: ...
+
+    def coordinate_status_after_address_change(
+        self, values: dict[str, object], before: Mapping[str, object], supplied_fields: set[str]
+    ) -> bool: ...
+
+    def assert_venue_can_be_active(
+        self, values: Mapping[str, object], *, has_active_room: bool
+    ) -> None: ...
+
+    def assert_new_venue_is_inactive(self, values: Mapping[str, object]) -> None: ...
+
+    def assert_room_can_be_deactivated(
+        self, *, venue_active: bool, room_active: bool, has_another_active_room: bool
+    ) -> None: ...
+
+
 class VenueImpactQuery(Protocol):
     """Read-only Planning query for the effects of a proposed venue change."""
 

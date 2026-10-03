@@ -9,6 +9,7 @@ from backend.persistence.database import session_scope
 from backend.persistence.models import ExamVenueAuditEvent
 from backend.planning.exam_venues import ExamVenueService
 from backend.planning_ports import (
+    ExamVenueError,
     GeocodeCandidate,
     VenueChange,
     VenueCommand,
@@ -151,6 +152,44 @@ class PlanningVenuePortTests(unittest.TestCase):
                 audit = session.get(ExamVenueAuditEvent, result.change.audit_id)
                 self.assertIsNotNone(audit)
                 self.assertEqual(result.change.revision, audit.entity_revision)
+
+    def test_venue_policy_rejection_keeps_mutation_and_audit_atomic(self) -> None:
+        with TempDatabase() as db_path:
+            service = exam_venue_service(db_path)
+            venue = service.create_venue(
+                {
+                    "scope": "committee",
+                    "committee_id": 1,
+                    "name": "Inaktiver Policy-Testort",
+                    "street": "Testweg 1",
+                    "postal_code": "20095",
+                    "city": "Hamburg",
+                    "country": "DE",
+                    "is_accessible": True,
+                    "accessibility_status": "confirmed",
+                    "is_active": False,
+                },
+                actor_member_id=1,
+            )
+            with session_scope(db_path) as session:
+                before_audits = session.query(ExamVenueAuditEvent).count()
+
+            with self.assertRaisesRegex(ExamVenueError, "active room"):
+                service.update_venue(
+                    venue["id"],
+                    {"expected_revision": venue["revision"], "is_active": True},
+                    actor_member_id=1,
+                )
+
+            with session_scope(db_path) as session:
+                after_audits = session.query(ExamVenueAuditEvent).count()
+            stored = service.get_venue(venue["id"])
+
+        self.assertIsNotNone(stored)
+        assert stored is not None
+        self.assertEqual(0, stored["is_active"])
+        self.assertEqual(venue["revision"], stored["revision"])
+        self.assertEqual(before_audits, after_audits)
 
 
 if __name__ == "__main__":

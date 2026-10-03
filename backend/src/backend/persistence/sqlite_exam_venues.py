@@ -38,14 +38,11 @@ from backend.persistence.models import (
     model_to_dict,
 )
 from backend.planning_ports import (
-    ACCESSIBILITY_STATUSES,
     COMMAND_META_FIELDS,
     CONTACT_FIELDS,
-    COORDINATE_STATUSES,
     ROOM_FIELDS,
     VENUE_DUPLICATE_FIELDS,
     VENUE_FIELDS,
-    VENUE_SCOPES,
     ExamVenueConfirmationRequiredError,
     ExamVenueConflictError,
     ExamVenueError,
@@ -56,6 +53,7 @@ from backend.planning_ports import (
     VenueCommandKind,
     VenueCommandResult,
     VenueImpactQuery,
+    VenuePolicy,
     VenueQuery,
     VenueQueryKind,
     VenueQueryResult,
@@ -104,10 +102,12 @@ class SQLiteExamVenueRepository:
         *,
         require_confirmed_coordinates: bool = False,
         impact_query: VenueImpactQuery | None = None,
+        policy: VenuePolicy,
     ):
         self.db_path = Path(db_path)
         self.require_confirmed_coordinates = require_confirmed_coordinates
         self.impact_query = impact_query
+        self.policy = policy
 
     def query(self, query: VenueQuery) -> VenueQueryResult:
         """Run one Planning venue query and return detached values."""
@@ -304,19 +304,11 @@ class SQLiteExamVenueRepository:
                 entity_type = "room"
             else:
                 after, _reason = self._venue_values(command, current=venue)
-                if any(
-                    after[field] != getattr(venue, field)
-                    for field in ("street", "postal_code", "city", "country")
-                ) and not {
-                    "latitude",
-                    "longitude",
-                    "coordinate_status",
-                    "coordinate_source",
-                }.intersection(
-                    command
-                ):
-                    if after["latitude"] is not None:
-                        after["coordinate_status"] = "needs_review"
+                self.policy.coordinate_status_after_address_change(
+                    after,
+                    {field: getattr(venue, field) for field in VENUE_FIELDS},
+                    set(command),
+                )
                 fields = VENUE_FIELDS
                 entity_type = "venue"
             before = {field: getattr(entity, field) for field in fields}
@@ -340,7 +332,7 @@ class SQLiteExamVenueRepository:
         excluded_id: int | None = None,
     ) -> list[dict[str, Any]]:
         """Return non-blocking duplicate candidates without exposing hidden venues."""
-        source = self._venue_source(None, payload)
+        source = self.policy.venue_source(None, payload)
         normalized_name = normalize_venue_text(source["name"])
         normalized_address = self._normalized_address(source)
         if not normalized_name and not normalized_address:
@@ -436,8 +428,19 @@ class SQLiteExamVenueRepository:
             if not decision_reason:
                 raise ExamVenueError("A promotion decision needs a reason")
             if decision == "approve":
-                values = self._venue_source(venue, {"scope": "global", "committee_id": None})
-                self._assert_venue_can_be_active(session, venue.id, values)
+                values = self.policy.venue_source(
+                    {field: getattr(venue, field) for field in VENUE_FIELDS},
+                    {"scope": "global", "committee_id": None},
+                )
+                self.policy.assert_venue_can_be_active(
+                    values,
+                    has_active_room=session.scalar(
+                        select(ExamRoom.id)
+                        .where(ExamRoom.venue_id == venue.id, ExamRoom.is_active == 1)
+                        .limit(1)
+                    )
+                    is not None,
+                )
                 collisions = self._duplicate_matches(session, values, excluded_id=venue.id)
                 if any(item.scope == "global" for item in collisions):
                     raise ExamVenueConflictError("A colliding global venue prevents promotion")
@@ -468,8 +471,7 @@ class SQLiteExamVenueRepository:
     ) -> dict[str, Any]:
         values, reason = self._venue_values(payload, current=None)
         duplicate_reason = self._optional_text(payload.get("duplicate_reason"))
-        if values["is_active"]:
-            raise ExamVenueError("A venue must be created inactive before its first room exists")
+        self.policy.assert_new_venue_is_inactive(values)
         with session_scope(self.db_path) as session:
             actor = self._require_actor(session, actor_member_id, technical_actor)
             self._assert_venue_name_available(
@@ -523,17 +525,8 @@ class SQLiteExamVenueRepository:
                 return None, None
             self._assert_revision(venue.revision, expected_revision)
             values, reason = self._venue_values(command, current=venue)
-            address_changed = any(
-                values[field] != getattr(venue, field)
-                for field in ("street", "postal_code", "city", "country")
-            )
-            coordinates_supplied = bool(
-                {"latitude", "longitude", "coordinate_status", "coordinate_source"}.intersection(
-                    command
-                )
-            )
-            if address_changed and not coordinates_supplied and values["latitude"] is not None:
-                values["coordinate_status"] = "needs_review"
+            before = {field: getattr(venue, field) for field in VENUE_FIELDS}
+            if self.policy.coordinate_status_after_address_change(values, before, set(command)):
                 command["coordinate_status"] = "needs_review"
             duplicate_reason = self._optional_text(command.get("duplicate_reason"))
             self._assert_venue_name_available(
@@ -545,9 +538,16 @@ class SQLiteExamVenueRepository:
             )
             self._assert_duplicate_confirmation(session, values, command, excluded_id=venue.id)
             if values["is_active"]:
-                self._assert_venue_can_be_active(session, venue.id, values)
+                self.policy.assert_venue_can_be_active(
+                    values,
+                    has_active_room=session.scalar(
+                        select(ExamRoom.id)
+                        .where(ExamRoom.venue_id == venue.id, ExamRoom.is_active == 1)
+                        .limit(1)
+                    )
+                    is not None,
+                )
             was_active = bool(venue.is_active)
-            before = {field: getattr(venue, field) for field in VENUE_FIELDS}
             changed_fields = {field for field in VENUE_FIELDS if before[field] != values[field]}
             self._assert_future_impact_confirmation(
                 session, venue.id, None, changed_fields, command
@@ -666,7 +666,24 @@ class SQLiteExamVenueRepository:
             )
             was_active = bool(room.is_active)
             if was_active and not values["is_active"]:
-                self._assert_room_can_be_deactivated(session, room)
+                venue = session.get(ExamVenue, room.venue_id)
+                has_another_active_room = (
+                    session.scalar(
+                        select(ExamRoom.id)
+                        .where(
+                            ExamRoom.venue_id == room.venue_id,
+                            ExamRoom.id != room.id,
+                            ExamRoom.is_active == 1,
+                        )
+                        .limit(1)
+                    )
+                    is not None
+                )
+                self.policy.assert_room_can_be_deactivated(
+                    venue_active=bool(venue and venue.is_active),
+                    room_active=bool(room.is_active),
+                    has_another_active_room=has_another_active_room,
+                )
             before = {field: getattr(room, field) for field in ROOM_FIELDS}
             changed_fields = {field for field in ROOM_FIELDS if before[field] != values[field]}
             self._assert_future_impact_confirmation(
@@ -712,7 +729,24 @@ class SQLiteExamVenueRepository:
                 return False
             self._assert_revision(room.revision, expected_revision)
             self._assert_room_is_unused(session, room)
-            self._assert_room_can_be_deactivated(session, room)
+            venue = session.get(ExamVenue, room.venue_id)
+            has_another_active_room = (
+                session.scalar(
+                    select(ExamRoom.id)
+                    .where(
+                        ExamRoom.venue_id == room.venue_id,
+                        ExamRoom.id != room.id,
+                        ExamRoom.is_active == 1,
+                    )
+                    .limit(1)
+                )
+                is not None
+            )
+            self.policy.assert_room_can_be_deactivated(
+                venue_active=bool(venue and venue.is_active),
+                room_active=bool(room.is_active),
+                has_another_active_room=has_another_active_room,
+            )
             self._audit(
                 session,
                 venue_id=room.venue_id,
@@ -830,58 +864,13 @@ class SQLiteExamVenueRepository:
     def _venue_values(
         self, payload: dict[str, Any], *, current: ExamVenue | None
     ) -> tuple[dict[str, Any], str | None]:
-        command, reason = self._command(payload, VENUE_FIELDS)
-        source = self._venue_source(current, command)
-        scope = self._required_choice(source["scope"], "scope", VENUE_SCOPES)
-        committee_id = self._optional_integer(source["committee_id"], "committee_id")
-        if (scope == "global" and committee_id is not None) or (
-            scope == "committee" and committee_id is None
-        ):
-            raise ExamVenueError("Venue scope and committee must agree")
-        accessibility_status = self._required_choice(
-            source["accessibility_status"], "accessibility_status", ACCESSIBILITY_STATUSES
+        detached = (
+            {field: getattr(current, field) for field in VENUE_FIELDS}
+            if current is not None
+            else None
         )
-        is_accessible = self._optional_boolean(source["is_accessible"], "is_accessible")
-        if (accessibility_status == "confirmed") != (is_accessible is not None):
-            raise ExamVenueError("Accessibility confirmation must include exactly one yes/no value")
-        latitude = self._optional_float(source["latitude"], "latitude", -90, 90)
-        longitude = self._optional_float(source["longitude"], "longitude", -180, 180)
-        if (latitude is None) != (longitude is None):
-            raise ExamVenueError("Latitude and longitude must be supplied together")
-        coordinate_status = self._required_choice(
-            source["coordinate_status"], "coordinate_status", COORDINATE_STATUSES
-        )
-        coordinate_source = self._optional_text(source["coordinate_source"])
-        if coordinate_status == "missing" and (
-            latitude is not None or coordinate_source is not None
-        ):
-            raise ExamVenueError("Missing coordinates cannot have a value or source")
-        if coordinate_status == "confirmed" and (latitude is None or coordinate_source is None):
-            raise ExamVenueError("Confirmed coordinates need a position and source")
-        return (
-            {
-                "scope": scope,
-                "committee_id": committee_id,
-                "name": self._text(source["name"]),
-                "normalized_name": normalize_venue_text(source["name"]),
-                "street": self._text(source["street"]),
-                "postal_code": self._text(source["postal_code"]),
-                "city": self._text(source["city"]),
-                "country": self._text(source["country"]),
-                "site_name": self._optional_text(source["site_name"]),
-                "entrance": self._optional_text(source["entrance"]),
-                "travel_directions": self._optional_text(source["travel_directions"]),
-                "is_accessible": is_accessible,
-                "accessibility_status": accessibility_status,
-                "accessibility_notes": self._optional_text(source["accessibility_notes"]),
-                "latitude": latitude,
-                "longitude": longitude,
-                "coordinate_status": coordinate_status,
-                "coordinate_source": coordinate_source,
-                "is_active": self._boolean(source["is_active"], "is_active"),
-            },
-            reason,
-        )
+        values, reason = self.policy.venue_values(payload, detached)
+        return values, reason
 
     def _room_values(
         self, payload: dict[str, Any], *, current: ExamRoom | None
@@ -941,33 +930,6 @@ class SQLiteExamVenueRepository:
             raise ExamVenueError("A contact needs phone, email, or availability information")
         room_ids = self._room_ids(command["room_ids"]) if "room_ids" in command else None
         return values, room_ids, reason
-
-    @staticmethod
-    def _venue_source(current: ExamVenue | None, command: dict[str, Any]) -> dict[str, Any]:
-        defaults = {
-            "scope": None,
-            "committee_id": None,
-            "name": "",
-            "street": "",
-            "postal_code": "",
-            "city": "",
-            "country": "Deutschland",
-            "site_name": None,
-            "entrance": None,
-            "travel_directions": None,
-            "is_accessible": None,
-            "accessibility_status": "needs_clarification",
-            "accessibility_notes": None,
-            "latitude": None,
-            "longitude": None,
-            "coordinate_status": "missing",
-            "coordinate_source": None,
-            "is_active": 0,
-        }
-        if current is not None:
-            defaults.update({field: getattr(current, field) for field in VENUE_FIELDS})
-        defaults.update(command)
-        return defaults
 
     @staticmethod
     def _room_default(field: str) -> object:
@@ -1089,45 +1051,6 @@ class SQLiteExamVenueRepository:
     def _assert_revision(actual: int, expected: int) -> None:
         if actual != expected:
             raise ExamVenueConflictError("Venue data revision is stale")
-
-    @staticmethod
-    def _assert_venue_can_be_active(
-        session: Session, venue_id: int, values: dict[str, Any]
-    ) -> None:
-        required = (
-            values["name"],
-            values["street"],
-            values["postal_code"],
-            values["city"],
-            values["country"],
-        )
-        if not all(str(value).strip() for value in required):
-            raise ExamVenueError("An active venue needs a complete address")
-        if values["accessibility_status"] != "confirmed" or values["is_accessible"] is None:
-            raise ExamVenueError("An active venue needs confirmed accessibility")
-        if not session.scalar(
-            select(ExamRoom.id)
-            .where(ExamRoom.venue_id == venue_id, ExamRoom.is_active == 1)
-            .limit(1)
-        ):
-            raise ExamVenueError("An active venue needs an active room")
-
-    @staticmethod
-    def _assert_room_can_be_deactivated(session: Session, room: ExamRoom) -> None:
-        venue = session.get(ExamVenue, room.venue_id)
-        if venue is None or not venue.is_active or not room.is_active:
-            return
-        another_room = session.scalar(
-            select(ExamRoom.id)
-            .where(
-                ExamRoom.venue_id == room.venue_id,
-                ExamRoom.id != room.id,
-                ExamRoom.is_active == 1,
-            )
-            .limit(1)
-        )
-        if another_room is None:
-            raise ExamVenueError("An active venue needs an active room")
 
     @staticmethod
     def _assert_room_is_unused(session: Session, room: ExamRoom) -> None:

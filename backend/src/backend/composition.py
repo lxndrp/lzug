@@ -19,7 +19,7 @@ from backend.persistence.identity import (
 )
 from backend.persistence.sqlite_exam_venues import SQLiteExamVenueRepository
 from backend.planning.candidate_days import CandidateDayService
-from backend.planning.exam_venues import ExamVenueService
+from backend.planning.exam_venues import ExamVenuePolicy, ExamVenueService
 from backend.planning.venue_consequences import VenueConsequenceService
 from backend.planning_ports import Geocoder, VenueChange, VenueChangeFollowUp
 
@@ -63,14 +63,17 @@ def exam_venue_service(
 ) -> ExamVenueService:
     """Wire Planning's venue ports to SQLite and the configured provider adapter."""
     consequences = VenueConsequenceService(db_path)
+    policy = ExamVenuePolicy()
     return ExamVenueService(
         SQLiteExamVenueRepository(
             db_path,
             require_confirmed_coordinates=map_provider.active,
             impact_query=consequences,
+            policy=policy,
         ),
         geocoder=venue_geocoder(map_provider),
         follow_up=_VenueAuditFollowUp(consequences),
+        policy=policy,
     )
 
 
@@ -80,15 +83,18 @@ def exam_venue_api(
 ) -> ExamVenueApi:
     """Wire the API consumer to Planning ports and database-scoped services."""
     consequences = VenueConsequenceService(db_path)
+    policy = ExamVenuePolicy()
     return ExamVenueApi(
         ExamVenueService(
             SQLiteExamVenueRepository(
                 db_path,
                 require_confirmed_coordinates=map_provider.active,
                 impact_query=consequences,
+                policy=policy,
             ),
             geocoder=venue_geocoder(map_provider),
             follow_up=_VenueAuditFollowUp(consequences),
+            policy=policy,
         ),
         map_provider,
         consequences,
