@@ -59,6 +59,10 @@ export class MasterDataApiService {
     );
   }
 
+  getCommittees() {
+    return this.client.list<Committee>('/api/committees');
+  }
+
   /**
    * Attach active-round data to each global candidate without hiding candidates
    * that have not yet been added to the selected round.

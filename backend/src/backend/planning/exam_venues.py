@@ -25,6 +25,7 @@ from backend.persistence.models import (
     EXAM_ROOM,
     EXAM_VENUE,
     EXAM_VENUE_CONTACT,
+    Committee,
     CommitteeMember,
     ExamDay,
     ExamDayAssignment,
@@ -1134,8 +1135,10 @@ class ExamVenueService:
         }
 
     def _venue_payload(self, session: Session, venue: ExamVenue) -> dict[str, Any]:
+        committee = session.get(Committee, venue.committee_id) if venue.committee_id else None
         return {
             **model_to_dict(venue, EXAM_VENUE),
+            "committee_name": committee.name if committee else None,
             "rooms": [
                 self._room_payload(room)
                 for room in session.scalars(

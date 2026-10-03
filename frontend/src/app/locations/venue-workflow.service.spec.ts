@@ -1,10 +1,8 @@
 import { TestBed } from '@angular/core/testing';
-import { signal } from '@angular/core';
 import { Subject, of, throwError } from 'rxjs';
 
 import { masterDataFixture } from '../testing/fixtures';
 import { toLocationSnapshot } from '../api/http-locations.mapper';
-import { ApplicationWorkspaceService } from '../shell/application-workspace.service';
 import { UiFeedbackService } from '../shell/ui-feedback.service';
 import { LOCATIONS_PORT, type LocationsPort } from './locations.port';
 import { VenueWorkflowService } from './venue-workflow.service';
@@ -15,7 +13,8 @@ describe('VenueWorkflowService', () => {
   it('checks duplicates and keeps user confirmation before venue creation', () => {
     const duplicates = [{ id: 10, name: 'Ähnlich', scope: 'global', address: 'Musterweg 1' }];
     const port = createPort({ checkDuplicates: vi.fn(() => of(duplicates)) });
-    const { workflow, feedback, workspace } = configure(port);
+    const { workflow, feedback, refresh } = configure(port);
+    workflow.activateView(Symbol('locations-route'), refresh);
     const command = {
       scope: 'committee' as const,
       committeeId: 4,
@@ -40,7 +39,7 @@ describe('VenueWorkflowService', () => {
     expect(port.createVenue).toHaveBeenCalledOnce();
     expect(port.createVenue).toHaveBeenCalledWith({ ...command, duplicatesReviewed: true });
     expect(feedback.notify).toHaveBeenCalledWith('success', 'Prüfungsort angelegt', venue.name);
-    expect(workspace.refresh).toHaveBeenCalledOnce();
+    expect(refresh).toHaveBeenCalledOnce();
     expect(workflow.actionBusy()).toBe(false);
   });
 
@@ -96,6 +95,8 @@ describe('VenueWorkflowService', () => {
     const { workflow } = configure(port);
     const viewA = Symbol('locations-view-a');
     const viewB = Symbol('locations-view-b');
+    const refreshA = vi.fn();
+    const refreshB = vi.fn();
     const command = {
       scope: 'committee' as const,
       committeeId: 4,
@@ -109,13 +110,15 @@ describe('VenueWorkflowService', () => {
       isActive: true,
     };
 
-    workflow.activateView(viewA);
+    workflow.activateView(viewA, refreshA);
     workflow.createVenue(command, viewA);
-    workflow.activateView(viewB);
+    workflow.activateView(viewB, refreshB);
     creation.next(venue);
     creation.complete();
 
     expect(workflow.viewEffect()).toBeNull();
+    expect(refreshA).not.toHaveBeenCalled();
+    expect(refreshB).toHaveBeenCalledOnce();
     expect(workflow.actionBusy()).toBe(false);
   });
 
@@ -126,7 +129,7 @@ describe('VenueWorkflowService', () => {
       confirm$: vi.fn(() => confirmation),
     });
     const view = Symbol('locations-route-view');
-    workflow.activateView(view);
+    workflow.activateView(view, vi.fn());
 
     workflow.requestVenueDeletion(venue, view);
 
@@ -146,10 +149,10 @@ describe('VenueWorkflowService', () => {
     const { workflow, feedback } = configure(port);
     const viewA = Symbol('locations-route-a');
     const viewB = Symbol('locations-route-b');
-    workflow.activateView(viewA);
+    workflow.activateView(viewA, vi.fn());
 
     workflow.geocodeVenue(venue, viewA);
-    workflow.activateView(viewB);
+    workflow.activateView(viewB, vi.fn());
     response.next({ latitude: 53.55, longitude: 9.99, source: 'test' });
     response.complete();
 
@@ -203,12 +206,12 @@ describe('VenueWorkflowService', () => {
     const port = createPort({
       geocodeVenue: vi.fn(() => throwError(() => new Error('unavailable'))),
     });
-    const { workflow, feedback, workspace } = configure(port);
+    const { workflow, feedback } = configure(port);
 
     workflow.geocodeVenue(venue);
 
     expect(workflow.geocodeCandidate()).toBeNull();
-    expect(workspace.actionBusy()).toBe(false);
+    expect(workflow.actionBusy()).toBe(false);
     expect(feedback.notify).toHaveBeenCalledWith(
       'error',
       'Position nicht verfügbar',
@@ -312,7 +315,7 @@ function createPort(overrides: Partial<LocationsPort> = {}): LocationsPort {
 }
 
 function configure(port: LocationsPort, feedbackOverrides: Record<string, unknown> = {}) {
-  const workspace = { actionBusy: signal(false), refresh: vi.fn() };
+  const refresh = vi.fn();
   const feedback = {
     confirm: vi.fn(),
     notify: vi.fn(),
@@ -325,13 +328,12 @@ function configure(port: LocationsPort, feedbackOverrides: Record<string, unknow
   TestBed.configureTestingModule({
     providers: [
       { provide: LOCATIONS_PORT, useValue: port },
-      { provide: ApplicationWorkspaceService, useValue: workspace },
       { provide: UiFeedbackService, useValue: feedbackWithConfirmation },
     ],
   });
   return {
     workflow: TestBed.inject(VenueWorkflowService),
-    workspace,
+    refresh,
     feedback: feedbackWithConfirmation,
   };
 }

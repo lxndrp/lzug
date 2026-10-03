@@ -139,6 +139,7 @@ class ExamVenueHttpTests(unittest.TestCase):
                 self.venue_payload(name="Nur im Ausschuss"),
             )
             self.assertEqual(HTTPStatus.CREATED, status)
+            self.assertEqual("Hauptausschuss Athen", hidden_venue["committee_name"])
 
             status, venue = self.request(
                 api,
