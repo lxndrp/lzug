@@ -66,6 +66,25 @@ describe('PlanningProposalEditorComponent', () => {
     );
   });
 
+  it('preserves unsaved proposal edits when a refresh supplies a newer projection', () => {
+    const component = fixture.componentInstance as unknown as {
+      draft: () => EditablePlanningProposal;
+      dirty: () => boolean;
+      moveSlotToDay: (
+        day: EditablePlanningProposal['exam_days'][number],
+        index: number,
+        id: number,
+      ) => void;
+    };
+    component.moveSlotToDay(component.draft().exam_days[0], 0, 2);
+    fixture.componentRef.setInput('proposal', { ...proposal(), revision: 4 });
+    fixture.detectChanges();
+
+    expect(component.draft().exam_days).toHaveLength(1);
+    expect(component.draft().exam_days[0].candidate_exam_day_id).toBe(2);
+    expect(component.dirty()).toBe(true);
+  });
+
   it('does not enable saving for an empty local day', () => {
     fixture.componentRef.setInput('proposal', {
       ...proposal(),

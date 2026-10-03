@@ -51,11 +51,21 @@ export class PlanningProposalEditorComponent implements OnChanges {
 
   protected readonly draft = signal<EditablePlanningProposal | null>(null);
   protected readonly dirty = signal(false);
+  private proposalBaseline: EditablePlanningProposal | null = null;
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['proposal'] && this.proposal) {
-      this.draft.set(this.cloneProposal(this.proposal));
-      this.dirty.set(false);
+      const currentDraft = this.draft();
+      if (
+        !currentDraft ||
+        !this.proposalBaseline ||
+        this.sameProposal(currentDraft, this.proposalBaseline) ||
+        this.sameProposalContent(currentDraft, this.proposal)
+      ) {
+        this.draft.set(this.cloneProposal(this.proposal));
+        this.proposalBaseline = this.cloneProposal(this.proposal);
+        this.dirty.set(false);
+      }
     }
   }
 
@@ -362,6 +372,20 @@ export class PlanningProposalEditorComponent implements OnChanges {
 
   private cloneProposal(proposal: EditablePlanningProposal): EditablePlanningProposal {
     return JSON.parse(JSON.stringify(proposal)) as EditablePlanningProposal;
+  }
+
+  private sameProposal(left: EditablePlanningProposal, right: EditablePlanningProposal): boolean {
+    return JSON.stringify(left) === JSON.stringify(right);
+  }
+
+  private sameProposalContent(
+    left: EditablePlanningProposal,
+    right: EditablePlanningProposal,
+  ): boolean {
+    const leftContent = this.cloneProposal(left);
+    const rightContent = this.cloneProposal(right);
+    leftContent.revision = rightContent.revision;
+    return this.sameProposal(leftContent, rightContent);
   }
 
   private slotKey(slot: PlanningProposalSlot): string {

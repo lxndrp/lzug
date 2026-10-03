@@ -142,6 +142,18 @@ describe('PlanningWorkflowService', () => {
     expect(workflow.lastResult()).toBeNull();
   });
 
+  it('keeps the planning result available after leaving the planning route', () => {
+    const { workflow } = createHarness();
+    const view = Symbol('planning-route-activation');
+    workflow.activateView(view, 1);
+    workflow.generateProposal(1, view);
+    const result = workflow.lastResult();
+
+    workflow.deactivateView(view);
+
+    expect(workflow.lastResult()).toBe(result);
+  });
+
   it('reloads round B after a late availability write from round A', () => {
     const response = new Subject<{
       id: number;
@@ -546,6 +558,22 @@ describe('PlanningWorkflowService', () => {
     expect(workflow.snapshot()?.round.id).toBe(1);
   });
 
+  it('waits for an authenticated session before loading planning data', () => {
+    const authState = signal<'checking' | 'authenticated'>('checking');
+    const { workflow, port } = createHarness({ authState });
+    const view = Symbol('planning-view');
+
+    workflow.activateView(view, 1);
+
+    expect(port.loadPlanning).not.toHaveBeenCalled();
+
+    authState.set('authenticated');
+    TestBed.flushEffects();
+
+    expect(port.loadPlanning).toHaveBeenCalledOnce();
+    expect(workflow.snapshot()?.round.id).toBe(1);
+  });
+
   it('clears planning state when a session ends and reloads after it is established', () => {
     const sessionChanges = new Subject<{ previousEstablished: boolean; established: boolean }>();
     const { workflow, port } = createHarness({
@@ -613,8 +641,12 @@ function createHarness(
   const roundChanges = new Subject<number>();
   const sessionChanges =
     (overrides['sessionScopeChanges'] as Subject<unknown> | undefined) ?? new Subject<unknown>();
+  const sessionGeneration = signal(0);
+  const authState =
+    (overrides['authState'] as ReturnType<typeof signal<'authenticated' | 'checking'>>) ??
+    signal<'authenticated' | 'checking'>('authenticated');
   const sessionScope = {
-    generation: () => 0,
+    generation: sessionGeneration,
     changes$: sessionChanges,
     forCurrentSession: <T>(operation: Observable<T>) => operation,
   };
@@ -657,7 +689,10 @@ function createHarness(
       { provide: SessionScopeService, useValue: sessionScope },
       { provide: ApplicationShellContextService, useValue: { refresh: vi.fn() } },
       { provide: PLANNING_PORT, useValue: port },
-      { provide: AuthService, useValue: { hasCapability: () => true, session: () => null } },
+      {
+        provide: AuthService,
+        useValue: { state: authState, hasCapability: () => true, session: () => null },
+      },
       { provide: UiFeedbackService, useValue: feedback },
     ],
   });

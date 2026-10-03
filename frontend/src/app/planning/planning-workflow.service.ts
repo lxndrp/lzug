@@ -1,4 +1,4 @@
-import { computed, Injectable, inject, signal } from '@angular/core';
+import { computed, effect, Injectable, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import {
   EMPTY,
@@ -39,7 +39,6 @@ import type {
   PlanningViewEffectCommand,
 } from './planning-view-effect';
 import type { ProposalEditorState } from './planning-proposal-editor.component';
-import { ApplicationShellContextService } from '../shell/application-shell-context.service';
 import { UiFeedbackService } from '../shell/ui-feedback.service';
 import { PLANNING_PORT } from './planning.port';
 
@@ -52,12 +51,12 @@ export class PlanningWorkflowService {
   private readonly feedback = inject(UiFeedbackService);
   private readonly roundContext = inject(RoundContextService);
   private readonly router = inject(Router);
-  private readonly shellContext = inject(ApplicationShellContextService, { optional: true });
   private readonly writeEvents = inject(PlanningWriteEventsService);
   private readonly pending = signal(false);
   private activeView: symbol | null = null;
   private activeRoundId: number | null = null;
   private activeViewEnded: Subject<void> | null = null;
+  private lastResultRoundId: number | null = null;
   private proposalLoad?: Subscription;
   private planningLoad?: Subscription;
   private planningGeneration = 0;
@@ -86,8 +85,22 @@ export class PlanningWorkflowService {
   constructor() {
     this.sessionScope.changes$.subscribe((change) => {
       this.resetForSessionChange();
-      if (change.established && this.activeView && this.activeRoundId !== null) {
+      if (
+        change.established &&
+        this.auth.state() === 'authenticated' &&
+        this.activeView &&
+        this.activeRoundId !== null
+      ) {
         this.loadPlanning(this.activeRoundId, this.activeView);
+      }
+    });
+    effect(() => {
+      const authenticated = this.auth.state() === 'authenticated';
+      this.sessionScope.generation();
+      const view = this.activeView;
+      const roundId = this.activeRoundId;
+      if (authenticated && view && roundId !== null && !this.snapshot() && !this.loading()) {
+        this.loadPlanning(roundId, view);
       }
     });
     this.roundContext.changes$.subscribe(() => this.resetForRoundContextChange());
@@ -124,6 +137,7 @@ export class PlanningWorkflowService {
       this.loadPlanning(roundId, view);
       return;
     }
+    this.clearResultForRoundChange(roundId);
     this.endActiveView();
     this.activeView = view;
     this.activeRoundId = roundId;
@@ -154,6 +168,7 @@ export class PlanningWorkflowService {
   private resetForSessionChange(): void {
     this.snapshot.set(null);
     this.lastResult.set(null);
+    this.lastResultRoundId = null;
     this.candidateDayGeneration.set(null);
     this.resetPlanningProposal();
     this.editorError.set(null);
@@ -165,7 +180,6 @@ export class PlanningWorkflowService {
   }
 
   private resetPlanningState(): void {
-    this.lastResult.set(null);
     this.candidateDayGeneration.set(null);
     this.resetPlanningProposal();
     this.editorError.set(null);
@@ -173,6 +187,10 @@ export class PlanningWorkflowService {
   }
 
   private loadPlanning(roundId: number, view: symbol): void {
+    if (this.auth.state() !== 'authenticated') {
+      this.loading.set(false);
+      return;
+    }
     const generation = ++this.planningGeneration;
     const sessionGeneration = this.sessionScope.generation();
     this.planningLoad?.unsubscribe();
@@ -286,14 +304,13 @@ export class PlanningWorkflowService {
       .pipe(finalize(() => this.pending.set(false)))
       .subscribe({
         next: () => {
-          if (this.skipStaleWrite(roundId, view, true)) return;
+          if (this.skipStaleWrite(roundId, view)) return;
           this.feedback.notify(
             'success',
             'Prüfungsrunde gespeichert',
             'Die Änderungen sind übernommen.',
           );
           this.refreshPlanning(roundId);
-          this.shellContext?.refresh();
         },
         error: () => {
           if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
@@ -334,7 +351,7 @@ export class PlanningWorkflowService {
       .pipe(finalize(() => this.pending.set(false)))
       .subscribe({
         next: (result) => {
-          if (this.skipStaleWrite(roundId, view, true)) return;
+          if (this.skipStaleWrite(roundId, view)) return;
           this.feedback.notify(
             result.notification_warning ? 'error' : 'success',
             result.notification_warning
@@ -343,7 +360,6 @@ export class PlanningWorkflowService {
             result.notification_warning ?? 'Die Terminorganisation ist jetzt in Abstimmung.',
           );
           this.refreshPlanning(roundId);
-          this.shellContext?.refresh();
         },
         error: () => {
           if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
@@ -499,7 +515,7 @@ export class PlanningWorkflowService {
       .pipe(finalize(() => this.pendingAvailability.delete(availabilityKey)))
       .subscribe({
         next: (availability) => {
-          if (this.skipStaleWrite(roundId, view, false, 'related-rounds')) return;
+          if (this.skipStaleWrite(roundId, view, 'related-rounds')) return;
           this.snapshot.update((snapshot) =>
             snapshot
               ? {
@@ -555,8 +571,9 @@ export class PlanningWorkflowService {
       .pipe(finalize(() => this.pending.set(false)))
       .subscribe({
         next: (result) => {
-          if (this.skipStaleWrite(roundId, view, true)) return;
+          if (this.skipStaleWrite(roundId, view)) return;
           this.lastResult.set(result);
+          this.lastResultRoundId = roundId;
           const planned = result.counts['planned_slots'] ?? 0;
           const suffix = result.validation?.passed === false ? ' mit Hinweisen' : '';
           this.feedback.notify(
@@ -565,7 +582,6 @@ export class PlanningWorkflowService {
             `${planned} Termine${suffix}`,
           );
           this.refreshPlanning(roundId);
-          this.shellContext?.refresh();
         },
         error: () => {
           if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
@@ -687,7 +703,6 @@ export class PlanningWorkflowService {
   private skipStaleWrite(
     roundId: number,
     view: symbol | null,
-    refreshShellContext = false,
     scope: 'round' | 'related-rounds' = 'round',
   ): boolean {
     // This helper is called only from successful command responses. Publish
@@ -702,7 +717,6 @@ export class PlanningWorkflowService {
     // old view's response or draft to the new projection.
     if (this.activeRoundId === roundId) {
       this.refreshPlanning(roundId);
-      if (refreshShellContext) this.shellContext?.refresh();
     }
     return true;
   }
@@ -743,6 +757,8 @@ export class PlanningWorkflowService {
     this.loading.set(false);
     this.viewEffects.set([]);
     this.snapshot.set(null);
+    this.lastResult.set(null);
+    this.lastResultRoundId = null;
     this.resetPlanningState();
     if (this.editorState() === 'loading' || this.editorState() === 'saving') {
       this.editorState.set('idle');
@@ -772,8 +788,9 @@ export class PlanningWorkflowService {
     roundId: number,
     view: symbol | null,
   ): void {
-    if (this.skipStaleWrite(roundId, view, true)) return;
+    if (this.skipStaleWrite(roundId, view)) return;
     this.lastResult.set(result);
+    this.lastResultRoundId = roundId;
     const confirmed = result.counts['confirmed_slots'] ?? 0;
     const warning = result.notification_warning ?? result.calendar_warning;
     this.feedback.notify(
@@ -782,8 +799,13 @@ export class PlanningWorkflowService {
       warning ?? `${confirmed} Termine sind verbindlich.`,
     );
     this.refreshPlanning(roundId);
-    this.shellContext?.refresh();
     void this.router.navigateByUrl(`/confirmed-plans/${roundId}`);
+  }
+
+  private clearResultForRoundChange(roundId: number): void {
+    if (this.lastResultRoundId === null || this.lastResultRoundId === roundId) return;
+    this.lastResult.set(null);
+    this.lastResultRoundId = null;
   }
 
   private reportPlanConfirmationFailure(roundId: number, view: symbol | null): void {

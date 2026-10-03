@@ -33,12 +33,8 @@ export class ApplicationShellContextService {
       this.error.set(false);
     });
     this.roundContext.changes$.subscribe(() => this.refresh());
-    this.writeEvents.committed$.subscribe(({ sourceRoundId, scope, phase }) => {
-      if (
-        phase !== 'partial' ||
-        scope !== 'round' ||
-        this.roundContext.roundId() !== sourceRoundId
-      ) {
+    this.writeEvents.committed$.subscribe(({ sourceRoundId, scope }) => {
+      if (scope !== 'round' || this.roundContext.roundId() !== sourceRoundId) {
         return;
       }
       this.refresh();
