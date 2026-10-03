@@ -227,7 +227,13 @@ test.describe('master data workflows', () => {
       capabilities: [],
       demo_role: null,
     };
-    let venue = structuredClone(masterDataFixture.examVenues[0]);
+    const venueFixture = structuredClone(masterDataFixture.examVenues[0]);
+    let venue = {
+      ...venueFixture,
+      committee_name:
+        masterDataFixture.committees.find(({ id }) => id === venueFixture.committee_id)?.name ??
+        null,
+    };
     const venueReads: string[] = [];
 
     await page.route('**/api/session', (route) =>
