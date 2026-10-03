@@ -25,13 +25,20 @@ describe('ConfirmedPlansRouteComponent', () => {
       locations: [{ id: 31, name: 'Alter Ort', room: 'A', city: 'Altstadt' }],
     });
     const params = convertToParamMap({ roundId: '2' });
+    const refresh = vi.fn();
     TestBed.configureTestingModule({
       providers: [
         {
           provide: ActivatedRoute,
-          useValue: { paramMap: of(params), snapshot: { paramMap: params } },
+          useValue: {
+            paramMap: of(params),
+            snapshot: {
+              paramMap: params,
+              routeConfig: { path: 'confirmed-plans/:roundId/edit' },
+            },
+          },
         },
-        { provide: ApplicationWorkspaceService, useValue: { round, board } },
+        { provide: ApplicationWorkspaceService, useValue: { round, board, refresh } },
         { provide: AuthService, useValue: { hasCapability: () => true } },
       ],
     });
@@ -43,6 +50,7 @@ describe('ConfirmedPlansRouteComponent', () => {
     };
 
     expect(component.roundId()).toBe(2);
+    expect(refresh).toHaveBeenCalledOnce();
     expect(component.confirmedPlansBoard()).toBeNull();
 
     board.set({

@@ -1,7 +1,7 @@
 import { Component, computed, inject } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute } from '@angular/router';
-import { map } from 'rxjs';
+import { distinctUntilChanged, map } from 'rxjs';
 
 import { AuthService } from '../auth/auth.service';
 import { ConfirmedPlansComponent } from '../confirmed-plans/confirmed-plans.component';
@@ -65,6 +65,21 @@ export class ConfirmedPlansRouteComponent {
     this.route.snapshot.routeConfig?.path?.endsWith('/edit') ? this.roundId() : null,
   );
   protected readonly canEdit = computed(() => this.auth.hasCapability('confirmed-plan:revise'));
+
+  constructor() {
+    if (!this.route.snapshot.routeConfig?.path?.endsWith('/edit')) return;
+    this.route.paramMap
+      .pipe(
+        map((params) => this.positiveInteger(params.get('roundId'))),
+        distinctUntilChanged(),
+        takeUntilDestroyed(),
+      )
+      .subscribe((roundId) => {
+        if (roundId !== null && this.workspace.round()?.id !== roundId) {
+          this.workspace.refresh();
+        }
+      });
+  }
 
   private positiveInteger(parameter: string | null): number | null {
     const value = Number(parameter);

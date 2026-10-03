@@ -219,7 +219,7 @@ export class PlanningWorkflowService {
       .pipe(finalize(() => this.pending.set(false)))
       .subscribe({
         next: () => {
-          if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
+          if (this.skipStaleWrite(roundId, view)) return;
           this.feedback.notify(
             'success',
             'Planungsrahmen gespeichert',
@@ -254,7 +254,7 @@ export class PlanningWorkflowService {
       .pipe(finalize(() => this.pending.set(false)))
       .subscribe({
         next: () => {
-          if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
+          if (this.skipStaleWrite(roundId, view, true)) return;
           this.feedback.notify(
             'success',
             'Prüfungsrunde gespeichert',
@@ -290,7 +290,7 @@ export class PlanningWorkflowService {
       .pipe(finalize(() => this.pending.set(false)))
       .subscribe({
         next: (result) => {
-          if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
+          if (this.skipStaleWrite(roundId, view, true)) return;
           this.feedback.notify(
             result.notification_warning ? 'error' : 'success',
             result.notification_warning
@@ -328,7 +328,7 @@ export class PlanningWorkflowService {
       .pipe(finalize(() => this.pending.set(false)))
       .subscribe({
         next: (day) => {
-          if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
+          if (this.skipStaleWrite(roundId, view)) return;
           this.emitViewEffect(view, { type: 'reset-candidate-day-draft' });
           this.feedback.notify('success', 'Prüfungstag angelegt', day.date);
           this.refreshPlanning(roundId);
@@ -364,7 +364,7 @@ export class PlanningWorkflowService {
       .pipe(finalize(() => this.pending.set(false)))
       .subscribe({
         next: (result) => {
-          if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
+          if (this.skipStaleWrite(roundId, view)) return;
           this.candidateDayGeneration.set(result);
           this.feedback.notify(
             'success',
@@ -403,7 +403,7 @@ export class PlanningWorkflowService {
       .pipe(finalize(() => this.pending.set(false)))
       .subscribe({
         next: () => {
-          if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
+          if (this.skipStaleWrite(roundId, view)) return;
           this.feedback.notify(
             'success',
             `Prüfungstag ${nextActive ? 'aktiviert' : 'deaktiviert'}`,
@@ -449,7 +449,7 @@ export class PlanningWorkflowService {
       .pipe(finalize(() => this.pendingAvailability.delete(availabilityKey)))
       .subscribe({
         next: (availability) => {
-          if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
+          if (this.skipStaleWrite(roundId, view)) return;
           this.snapshot.update((snapshot) =>
             snapshot
               ? {
@@ -505,7 +505,7 @@ export class PlanningWorkflowService {
       .pipe(finalize(() => this.pending.set(false)))
       .subscribe({
         next: (result) => {
-          if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
+          if (this.skipStaleWrite(roundId, view, true)) return;
           this.lastResult.set(result);
           const planned = result.counts['planned_slots'] ?? 0;
           const suffix = result.validation?.passed === false ? ' mit Hinweisen' : '';
@@ -560,7 +560,7 @@ export class PlanningWorkflowService {
       )
       .subscribe({
         next: (proposal) => {
-          if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
+          if (this.skipStaleWrite(roundId, view)) return;
           this.proposal.set(proposal);
           this.editorState.set('ready');
         },
@@ -598,14 +598,7 @@ export class PlanningWorkflowService {
       .pipe(finalize(() => this.pending.set(false)))
       .subscribe({
         next: (saved) => {
-          if (!this.isSelectedRound(roundId)) return;
-          if (!this.isCurrentView(view)) {
-            // The accepted write may have committed after the newly opened
-            // view completed its initial read. Refresh only that active
-            // projection; never apply the old view's draft to it.
-            if (this.activeRoundId === roundId) this.refreshPlanning(roundId);
-            return;
-          }
+          if (this.skipStaleWrite(roundId, view)) return;
           this.proposal.set(saved);
           this.editorState.set('ready');
           this.feedback.notify(
@@ -639,6 +632,24 @@ export class PlanningWorkflowService {
 
   private isCurrentView(view: symbol | null): boolean {
     return view === null || view === this.activeView;
+  }
+
+  private skipStaleWrite(
+    roundId: number,
+    view: symbol | null,
+    refreshShellContext = false,
+  ): boolean {
+    if (!this.isSelectedRound(roundId)) return true;
+    if (this.isCurrentView(view)) return false;
+
+    // A command accepted by an older view may commit after the active view's
+    // initial read. Reload only the matching active round and never apply the
+    // old view's response or draft to the new projection.
+    if (this.activeRoundId === roundId) {
+      this.refreshPlanning(roundId);
+      if (refreshShellContext) this.shellContext?.refresh();
+    }
+    return true;
   }
 
   private confirmForView(
@@ -689,7 +700,7 @@ export class PlanningWorkflowService {
     roundId: number,
     view: symbol | null,
   ): void {
-    if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
+    if (this.skipStaleWrite(roundId, view, true)) return;
     this.lastResult.set(result);
     const confirmed = result.counts['confirmed_slots'] ?? 0;
     const warning = result.notification_warning ?? result.calendar_warning;

@@ -120,6 +120,140 @@ describe('PlanningWorkflowService', () => {
     expect(workflow.proposal()).toBeNull();
   });
 
+  it('refreshes the active projection after stale round and settings writes', () => {
+    const roundResponse = new Subject<{ id: number }>();
+    expectStaleWriteRefresh(
+      { updateExamRound: vi.fn(() => roundResponse) },
+      (workflow, view) =>
+        workflow.saveExamRound(
+          { name: 'Runde', availability_deadline: null, availability_reminder_at: null },
+          1,
+          view,
+        ),
+      () => roundResponse.next({ id: 1 }),
+    );
+
+    const settingsResponse = new Subject<Record<string, never>>();
+    expectStaleWriteRefresh(
+      { savePlanningSettings: vi.fn(() => settingsResponse) },
+      (workflow, view) =>
+        workflow.savePlanningSettings(
+          {
+            calendar_week_from: '2026-W40',
+            calendar_week_to: '2026-W41',
+            exams_per_day: 4,
+            max_exam_days_per_week: 2,
+          },
+          1,
+          view,
+        ),
+      () => settingsResponse.next({}),
+    );
+  });
+
+  it('refreshes the active projection after stale availability writes', () => {
+    const requestResponse = new Subject<{ id: number }>();
+    expectStaleWriteRefresh(
+      { requestAvailabilities: vi.fn(() => requestResponse) },
+      (workflow, view) =>
+        workflow.requestAvailabilities(
+          { name: 'Runde', availability_deadline: null, availability_reminder_at: null },
+          1,
+          view,
+        ),
+      () => requestResponse.next({ id: 1 }),
+    );
+
+    const availabilityResponse = new Subject<{
+      id: number;
+      committee_member_id: number;
+      candidate_exam_day_id: number;
+      availability: string;
+    }>();
+    expectStaleWriteRefresh(
+      { saveMemberAvailability: vi.fn(() => availabilityResponse) },
+      (workflow, view) =>
+        workflow.saveAvailability(
+          { committee_member_id: 11, candidate_exam_day_id: 21, availability: 'morning' },
+          1,
+          view,
+        ),
+      () =>
+        availabilityResponse.next({
+          id: 7,
+          committee_member_id: 11,
+          candidate_exam_day_id: 21,
+          availability: 'morning',
+        }),
+    );
+  });
+
+  it('refreshes the active projection after stale candidate-day and proposal generation writes', () => {
+    const dayResponse = new Subject<{
+      id: number;
+      exam_round_id: number;
+      date: string;
+      is_active: number;
+    }>();
+    expectStaleWriteRefresh(
+      { createCandidateExamDay: vi.fn(() => dayResponse) },
+      (workflow, view) =>
+        workflow.createCandidateDay({ date: '2026-11-16', is_active: 1 }, 1, view),
+      () => dayResponse.next({ id: 8, exam_round_id: 1, date: '2026-11-16', is_active: 1 }),
+    );
+
+    const candidateGenerationResponse = new Subject<{
+      counts: { created: number; existing: number };
+    }>();
+    expectStaleWriteRefresh(
+      {
+        savePlanningSettings: vi.fn(() => of({})),
+        generateCandidateExamDays: vi.fn(() => candidateGenerationResponse),
+      },
+      (workflow, view) =>
+        workflow.generateCandidateDays(
+          {
+            calendar_week_from: '2026-W40',
+            calendar_week_to: '2026-W41',
+            exams_per_day: 4,
+            max_exam_days_per_week: 2,
+          },
+          1,
+          view,
+        ),
+      () => candidateGenerationResponse.next({ counts: { created: 2, existing: 1 } }),
+    );
+
+    const generationResponse = new Subject<{ counts: Record<string, number> }>();
+    expectStaleWriteRefresh(
+      { generateProposal: vi.fn(() => generationResponse) },
+      (workflow, view) => workflow.generateProposal(1, view),
+      () => generationResponse.next({ counts: { planned_slots: 2 } }),
+    );
+
+    const toggleResponse = new Subject<{ id: number }>();
+    expectStaleWriteRefresh(
+      { updateCandidateExamDay: vi.fn(() => toggleResponse) },
+      (workflow, view) =>
+        workflow.toggleCandidateDay(
+          { id: 8, exam_round_id: 1, date: '2026-11-16', is_active: 1 },
+          1,
+          view,
+        ),
+      () => toggleResponse.next({ id: 8 }),
+    );
+
+    const confirmationResponse = new Subject<{
+      status: string;
+      counts: Record<string, number>;
+    }>();
+    expectStaleWriteRefresh(
+      { confirmPlan: vi.fn(() => confirmationResponse) },
+      (workflow, view) => workflow.confirmPlan(1, view),
+      () => confirmationResponse.next({ status: 'plan_confirmed', counts: {} }),
+    );
+  });
+
   it('ignores a late response from the first A activation after an A to B to A route cycle', () => {
     const saveResponse = new Subject<EditablePlanningProposal>();
     const proposal = { round_id: 1, revision: 2, exam_days: [] };
@@ -178,7 +312,7 @@ describe('PlanningWorkflowService', () => {
     expect(feedback.confirm$).toHaveBeenCalledOnce();
   });
 
-  it('keeps a confirmation result in its source view after navigation', () => {
+  it('refreshes the active round after confirmation succeeds in an older view', () => {
     const confirmation = new Subject<boolean>();
     const response = new Subject<{ counts: Record<string, number> }>();
     const feedback = {
@@ -197,11 +331,11 @@ describe('PlanningWorkflowService', () => {
     expect(port.confirmPlan).toHaveBeenCalledWith(1);
 
     workflow.activateView(viewB, 1);
-    const viewBSnapshot = workflow.snapshot();
     response.next({ counts: { confirmed_slots: 4 } });
     response.complete();
 
-    expect(workflow.snapshot()).toBe(viewBSnapshot);
+    expect(port.loadPlanning).toHaveBeenCalledTimes(3);
+    expect(workflow.snapshot()?.round.id).toBe(1);
     expect(workflow.lastResult()).toBeNull();
     expect(workflow.actionBusy()).toBe(false);
   });
@@ -313,6 +447,28 @@ describe('PlanningWorkflowService', () => {
     expect(workflow.snapshot()).toBeNull();
   });
 });
+
+function expectStaleWriteRefresh(
+  overrides: Record<string, unknown>,
+  startWrite: (workflow: PlanningWorkflowService, view: symbol) => void,
+  succeed: () => void,
+): void {
+  const { workflow, port } = createHarness({
+    loadPlanning: vi.fn((roundId: number) => of(emptySnapshot(roundId))),
+    ...overrides,
+  });
+  const oldView = Symbol('planning-view-before-reopen');
+  workflow.activateView(oldView, 1);
+  startWrite(workflow, oldView);
+  workflow.activateView(Symbol('planning-view-after-reopen'), 1);
+  expect(port.loadPlanning).toHaveBeenCalledTimes(2);
+
+  succeed();
+
+  expect(port.loadPlanning).toHaveBeenCalledTimes(3);
+  expect(workflow.snapshot()?.round.id).toBe(1);
+  TestBed.resetTestingModule();
+}
 
 function createHarness(
   overrides: Record<string, unknown> = {},
