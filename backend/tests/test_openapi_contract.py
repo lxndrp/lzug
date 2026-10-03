@@ -502,7 +502,7 @@ class OpenApiContractTests(unittest.TestCase):
             )
             self.assertEqual(HTTPStatus.OK, status)
 
-            for invalid_round_id in ("1", "", []):
+            for invalid_round_id in ("1", "", [], False):
                 with self.subTest(exam_round_id=invalid_round_id):
                     status, error = self.request(
                         api,
