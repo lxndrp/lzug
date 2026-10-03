@@ -294,9 +294,8 @@ Ein Read prüft vor der Arbeit Credential-Generation und Identity-Scope,
 materialisiert den Read-Snapshot unter kurzer Sperre und revalidiert unmittelbar
 vor Rückgabe Credential-Generation und Identity-Scope erneut.
 Hat `DELETE` vorher widerrufen, wird das gerenderte Ergebnis verworfen.
-Hat sich der Scope geändert, filtert Calendar auf die aktuell aktiven
-Memberships/Committees oder verwirft das Ergebnis, wenn kein zulässiger Scope
-verbleibt.
+Hat sich der Scope seit dem Snapshot geändert, verwirft Calendar das gesamte
+gerenderte ICS-Ergebnis.
 GET-Refreshes, initiale Aktivierung, Rotation und Pending-Retries nutzen je Feed
 denselben Sync-Coordinator: pro Feed läuft höchstens ein Sync-UoW, und Aufträge
 derselben Credential- oder Pending-Generation teilen ihn. `DELETE` setzt zuerst
