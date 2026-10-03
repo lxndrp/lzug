@@ -5,6 +5,7 @@ import { provideTaiga } from '@taiga-ui/core';
 import { Observable, Subject, of, throwError } from 'rxjs';
 
 import { AuthService } from '../auth/auth.service';
+import { SessionScopeService } from '../auth/session-scope.service';
 import { RuntimeExperienceService } from '../runtime/runtime-experience.service';
 import { ConfirmedPlansWorkflowService } from './confirmed-plans-workflow.service';
 import type { ConfirmedPlansBoard } from './confirmed-plans.models';
@@ -178,6 +179,43 @@ describe('ConfirmedPlansComponent', () => {
 
     expect(workflow.getEditorReferences).toHaveBeenNthCalledWith(1, 1);
     expect(workflow.getEditorReferences).toHaveBeenNthCalledWith(2, 2);
+    expect(
+      (fixture.componentInstance as unknown as { board: () => ConfirmedPlansBoard | null }).board(),
+    ).toEqual(editorBoard(2));
+  });
+
+  it('discards editor references from an earlier session', () => {
+    const sessionScope = TestBed.inject(SessionScopeService);
+    const session = {
+      authenticated: true,
+      account_id: 4,
+      person_id: 9,
+      committee_member_id: 12,
+      is_operator: false,
+    };
+    sessionScope.establish(session);
+    const previousSession = new Subject<ConfirmedPlansBoard>();
+    const currentSession = new Subject<ConfirmedPlansBoard>();
+    workflow.getEditorReferences
+      .mockReturnValueOnce(of(editorBoard(1)))
+      .mockReturnValueOnce(previousSession as Observable<ConfirmedPlansBoard>)
+      .mockReturnValueOnce(currentSession as Observable<ConfirmedPlansBoard>);
+    fixture.componentRef.setInput('editRoundId', 1);
+    fixture.componentRef.setInput('canEdit', true);
+    fixture.detectChanges();
+    expect(
+      (fixture.componentInstance as unknown as { board: () => ConfirmedPlansBoard | null }).board(),
+    ).toEqual(editorBoard(1));
+
+    fixture.componentRef.setInput('editRoundId', 2);
+    fixture.detectChanges();
+    sessionScope.establish({ ...session, demo_role: 'chair' });
+
+    previousSession.next(editorBoard(2));
+    expect(
+      (fixture.componentInstance as unknown as { board: () => ConfirmedPlansBoard | null }).board(),
+    ).toBeNull();
+    currentSession.next(editorBoard(2));
     expect(
       (fixture.componentInstance as unknown as { board: () => ConfirmedPlansBoard | null }).board(),
     ).toEqual(editorBoard(2));

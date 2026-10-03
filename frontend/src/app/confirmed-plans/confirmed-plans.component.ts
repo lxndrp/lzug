@@ -12,6 +12,7 @@ import {
 import { Router } from '@angular/router';
 import { TuiButton } from '@taiga-ui/core';
 import { TuiBadge } from '@taiga-ui/kit';
+import { SessionScopeService } from '../auth/session-scope.service';
 
 import { ConfirmedPlansWorkflowService } from './confirmed-plans-workflow.service';
 import type { ConfirmedPlan, ConfirmedPlansBoard } from './confirmed-plans.models';
@@ -29,6 +30,17 @@ export type ViewState = 'loading' | 'ready' | 'error';
 export class ConfirmedPlansComponent implements OnInit, OnChanges, OnDestroy {
   private readonly confirmedPlans = inject(ConfirmedPlansWorkflowService);
   private readonly router = inject(Router);
+  private readonly sessionScope = inject(SessionScopeService);
+  private readonly sessionChanges = this.sessionScope.changes$.subscribe(({ established }) => {
+    this.editorReferencesGeneration += 1;
+    this.editorReferencesLoad?.unsubscribe();
+    this.editorReferencesLoad = undefined;
+    this.board.set(null);
+    this.editorReferencesState.set('idle');
+    if (established && this.canEditRequested() && this.editRequested() !== null) {
+      this.loadEditorReferences(this.editRequested());
+    }
+  });
 
   @Input() roundId: number | null = null;
   @Input() editRoundId: number | null = null;
@@ -79,6 +91,7 @@ export class ConfirmedPlansComponent implements OnInit, OnChanges, OnDestroy {
 
   ngOnDestroy(): void {
     this.editorReferencesLoad?.unsubscribe();
+    this.sessionChanges.unsubscribe();
   }
 
   protected retryEditorReferences(): void {
@@ -112,21 +125,32 @@ export class ConfirmedPlansComponent implements OnInit, OnChanges, OnDestroy {
     }
 
     this.editorReferencesState.set('loading');
-    this.editorReferencesLoad = this.confirmedPlans.getEditorReferences(roundId).subscribe({
-      next: (board) => {
-        if (generation !== this.editorReferencesGeneration || this.editRequested() !== roundId) {
-          return;
-        }
-        this.board.set(board);
-        this.editorReferencesState.set('ready');
-      },
-      error: () => {
-        if (generation !== this.editorReferencesGeneration || this.editRequested() !== roundId) {
-          return;
-        }
-        this.editorReferencesState.set('error');
-      },
-    });
+    const sessionGeneration = this.sessionScope.generation();
+    this.editorReferencesLoad = this.sessionScope
+      .forCurrentSession(this.confirmedPlans.getEditorReferences(roundId))
+      .subscribe({
+        next: (board) => {
+          if (
+            generation !== this.editorReferencesGeneration ||
+            sessionGeneration !== this.sessionScope.generation() ||
+            this.editRequested() !== roundId
+          ) {
+            return;
+          }
+          this.board.set(board);
+          this.editorReferencesState.set('ready');
+        },
+        error: () => {
+          if (
+            generation !== this.editorReferencesGeneration ||
+            sessionGeneration !== this.sessionScope.generation() ||
+            this.editRequested() !== roundId
+          ) {
+            return;
+          }
+          this.editorReferencesState.set('error');
+        },
+      });
   }
 
   protected selectCommittee(id: number): void {
