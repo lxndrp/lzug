@@ -273,6 +273,16 @@ vergangen ist.
 Damit committen Rundungsentscheidung und lokale Kalenderstornierung gemeinsam;
 es gibt für diesen Pfad keinen nachgelagerten Calendar-Sync-Auftrag.
 
+Im Ziel liest Application vor der Rundungsentscheidung über einen Calendar-
+Port die Membership-IDs aller nicht stornierten künftigen Eventprojektionen
+mit `date >= decision_date`; der Snapshot umfasst auch noch aktive Events
+veralteter oder ersetzter Assignees. Planning speichert diese ursprünglichen
+Empfänger-IDs, das Entscheidungsdatum und die Notice-Beschreibung atomar mit
+der Rundungsentscheidung und ihrer unveränderlichen Folgequelle. Nach dem
+Commit storniert Calendar die Events mit demselben inklusiven Datum. Replay
+verwendet die gespeicherten Empfänger-IDs und rekonstruiert sie nicht aus der
+inzwischen veränderten Projektion.
+
 Die Composition Root teilt einen prozessweiten Feed-Lifecycle-Lock mit
 Token-ICS-Reads, Rotation und explizitem `DELETE /api/calendar/feed`.
 Der Lock schützt nur kurze Credential-Prüfungen, Revalidierungen und Commits;
