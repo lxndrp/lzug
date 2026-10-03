@@ -24,6 +24,11 @@ export class ApplicationWorkspaceService {
   readonly summary = signal<WorkspaceSnapshot['summary'] | null>(null);
   readonly board = signal<WorkspaceSnapshot['board'] | null>(null);
   readonly masterData = signal<WorkspaceSnapshot['masterData'] | null>(null);
+  readonly candidateReferenceSnapshot = signal<{
+    roundId: number;
+    candidates: WorkspaceSnapshot['masterData']['candidates'];
+    candidateAssignments: WorkspaceSnapshot['masterData']['candidateAssignments'];
+  } | null>(null);
   readonly message = signal('Bereit');
   readonly loading = signal(false);
   readonly actionBusy = signal(false);
@@ -215,7 +220,6 @@ export class ApplicationWorkspaceService {
 
   /** Refresh round-scoped candidate references used by transitional workspace consumers. */
   refreshCandidateReferences(roundId = this.roundContext.roundId()): void {
-    if (!this.board() && !this.masterData()) return;
     const generation = ++this.candidateReferenceGeneration;
     const sessionGeneration = this.sessionScope.generation();
     this.sessionScope
@@ -235,6 +239,7 @@ export class ApplicationWorkspaceService {
             candidates,
             candidateAssignments,
           };
+          this.candidateReferenceSnapshot.set({ roundId, candidates, candidateAssignments });
           const board = this.board();
           if (board) this.board.set({ ...board, candidates });
           const masterData = this.masterData();
@@ -319,6 +324,7 @@ export class ApplicationWorkspaceService {
     this.summary.set(null);
     this.board.set(null);
     this.masterData.set(null);
+    this.candidateReferenceSnapshot.set(null);
     this.message.set('Bereit');
     this.loading.set(false);
     this.actionBusy.set(false);

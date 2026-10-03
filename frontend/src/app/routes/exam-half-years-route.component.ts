@@ -35,9 +35,24 @@ export class ExamHalfYearsRouteComponent {
   protected readonly committees = computed<CommitteeOption[]>(
     () => this.workspace.masterData()?.committees.map(({ id, name }) => ({ id, name })) ?? [],
   );
+  protected readonly candidateReferences = computed(() => {
+    const selectedRoundId = this.roundContext.roundId();
+    const targeted = this.workspace.candidateReferenceSnapshot();
+    if (targeted?.roundId === selectedRoundId) return targeted;
+
+    const masterData =
+      this.workspace.round()?.id === selectedRoundId ? this.workspace.masterData() : null;
+    return masterData
+      ? {
+          roundId: selectedRoundId,
+          candidates: masterData.candidates,
+          candidateAssignments: masterData.candidateAssignments,
+        }
+      : null;
+  });
   protected readonly candidates = computed<CandidateOption[]>(
     () =>
-      this.workspace.masterData()?.candidates.map(({ candidate }) => ({
+      this.candidateReferences()?.candidates.map(({ candidate }) => ({
         id: candidate.id,
         firstName: candidate.first_name,
         lastName: candidate.last_name,
@@ -45,7 +60,7 @@ export class ExamHalfYearsRouteComponent {
   );
   protected readonly candidateAssignments = computed<CandidateAssignment[]>(
     () =>
-      this.workspace.masterData()?.candidateAssignments.map((assignment) => ({
+      this.candidateReferences()?.candidateAssignments.map((assignment) => ({
         halfYearId: assignment.exam_half_year_id,
         candidateId: assignment.candidate_id,
         endedAt: assignment.ended_at,

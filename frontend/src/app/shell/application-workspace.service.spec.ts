@@ -154,6 +154,26 @@ describe('ApplicationWorkspaceService', () => {
     expect(loadDashboard).toHaveBeenCalledOnce();
   });
 
+  it('loads selected-round candidate references before the workspace snapshot exists', () => {
+    const workspace = TestBed.inject(ApplicationWorkspaceService);
+    const context = TestBed.inject(RoundContextService);
+    const candidates = [{ candidate: { id: 7 }, roundCandidate: null }];
+    const candidateAssignments = [{ id: 8 }];
+    context.select(2);
+    loadCandidateReferences.mockReturnValueOnce(of({ candidates, candidateAssignments }));
+
+    workspace.refreshCandidateReferences(2);
+
+    expect(loadCandidateReferences).toHaveBeenCalledWith(2);
+    expect(workspace.candidateReferenceSnapshot()).toEqual({
+      roundId: 2,
+      candidates,
+      candidateAssignments,
+    });
+    expect(workspace.masterData()).toBeNull();
+    expect(loadDashboard).not.toHaveBeenCalled();
+  });
+
   it('updates only committee members in the transitional planning workspace', () => {
     const workspace = TestBed.inject(ApplicationWorkspaceService);
     workspace.refresh();
