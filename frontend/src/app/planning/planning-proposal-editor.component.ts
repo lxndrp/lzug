@@ -13,15 +13,15 @@ import { TuiBadge, TuiSelect } from '@taiga-ui/kit';
 import { TuiHeader } from '@taiga-ui/layout';
 
 import {
-  CandidateView,
-  CommitteeMember,
   EditablePlanningProposal,
-  Location,
+  PlanningCandidateView as CandidateView,
+  PlanningMember as CommitteeMember,
+  PlanningLocation as Location,
   PlanningProposalAssignment,
   PlanningProposalDay,
   PlanningProposalSlot,
   PlanningValidationViolation,
-} from '../api/api.models';
+} from './planning.models';
 import { type SelectOption, selectStringify, selectValues } from '../select-options';
 
 export type ProposalEditorState = 'idle' | 'loading' | 'ready' | 'saving' | 'error';

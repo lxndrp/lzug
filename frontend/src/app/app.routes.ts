@@ -11,8 +11,6 @@ import type {
 import { RoundContextService } from './api/round-context.service';
 import type { AppView } from './app-view';
 import { AuthService } from './auth/auth.service';
-import { PlanningWorkflowService } from './planning/planning-workflow.service';
-import { ApplicationWorkspaceService } from './shell/application-workspace.service';
 import { LocationsWorkspaceFacade } from './locations/locations-workspace.facade';
 
 export type AppRouteData = {
@@ -39,10 +37,6 @@ export const roundContextResolver: ResolveFn<number | null> = (route: ActivatedR
   if (context.roundId() === roundId) return roundId;
 
   context.select(roundId);
-  inject(PlanningWorkflowService).resetForRoundChange();
-  if (inject(AuthService).state() === 'authenticated') {
-    inject(ApplicationWorkspaceService).refresh();
-  }
   return roundId;
 };
 

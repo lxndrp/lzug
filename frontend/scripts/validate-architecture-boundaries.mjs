@@ -130,12 +130,20 @@ assert.match(componentSpec, /SCHEDULING_OVERVIEW_PORT/);
 const planningWorkflowPath = path.join(root, 'planning', 'planning-workflow.service.ts');
 const planningPortPath = path.join(root, 'planning', 'planning.port.ts');
 const planningAdapterPath = path.join(root, 'planning', 'http-planning.adapter.ts');
+const planningModelsPath = path.join(root, 'planning', 'planning.models.ts');
+const planningApiPath = path.join(root, 'api', 'planning-api.service.ts');
 const planningSpecPath = path.join(root, 'planning', 'planning-workflow.service.spec.ts');
-const [planningWorkflow, planningPort, planningAdapter, planningSpec] = await Promise.all(
-  [planningWorkflowPath, planningPortPath, planningAdapterPath, planningSpecPath].map((file) =>
-    readFile(file, 'utf8'),
-  ),
-);
+const [planningWorkflow, planningPort, planningAdapter, planningModels, planningApi, planningSpec] =
+  await Promise.all(
+    [
+      planningWorkflowPath,
+      planningPortPath,
+      planningAdapterPath,
+      planningModelsPath,
+      planningApiPath,
+      planningSpecPath,
+    ].map((file) => readFile(file, 'utf8')),
+  );
 
 assert.match(planningWorkflow, /PLANNING_PORT/);
 assert.doesNotMatch(
@@ -144,7 +152,29 @@ assert.doesNotMatch(
   'planning workflows must not depend directly on transport services',
 );
 assert.doesNotMatch(planningPort, /HttpClient|fetch\s*\(|types\.gen|['"]\/api\//);
+assert.doesNotMatch(
+  importsOf(planningPort + '\n' + planningWorkflow),
+  /(?:^|\/)(?:api\.models|planning\.models\.api)|WithoutHttpLinks|without-http-links/,
+  'planning ports and workflows use feature-owned models rather than API/HAL types',
+);
+assert.match(planningPort, /loadPlanning\(roundId: number\)/);
+assert.match(planningPort, /generateProposal\(roundId: number\)/);
+assert.match(planningPort, /confirmPlan\(roundId: number\)/);
+assert.match(planningPort, /savePlanningProposal\(\s*roundId: number,\s*proposal:/);
+assert.match(planningWorkflow, /savePlanningProposal\(roundId, command\)/);
+assert.doesNotMatch(
+  planningWorkflow,
+  /ApplicationWorkspaceService|workspace\.board\.update|workspace\.refresh\(/,
+  'planning state does not write through or broadly refresh the application workspace',
+);
+assert.match(planningModels, /export type PlanningSnapshot/);
 assert.match(planningAdapter, /PlanningApiService/);
+assert.match(planningAdapter, /loadPlanning\(roundId: number\)/);
+assert.doesNotMatch(
+  planningApi,
+  /RoundContextService|roundContext\.roundId\(\)/,
+  'planning API operations receive their round context explicitly',
+);
 assert.match(planningSpec, /PLANNING_PORT/);
 assert.doesNotMatch(
   planningSpec,
