@@ -58,7 +58,7 @@ from backend.application import ApplicationServices
 from backend.fastapi_app import MIGRATED_DOMAIN_RESOURCES
 from backend.fastapi_assembly import FastAPIConfig, create_app
 from backend.fastapi_planning_router import MIGRATED_PLANNING_RESOURCES
-from backend.identity.auth import AuthenticationRepository, SessionCredentials
+from backend.persistence.auth import SessionCredentials, SQLiteAuthenticationRepository
 from backend.tests.helpers import ApiServer, TempDatabase, TestLzugHandler
 
 
@@ -221,7 +221,7 @@ class FastAPIApplicationTests(unittest.TestCase):
 
     def test_round_summary_matches_authentication_and_committee_contract(self) -> None:
         with TempDatabase() as db_path:
-            authentication = AuthenticationRepository(db_path)
+            authentication = SQLiteAuthenticationRepository(db_path)
             chair = authentication.create_session(1)
             examiner = authentication.create_session(2)
             operator_account = authentication.create_account(

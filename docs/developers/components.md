@@ -216,6 +216,11 @@ Verwendung des zweiten Faktors.
 TOTP-Replay-Schutz, Recovery-Code-Verbrauch, Kennwort-Rehash und Sessionwechsel
 bleiben Teil einer gemeinsamen Transaktion mit generischen Anmeldefehlern und
 Dummy-Hash-Prüfung für unbekannte Konten oder Konten ohne Kennwort.
+Identity besitzt dafür typisierte Konto-, Token-, Faktor-, Session- und
+Schlüsselzugriffsverträge.
+`persistence.auth` und `persistence.local_auth` halten SQLAlchemy, SQLite und
+Dateizugriff am Adapterrand; der Composition Root wählt die konkreten Adapter.
+Backup und Restore beziehen denselben Instanzschlüssel über den Schlüsseladapter.
 
 `integrations.calendar` ist der heutige Legacy-Pfad für lokale Kalenderlogik:
 `CalendarService` materialisiert bestätigte Zuweisungen als `CalendarEvent`-

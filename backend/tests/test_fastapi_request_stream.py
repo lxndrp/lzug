@@ -15,7 +15,7 @@ from uvicorn.server import ServerState
 from backend.application.transport import RequestTooLargeError
 from backend.fastapi_assembly import FastAPIConfig, create_app
 from backend.fastapi_dependencies import BodyContext, buffered_body
-from backend.identity.auth import AuthenticationRepository
+from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.tests.helpers import TempDatabase
 
 
@@ -120,7 +120,7 @@ class BufferedBodyTests(unittest.IsolatedAsyncioTestCase):
 class RequestStreamContractTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.db_path = self.enterContext(TempDatabase())
-        self.credentials = AuthenticationRepository(self.db_path).create_session(1)
+        self.credentials = SQLiteAuthenticationRepository(self.db_path).create_session(1)
         self.app = create_app(
             FastAPIConfig(
                 db_path=self.db_path, session_cookie_name="lzug_session", max_request_bytes=32

@@ -73,10 +73,10 @@ ALLOWED_PACKAGE_DEPENDENCIES = {
     ),
     "assessment": frozenset({"execution", "identity", "persistence", "presentation"}),
     "execution": frozenset({"identity", "integrations", "persistence", "presentation"}),
-    "identity": frozenset({"persistence"}),
+    "identity": frozenset(),
     "integrations": frozenset({"identity", "persistence"}),
     "operations": frozenset({"identity", "integrations", "persistence"}),
-    "persistence": frozenset(),
+    "persistence": frozenset({"identity"}),
     "presentation": frozenset(),
     "planning": frozenset({"integrations", "persistence"}),
 }

@@ -7,9 +7,9 @@ from unittest.mock import patch
 from sqlalchemy import func, select
 
 from backend.application.exam_venue_api import ExamVenueApi
-from backend.identity.auth import AuthenticationRepository
 from backend.identity.authorization import AuthorizationScope
 from backend.integrations.calendar import CalendarService
+from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.persistence.database import session_scope
 from backend.persistence.models import (
     CalendarEvent,
@@ -389,7 +389,7 @@ class VenueConsequenceApiTests(unittest.TestCase):
                 "site_name": "Gebäude API",
                 "confirm_future_assignments": True,
             }
-            auth = AuthenticationRepository(db_path)
+            auth = SQLiteAuthenticationRepository(db_path)
             operator = auth.create_account("operator@example.invalid", is_operator=True)
             operator_session = auth.create_session(operator["id"])
             with ApiServer(db_path) as api:

@@ -11,6 +11,7 @@ from unittest.mock import patch
 
 from backend.identity.admin_service import OperatorAuthService
 from backend.operations.diagnostics import EXIT_DIAGNOSTIC_ERROR, EXIT_DIAGNOSTIC_WARNING
+from backend.persistence.auth import SQLiteOperatorAuthUnitOfWorkFactory
 from backend.tests.helpers import TempDatabase, run_admin
 from backend.version import BuildMetadata
 
@@ -136,7 +137,9 @@ class OperatorDiagnosticsTests(unittest.TestCase):
         domain_marker = "diagnostic-person@example.invalid"
         with TempDatabase(with_seed=False) as db_path:
             self._prepare_paths(db_path)
-            issued = OperatorAuthService(db_path).invite(domain_marker)
+            issued = OperatorAuthService(SQLiteOperatorAuthUnitOfWorkFactory(db_path)).invite(
+                domain_marker
+            )
             environment = self._environment(db_path) | {
                 "LZUG_SESSION_TTL_SECONDS": secret_marker,
                 "LZUG_SMTP_PASSWORD": secret_marker,

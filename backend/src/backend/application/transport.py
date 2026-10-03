@@ -16,6 +16,7 @@ from typing import Any
 
 from backend.application import (
     ApplicationResult,
+    ApplicationServices,
     AuthenticationRequiredError,
     ForbiddenRequestError,
     ReadApplication,
@@ -76,6 +77,8 @@ class RequestContext:
     identity_service_factory: Callable[[Path], IdentityService]
     authorization_service_factory: Callable[[Path], AuthorizationService]
     committee_admin_service_factory: Callable[[Path], CommitteeAdminService]
+    authentication_repository_factory: Callable[[Path], AuthenticationRepository]
+    local_auth_service_factory: Callable[..., LocalAuthService]
     auth_rate_limiter: RequestRateLimiter
     observability_rate_limiter: RequestRateLimiter
     observability_global_rate_limiter: RequestRateLimiter
@@ -120,7 +123,7 @@ class RequestContext:
 
     @property
     def authentication_repository(self) -> AuthenticationRepository:
-        return AuthenticationRepository(self.db_path)
+        return self.authentication_repository_factory(self.db_path)
 
     @property
     def authorization_service(self) -> AuthorizationService:
@@ -128,7 +131,7 @@ class RequestContext:
 
     @property
     def local_auth_service(self) -> LocalAuthService:
-        return LocalAuthService(
+        return self.local_auth_service_factory(
             self.db_path,
             session_ttl=self.session_ttl,
             settings=self.runtime_settings,
@@ -176,7 +179,13 @@ class RequestContext:
 
     @property
     def read_application(self) -> ReadApplication:
-        return ReadApplication(self.db_path)
+        return ReadApplication(
+            self.db_path,
+            ApplicationServices(
+                authentication_factory=self.authentication_repository_factory,
+                authorization_factory=self.authorization_service_factory,
+            ),
+        )
 
     @property
     def session_token(self) -> str | None:

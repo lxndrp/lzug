@@ -47,7 +47,7 @@ class ApplicationServices:
 
     readiness_probe: Callable[[Path], dict[str, object]] = database_readiness
     repository_factory: Callable[[Path], ResourceRepository] = ResourceRepository
-    authentication_factory: Callable[[Path], AuthenticationRepository] = AuthenticationRepository
+    authentication_factory: Callable[[Path], AuthenticationRepository] | None = None
     authorization_factory: Callable[[Path], AuthorizationService] | None = None
 
 
@@ -92,6 +92,10 @@ class ReadApplication:
 
     def authenticated_scope(self, token: str | None) -> AuthorizationScope:
         """Resolve the existing session and active committee-membership contract."""
+        if self.services.authentication_factory is None:
+            raise RuntimeError(
+                "Authentication repository factory must be injected by the composition root"
+            )
         context = self.services.authentication_factory(self.db_path).authenticate(token)
         if context is None:
             raise AuthenticationRequiredError
