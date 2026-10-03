@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import unittest
+from contextlib import contextmanager
 
 from backend.composition import exam_venue_service
 from backend.persistence.database import session_scope
@@ -32,32 +33,62 @@ class _VenueRepositoryDouble:
         self.queries: list[VenueQuery] = []
         self.plans: list[VenueMutationPlan] = []
 
-    def execute(self, command: VenueCommand, planner) -> VenueCommandResult:
+    @contextmanager
+    def write_uow(self, command: VenueCommand):
         self.commands.append(command)
-        facts = VenueCommandFacts()
-        if command.kind == VenueCommandKind.UPDATE_VENUE:
-            current = planner.policy.venue_source(None, {})
-            current.update({"scope": "committee", "committee_id": 1, "name": "Nord"})
-            facts = VenueCommandFacts(
-                current=current,
-                venue_id=command.entity_id,
-                has_active_room=True,
-            )
-        plan = planner.plan(command, facts)
-        self.plans.append(plan)
-        return VenueCommandResult(
-            {"id": command.entity_id or 7, "name": str(plan.values.get("name", ""))},
-            VenueChange(
-                11,
-                command.entity_id or 7,
-                "venue",
-                command.entity_id or 7,
-                2,
-                frozenset({"name"}),
-            ),
-        )
+        repository = self
 
-    def query(self, query: VenueQuery, planner) -> VenueQueryResult:
+        class UnitOfWork:
+            def facts(self):
+                if command.kind == VenueCommandKind.UPDATE_VENUE:
+                    return VenueCommandFacts(
+                        current={
+                            "scope": "committee",
+                            "committee_id": 1,
+                            "name": "Nord",
+                            "street": "Teststraße 1",
+                            "postal_code": "12345",
+                            "city": "Berlin",
+                            "country": "Deutschland",
+                            "site_name": "",
+                            "entrance": "",
+                            "travel_directions": "",
+                            "accessibility_status": "confirmed",
+                            "is_accessible": True,
+                            "accessibility_notes": "",
+                            "latitude": None,
+                            "longitude": None,
+                            "coordinate_status": "missing",
+                            "coordinate_source": None,
+                            "is_active": True,
+                        },
+                        venue_id=command.entity_id,
+                        has_active_room=True,
+                    )
+                return VenueCommandFacts()
+
+            def commit(self, plan):
+                repository.plans.append(plan)
+                change = (
+                    VenueChange(
+                        11,
+                        command.entity_id or 7,
+                        "venue",
+                        command.entity_id or 7,
+                        2,
+                        frozenset({"name"}),
+                    )
+                    if command.kind == VenueCommandKind.UPDATE_VENUE
+                    else None
+                )
+                return VenueCommandResult(
+                    {"id": command.entity_id or 7, "name": str(plan.values.get("name", ""))},
+                    change,
+                )
+
+        yield UnitOfWork()
+
+    def query(self, query: VenueQuery) -> VenueQueryResult:
         self.queries.append(query)
         return VenueQueryResult([{"id": 7, "name": "Nord"}])
 

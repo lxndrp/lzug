@@ -9,7 +9,7 @@ from sqlalchemy import func, select
 
 from backend.composition import exam_venue_service
 from backend.persistence.database import session_scope
-from backend.persistence.models import ExamVenueAuditEvent
+from backend.persistence.models import ExamVenueAuditEvent, ExamVenueContact
 from backend.persistence.sqlite_exam_venues import (
     room_is_usable_for_committee as repository_room_is_usable,
 )
@@ -160,6 +160,38 @@ class ExamVenueServiceTests(unittest.TestCase):
                 service.delete_room(1, expected_revision=1, actor_member_id=1)
 
         self.assertEqual(venue["revision"] + 1, updated["revision"])
+
+    def test_contact_delete_commits_and_audits(self) -> None:
+        with TempDatabase() as db_path:
+            service = exam_venue_service(db_path)
+            venue = service.create_venue(self._venue_payload(), actor_member_id=1)
+            contact = service.create_contact(
+                venue["id"],
+                {"label": "Hausdienst", "phone": "+49 40 123456"},
+                actor_member_id=1,
+            )
+
+            deleted = service.delete_contact(
+                contact["id"],
+                expected_revision=contact["revision"],
+                actor_member_id=1,
+                reason="Ansprechpartner ausgeschieden",
+            )
+
+            with session_scope(db_path) as session:
+                self.assertIsNone(session.get(ExamVenueContact, contact["id"]))
+                event = session.scalar(
+                    select(ExamVenueAuditEvent)
+                    .where(
+                        ExamVenueAuditEvent.entity_type == "contact",
+                        ExamVenueAuditEvent.entity_id == contact["id"],
+                    )
+                    .order_by(ExamVenueAuditEvent.id.desc())
+                )
+                change_type = event.change_type if event is not None else None
+
+        self.assertTrue(deleted)
+        self.assertEqual("deleted", change_type)
 
     def test_concurrent_venue_updates_with_same_revision_commit_once(self) -> None:
         with TempDatabase() as db_path:

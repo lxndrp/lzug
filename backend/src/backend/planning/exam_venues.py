@@ -25,6 +25,8 @@ from backend.planning_ports import (
     VenueCommandFacts,
     VenueCommandKind,
     VenueCommandResult,
+    VenueFutureImpactFacts,
+    VenueImpactQuery,
     VenueMutationPlan,
     VenueQuery,
     VenueQueryKind,
@@ -217,8 +219,20 @@ class ExamVenuePolicy:
         relevant_change = creating or bool(VENUE_DUPLICATE_FIELDS.intersection(payload))
         if not relevant_change:
             return
+        candidates_for_review = tuple(
+            candidate
+            for candidate in duplicate_candidates
+            if not (
+                candidate.get("normalized_name") == values.get("normalized_name")
+                and candidate.get("scope") == values.get("scope")
+                and (
+                    values.get("scope") != "committee"
+                    or candidate.get("committee_id") == values.get("committee_id")
+                )
+            )
+        )
         matches = ExamVenuePolicy.duplicate_matches(
-            values, duplicate_candidates, restrict_scope=True
+            values, candidates_for_review, restrict_scope=True
         )
         if not matches:
             return
@@ -421,11 +435,13 @@ class ExamVenueService:
         *,
         geocoder: Geocoder | None = None,
         follow_up: VenueChangeFollowUp | None = None,
+        impact_query: VenueImpactQuery | None = None,
         policy: ExamVenuePolicy | None = None,
     ) -> None:
         self.repository = repository
         self.geocoder = geocoder
         self.follow_up = follow_up
+        self.impact_query = impact_query
         self.policy = policy or ExamVenuePolicy()
 
     def geocode(self, address: str) -> GeocodeCandidate:
@@ -701,11 +717,35 @@ class ExamVenueService:
         ).value
 
     def _query(self, query: VenueQuery):
-        return self.repository.query(query, planner=self).value
+        raw = self.repository.query(query).value
+        if query.kind == VenueQueryKind.FIND_DUPLICATES:
+            plan = self.plan_query(
+                query,
+                VenueCommandFacts(duplicate_candidates=tuple(raw)),
+            )
+            return list(plan.values["matches"])
+        if query.kind == VenueQueryKind.FUTURE_IMPACT:
+            if not isinstance(raw, VenueFutureImpactFacts):
+                raise TypeError("Future impact query returned invalid facts")
+            plan = self.plan_query(query, VenueCommandFacts(current=raw.current))
+            if self.impact_query is None:
+                raise RuntimeError("Planning venue impact query must be injected by composition")
+            return self.impact_query.preview(
+                venue_id=raw.venue_id,
+                entity_type=raw.entity_type,
+                entity_id=raw.entity_id,
+                before=dict(raw.before),
+                after=dict(plan.values),
+                meaningful_change=(query.values or {}).get("meaningful_change", True) is not False,
+            )
+        return raw
 
     def execute(self, command: VenueCommand) -> VenueCommandResult:
         """Return the detached mutation result and committed follow-up basis."""
-        result = self.repository.execute(command, planner=self)
+        with self.repository.write_uow(command) as unit_of_work:
+            facts = unit_of_work.facts()
+            plan = self.plan(command, facts)
+            result = unit_of_work.commit(plan)
         change = result.change
         if change is None or not change.changed_fields or self.follow_up is None:
             return result
@@ -777,6 +817,8 @@ class ExamVenueService:
                     )
                 return VenueMutationPlan(normalized, reason, audit_values)
             case VenueCommandKind.CREATE_ROOM | VenueCommandKind.UPDATE_ROOM:
+                if command.kind == VenueCommandKind.UPDATE_ROOM and facts.current is None:
+                    return VenueMutationPlan({})
                 normalized, reason = self.policy.room_values(values, facts.current)
                 if (
                     command.kind == VenueCommandKind.UPDATE_ROOM
@@ -807,6 +849,8 @@ class ExamVenueService:
                 )
                 return VenueMutationPlan({}, command.reason)
             case VenueCommandKind.CREATE_CONTACT | VenueCommandKind.UPDATE_CONTACT:
+                if command.kind == VenueCommandKind.UPDATE_CONTACT and facts.current is None:
+                    return VenueMutationPlan({})
                 normalized, room_ids, reason = self.policy.contact_values(values, facts.current)
                 if room_ids is not None:
                     if facts.venue_id is None or facts.room_venue_ids is None:

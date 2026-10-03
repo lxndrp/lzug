@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterable
-from dataclasses import replace
+from contextlib import contextmanager, nullcontext
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -50,9 +50,10 @@ from backend.planning_ports import (
     VenueCommand,
     VenueCommandFacts,
     VenueCommandKind,
-    VenueCommandPlanner,
     VenueCommandResult,
-    VenueImpactQuery,
+    VenueCommandUnitOfWork,
+    VenueFutureImpactFacts,
+    VenueMutationPlan,
     VenueQuery,
     VenueQueryKind,
     VenueQueryResult,
@@ -91,6 +92,29 @@ def room_is_usable_for_committee(
     )
 
 
+class _SQLiteVenueCommandUnitOfWork(VenueCommandUnitOfWork):
+    def __init__(
+        self,
+        repository: SQLiteExamVenueRepository,
+        session: Session,
+        command: VenueCommand,
+    ) -> None:
+        self.repository = repository
+        self.session = session
+        self.command = command
+        self._facts: VenueCommandFacts | None = None
+
+    def facts(self) -> VenueCommandFacts:
+        if self._facts is None:
+            self._facts = self.repository._command_facts(self.session, self.command)
+        return self._facts
+
+    def commit(self, plan: VenueMutationPlan) -> VenueCommandResult:
+        if self._facts is None:
+            raise RuntimeError("Read command facts before committing a venue plan")
+        return self.repository.execute(self.command, plan, session=self.session)
+
+
 class SQLiteExamVenueRepository:
     """Create and mutate the venue aggregate in one transaction per command."""
 
@@ -99,17 +123,24 @@ class SQLiteExamVenueRepository:
         db_path: Path = DEFAULT_DB_PATH,
         *,
         require_confirmed_coordinates: bool = False,
-        impact_query: VenueImpactQuery | None = None,
     ):
         self.db_path = Path(db_path)
         self.require_confirmed_coordinates = require_confirmed_coordinates
-        self.impact_query = impact_query
 
-    def query(self, query: VenueQuery, planner: VenueCommandPlanner) -> VenueQueryResult:
+    @contextmanager
+    def _write_session(self, session: Session | None):
+        if session is None:
+            with session_scope(self.db_path, begin_immediate=True) as owned_session:
+                yield owned_session
+        else:
+            with nullcontext(session) as active_session:
+                yield active_session
+
+    def query(self, query: VenueQuery) -> VenueQueryResult:
         """Run one Planning venue query and return detached values."""
-        return VenueQueryResult(self._query_value(query, planner))
+        return VenueQueryResult(self._query_value(query))
 
-    def _query_value(self, query: VenueQuery, planner: VenueCommandPlanner) -> object:
+    def _query_value(self, query: VenueQuery) -> object:
         values = dict(query.values or {})
         match query.kind:
             case VenueQueryKind.LIST_VENUES:
@@ -129,35 +160,206 @@ class SQLiteExamVenueRepository:
             case VenueQueryKind.FUTURE_IMPACT:
                 if query.entity_id is None:
                     raise ValueError("Impact query needs a venue id")
-                return self.future_impact(query.entity_id, query.room_id, values, planner=planner)
+                return self.future_impact_facts(query.entity_id, query.room_id, values)
             case VenueQueryKind.FIND_DUPLICATES:
-                return self.find_duplicates(
-                    values,
+                return self.find_duplicate_candidates(
                     visible_venue_ids=query.visible_venue_ids,
                     excluded_id=query.excluded_id,
-                    planner=planner,
                 )
             case VenueQueryKind.LIST_PENDING_PROMOTIONS:
                 return self.list_pending_promotions()
 
-    def execute(self, command: VenueCommand, planner: VenueCommandPlanner) -> VenueCommandResult:
-        """Execute one typed write request through the repository transaction."""
+    @contextmanager
+    def write_uow(self, command: VenueCommand):
+        """Open the command's serialized write transaction for Planning orchestration."""
+        with session_scope(self.db_path, begin_immediate=True) as session:
+            yield _SQLiteVenueCommandUnitOfWork(self, session, command)
+
+    def _command_facts(self, session: Session, command: VenueCommand) -> VenueCommandFacts:
+        self._require_actor(session, command.actor_member_id, command.technical_actor)
+        kind = command.kind
+        venue = None
+        room = None
+        contact = None
+        if kind in {
+            VenueCommandKind.CREATE_VENUE,
+            VenueCommandKind.UPDATE_VENUE,
+            VenueCommandKind.DELETE_VENUE,
+            VenueCommandKind.REQUEST_PROMOTION,
+            VenueCommandKind.DECIDE_PROMOTION,
+        }:
+            venue = session.get(ExamVenue, command.entity_id) if command.entity_id else None
+            if venue is None and kind in {
+                VenueCommandKind.REQUEST_PROMOTION,
+                VenueCommandKind.DECIDE_PROMOTION,
+            }:
+                raise ExamVenueNotFoundError("Exam venue not found")
+        elif kind in {
+            VenueCommandKind.CREATE_ROOM,
+            VenueCommandKind.CREATE_CONTACT,
+        }:
+            venue = session.get(ExamVenue, command.entity_id) if command.entity_id else None
+            if venue is None:
+                raise ExamVenueNotFoundError("Exam venue not found")
+        elif kind in {VenueCommandKind.UPDATE_ROOM, VenueCommandKind.DELETE_ROOM}:
+            room = session.get(ExamRoom, command.entity_id) if command.entity_id else None
+            venue = session.get(ExamVenue, room.venue_id) if room is not None else None
+        elif kind in {VenueCommandKind.UPDATE_CONTACT, VenueCommandKind.DELETE_CONTACT}:
+            contact = (
+                session.get(ExamVenueContact, command.entity_id) if command.entity_id else None
+            )
+            venue = session.get(ExamVenue, contact.venue_id) if contact is not None else None
+
+        entity = (
+            venue
+            if kind
+            in {
+                VenueCommandKind.UPDATE_VENUE,
+                VenueCommandKind.DELETE_VENUE,
+                VenueCommandKind.REQUEST_PROMOTION,
+                VenueCommandKind.DECIDE_PROMOTION,
+            }
+            else room
+            if kind
+            in {
+                VenueCommandKind.UPDATE_ROOM,
+                VenueCommandKind.DELETE_ROOM,
+            }
+            else contact
+        )
+        if entity is not None and command.expected_revision is not None:
+            self._assert_revision(entity.revision, command.expected_revision)
+
+        if kind in {VenueCommandKind.CREATE_VENUE, VenueCommandKind.UPDATE_VENUE}:
+            current = (
+                {field: getattr(venue, field) for field in VENUE_FIELDS}
+                if venue is not None
+                else None
+            )
+        elif kind in {VenueCommandKind.CREATE_ROOM, VenueCommandKind.UPDATE_ROOM}:
+            current = (
+                {field: getattr(room, field) for field in ROOM_FIELDS} if room is not None else None
+            )
+        elif kind == VenueCommandKind.UPDATE_CONTACT:
+            current = (
+                {field: getattr(contact, field) for field in CONTACT_FIELDS - {"room_ids"}}
+                if contact is not None
+                else None
+            )
+        elif kind in {VenueCommandKind.REQUEST_PROMOTION, VenueCommandKind.DECIDE_PROMOTION}:
+            current = (
+                {field: getattr(venue, field) for field in VENUE_FIELDS}
+                if venue is not None
+                else None
+            )
+        else:
+            current = None
+
+        venue_id = (
+            venue.id
+            if venue is not None
+            else (
+                command.entity_id
+                if kind
+                in {
+                    VenueCommandKind.CREATE_VENUE,
+                    VenueCommandKind.UPDATE_VENUE,
+                    VenueCommandKind.DELETE_VENUE,
+                    VenueCommandKind.REQUEST_PROMOTION,
+                    VenueCommandKind.DECIDE_PROMOTION,
+                    VenueCommandKind.CREATE_ROOM,
+                    VenueCommandKind.CREATE_CONTACT,
+                }
+                else None
+            )
+        )
+        has_active_room = bool(
+            venue_id is not None
+            and session.scalar(
+                select(ExamRoom.id)
+                .where(ExamRoom.venue_id == venue_id, ExamRoom.is_active == 1)
+                .limit(1)
+            )
+        )
+        other_active_room = bool(
+            room is not None
+            and session.scalar(
+                select(ExamRoom.id)
+                .where(
+                    ExamRoom.venue_id == room.venue_id,
+                    ExamRoom.id != room.id,
+                    ExamRoom.is_active == 1,
+                )
+                .limit(1)
+            )
+        )
+        values = dict(command.values or {})
+        duplicate_candidates = None
+        if kind in {VenueCommandKind.CREATE_VENUE, VenueCommandKind.UPDATE_VENUE} and (
+            kind == VenueCommandKind.CREATE_VENUE or VENUE_DUPLICATE_FIELDS.intersection(values)
+        ):
+            duplicate_candidates = self._duplicate_candidates(
+                session, excluded_id=venue.id if venue is not None else None
+            )
+        elif kind == VenueCommandKind.DECIDE_PROMOTION and command.decision == "approve":
+            duplicate_candidates = self._duplicate_candidates(
+                session, excluded_id=venue.id if venue is not None else None
+            )
+
+        has_future_assignments = None
+        if kind == VenueCommandKind.UPDATE_VENUE and venue_id is not None:
+            has_future_assignments = self._has_future_confirmed_assignments(session, venue_id)
+        elif kind == VenueCommandKind.UPDATE_ROOM and room is not None:
+            has_future_assignments = self._has_future_confirmed_assignments(
+                session, room.venue_id, room.id
+            )
+
+        room_venue_ids = None
+        if kind == VenueCommandKind.CREATE_CONTACT and "room_ids" in values:
+            room_venue_ids = self._room_venue_ids(session, values.get("room_ids"))
+        elif kind == VenueCommandKind.UPDATE_CONTACT and "room_ids" in values:
+            room_venue_ids = self._room_venue_ids(session, values.get("room_ids"))
+
+        return VenueCommandFacts(
+            current=current,
+            venue_id=venue_id,
+            venue_active=bool(venue and venue.is_active),
+            has_active_room=has_active_room,
+            room_active=bool(room and room.is_active),
+            has_another_active_room=other_active_room,
+            promotion_status=(
+                self._promotion_status(session, venue.id)
+                if venue is not None
+                and kind in {VenueCommandKind.REQUEST_PROMOTION, VenueCommandKind.DECIDE_PROMOTION}
+                else None
+            ),
+            room_venue_ids=room_venue_ids,
+            duplicate_candidates=duplicate_candidates,
+            has_future_confirmed_assignments=has_future_assignments,
+        )
+
+    def execute(
+        self, command: VenueCommand, plan: VenueMutationPlan, *, session: Session
+    ) -> VenueCommandResult:
+        """Persist a Planning-validated plan inside the active command UoW."""
         values = dict(command.values or {})
         match command.kind:
             case VenueCommandKind.CREATE_VENUE:
                 value = self.create_venue(
                     values,
+                    plan=plan,
                     actor_member_id=command.actor_member_id,
                     technical_actor=command.technical_actor,
-                    planner=planner,
+                    _session=session,
                 )
             case VenueCommandKind.UPDATE_VENUE:
                 value, change = self._update_venue_with_change(
                     self._command_entity_id(command),
                     {**values, "expected_revision": command.expected_revision},
+                    plan=plan,
                     actor_member_id=command.actor_member_id,
                     technical_actor=command.technical_actor,
-                    planner=planner,
+                    _session=session,
                 )
                 return VenueCommandResult(value, change)
             case VenueCommandKind.DELETE_VENUE:
@@ -167,22 +369,25 @@ class SQLiteExamVenueRepository:
                     actor_member_id=command.actor_member_id,
                     technical_actor=command.technical_actor,
                     reason=command.reason,
+                    _session=session,
                 )
             case VenueCommandKind.CREATE_ROOM:
                 value = self.create_room(
                     self._command_entity_id(command),
                     values,
+                    plan=plan,
                     actor_member_id=command.actor_member_id,
                     technical_actor=command.technical_actor,
-                    planner=planner,
+                    _session=session,
                 )
             case VenueCommandKind.UPDATE_ROOM:
                 value, change = self._update_room_with_change(
                     self._command_entity_id(command),
                     {**values, "expected_revision": command.expected_revision},
+                    plan=plan,
                     actor_member_id=command.actor_member_id,
                     technical_actor=command.technical_actor,
-                    planner=planner,
+                    _session=session,
                 )
                 return VenueCommandResult(value, change)
             case VenueCommandKind.DELETE_ROOM:
@@ -192,23 +397,26 @@ class SQLiteExamVenueRepository:
                     actor_member_id=command.actor_member_id,
                     technical_actor=command.technical_actor,
                     reason=command.reason,
-                    planner=planner,
+                    plan=plan,
+                    _session=session,
                 )
             case VenueCommandKind.CREATE_CONTACT:
                 value = self.create_contact(
                     self._command_entity_id(command),
                     values,
+                    plan=plan,
                     actor_member_id=command.actor_member_id,
                     technical_actor=command.technical_actor,
-                    planner=planner,
+                    _session=session,
                 )
             case VenueCommandKind.UPDATE_CONTACT:
                 value = self.update_contact(
                     self._command_entity_id(command),
                     {**values, "expected_revision": command.expected_revision},
+                    plan=plan,
                     actor_member_id=command.actor_member_id,
                     technical_actor=command.technical_actor,
-                    planner=planner,
+                    _session=session,
                 )
             case VenueCommandKind.DELETE_CONTACT:
                 value = self.delete_contact(
@@ -217,7 +425,7 @@ class SQLiteExamVenueRepository:
                     actor_member_id=command.actor_member_id,
                     technical_actor=command.technical_actor,
                     reason=command.reason,
-                    planner=planner,
+                    _session=session,
                 )
             case VenueCommandKind.REQUEST_PROMOTION:
                 value = self.request_promotion(
@@ -225,7 +433,8 @@ class SQLiteExamVenueRepository:
                     expected_revision=self._command_revision(command),
                     actor_member_id=self._command_actor(command),
                     reason=command.reason or "",
-                    planner=planner,
+                    plan=plan,
+                    _session=session,
                 )
             case VenueCommandKind.DECIDE_PROMOTION:
                 value = self.decide_promotion(
@@ -234,7 +443,8 @@ class SQLiteExamVenueRepository:
                     decision=command.decision or "",
                     reason=command.reason or "",
                     technical_actor=command.technical_actor or "",
-                    planner=planner,
+                    plan=plan,
+                    _session=session,
                 )
         return VenueCommandResult(value)
 
@@ -286,15 +496,13 @@ class SQLiteExamVenueRepository:
             ).scalars()
             return frozenset(rows)
 
-    def future_impact(
+    def future_impact_facts(
         self,
         venue_id: int,
         room_id: int | None = None,
         payload: dict[str, Any] | None = None,
-        *,
-        planner: VenueCommandPlanner,
-    ) -> dict[str, Any]:
-        """Summarize assignments and field-specific effects before a change."""
+    ) -> VenueFutureImpactFacts:
+        """Return detached venue/room values for Planning's impact query."""
         with session_scope(self.db_path) as session:
             venue = session.get(ExamVenue, venue_id)
             room = session.get(ExamRoom, room_id) if room_id is not None else None
@@ -308,66 +516,36 @@ class SQLiteExamVenueRepository:
             if expected is not None:
                 self._assert_revision(entity.revision, expected)
             if room is not None:
-                facts = VenueCommandFacts(
-                    current={field: getattr(room, field) for field in ROOM_FIELDS},
-                    venue_id=venue.id,
-                    venue_active=bool(venue.is_active),
-                    room_active=bool(room.is_active),
-                )
+                current = {field: getattr(room, field) for field in ROOM_FIELDS}
                 fields = ROOM_FIELDS
                 entity_type = "room"
             else:
-                facts = VenueCommandFacts(
-                    current={field: getattr(venue, field) for field in VENUE_FIELDS},
-                    venue_id=venue.id,
-                    venue_active=bool(venue.is_active),
-                )
+                current = {field: getattr(venue, field) for field in VENUE_FIELDS}
                 fields = VENUE_FIELDS
                 entity_type = "venue"
-            plan = planner.plan_query(
-                VenueQuery(
-                    VenueQueryKind.FUTURE_IMPACT,
-                    entity_id=venue_id,
-                    room_id=room_id,
-                    values=command,
-                ),
-                facts,
-            )
-            after = dict(plan.values)
             before = {field: getattr(entity, field) for field in fields}
-            resolved_entity_id = entity.id
-        if self.impact_query is None:
-            raise RuntimeError("Planning venue impact query must be injected by composition")
-        return self.impact_query.preview(
-            venue_id=venue_id,
-            entity_type=entity_type,
-            entity_id=resolved_entity_id,
-            before=before,
-            after=after,
-            meaningful_change=command.get("meaningful_change", True) is not False,
-        )
+            return VenueFutureImpactFacts(
+                venue_id=venue_id,
+                entity_type=entity_type,
+                entity_id=entity.id,
+                current=current,
+                before=before,
+            )
 
-    def find_duplicates(
+    def find_duplicate_candidates(
         self,
-        payload: dict[str, Any],
         *,
         visible_venue_ids: frozenset[int] | None = None,
         excluded_id: int | None = None,
-        planner: VenueCommandPlanner,
-    ) -> list[dict[str, Any]]:
-        """Return non-blocking duplicate candidates without exposing hidden venues."""
+    ) -> tuple[dict[str, object], ...]:
+        """Return only persisted candidate rows; Planning owns similarity decisions."""
         with session_scope(self.db_path) as session:
-            candidates = tuple(
+            return tuple(
                 self._duplicate_candidate(venue)
                 for venue in session.scalars(select(ExamVenue).order_by(ExamVenue.id))
                 if venue.id != excluded_id
                 and (visible_venue_ids is None or venue.id in visible_venue_ids)
             )
-        plan = planner.plan_query(
-            VenueQuery(VenueQueryKind.FIND_DUPLICATES, values=payload),
-            VenueCommandFacts(duplicate_candidates=candidates),
-        )
-        return list(plan.values["matches"])
 
     def request_promotion(
         self,
@@ -376,27 +554,14 @@ class SQLiteExamVenueRepository:
         expected_revision: int,
         actor_member_id: int,
         reason: str,
-        planner: VenueCommandPlanner,
+        plan: VenueMutationPlan,
+        _session: Session | None = None,
     ) -> dict[str, Any]:
         """Record one pending request without changing venue visibility."""
-        with session_scope(self.db_path, begin_immediate=True) as session:
+        with self._write_session(_session) as session:
             self._require_actor(session, actor_member_id, None)
             venue = self._venue_or_raise(session, venue_id)
             self._assert_revision(venue.revision, expected_revision)
-            plan = planner.plan(
-                VenueCommand(
-                    VenueCommandKind.REQUEST_PROMOTION,
-                    entity_id=venue.id,
-                    actor_member_id=actor_member_id,
-                    reason=reason,
-                    expected_revision=expected_revision,
-                ),
-                VenueCommandFacts(
-                    current={field: getattr(venue, field) for field in VENUE_FIELDS},
-                    venue_id=venue.id,
-                    promotion_status=self._promotion_status(session, venue.id),
-                ),
-            )
             self._audit(
                 session,
                 venue_id=venue.id,
@@ -430,39 +595,16 @@ class SQLiteExamVenueRepository:
         decision: str,
         reason: str,
         technical_actor: str,
-        planner: VenueCommandPlanner,
+        plan: VenueMutationPlan,
+        _session: Session | None = None,
     ) -> dict[str, Any]:
         """Approve or reject a pending promotion while preserving the venue identity."""
-        with session_scope(self.db_path, begin_immediate=True) as session:
+        with self._write_session(_session) as session:
             actor = self._require_actor(session, None, technical_actor)
             venue = self._venue_or_raise(session, venue_id)
             self._assert_revision(venue.revision, expected_revision)
-            command = VenueCommand(
-                VenueCommandKind.DECIDE_PROMOTION,
-                entity_id=venue.id,
-                technical_actor=technical_actor,
-                reason=reason,
-                decision=decision,
-                expected_revision=expected_revision,
-            )
-            facts = VenueCommandFacts(
-                current={field: getattr(venue, field) for field in VENUE_FIELDS},
-                venue_id=venue.id,
-                venue_active=bool(venue.is_active),
-                promotion_status=self._promotion_status(session, venue.id),
-                has_active_room=session.scalar(
-                    select(ExamRoom.id)
-                    .where(ExamRoom.venue_id == venue.id, ExamRoom.is_active == 1)
-                    .limit(1)
-                )
-                is not None,
-            )
-            plan = planner.plan(command, facts)
             decision_reason = plan.reason
             if decision == "approve":
-                candidates = self._duplicate_candidates(session, excluded_id=venue.id)
-                facts = replace(facts, duplicate_candidates=candidates)
-                plan = planner.plan(command, facts)
                 venue.scope = "global"
                 venue.committee_id = None
                 venue.revision += 1
@@ -487,18 +629,11 @@ class SQLiteExamVenueRepository:
         *,
         actor_member_id: int | None = None,
         technical_actor: str | None = None,
-        planner: VenueCommandPlanner,
+        plan: VenueMutationPlan,
+        _session: Session | None = None,
     ) -> dict[str, Any]:
-        with session_scope(self.db_path, begin_immediate=True) as session:
+        with self._write_session(_session) as session:
             actor = self._require_actor(session, actor_member_id, technical_actor)
-            command = VenueCommand(
-                VenueCommandKind.CREATE_VENUE,
-                values=payload,
-                actor_member_id=actor_member_id,
-                technical_actor=technical_actor,
-            )
-            facts = VenueCommandFacts()
-            plan = planner.plan(command, facts)
             values = dict(plan.values)
             self._assert_venue_name_available(
                 session,
@@ -506,10 +641,6 @@ class SQLiteExamVenueRepository:
                 values["committee_id"],
                 values["normalized_name"],
             )
-            duplicates = self._duplicate_candidates(session, excluded_id=None)
-            facts = replace(facts, duplicate_candidates=duplicates)
-            plan = planner.plan(command, facts)
-            values = dict(plan.values)
             reason = plan.reason
             audit_values = dict(plan.audit_values or payload)
             duplicate_reason = self._optional_text(payload.get("duplicate_reason"))
@@ -544,42 +675,22 @@ class SQLiteExamVenueRepository:
         venue_id: int,
         payload: dict[str, Any],
         *,
+        plan: VenueMutationPlan,
         actor_member_id: int | None = None,
         technical_actor: str | None = None,
-        planner: VenueCommandPlanner,
+        _session: Session | None = None,
     ) -> tuple[dict[str, Any] | None, VenueChange | None]:
         expected_revision, command = self._expected_revision(payload)
         change: VenueChange | None = None
         changed_fields: set[str] = set()
-        with session_scope(self.db_path, begin_immediate=True) as session:
+        with self._write_session(_session) as session:
             actor = self._require_actor(session, actor_member_id, technical_actor)
             venue = session.get(ExamVenue, venue_id)
             if venue is None:
                 return None, None
             self._assert_revision(venue.revision, expected_revision)
             before = {field: getattr(venue, field) for field in VENUE_FIELDS}
-            planner_command = VenueCommand(
-                VenueCommandKind.UPDATE_VENUE,
-                entity_id=venue.id,
-                values=command,
-                actor_member_id=actor_member_id,
-                technical_actor=technical_actor,
-                expected_revision=expected_revision,
-            )
-            facts = VenueCommandFacts(
-                current=before,
-                venue_id=venue.id,
-                venue_active=bool(venue.is_active),
-                has_active_room=session.scalar(
-                    select(ExamRoom.id)
-                    .where(ExamRoom.venue_id == venue.id, ExamRoom.is_active == 1)
-                    .limit(1)
-                )
-                is not None,
-            )
-            plan = planner.plan(planner_command, facts)
             values = dict(plan.values)
-            changed_fields = {field for field in VENUE_FIELDS if before[field] != values[field]}
             self._assert_venue_name_available(
                 session,
                 values["scope"],
@@ -587,18 +698,6 @@ class SQLiteExamVenueRepository:
                 values["normalized_name"],
                 excluded_id=venue.id,
             )
-            if VENUE_DUPLICATE_FIELDS.intersection(command):
-                duplicates = self._duplicate_candidates(session, excluded_id=venue.id)
-                facts = replace(facts, duplicate_candidates=duplicates)
-            if changed_fields:
-                facts = replace(
-                    facts,
-                    has_future_confirmed_assignments=self._has_future_confirmed_assignments(
-                        session, venue.id
-                    ),
-                )
-            plan = planner.plan(planner_command, facts)
-            values = dict(plan.values)
             reason = plan.reason
             command = dict(plan.audit_values or command)
             duplicate_reason = self._optional_text(command.get("duplicate_reason"))
@@ -636,8 +735,9 @@ class SQLiteExamVenueRepository:
         actor_member_id: int | None = None,
         technical_actor: str | None = None,
         reason: str | None = None,
+        _session: Session | None = None,
     ) -> bool:
-        with session_scope(self.db_path, begin_immediate=True) as session:
+        with self._write_session(_session) as session:
             actor = self._require_actor(session, actor_member_id, technical_actor)
             venue = session.get(ExamVenue, venue_id)
             if venue is None:
@@ -671,21 +771,12 @@ class SQLiteExamVenueRepository:
         *,
         actor_member_id: int | None = None,
         technical_actor: str | None = None,
-        planner: VenueCommandPlanner,
+        plan: VenueMutationPlan,
+        _session: Session | None = None,
     ) -> dict[str, Any]:
-        with session_scope(self.db_path, begin_immediate=True) as session:
+        with self._write_session(_session) as session:
             actor = self._require_actor(session, actor_member_id, technical_actor)
             venue = self._venue_or_raise(session, venue_id)
-            plan = planner.plan(
-                VenueCommand(
-                    VenueCommandKind.CREATE_ROOM,
-                    entity_id=venue_id,
-                    values=payload,
-                    actor_member_id=actor_member_id,
-                    technical_actor=technical_actor,
-                ),
-                VenueCommandFacts(venue_id=venue.id, venue_active=bool(venue.is_active)),
-            )
             values = dict(plan.values)
             reason = plan.reason
             self._assert_room_name_available(session, venue.id, values["normalized_name"])
@@ -712,56 +803,21 @@ class SQLiteExamVenueRepository:
         room_id: int,
         payload: dict[str, Any],
         *,
+        plan: VenueMutationPlan,
         actor_member_id: int | None = None,
         technical_actor: str | None = None,
-        planner: VenueCommandPlanner,
+        _session: Session | None = None,
     ) -> tuple[dict[str, Any] | None, VenueChange | None]:
         expected_revision, command = self._expected_revision(payload)
         change: VenueChange | None = None
         changed_fields: set[str] = set()
-        with session_scope(self.db_path, begin_immediate=True) as session:
+        with self._write_session(_session) as session:
             actor = self._require_actor(session, actor_member_id, technical_actor)
             room = session.get(ExamRoom, room_id)
             if room is None:
                 return None, None
             self._assert_revision(room.revision, expected_revision)
             before = {field: getattr(room, field) for field in ROOM_FIELDS}
-            venue = session.get(ExamVenue, room.venue_id)
-            another_room = session.scalar(
-                select(ExamRoom.id)
-                .where(
-                    ExamRoom.venue_id == room.venue_id,
-                    ExamRoom.id != room.id,
-                    ExamRoom.is_active == 1,
-                )
-                .limit(1)
-            )
-            facts = VenueCommandFacts(
-                current=before,
-                venue_id=room.venue_id,
-                venue_active=bool(venue and venue.is_active),
-                room_active=bool(room.is_active),
-                has_another_active_room=another_room is not None,
-            )
-            planner_command = VenueCommand(
-                VenueCommandKind.UPDATE_ROOM,
-                entity_id=room.id,
-                values=command,
-                actor_member_id=actor_member_id,
-                technical_actor=technical_actor,
-                expected_revision=expected_revision,
-            )
-            plan = planner.plan(planner_command, facts)
-            values = dict(plan.values)
-            changed_fields = {field for field in ROOM_FIELDS if before[field] != values[field]}
-            if changed_fields:
-                facts = replace(
-                    facts,
-                    has_future_confirmed_assignments=self._has_future_confirmed_assignments(
-                        session, room.venue_id, room.id
-                    ),
-                )
-            plan = planner.plan(planner_command, facts)
             values = dict(plan.values)
             reason = plan.reason
             command = dict(plan.audit_values or command)
@@ -802,41 +858,16 @@ class SQLiteExamVenueRepository:
         actor_member_id: int | None = None,
         technical_actor: str | None = None,
         reason: str | None = None,
-        planner: VenueCommandPlanner,
+        plan: VenueMutationPlan,
+        _session: Session | None = None,
     ) -> bool:
-        with session_scope(self.db_path, begin_immediate=True) as session:
+        with self._write_session(_session) as session:
             actor = self._require_actor(session, actor_member_id, technical_actor)
             room = session.get(ExamRoom, room_id)
             if room is None:
                 return False
             self._assert_revision(room.revision, expected_revision)
             self._assert_room_is_unused(session, room)
-            venue = session.get(ExamVenue, room.venue_id)
-            another_room = session.scalar(
-                select(ExamRoom.id)
-                .where(
-                    ExamRoom.venue_id == room.venue_id,
-                    ExamRoom.id != room.id,
-                    ExamRoom.is_active == 1,
-                )
-                .limit(1)
-            )
-            planner.plan(
-                VenueCommand(
-                    VenueCommandKind.DELETE_ROOM,
-                    entity_id=room.id,
-                    actor_member_id=actor_member_id,
-                    technical_actor=technical_actor,
-                    reason=reason,
-                    expected_revision=expected_revision,
-                ),
-                VenueCommandFacts(
-                    venue_id=room.venue_id,
-                    venue_active=bool(venue and venue.is_active),
-                    room_active=bool(room.is_active),
-                    has_another_active_room=another_room is not None,
-                ),
-            )
             self._audit(
                 session,
                 venue_id=room.venue_id,
@@ -859,26 +890,12 @@ class SQLiteExamVenueRepository:
         *,
         actor_member_id: int | None = None,
         technical_actor: str | None = None,
-        planner: VenueCommandPlanner,
+        plan: VenueMutationPlan,
+        _session: Session | None = None,
     ) -> dict[str, Any]:
-        with session_scope(self.db_path, begin_immediate=True) as session:
+        with self._write_session(_session) as session:
             actor = self._require_actor(session, actor_member_id, technical_actor)
             venue = self._venue_or_raise(session, venue_id)
-            room_venue_ids = self._room_venue_ids(session, payload.get("room_ids"))
-            plan = planner.plan(
-                VenueCommand(
-                    VenueCommandKind.CREATE_CONTACT,
-                    entity_id=venue_id,
-                    values=payload,
-                    actor_member_id=actor_member_id,
-                    technical_actor=technical_actor,
-                ),
-                VenueCommandFacts(
-                    venue_id=venue.id,
-                    venue_active=bool(venue.is_active),
-                    room_venue_ids=room_venue_ids,
-                ),
-            )
             values = dict(plan.values)
             room_ids = list(plan.room_ids or ())
             reason = plan.reason
@@ -906,38 +923,18 @@ class SQLiteExamVenueRepository:
         contact_id: int,
         payload: dict[str, Any],
         *,
+        plan: VenueMutationPlan,
         actor_member_id: int | None = None,
         technical_actor: str | None = None,
-        planner: VenueCommandPlanner,
+        _session: Session | None = None,
     ) -> dict[str, Any] | None:
         expected_revision, command = self._expected_revision(payload)
-        with session_scope(self.db_path, begin_immediate=True) as session:
+        with self._write_session(_session) as session:
             actor = self._require_actor(session, actor_member_id, technical_actor)
             contact = session.get(ExamVenueContact, contact_id)
             if contact is None:
                 return None
             self._assert_revision(contact.revision, expected_revision)
-            current = {field: getattr(contact, field) for field in CONTACT_FIELDS - {"room_ids"}}
-            room_venue_ids = (
-                self._room_venue_ids(session, command.get("room_ids"))
-                if "room_ids" in command
-                else None
-            )
-            plan = planner.plan(
-                VenueCommand(
-                    VenueCommandKind.UPDATE_CONTACT,
-                    entity_id=contact.id,
-                    values=command,
-                    actor_member_id=actor_member_id,
-                    technical_actor=technical_actor,
-                    expected_revision=expected_revision,
-                ),
-                VenueCommandFacts(
-                    current=current,
-                    venue_id=contact.venue_id,
-                    room_venue_ids=room_venue_ids,
-                ),
-            )
             values = dict(plan.values)
             room_ids = list(plan.room_ids) if plan.room_ids is not None else None
             reason = plan.reason
@@ -971,8 +968,9 @@ class SQLiteExamVenueRepository:
         actor_member_id: int | None = None,
         technical_actor: str | None = None,
         reason: str | None = None,
+        _session: Session | None = None,
     ) -> bool:
-        with session_scope(self.db_path, begin_immediate=True) as session:
+        with self._write_session(_session) as session:
             actor = self._require_actor(session, actor_member_id, technical_actor)
             contact = session.get(ExamVenueContact, contact_id)
             if contact is None:

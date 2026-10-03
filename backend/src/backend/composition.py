@@ -68,10 +68,10 @@ def exam_venue_service(
         SQLiteExamVenueRepository(
             db_path,
             require_confirmed_coordinates=map_provider.active,
-            impact_query=consequences,
         ),
         geocoder=venue_geocoder(map_provider),
         follow_up=_VenueAuditFollowUp(consequences),
+        impact_query=consequences,
         policy=policy,
     )
 
@@ -88,10 +88,10 @@ def exam_venue_api(
             SQLiteExamVenueRepository(
                 db_path,
                 require_confirmed_coordinates=map_provider.active,
-                impact_query=consequences,
             ),
             geocoder=venue_geocoder(map_provider),
             follow_up=_VenueAuditFollowUp(consequences),
+            impact_query=consequences,
             policy=policy,
         ),
         map_provider,

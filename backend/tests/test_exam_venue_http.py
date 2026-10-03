@@ -99,6 +99,14 @@ class ExamVenueHttpTests(unittest.TestCase):
             self.assertIsInstance(conflict, dict)
             self.assertEqual("exam_venue_conflict", conflict["error"]["code"])
 
+            status, _deleted = self.request(
+                api,
+                "DELETE",
+                f"/api/exam-venue-contacts/{contact['id']}",
+                {"expected_revision": contact["revision"]},
+            )
+            self.assertEqual(HTTPStatus.NO_CONTENT, status)
+
     def test_scope_boundary_and_legacy_writes_are_rejected(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:
             status, global_error = self.request(

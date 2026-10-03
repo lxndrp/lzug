@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import unicodedata
 from collections.abc import Mapping
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from enum import StrEnum
 from types import MappingProxyType
@@ -225,6 +226,21 @@ class VenueMutationPlan:
 
 
 @dataclass(frozen=True)
+class VenueFutureImpactFacts:
+    """Detached venue/room state used to plan a future-impact query."""
+
+    venue_id: int
+    entity_type: str
+    entity_id: int
+    current: Mapping[str, object]
+    before: Mapping[str, object]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "current", MappingProxyType(dict(self.current)))
+        object.__setattr__(self, "before", MappingProxyType(dict(self.before)))
+
+
+@dataclass(frozen=True)
 class VenueQuery:
     """Typed request to read a venue aggregate or its planning impact."""
 
@@ -258,19 +274,19 @@ class VenueQueryResult:
 class VenueRepository(Protocol):
     """Planning-owned read/query and write-command port for exam venues."""
 
-    def execute(
-        self, command: VenueCommand, planner: VenueCommandPlanner
-    ) -> VenueCommandResult: ...
+    def write_uow(
+        self, command: VenueCommand
+    ) -> AbstractContextManager[VenueCommandUnitOfWork]: ...
 
-    def query(self, query: VenueQuery, planner: VenueCommandPlanner) -> VenueQueryResult: ...
+    def query(self, query: VenueQuery) -> VenueQueryResult: ...
 
 
-class VenueCommandPlanner(Protocol):
-    """Planning application behavior that builds a mutation from UoW facts."""
+class VenueCommandUnitOfWork(Protocol):
+    """Active command transaction exposing detached facts and plan persistence."""
 
-    def plan(self, command: VenueCommand, facts: VenueCommandFacts) -> VenueMutationPlan: ...
+    def facts(self) -> VenueCommandFacts: ...
 
-    def plan_query(self, query: VenueQuery, facts: VenueCommandFacts) -> VenueMutationPlan: ...
+    def commit(self, plan: VenueMutationPlan) -> VenueCommandResult: ...
 
 
 class VenueImpactQuery(Protocol):
