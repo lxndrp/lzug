@@ -291,9 +291,9 @@ Revocation-Generation. Der Commit-Gate schützt nur letzte Cancellation-Prüfung
 und Sync-Commit, nicht den gesamten Sync.
 Initiale Aktivierung verwendet ebenfalls eine nicht-geheime Pending-Generation,
 die `DELETE` fencen kann, bevor ein Credential angelegt wird.
-`DELETE` committet Widerruf sowie Löschen oder Fencing eines Pending-Standes
-atomar; ein späterer Rotationsfinalizer kann den widerrufenen Feed dadurch nicht
-reaktivieren.
+Nach dem Ende des aktiven UoW committet `DELETE` Widerruf sowie Löschen oder
+Fencing eines Pending-Standes atomar; ein späterer Rotationsfinalizer kann den
+widerrufenen Feed dadurch nicht reaktivieren.
 
 Bei fehlgeschlagenem Aktivierungs-/Rotations-POST gehören Status-Reload und
 Einmal-URL-Löschung zur UI-Feature-Adapter-/State-Orchestrierung;
