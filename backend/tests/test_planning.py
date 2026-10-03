@@ -12,7 +12,6 @@ from backend.persistence.database import connect, session_scope
 from backend.persistence.models import (
     CANDIDATE,
     CANDIDATE_EXAM_DAY,
-    COMMITTEE,
     COMMITTEE_MEMBER,
     EXAM_DAY,
     EXAM_DAY_ASSIGNMENT,
@@ -33,7 +32,7 @@ from backend.planning import (
     PlanningService,
     PlanValidationError,
 )
-from backend.tests.helpers import TempDatabase
+from backend.tests.helpers import TempDatabase, create_committee_record
 
 
 class PlanningTests(unittest.TestCase):
@@ -723,7 +722,9 @@ class PlanningTests(unittest.TestCase):
         self.assertEqual([], exam_days)
 
     def _create_overlapping_round(self, repository: ResourceRepository) -> dict[str, object]:
-        committee = repository.create(COMMITTEE, {"name": "PA 2", "occupation": "FI"})
+        committee = create_committee_record(
+            repository.db_path, {"name": "PA 2", "occupation": "FI"}
+        )
         members = []
         for person_id, side in enumerate(("employer", "employee", "school", "employer"), start=1):
             members.append(

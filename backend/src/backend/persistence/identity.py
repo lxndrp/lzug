@@ -8,9 +8,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError, OperationalError
 
+from backend.errors import TransactionConflictError, TransactionUnavailableError
 from backend.persistence.database import DEFAULT_DB_PATH, read_session_scope, session_scope
 from backend.persistence.models import (
+    COMMITTEE,
     COMMITTEE_MEMBER,
     PERSON,
     Committee,
@@ -122,15 +125,25 @@ class SQLiteIdentityUnitOfWork:
     ) -> None:
         queries = SQLiteResourceAccessQueries(self._store)
         current = self._store.get(COMMITTEE_MEMBER, member_id) if member_id is not None else None
-        committee_id = (
-            int(current["committee_id"]) if current is not None else int(values["committee_id"])
-        )
+        if member_id is not None and current is None:
+            raise PermissionError("Forbidden.")
+        if current is not None:
+            committee_id = int(current["committee_id"])
+        else:
+            try:
+                committee_id = int(values["committee_id"])
+            except (KeyError, TypeError, ValueError) as error:
+                raise PermissionError("Forbidden.") from error
         if current is not None and values.get("committee_id", committee_id) != committee_id:
             raise PermissionError("Forbidden.")
+        committee = self._store.get(COMMITTEE, committee_id)
         actor_id = actor_memberships.get(committee_id)
         actor = queries.committee_member(actor_id) if actor_id is not None else None
         if (
-            actor is None
+            committee is None
+            or not committee["is_active"]
+            or committee["bootstrap_state"] != "ready"
+            or actor is None
             or actor_person_id is None
             or actor.person_id != actor_person_id
             or not actor.is_active
@@ -148,10 +161,15 @@ class SQLiteIdentityUnitOfWork:
         queries = SQLiteResourceAccessQueries(self._store)
         owner = queries.ownership(_ResourceKind.PERSON, person_id)
         committee_id = owner.committee_id
+        committee = self._store.get(COMMITTEE, committee_id) if committee_id is not None else None
         actor_id = actor_memberships.get(committee_id) if committee_id is not None else None
         actor = queries.committee_member(actor_id) if actor_id is not None else None
         if (
-            actor is None
+            not owner.exists
+            or committee is None
+            or not committee["is_active"]
+            or committee["bootstrap_state"] != "ready"
+            or actor is None
             or actor_person_id is None
             or actor.person_id != actor_person_id
             or not actor.is_active
@@ -166,8 +184,12 @@ class SQLiteIdentityUnitOfWork:
         queries = SQLiteResourceAccessQueries(self._store)
         for committee_id, actor_id in actor_memberships.items():
             actor = queries.committee_member(actor_id)
+            committee = self._store.get(COMMITTEE, committee_id)
             if (
-                actor is not None
+                committee is not None
+                and committee["is_active"]
+                and committee["bootstrap_state"] == "ready"
+                and actor is not None
                 and actor_person_id is not None
                 and actor.person_id == actor_person_id
                 and actor.is_active
@@ -196,8 +218,15 @@ class SQLiteIdentityUnitOfWorkFactory:
 
     @contextmanager
     def unit_of_work(self) -> Iterator[IdentityUnitOfWork]:
-        with session_scope(self.db_path, begin_immediate=True) as session:
-            yield SQLiteIdentityUnitOfWork(Store(session))
+        try:
+            with session_scope(self.db_path, begin_immediate=True) as session:
+                yield SQLiteIdentityUnitOfWork(Store(session))
+        except IntegrityError as error:
+            raise TransactionConflictError(
+                "Identity write conflicts with persisted data"
+            ) from error
+        except OperationalError as error:
+            raise TransactionUnavailableError("Identity storage is unavailable") from error
 
 
 class SQLiteIdentityQueryFactory:

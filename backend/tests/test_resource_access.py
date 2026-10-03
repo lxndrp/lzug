@@ -38,10 +38,11 @@ from backend.persistence.models import (
     PERSON,
     PLANNING_SETTINGS,
     ROUND_CANDIDATE,
+    Committee,
 )
 from backend.persistence.resource_access import SQLiteResourceAccessQueryFactory
 from backend.persistence.store import Store
-from backend.tests.helpers import TempDatabase
+from backend.tests.helpers import TempDatabase, create_committee_record
 
 
 @contextmanager
@@ -272,6 +273,28 @@ class ResourceAccessTests(unittest.TestCase):
                 actor_person_id=self.scope.person_id,
             )
 
+    def test_membership_write_rechecks_committee_state_inside_write_uow(self) -> None:
+        with session_scope(self.db_path) as session:
+            session.get(Committee, 1).is_active = 0
+        self.assertEqual(0, self.repository.get(COMMITTEE, 1)["is_active"])
+
+        with self.assertRaises(PermissionError):
+            self.identity.update_membership(
+                2,
+                {"member_status": "deputy"},
+                actor_memberships=self.scope.member_by_committee,
+                actor_person_id=self.scope.person_id,
+            )
+
+    def test_missing_membership_update_is_forbidden_without_key_error(self) -> None:
+        with self.assertRaisesRegex(PermissionError, "^Forbidden\\.$"):
+            self.identity.update_membership(
+                999999,
+                {"member_status": "deputy"},
+                actor_memberships=self.scope.member_by_committee,
+                actor_person_id=self.scope.person_id,
+            )
+
     def test_membership_write_rejects_actor_membership_reassigned_to_another_person(self) -> None:
         actor_membership_id = self.scope.member_by_committee[1]
         with session_scope(self.db_path) as session:
@@ -460,8 +483,8 @@ class ResourceAccessTests(unittest.TestCase):
             1,
             {"member_status": "ordinary"},
         )
-        moved_committee = self.repository.create(
-            COMMITTEE,
+        moved_committee = create_committee_record(
+            self.db_path,
             {"name": "Zwischenzuständigkeit", "occupation": "FI", "bootstrap_state": "ready"},
         )["id"]
         with session_scope(self.db_path) as session:
@@ -478,8 +501,8 @@ class ResourceAccessTests(unittest.TestCase):
         self.assertEqual(1, len(sessions))
 
     def test_write_recheck_serializes_ownership_reads_with_mutation(self) -> None:
-        destination_committee = self.repository.create(
-            COMMITTEE,
+        destination_committee = create_committee_record(
+            self.db_path,
             {"name": "Weiteres Komitee", "occupation": "FI", "bootstrap_state": "ready"},
         )["id"]
         authorization_complete = Event()
@@ -589,8 +612,8 @@ class ResourceAccessTests(unittest.TestCase):
             member.authorize(ResourceKind.MEMBER_AVAILABILITY, self.own[MEMBER_AVAILABILITY], {})
 
     def test_owner_reads_use_one_snapshot_during_a_concurrent_commit(self) -> None:
-        target_committee = self.repository.create(
-            COMMITTEE, {"name": "Neue Zuständigkeit", "occupation": "FI"}
+        target_committee = create_committee_record(
+            self.db_path, {"name": "Neue Zuständigkeit", "occupation": "FI"}
         )["id"]
         changed = False
 

@@ -222,6 +222,23 @@ def _package_dependencies(package: str) -> set[str]:
 
 
 class BackendPackageBoundaryTests(unittest.TestCase):
+    def test_application_transport_does_not_import_composition_root(self) -> None:
+        for relative in ("application/__init__.py", "application/transport.py"):
+            with self.subTest(module=relative):
+                tree = ast.parse((BACKEND_ROOT / relative).read_text(encoding="utf-8"))
+                imports = {
+                    alias.name
+                    for node in ast.walk(tree)
+                    if isinstance(node, ast.Import)
+                    for alias in node.names
+                }
+                imports.update(
+                    node.module
+                    for node in ast.walk(tree)
+                    if isinstance(node, ast.ImportFrom) and node.module is not None
+                )
+                self.assertNotIn("backend.composition", imports)
+
     def test_every_backend_module_has_one_responsibility_area(self) -> None:
         self.assertEqual(
             {

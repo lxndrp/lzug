@@ -27,18 +27,18 @@ from backend.identity.auth import AuthenticationRepository
 from backend.persistence.database import session_scope
 from backend.persistence.models import (
     CANDIDATE_EXAM_DAY,
-    COMMITTEE,
     EXAM_ROUND,
     Committee,
 )
 from backend.planning.candidate_days import GenerateCandidateDays
 from backend.runtime_policy import ProductRuntimePolicy
-from backend.tests.helpers import TempDatabase, openapi_document
+from backend.tests.helpers import TempDatabase, create_committee_record, openapi_document
 
 
 class FastAPIDependencyTests(unittest.TestCase):
     def setUp(self) -> None:
         self.db_path = self.enterContext(TempDatabase())
+        self.repository = ResourceRepository(self.db_path)
         self.auth = AuthenticationRepository(self.db_path)
         self.chair = self.auth.create_session(1)
         self.member = self.auth.create_session(2)
@@ -266,8 +266,7 @@ class FastAPIDependencyTests(unittest.TestCase):
         fallback = self.app.router.routes.pop()
         self.app.include_router(router)
         self.app.router.routes.append(fallback)
-        repository = ResourceRepository(self.db_path)
-        foreign = repository.create(COMMITTEE, {"name": "Feenwald", "occupation": "FI"})
+        foreign = create_committee_record(self.db_path, {"name": "Feenwald", "occupation": "FI"})
         with session_scope(self.db_path) as session:
             session.get(Committee, foreign["id"]).bootstrap_state = "ready"
         foreign_member = identity_service(self.db_path).create_membership(
@@ -280,7 +279,7 @@ class FastAPIDependencyTests(unittest.TestCase):
                 "is_active": 1,
             },
         )
-        foreign_round = repository.create(
+        foreign_round = self.repository.create(
             EXAM_ROUND,
             {
                 "committee_id": foreign["id"],

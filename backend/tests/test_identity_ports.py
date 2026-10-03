@@ -5,10 +5,9 @@ from __future__ import annotations
 import unittest
 from typing import NamedTuple
 
-from sqlalchemy.exc import IntegrityError
-
 from backend.application.repositories import ResourceRepository
 from backend.composition import identity_service
+from backend.errors import TransactionConflictError
 from backend.identity.auth import AuthContext
 from backend.identity.authorization import AuthorizationService
 from backend.identity.people import (
@@ -58,7 +57,7 @@ class IdentityPortTests(unittest.TestCase):
     def test_sqlite_membership_write_rolls_back_person_when_membership_fails(self) -> None:
         with TempDatabase(with_seed=False) as db_path:
             repository = ResourceRepository(db_path)
-            with self.assertRaises(IntegrityError):
+            with self.assertRaises(TransactionConflictError):
                 identity_service(db_path).create_membership(
                     {
                         "first_name": "Ada",

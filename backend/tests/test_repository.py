@@ -18,10 +18,24 @@ from backend.persistence.models import (
     ROUND_CANDIDATE,
     Committee,
 )
-from backend.tests.helpers import TempDatabase
+from backend.tests.helpers import TempDatabase, create_committee_record
 
 
 class RepositoryTests(unittest.TestCase):
+    def test_generic_repository_cannot_mutate_identity_resources(self) -> None:
+        with TempDatabase() as db_path:
+            repository = ResourceRepository(db_path)
+            for operation in (
+                lambda: repository.create(COMMITTEE, {"name": "Generic"}),
+                lambda: repository.update(COMMITTEE, 1, {"name": "Generic"}),
+                lambda: repository.delete(COMMITTEE, 1),
+            ):
+                with (
+                    self.subTest(operation=operation),
+                    self.assertRaisesRegex(ValueError, "Identity resources"),
+                ):
+                    operation()
+
     def test_candidate_list_adds_human_readable_specialization_labels(self) -> None:
         with TempDatabase() as db_path:
             candidates = ResourceRepository(db_path).candidate_list()
@@ -103,8 +117,8 @@ class RepositoryTests(unittest.TestCase):
     def test_candidate_committee_change_preserves_history_and_deactivates_old_round(self) -> None:
         with TempDatabase() as db_path:
             repository = ResourceRepository(db_path)
-            committee = repository.create(
-                COMMITTEE,
+            committee = create_committee_record(
+                db_path,
                 {
                     "name": "Prüfungsausschuss Teststadt 2",
                     "occupation": "Fachinformatiker/in",
@@ -403,7 +417,7 @@ class RepositoryTests(unittest.TestCase):
     def test_availability_is_shared_by_person_only_within_the_same_half_year(self) -> None:
         with TempDatabase() as db_path:
             repository = ResourceRepository(db_path)
-            committee = repository.create(COMMITTEE, {"name": "PA 2", "occupation": "FI"})
+            committee = create_committee_record(db_path, {"name": "PA 2", "occupation": "FI"})
             membership = identity_service(db_path).create_membership(
                 {
                     "person_id": 1,

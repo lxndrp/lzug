@@ -16,7 +16,13 @@ from backend.persistence.database import session_scope
 from backend.persistence.models import COMMITTEE, COMMITTEE_MEMBER, PERSON
 from backend.persistence.store import Store
 from backend.tests.fixture_data import DISPLAY_NAMES, FIXTURE_IDS, FIXTURE_ROOT
-from backend.tests.helpers import ApiServer, TempDatabase, TestLzugHandler, assert_status
+from backend.tests.helpers import (
+    ApiServer,
+    TempDatabase,
+    TestLzugHandler,
+    assert_status,
+    create_committee_record,
+)
 
 
 class StaticTestHandler(TestLzugHandler):
@@ -855,11 +861,8 @@ class ApiTests(unittest.TestCase):
 
     def test_candidate_committee_change_is_visible_as_history_over_http(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:
-            from backend.application.repositories import ResourceRepository
-            from backend.persistence.models import COMMITTEE
-
-            ResourceRepository(db_path).create(
-                COMMITTEE,
+            create_committee_record(
+                db_path,
                 {
                     "name": "Prüfungsausschuss Teststadt 2",
                     "occupation": "Fachinformatiker/in",

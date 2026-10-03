@@ -4,16 +4,15 @@ import unittest
 
 from backend.application.repositories import ResourceRepository
 from backend.composition import identity_service
-from backend.persistence.models import COMMITTEE, EXAM_DAY_ASSIGNMENT
+from backend.persistence.models import EXAM_DAY_ASSIGNMENT
 from backend.planning import PlanningService
-from backend.tests.helpers import TempDatabase
+from backend.tests.helpers import TempDatabase, create_committee_record
 
 
 class PersonMembershipTests(unittest.TestCase):
     def test_existing_person_can_join_another_committee(self) -> None:
         with TempDatabase() as db_path:
-            repository = ResourceRepository(db_path)
-            committee = repository.create(COMMITTEE, {"name": "PA 2", "occupation": "FI"})
+            committee = create_committee_record(db_path, {"name": "PA 2", "occupation": "FI"})
             membership = identity_service(db_path).create_membership(
                 {
                     "person_id": 1,

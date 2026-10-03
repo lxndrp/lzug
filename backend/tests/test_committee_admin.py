@@ -11,21 +11,19 @@ from unittest.mock import patch
 import pyotp
 from sqlalchemy import func, select
 
-from backend.application.repositories import ResourceRepository
 from backend.composition import authorization_service, committee_admin_service, identity_service
 from backend.identity.admin_service import AdminOperationError
 from backend.identity.auth import AuthenticationRepository
 from backend.identity.local_auth import LocalAuthService
 from backend.persistence.database import session_scope
 from backend.persistence.models import (
-    COMMITTEE,
     AuthToken,
     Committee,
     CommitteeAdminOperation,
     Person,
     UserAccount,
 )
-from backend.tests.helpers import TempDatabase
+from backend.tests.helpers import TempDatabase, create_committee_record
 
 
 def new_person(email: str, *, side: str = "employer") -> dict[str, object]:
@@ -402,8 +400,8 @@ class CommitteeAdminTests(unittest.TestCase):
 
     def test_legacy_committee_can_be_completed_once_without_changing_master_data(self) -> None:
         with TempDatabase(with_seed=False) as db_path:
-            committee = ResourceRepository(db_path).create(
-                COMMITTEE,
+            committee = create_committee_record(
+                db_path,
                 {
                     "name": "Altbestand",
                     "ihk": "IHK Bestand",
@@ -597,8 +595,8 @@ class CommitteeAdminTests(unittest.TestCase):
 
     def test_unresolved_committee_cannot_be_reactivated(self) -> None:
         with TempDatabase(with_seed=False) as db_path:
-            committee = ResourceRepository(db_path).create(
-                COMMITTEE,
+            committee = create_committee_record(
+                db_path,
                 {"name": "Ungeklärt", "ihk": "IHK Test", "occupation": "Testberuf"},
             )
             service = committee_admin_service(db_path)

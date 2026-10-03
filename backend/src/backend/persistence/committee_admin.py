@@ -94,6 +94,7 @@ class SQLiteCommitteeAdminUnitOfWork:
         if (
             committee is None
             or not committee.is_active
+            or committee.bootstrap_state != "ready"
             or actor is None
             or actor_person_id is None
             or actor.person_id != actor_person_id

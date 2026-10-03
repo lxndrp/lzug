@@ -198,7 +198,7 @@ class ResourceRepository:
         """
         with self._authorization_session_scope(authorization_scope) as session:
             store = Store(session)
-            if resource in {PERSON, COMMITTEE_MEMBER}:
+            if resource in {COMMITTEE, PERSON, COMMITTEE_MEMBER}:
                 raise ValueError("Identity resources must be changed through Identity services")
             payload = self._authorize_mutation(store, resource, None, payload, authorization_scope)
             if resource in PLAN_AGGREGATE_RESOURCES:

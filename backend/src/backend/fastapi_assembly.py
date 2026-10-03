@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 from collections.abc import Callable, Mapping
+from dataclasses import replace
 from datetime import timedelta
 from pathlib import Path
 
@@ -13,12 +14,14 @@ from fastapi import FastAPI
 from .application import ApplicationServices, ReadApplication
 from .application.admin import AdminApplication, AdminServices
 from .application.resource_access import ResourceAccessQueryFactory
+from .composition import authorization_service as compose_authorization_service
 from .composition import (
     candidate_day_service as compose_candidate_day_service,
 )
 from .composition import (
     committee_admin_service as compose_committee_admin_service,
 )
+from .composition import identity_service as compose_identity_service
 from .fastapi_app import (
     FastAPIConfig,
     register_application_routes,
@@ -32,7 +35,9 @@ from .fastapi_dependencies import (
 from .fastapi_http import APPLICATION_ERROR_RESPONSES
 from .fastapi_runtime import RuntimeAdmissionMiddleware
 from .identity.admin_service import OperatorAuthService
+from .identity.authorization import AuthorizationService
 from .identity.committee_admin import CommitteeAdminService
+from .identity.people import IdentityService
 from .integrations.notifications import NotificationService
 from .operations.backup_recipients import BackupRecipientRepository
 from .operations.backup_restore import ArtifactService
@@ -115,12 +120,25 @@ def create_app(
     runtime: RuntimeCoordinator | None = None,
     candidate_day_service_factory: Callable[[Path], CandidateDayService] | None = None,
     resource_access_query_factory: Callable[[Path], ResourceAccessQueryFactory] | None = None,
+    identity_service_factory: Callable[[Path], IdentityService] | None = None,
+    authorization_service_factory: Callable[[Path], AuthorizationService] | None = None,
+    committee_admin_service_factory: Callable[[Path], CommitteeAdminService] | None = None,
 ) -> FastAPI:
     """Create the single FastAPI application used by product and demo images."""
     resolved = config or FastAPIConfig.from_environment()
     if runtime is not None and runtime.db_path != resolved.db_path.resolve():
         raise ValueError("HTTP and runtime must share persistence")
-    application = ReadApplication(resolved.db_path, services)
+    active_authorization_factory = (
+        authorization_service_factory
+        or (services.authorization_factory if services is not None else None)
+        or compose_authorization_service
+    )
+    application_services = services or ApplicationServices()
+    if application_services.authorization_factory is None:
+        application_services = replace(
+            application_services, authorization_factory=active_authorization_factory
+        )
+    application = ReadApplication(resolved.db_path, application_services)
     if runtime is not None:
         application.runtime = runtime
     app = FastAPI(
@@ -138,6 +156,11 @@ def create_app(
     )
     app.state.resource_access_query_factory = (
         resource_access_query_factory or SQLiteResourceAccessQueryFactory
+    )
+    app.state.identity_service_factory = identity_service_factory or compose_identity_service
+    app.state.authorization_service_factory = active_authorization_factory
+    app.state.committee_admin_service_factory = (
+        committee_admin_service_factory or compose_committee_admin_service
     )
     app.state.auth_rate_limiter = resolved.auth_rate_limiter or RequestRateLimiter(
         resolved.auth_rate_limit, resolved.auth_rate_window

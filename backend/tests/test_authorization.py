@@ -9,12 +9,11 @@ from backend.identity.auth import AuthenticationRepository
 from backend.persistence.database import session_scope
 from backend.persistence.models import (
     CANDIDATE_EXAM_DAY,
-    COMMITTEE,
     EXAM_ROUND,
     Committee,
 )
 from backend.planning import PlanningService
-from backend.tests.helpers import ApiServer, TempDatabase, assert_status
+from backend.tests.helpers import ApiServer, TempDatabase, assert_status, create_committee_record
 
 
 class AuthorizationTests(unittest.TestCase):
@@ -24,8 +23,8 @@ class AuthorizationTests(unittest.TestCase):
         self.repository = ResourceRepository(self.db_path)
         self.authentication = AuthenticationRepository(self.db_path)
 
-        committee = self.repository.create(
-            COMMITTEE, {"name": "Prüfungsausschuss Teststadt 2", "occupation": "FI"}
+        committee = create_committee_record(
+            self.db_path, {"name": "Prüfungsausschuss Teststadt 2", "occupation": "FI"}
         )
         self.committee_id = committee["id"]
         self.members: dict[int, int] = {}

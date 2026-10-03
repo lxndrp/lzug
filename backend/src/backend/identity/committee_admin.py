@@ -522,6 +522,10 @@ class CommitteeAdminService:
             raise AdminOperationError(
                 "invitation_not_eligible", "Invitation cannot be reissued"
             ) from error
+        except TransactionUnavailableError as error:
+            raise AdminOperationError(
+                "persistence_error", "Invitation could not be reissued"
+            ) from error
 
     def _reinvitation_target(
         self,
@@ -631,6 +635,10 @@ class CommitteeAdminService:
                 return replay
             raise AdminOperationError(
                 "committee_conflict", "Committee lifecycle state conflicts"
+            ) from error
+        except TransactionUnavailableError as error:
+            raise AdminOperationError(
+                "persistence_error", "Committee lifecycle change could not be completed"
             ) from error
 
     def _assign_leadership(
