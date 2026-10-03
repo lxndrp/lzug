@@ -2,7 +2,6 @@ import { InjectionToken } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import type {
-  AvailabilityRequest,
   CandidateDayGenerationResult,
   CandidateExamDay,
   EditablePlanningProposal,
@@ -22,7 +21,7 @@ export interface PlanningPort {
     roundId: number,
   ): Observable<PlanningSettings>;
   updateExamRound(payload: PlanningRoundUpdate, roundId: number): Observable<PlanningRound>;
-  requestAvailabilities(payload: AvailabilityRequest, roundId: number): Observable<PlanningRound>;
+  sendAvailabilityRequests(roundId: number): Observable<PlanningRound>;
   createCandidateExamDay(
     payload: Omit<CandidateExamDay, 'id' | 'exam_round_id'>,
     roundId: number,

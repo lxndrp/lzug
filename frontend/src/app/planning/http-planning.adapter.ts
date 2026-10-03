@@ -28,8 +28,8 @@ export class HttpPlanningAdapter implements PlanningPort {
     return this.api.updateExamRound(...args).pipe(map(withoutHttpLinks));
   }
 
-  requestAvailabilities(...args: Parameters<PlanningPort['requestAvailabilities']>) {
-    return this.api.requestAvailabilities(...args).pipe(map(withoutHttpLinks));
+  sendAvailabilityRequests(roundId: number) {
+    return this.api.sendAvailabilityRequests(roundId).pipe(map(withoutHttpLinks));
   }
 
   createCandidateExamDay(...args: Parameters<PlanningPort['createCandidateExamDay']>) {

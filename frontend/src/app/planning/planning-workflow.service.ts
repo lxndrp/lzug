@@ -10,6 +10,7 @@ import {
   finalize,
   of,
   switchMap,
+  tap,
   takeUntil,
 } from 'rxjs';
 
@@ -88,6 +89,21 @@ export class PlanningWorkflowService {
       }
     });
     this.roundContext.changes$.subscribe(() => this.resetForRoundContextChange());
+    this.writeEvents.committed$.subscribe(({ sourceRoundId, scope }) => {
+      const activeRoundId = this.activeRoundId;
+      if (
+        scope !== 'related-rounds' ||
+        activeRoundId === null ||
+        activeRoundId === sourceRoundId ||
+        !this.isSelectedRound(activeRoundId)
+      ) {
+        return;
+      }
+      // Availability writes may be mirrored to another round for the same
+      // member and half-year. The server owns that target set, so reload the
+      // active round projection without applying the source response.
+      this.refreshPlanning(activeRoundId);
+    });
   }
 
   activateView(view: symbol, roundId: number): void {
@@ -289,7 +305,12 @@ export class PlanningWorkflowService {
     if (!this.ensurePlanningRound(roundId)) return;
     if (!this.beginOperation()) return;
     this.sessionScope
-      .forCurrentSession(this.planning.requestAvailabilities(payload, roundId))
+      .forCurrentSession(
+        this.planning.updateExamRound(payload, roundId).pipe(
+          tap(() => this.writeEvents.notifyCommitted(roundId)),
+          switchMap(() => this.planning.sendAvailabilityRequests(roundId)),
+        ),
+      )
       .pipe(finalize(() => this.pending.set(false)))
       .subscribe({
         next: (result) => {
@@ -360,9 +381,10 @@ export class PlanningWorkflowService {
     if (!this.beginOperation()) return;
     this.sessionScope
       .forCurrentSession(
-        this.planning
-          .savePlanningSettings(payload, roundId)
-          .pipe(switchMap(() => this.planning.generateCandidateExamDays(roundId))),
+        this.planning.savePlanningSettings(payload, roundId).pipe(
+          tap(() => this.writeEvents.notifyCommitted(roundId)),
+          switchMap(() => this.planning.generateCandidateExamDays(roundId)),
+        ),
       )
       .pipe(finalize(() => this.pending.set(false)))
       .subscribe({
@@ -452,7 +474,7 @@ export class PlanningWorkflowService {
       .pipe(finalize(() => this.pendingAvailability.delete(availabilityKey)))
       .subscribe({
         next: (availability) => {
-          if (this.skipStaleWrite(roundId, view)) return;
+          if (this.skipStaleWrite(roundId, view, false, 'related-rounds')) return;
           this.snapshot.update((snapshot) =>
             snapshot
               ? {
@@ -641,11 +663,12 @@ export class PlanningWorkflowService {
     roundId: number,
     view: symbol | null,
     refreshShellContext = false,
+    scope: 'round' | 'related-rounds' = 'round',
   ): boolean {
     // This helper is called only from successful command responses. Publish
     // the commit independently of the initiating view so cross-round readers
     // can invalidate; response data and drafts remain fenced below.
-    this.writeEvents.notifyCommitted(roundId);
+    this.writeEvents.notifyCommitted(roundId, scope);
     if (!this.isSelectedRound(roundId)) return true;
     if (this.isCurrentView(view)) return false;
 

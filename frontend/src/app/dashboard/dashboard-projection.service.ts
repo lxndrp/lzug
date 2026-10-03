@@ -69,8 +69,12 @@ export class DashboardProjectionService {
       this.cancelTargetedReads();
       this.refresh();
     });
-    this.writeEvents.committed$.subscribe((roundId) => {
-      if (!this.active || this.roundContext.roundId() !== roundId) return;
+    this.writeEvents.committed$.subscribe(({ sourceRoundId, scope }) => {
+      if (
+        !this.active ||
+        (scope !== 'related-rounds' && this.roundContext.roundId() !== sourceRoundId)
+      )
+        return;
       this.cancelTargetedReads();
       this.refresh(true);
     });

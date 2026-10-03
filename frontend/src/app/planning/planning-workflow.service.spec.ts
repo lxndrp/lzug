@@ -68,8 +68,51 @@ describe('PlanningWorkflowService', () => {
     response.complete();
 
     expect(port.updateExamRound).toHaveBeenCalledOnce();
-    expect(committed).toHaveBeenCalledWith(1);
+    expect(committed).toHaveBeenCalledWith({ sourceRoundId: 1, scope: 'round' });
     expect(workflow.snapshot()).toBeNull();
+  });
+
+  it('publishes the round metadata commit if availability dispatch then fails', () => {
+    const { workflow } = createHarness({
+      updateExamRound: vi.fn(() => of({ id: 1 })),
+      sendAvailabilityRequests: vi.fn(() => throwError(() => new Error('dispatch failed'))),
+    });
+    const committed = vi.fn();
+    TestBed.inject(PlanningWriteEventsService).committed$.subscribe(committed);
+    const view = Symbol('planning-route-activation');
+    workflow.activateView(view, 1);
+
+    workflow.requestAvailabilities(
+      { name: 'Runde', availability_deadline: null, availability_reminder_at: null },
+      1,
+      view,
+    );
+
+    expect(committed).toHaveBeenCalledWith({ sourceRoundId: 1, scope: 'round' });
+  });
+
+  it('publishes the settings commit if candidate-day generation then fails', () => {
+    const { workflow } = createHarness({
+      savePlanningSettings: vi.fn(() => of({})),
+      generateCandidateExamDays: vi.fn(() => throwError(() => new Error('generation failed'))),
+    });
+    const committed = vi.fn();
+    TestBed.inject(PlanningWriteEventsService).committed$.subscribe(committed);
+    const view = Symbol('planning-route-activation');
+    workflow.activateView(view, 1);
+
+    workflow.generateCandidateDays(
+      {
+        calendar_week_from: '2026-W40',
+        calendar_week_to: '2026-W41',
+        exams_per_day: 4,
+        max_exam_days_per_week: 2,
+      },
+      1,
+      view,
+    );
+
+    expect(committed).toHaveBeenCalledWith({ sourceRoundId: 1, scope: 'round' });
   });
 
   it('clears prior-round workflow reports when the resolved round context changes', () => {
@@ -83,6 +126,44 @@ describe('PlanningWorkflowService', () => {
 
     expect(workflow.snapshot()).toBeNull();
     expect(workflow.lastResult()).toBeNull();
+  });
+
+  it('reloads round B after a late availability write from round A', () => {
+    const response = new Subject<{
+      id: number;
+      committee_member_id: number;
+      candidate_exam_day_id: number;
+      availability: string;
+    }>();
+    const snapshots = [
+      emptySnapshot(1),
+      emptySnapshot(2),
+      {
+        ...emptySnapshot(2),
+        round: { ...emptySnapshot(2).round, name: 'Runde 2 nach Spiegelung' },
+      },
+    ];
+    const { workflow, port, roundContext } = createHarness({
+      loadPlanning: vi.fn(() => of(snapshots.shift()!)),
+      saveMemberAvailability: vi.fn(() => response),
+    });
+    const viewA = Symbol('round-a-view');
+    const viewB = Symbol('round-b-view');
+    const availability = {
+      committee_member_id: 11,
+      candidate_exam_day_id: 21,
+      availability: 'morning',
+    };
+
+    workflow.activateView(viewA, 1);
+    workflow.saveAvailability(availability, 1, viewA);
+    roundContext.select(2);
+    workflow.activateView(viewB, 2);
+    response.next({ id: 7, ...availability });
+    response.complete();
+
+    expect(port.loadPlanning.mock.calls.map(([id]) => id)).toEqual([1, 2, 2]);
+    expect(workflow.snapshot()?.round.name).toBe('Runde 2 nach Spiegelung');
   });
 
   it('passes the proposal source revision and round ID through the port', () => {
@@ -191,7 +272,10 @@ describe('PlanningWorkflowService', () => {
   it('refreshes the active projection after stale availability writes', () => {
     const requestResponse = new Subject<{ id: number }>();
     expectStaleWriteRefresh(
-      { requestAvailabilities: vi.fn(() => requestResponse) },
+      {
+        updateExamRound: vi.fn(() => of({ id: 1 })),
+        sendAvailabilityRequests: vi.fn(() => requestResponse),
+      },
       (workflow, view) =>
         workflow.requestAvailabilities(
           { name: 'Runde', availability_deadline: null, availability_reminder_at: null },
@@ -534,7 +618,7 @@ function createHarness(
     loadPlanning: vi.fn((id: number) => of(emptySnapshot(id))),
     savePlanningSettings: vi.fn(() => of({})),
     updateExamRound: vi.fn(() => of({})),
-    requestAvailabilities: vi.fn(() => of({ notification_warning: null })),
+    sendAvailabilityRequests: vi.fn(() => of({ notification_warning: null })),
     createCandidateExamDay: vi.fn(() => of({ id: 1, exam_round_id: 1, date: '', is_active: 1 })),
     generateCandidateExamDays: vi.fn(() => of({ counts: { created: 0, existing: 0 } })),
     updateCandidateExamDay: vi.fn(() => of({})),

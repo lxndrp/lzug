@@ -117,6 +117,28 @@ describe('DashboardProjectionService', () => {
     expect(service.projection()?.applicationVersion).toBe('after commit');
   });
 
+  it('reloads the active dashboard when availability may mirror from another round', () => {
+    const roundTwo = { ...examRoundFixture, id: 2 };
+    load.mockImplementation((id: number) =>
+      of({
+        applicationVersion: 'test',
+        round: id === 2 ? roundTwo : examRoundFixture,
+        summary: summaryFixture,
+        board: planningBoardFixture,
+      }),
+    );
+    const service = TestBed.inject(DashboardProjectionService);
+    service.activate();
+    TestBed.inject(RoundContextService).select(2);
+    expect(load).toHaveBeenLastCalledWith(2);
+
+    TestBed.inject(PlanningWriteEventsService).notifyCommitted(1, 'related-rounds');
+
+    expect(load).toHaveBeenCalledTimes(3);
+    expect(load).toHaveBeenLastCalledWith(2);
+    expect(service.projection()?.round.id).toBe(2);
+  });
+
   it('cancels all targeted dashboard GETs when its route closes', () => {
     const service = TestBed.inject(DashboardProjectionService);
     service.activate();
