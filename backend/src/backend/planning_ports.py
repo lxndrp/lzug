@@ -65,6 +65,7 @@ CONTACT_FIELDS = frozenset(
 COMMAND_META_FIELDS = frozenset(
     {
         "reason",
+        "expected_revision",
         "duplicates_reviewed",
         "duplicate_reason",
         "confirm_future_assignments",

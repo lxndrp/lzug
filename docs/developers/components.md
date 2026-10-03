@@ -190,8 +190,12 @@ Prüfungsorte verwenden denselben Portansatz:
 Abfragen, Commands,
 Ergebnisse und die providerfreie Geocoder-Schnittstelle.
 `backend.planning.exam_venues` enthält die dazugehörigen Use Cases.
-`backend.persistence.sqlite_exam_venues` hält Entity-Mapping, Autorisierung,
-Validierung, Audit und venuebezogene Änderungen im SQLite-Schreib-UoW.
+Das Planning-Service liest detached Fakten innerhalb des Schreib-UoW und
+entscheidet Venue-, Room- und Contact-Policies, bevor es einen typisierten
+Änderungsplan übergibt. `backend.persistence.sqlite_exam_venues` hält
+Entity-Mapping, gespeicherte Ownership-/Autorisierungsprüfungen, relationale
+Eindeutigkeit und Verwendungsprüfungen, Audit und Transaktion im
+SQLite-Schreib-UoW.
 `backend.integrations.map_provider` implementiert den Geocoder-Vertrag;
 `backend.composition` verdrahtet ihn gemeinsam mit dem expliziten
 Providerverhalten und dem pro Runtime-Policy ausgewählten Datenbankpfad.
