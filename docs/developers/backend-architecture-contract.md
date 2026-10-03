@@ -387,10 +387,24 @@ erhalten und Retry wiederholt Sync sowie Token-Erzeugung.
 Ist der Commit erfolgt, aber die Antwort verloren, bleibt das Secret
 unverfügbar; eine neue ausdrückliche Rotation widerruft die unbekannte
 Generation und beginnt den Ablauf erneut.
-`DELETE` erhöht unter derselben Sperre die dauerhafte Revocation-Generation und
-fenced jede ältere initiale Pending-Absicht; ein laufender Sync erkennt den
-Fence und rollt seinen begrenzten Calendar-UoW zurück, bevor er committen kann.
-Der Finalizer darf nach dem Fence kein Credential anlegen.
+`DELETE` fenced ältere initiale Pending-Absichten. Für einen aktiven Feed-Sync
+setzt es zuerst unter einem prozessweit geteilten, je Feed indizierten
+Commit-Gate einen sofort sichtbaren Cancellation-Fence; dieses Signal benötigt
+keinen SQLite-Write-Commit. Der Sync prüft das Signal vor jedem begrenzten
+Schreibabschnitt und erneut im Commit-Gate unmittelbar vor Verlassen seines
+Calendar-UoW. Hat `DELETE` das Gate zuerst erhalten, rollt der Sync zurück,
+bestätigt das Ende seines UoW und legt keine Projektion an. Hat der Sync das
+Gate für seine abschließende Prüfung und den Commit zuerst erhalten, darf
+dieser Commit vor dem Widerruf linearisiert werden; `DELETE` setzt danach den
+Fence und wartet höchstens auf diesen einzelnen Commit. Während ein Widerruf
+auf den Rollback wartet, sehen neue Reads und Finalizer den prozesslokalen
+Fence bereits und liefern oder aktivieren nichts. Erst nach Ende des aktiven
+UoW committet `DELETE` die dauerhafte Revocation-Generation samt Löschen oder
+Fencing aktiver und initialer Pending-Stände in SQLite. Das Gate serialisiert
+Cancellation-Prüfung und Sync-Commit, nicht den gesamten Refresh; es wird vor
+dem Warten auf Rollback freigegeben. Auch den Lifecycle-Lock gibt `DELETE`
+während dieses Wartens frei und erwirbt ihn für den dauerhaften Revocation-
+Commit erneut. Der Finalizer darf nach dem Fence kein Credential anlegen.
 
 Der pro-Feed Lifecycle-Lock lebt in einem vom Composition Root erzeugten,
 prozessweit geteilten Registry-/Serviceobjekt, nicht in `RequestContext` oder
@@ -400,9 +414,23 @@ Initiale Aktivierung, ICS-Reads, Rotation und `DELETE` verwenden ihn nur für
 kurze Credential-Prüfungen, Fences, Revalidierungen und Commits; Sync,
 Read-Snapshot, Rendering und sonstige Refresh-Arbeit laufen außerhalb.
 Der Calendar-Sync-Coordinator fasst parallele Feed-GET-Refreshes pro Feed zu
-höchstens einem laufenden Sync-UoW zusammen. Wartende GETs starten keinen
-weiteren Refresh und revalidieren Credential und Identity-Scope vor ihrem
-Read-Snapshot erneut.
+höchstens einem laufenden Sync-UoW zusammen. Derselbe je Feed serialisierte
+Coordinator umfasst auch initiale Aktivierung sowie Rotation und Retry einer
+Pending-Generation; gleichzeitige Aufträge für dieselbe aktive oder Pending-
+Generation teilen einen Lauf. Wartende GETs starten keinen weiteren Refresh
+und revalidieren Credential und Identity-Scope vor ihrem Read-Snapshot erneut.
+Jeder aktive Refresh besitzt ein prozessweit sichtbares Cancellation-Signal.
+Seine begrenzten Schreibabschnitte prüfen dieses Signal; die letzte
+Signalprüfung und der SQLite-Commit werden für denselben Feed durch ein kurzes
+Commit-Gate serialisiert. `DELETE` setzt den Fence unter diesem Gate, gibt es
+vor dem Warten frei und committet den dauerhaften Widerruf erst, nachdem der
+aktive Writer sein UoW zurückgerollt hat. Zugleich verwirft es alle wartenden
+Sync-Aufträge; sie prüfen den Fence und starten keinen UoW. Damit muss SQLite
+keinen Revocation-Write parallel zu einem aktiven Writer committen, und
+zwischen letzter Prüfung und Sync-Commit kann kein Widerruf vorbeilaufen. Ein
+bereits vor dem Fence abgeschlossener Sync darf committen; der danach
+linearisierte Widerruf blockiert Read-Snapshots, Feed-Finalizer und
+Antwortfreigaben.
 Ein Token-ICS-Request ermittelt den möglichen Sperrschlüssel aus dem Tokenhash,
 prüft nach Sperrerwerb Credential-Generation und Identity-Scope und führt danach
 Sync außerhalb der Sperre aus.
@@ -588,9 +616,17 @@ und explizites Feed-`DELETE` denselben prozessweit geteilten Lifecycle-Lock
 aus der Composition-Root-Registry für kurze Credential-Prüfungen, Fences und
 Commits.
 Parallele ICS-Refreshes werden pro Feed auf einen laufenden Sync-UoW
-zusammengeführt. `DELETE` fenced wartende Reads und wartet höchstens auf Abbruch und
-Rollback eines einzelnen aktiven Syncs, nicht auf eine Refresh-Warteschlange
-oder Rendering.
+zusammengeführt; derselbe Coordinator serialisiert Sync-Aufträge aus initialer
+Aktivierung, Rotation und deren Retries und führt identische
+Generationsaufträge zusammen. Das prozessweit geteilte Commit-Gate je Feed
+serialisiert nur Cancellation-Prüfung und abschließenden SQLite-Commit des
+aktiven Syncs. `DELETE` setzt darunter sofort den prozesslokalen Fence, gibt das
+Gate frei, verwirft wartende Aufträge und fenced wartende Reads. Es wartet auf
+Rollback oder Abschluss des einzelnen aktiven UoW; erst danach committet es die
+dauerhafte Revocation-Generation. Wartende Aktivierungs-/Rotationsaufrufe sehen
+den Fence und starten keinen neuen Sync. So konkurriert der Widerrufs-Write
+nicht mit einem aktiven SQLite-Writer. `DELETE` wartet nicht auf eine
+Refresh-Warteschlange oder Rendering.
 Der ICS-Read revalidiert die aktive Generation vor Rückgabe.
 
 Der Calendar-Repository-UoW serialisiert zusätzlich Generationreservierungen
@@ -708,8 +744,10 @@ Admin-Processing-Command → erneute Ableitung mit derselben stabilen
 Ursprungsidentität; eine fehlende Queue wird diagnostiziert und kann wieder
 eingereiht werden.
 Calendar-Contract-Tests belegen den einmaligen Feed-Refresh bei parallelen GETs,
-den Revocation-Fence und Abbruch wartender/aktiver Refreshes sowie den
-DELETE-Wettlauf mit initialer Aktivierung. Sie prüfen, dass ein Read nach
+den prozesslokalen Cancellation-Fence, die Gate-Reihenfolge für Check/Commit,
+SQLite-Rollback vor dauerhaftem Revocation-Commit und Abbruch
+wartender/aktiver Refreshes aus GET, initialer Aktivierung und Rotation sowie
+den DELETE-Wettlauf mit Aktivierung, Rotation und ICS-Read. Sie prüfen, dass ein Read nach
 Widerrufscommit kein ICS-Ergebnis liefert.
 Kalenderfolgen-Tests belegen den stabilen `decision_date`-Cutoff über Mitternacht
 und dass ältere Assignment-Folgeversionen nach neueren Mutationen keine Events

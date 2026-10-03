@@ -281,9 +281,14 @@ Ein Read prüft vor der Arbeit Credential-Generation und Identity-Scope,
 materialisiert den Read-Snapshot unter kurzer Sperre und revalidiert unmittelbar
 vor Rückgabe die aktive Credential-Generation.
 Hat `DELETE` vorher widerrufen, wird das gerenderte Ergebnis verworfen.
-Parallele GET-Refreshes werden je Feed zu höchstens einem laufenden Sync-UoW
-zusammengeführt. `DELETE` setzt zuerst den Revocation-Fence; wartende Reads starten
-keinen Sync, und ein aktiver Sync bricht seinen begrenzten UoW ab.
+GET-Refreshes, initiale Aktivierung, Rotation und Pending-Retries nutzen je Feed
+denselben Sync-Coordinator: pro Feed läuft höchstens ein Sync-UoW, und Aufträge
+derselben Credential- oder Pending-Generation teilen ihn. `DELETE` setzt zuerst
+unter einem kurzen Commit-Gate den prozesslokalen Revocation-Fence; wartende
+Reads und Sync-Aufträge starten keinen weiteren UoW, ein aktiver Sync rollt
+seinen begrenzten UoW zurück. Nach dessen Ende committet `DELETE` die dauerhafte
+Revocation-Generation. Der Commit-Gate schützt nur letzte Cancellation-Prüfung
+und Sync-Commit, nicht den gesamten Sync.
 Initiale Aktivierung verwendet ebenfalls eine nicht-geheime Pending-Generation,
 die `DELETE` fencen kann, bevor ein Credential angelegt wird.
 `DELETE` committet Widerruf sowie Löschen oder Fencing eines Pending-Standes
@@ -347,10 +352,13 @@ außerhalb. Sein Registry-/Serviceobjekt wird prozessweit geteilt und nicht pro
 `RequestContext` oder `CalendarService` instanziiert.
 ICS prüft Credential-Generation und Identity-Scope vor der Arbeit, prüft den
 Read-Snapshot unter kurzer Sperre und unmittelbar vor Rückgabe erneut, dass
-dieselbe Credential-Generation aktiv ist.
-Rotation committet Widerruf und Pending-Generation unter dem Lock, synchronisiert
-außerhalb und finalisiert nach einer erneuten Pending-Prüfung unter dem Lock.
-`DELETE` kann während eines laufenden Syncs oder Renderings widerrufen; ein
+dieselbe Credential-Generation aktiv ist. Alle Sync-Auslöser gehen durch den
+je Feed serialisierten Coordinator; Rotation committet Widerruf und
+Pending-Generation unter dem Lifecycle-Lock, synchronisiert außerhalb und
+finalisiert nach erneuter Pending-Prüfung unter dem Lock. `DELETE` setzt unter
+dem Commit-Gate zuerst ein prozesslokales Abbruchsignal, wartet ohne beide Locks
+auf Rollback oder Abschluss des aktiven UoW und committet danach die dauerhafte
+Revocation-Generation. Wartende Aufträge starten nach dem Fence nicht; ein
 wartender Finalizer mit veraltetem Pending-Stand kann den Feed nicht reaktivieren.
 Konkurrierende und veraltete Requests erhalten stabile
 `FeedAlreadyActive`-, `FeedRotationPending`- oder `FeedConflict`-Fehler ohne
