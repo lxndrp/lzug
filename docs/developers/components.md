@@ -232,8 +232,9 @@ Der Zielvertrag entfernt diesen Pre-Sync.
 Nur wenn der Prüfungstag beim `select_replacement`-Commit offen ist, speichert
 die Execution-Folgequelle im selben Mutation-UoW das unveränderliche
 Before-Image einschließlich des Guard-Snapshots `closure_status == "open"`,
-Assignment-ID, alter Empfänger-Membership-ID, Generation und materialisiertem
-Eventinhalt.
+Assignment-ID, alter Empfänger-Membership-ID und materialisiertem Eventinhalt.
+Generationen gehören ausschließlich Calendar und werden nicht von Execution
+vorhergesagt oder gespeichert.
 Application replayt diese bereits autorisierte Quelle samt Guard-Snapshot
 ohne den zwischenzeitlich veränderlichen Tagesstatus neu zu bewerten und
 übergibt das Image an den Calendar-Port: dieser storniert die alte Generation
@@ -244,6 +245,15 @@ Wenn der Tag beim Mutation-Commit den Status `reopening` hat, entstehen aus
 `select_replacement` weder Before-Image noch Calendar-Quelle.
 So bleiben Abwesenheitsmutation und Wiederherstellung der alten
 Kalenderprojektion/Eventzeile nach Prozessabbruch wiederholbar.
+Calendar serialisiert die Generationreservierung je Assignment in seinem
+eigenen Repository-UoW und speichert die idempotente Zuordnung von stabilem
+Quellursprung zu Generation.
+Sowohl `sync_person` beziehungsweise ICS-read-triggered Sync als auch
+Before-Image-Replay reservieren ausschließlich über diesen Allocator.
+Damit kann ein Read-Sync die Ersatzprojektion bereits anlegen, ohne dass ein
+späteres Replay der alten Empfängerzeile eine UID-Kollision oder zweite
+aktive Generation erzeugt; Wiederholungen behalten dieselben
+Origin-zu-Generation-Zuordnungen.
 Wiederöffnung stellt im Execution-Zustand den ursprünglichen
 Assignee wieder her und ruft `sync_round` nach dem Commit nur für einen
 offenen Prüfungstag auf.
