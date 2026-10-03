@@ -1,36 +1,60 @@
-"""Operator-only account bootstrap, invitation, and recovery operations.
-
-This module is deliberately not an HTTP handler.  It uses the same SQLAlchemy
-session boundary and authentication repository as the application while
-returning one-time token material only to its direct caller.
-"""
+"""Operator-only account bootstrap, invitation, and recovery use cases."""
 
 from __future__ import annotations
 
 import hashlib
-import hmac
 import secrets
+from contextlib import AbstractContextManager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
-from typing import Literal
+from typing import Literal, Protocol
 
-from sqlalchemy import select, update
-from sqlalchemy.exc import IntegrityError
-
-from backend.identity.auth import EMAIL_PATTERN, AuthenticationError, AuthenticationRepository
 from backend.identity.errors import AdminOperationError
-from backend.persistence.database import DEFAULT_DB_PATH, session_scope
-from backend.persistence.models import AuthToken, UserAccount
+from backend.identity.validation import EMAIL_PATTERN
 
 INVITATION_TTL = timedelta(hours=24)
 RECOVERY_TTL = timedelta(minutes=30)
 TokenKind = Literal["invitation", "recovery"]
 
 
+class OperatorAuthUnitOfWork(Protocol):
+    """Identity-owned account and token writes within a single transaction."""
+
+    def account_exists(self, email: str | None = None) -> bool: ...
+
+    def create_account(self, email: str, *, is_operator: bool) -> dict[str, object] | None: ...
+
+    def active_account(
+        self, *, account_id: int | None = None, email: str | None = None
+    ) -> dict[str, object] | None: ...
+
+    def issue_token(
+        self,
+        account_id: int,
+        kind: str,
+        token_hash: str,
+        created_at: str,
+        expires_at: str,
+    ) -> None: ...
+
+    def consume_token(
+        self, token_hash: str, kind: str, consumed_at: str
+    ) -> dict[str, object] | None: ...
+
+    def disable_account(
+        self, account_id: int, now: str
+    ) -> tuple[dict[str, object] | None, int]: ...
+
+
+class OperatorAuthUnitOfWorkFactory(Protocol):
+    """Create an Identity authentication write transaction."""
+
+    def unit_of_work(self) -> AbstractContextManager[OperatorAuthUnitOfWork]: ...
+
+
 @dataclass(frozen=True)
 class IssuedAuthToken:
-    """Token material returned once by an issue operation."""
+    """Token material returned once to the operator."""
 
     account: dict[str, object]
     kind: TokenKind
@@ -61,76 +85,57 @@ def _email(value: str) -> str:
 
 
 class OperatorAuthService:
-    """Transactional account and one-time token operations for the CLI."""
+    """Operator commands expressed against Identity-owned persistence ports."""
 
-    def __init__(self, db_path: Path = DEFAULT_DB_PATH):
-        self.db_path = db_path
-        self.authentication = AuthenticationRepository(db_path)
+    def __init__(self, unit_of_work_factory: OperatorAuthUnitOfWorkFactory):
+        self.unit_of_work_factory = unit_of_work_factory
 
     def bootstrap(self, email: str, *, now: datetime | None = None) -> IssuedAuthToken:
-        """Create the sole first operator and its initial invitation."""
+        """Create the sole first operator and its initial invitation atomically."""
         normalized_email = _email(email)
         current = _now(now)
         try:
-            with session_scope(self.db_path) as session:
-                if session.scalar(select(UserAccount.id).limit(1)) is not None:
+            with self.unit_of_work_factory.unit_of_work() as uow:
+                if uow.account_exists():
                     raise AdminOperationError(
                         "bootstrap_not_empty", "Bootstrap requires an instance without accounts"
                     )
-                account = UserAccount(
-                    email=normalized_email,
-                    person_id=None,
-                    is_operator=1,
-                    is_active=1,
-                )
-                session.add(account)
-                session.flush()
-                return self._issue_token(session, account, "invitation", current)
+                account = uow.create_account(normalized_email, is_operator=True)
+                if account is None:
+                    raise AdminOperationError(
+                        "bootstrap_not_empty", "Bootstrap could not create the first operator"
+                    )
+                return self._issue_token(uow, account, "invitation", current)
         except AdminOperationError:
             raise
-        except IntegrityError as error:
-            raise AdminOperationError(
-                "bootstrap_not_empty", "Bootstrap could not create a second operator"
-            ) from error
-        except (OSError, AuthenticationError) as error:
+        except Exception as error:
             raise AdminOperationError("persistence_error", "Account bootstrap failed") from error
 
     def invite(self, email: str, *, now: datetime | None = None) -> IssuedAuthToken:
-        """Create a non-operator account and a 24-hour invitation token."""
+        """Create a non-operator account and a 24-hour invitation token atomically."""
         normalized_email = _email(email)
         current = _now(now)
         try:
-            with session_scope(self.db_path) as session:
-                if (
-                    session.scalar(
-                        select(UserAccount.id).where(UserAccount.email == normalized_email)
-                    )
-                    is not None
-                ):
+            with self.unit_of_work_factory.unit_of_work() as uow:
+                if uow.account_exists(normalized_email):
                     raise AdminOperationError("account_exists", "An account already exists")
-                account = UserAccount(
-                    email=normalized_email,
-                    person_id=None,
-                    is_operator=0,
-                    is_active=1,
-                )
-                session.add(account)
-                session.flush()
-                return self._issue_token(session, account, "invitation", current)
+                account = uow.create_account(normalized_email, is_operator=False)
+                if account is None:
+                    raise AdminOperationError("account_exists", "An account already exists")
+                return self._issue_token(uow, account, "invitation", current)
         except AdminOperationError:
             raise
-        except IntegrityError as error:
-            raise AdminOperationError("account_exists", "An account already exists") from error
-        except (OSError, AuthenticationError) as error:
+        except Exception as error:
             raise AdminOperationError(
                 "persistence_error", "Invitation could not be created"
             ) from error
 
     def disable(self, account_id: int) -> tuple[dict[str, object], int]:
-        """Disable an account and revoke all of its active sessions atomically."""
+        """Disable an account and revoke its sessions in one Identity UoW."""
         if account_id <= 0:
             raise AdminOperationError("invalid_request", "Account id must be positive")
-        account, revoked_sessions = self.authentication.disable_account(account_id)
+        with self.unit_of_work_factory.unit_of_work() as uow:
+            account, revoked_sessions = uow.disable_account(account_id, _timestamp(_now()))
         if account is None:
             raise AdminOperationError("account_not_found", "Account was not found")
         return account, revoked_sessions
@@ -145,20 +150,15 @@ class OperatorAuthService:
         """Issue a 30-minute recovery token for one active account."""
         if (account_id is None) == (email is None):
             raise AdminOperationError("invalid_request", "Provide exactly one account id or email")
+        if account_id is not None and account_id <= 0:
+            raise AdminOperationError("invalid_request", "Account id must be positive")
         current = _now(now)
         normalized_email = _email(email) if email is not None else None
-        with session_scope(self.db_path) as session:
-            query = select(UserAccount)
-            if account_id is not None:
-                if account_id <= 0:
-                    raise AdminOperationError("invalid_request", "Account id must be positive")
-                query = query.where(UserAccount.id == account_id)
-            else:
-                query = query.where(UserAccount.email == normalized_email)
-            account = session.scalars(query).first()
-            if account is None or not account.is_active:
+        with self.unit_of_work_factory.unit_of_work() as uow:
+            account = uow.active_account(account_id=account_id, email=normalized_email)
+            if account is None:
                 raise AdminOperationError("account_not_found", "Active account was not found")
-            return self._issue_token(session, account, "recovery", current)
+            return self._issue_token(uow, account, "recovery", current)
 
     def consume(
         self,
@@ -167,48 +167,21 @@ class OperatorAuthService:
         *,
         now: datetime | None = None,
     ) -> dict[str, object]:
-        """Atomically consume one unexpired token for a later auth flow."""
+        """Atomically consume one unexpired invitation or recovery token."""
         if kind not in ("invitation", "recovery") or not token or len(token) > 256:
             raise AdminOperationError("token_invalid", "Token is invalid, expired, or already used")
-        current = _now(now)
-        token_hash = _digest(token)
-        with session_scope(self.db_path) as session:
-            consumed_at = _timestamp(current)
-            changed = session.execute(
-                update(AuthToken)
-                .where(
-                    AuthToken.kind == kind,
-                    AuthToken.token_hash == token_hash,
-                    AuthToken.consumed_at.is_(None),
-                    AuthToken.expires_at > consumed_at,
-                )
-                .values(consumed_at=consumed_at)
-            ).rowcount
-            if changed != 1:
+        with self.unit_of_work_factory.unit_of_work() as uow:
+            account = uow.consume_token(_digest(token), kind, _timestamp(_now(now)))
+            if account is None:
                 raise AdminOperationError(
                     "token_invalid", "Token is invalid, expired, or already used"
                 )
-            record = session.scalars(
-                select(AuthToken).where(
-                    AuthToken.kind == kind,
-                    AuthToken.token_hash == token_hash,
-                )
-            ).first()
-            if record is None or not hmac.compare_digest(record.token_hash, token_hash):
-                raise AdminOperationError(
-                    "token_invalid", "Token is invalid, expired, or already used"
-                )
-            account = session.get(UserAccount, record.account_id)
-            if account is None or not account.is_active:
-                raise AdminOperationError(
-                    "token_invalid", "Token is invalid, expired, or already used"
-                )
-            return AuthenticationRepository._account_view(account)
+            return account
 
     @staticmethod
     def _issue_token(
-        session,
-        account: UserAccount,
+        uow: OperatorAuthUnitOfWork,
+        account: dict[str, object],
         kind: TokenKind,
         current: datetime,
     ) -> IssuedAuthToken:
@@ -216,19 +189,5 @@ class OperatorAuthService:
         expires_at = _timestamp(
             current + (INVITATION_TTL if kind == "invitation" else RECOVERY_TTL)
         )
-        session.add(
-            AuthToken(
-                account_id=account.id,
-                kind=kind,
-                token_hash=_digest(token),
-                created_at=_timestamp(current),
-                expires_at=expires_at,
-            )
-        )
-        session.flush()
-        return IssuedAuthToken(
-            account=AuthenticationRepository._account_view(account),
-            kind=kind,
-            token=token,
-            expires_at=expires_at,
-        )
+        uow.issue_token(int(account["id"]), kind, _digest(token), _timestamp(current), expires_at)
+        return IssuedAuthToken(account, kind, token, expires_at)

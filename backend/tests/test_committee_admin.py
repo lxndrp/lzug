@@ -11,10 +11,15 @@ from unittest.mock import patch
 import pyotp
 from sqlalchemy import func, select
 
-from backend.composition import authorization_service, committee_admin_service, identity_service
+from backend.composition import (
+    authorization_service,
+    committee_admin_service,
+    identity_service,
+    local_auth_service,
+)
 from backend.identity.admin_service import AdminOperationError
-from backend.identity.auth import AuthenticationRepository
-from backend.identity.local_auth import LocalAuthService
+from backend.identity.auth import SESSION_TTL
+from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.persistence.database import session_scope
 from backend.persistence.models import (
     AuthToken,
@@ -105,8 +110,7 @@ class CommitteeAdminTests(unittest.TestCase):
                     "SELECT name, ihk, occupation, is_active, bootstrap_state FROM committee"
                 ).fetchone()
                 memberships = connection.execute(
-                    "SELECT committee_role, is_active FROM committee_member "
-                    "ORDER BY committee_role"
+                    "SELECT committee_role, is_active FROM committee_member ORDER BY committee_role"
                 ).fetchall()
                 accounts = connection.execute(
                     "SELECT person_id, is_operator, is_active FROM user_account ORDER BY id"
@@ -158,7 +162,7 @@ class CommitteeAdminTests(unittest.TestCase):
                     "email": "existing@example.invalid",
                 },
             )
-            account = AuthenticationRepository(db_path).create_account(
+            account = SQLiteAuthenticationRepository(db_path).create_account(
                 "login@example.invalid", person_id=person["id"]
             )
             arguments = bootstrap_arguments()
@@ -193,7 +197,7 @@ class CommitteeAdminTests(unittest.TestCase):
                         "email": email,
                     },
                 )
-                AuthenticationRepository(db_path).create_account(
+                SQLiteAuthenticationRepository(db_path).create_account(
                     f"login.{role}@example.invalid", person_id=person["id"]
                 )
                 selections[role] = existing_person(email)
@@ -218,7 +222,7 @@ class CommitteeAdminTests(unittest.TestCase):
                     "email": "same@example.invalid",
                 },
             )
-            AuthenticationRepository(db_path).create_account(
+            SQLiteAuthenticationRepository(db_path).create_account(
                 "same.login@example.invalid", person_id=person["id"]
             )
             arguments = bootstrap_arguments()
@@ -243,7 +247,7 @@ class CommitteeAdminTests(unittest.TestCase):
                     "email": "conflict@example.invalid",
                 },
             )
-            AuthenticationRepository(db_path).create_account("conflict@example.invalid")
+            SQLiteAuthenticationRepository(db_path).create_account("conflict@example.invalid")
             arguments = bootstrap_arguments()
             arguments["chair"] = existing_person("conflict@example.invalid")
 
@@ -275,7 +279,7 @@ class CommitteeAdminTests(unittest.TestCase):
                     "email": "operator.person@example.invalid",
                 },
             )
-            AuthenticationRepository(db_path).create_account(
+            SQLiteAuthenticationRepository(db_path).create_account(
                 "operator@example.invalid", person_id=person["id"], is_operator=True
             )
             arguments = bootstrap_arguments()
@@ -296,7 +300,7 @@ class CommitteeAdminTests(unittest.TestCase):
                         "email": "target@example.invalid",
                     },
                 )
-                authentication = AuthenticationRepository(db_path)
+                authentication = SQLiteAuthenticationRepository(db_path)
                 if case == "wrongly_linked":
                     other = identity_service(db_path).create_person(
                         {
@@ -518,7 +522,7 @@ class CommitteeAdminTests(unittest.TestCase):
             arguments = bootstrap_arguments()
             arguments["deputy"] = new_person("deputy@example.invalid", side="school")
             created = committee_admin_service(db_path).bootstrap(arguments, now=self.now)
-            local_auth = LocalAuthService(db_path)
+            local_auth = local_auth_service(db_path, session_ttl=SESSION_TTL, settings=None)
 
             for invitation in created["invitations"]:
                 preparation = local_auth.prepare_invitation(invitation["token"], now=self.now)
@@ -531,7 +535,7 @@ class CommitteeAdminTests(unittest.TestCase):
                     now=self.now,
                 )
 
-            authentication = AuthenticationRepository(db_path)
+            authentication = SQLiteAuthenticationRepository(db_path)
             for account_id in created["account_ids"]:
                 credentials = authentication.create_session(account_id)
                 context = authentication.authenticate(credentials.token)
@@ -557,7 +561,7 @@ class CommitteeAdminTests(unittest.TestCase):
             second = service.bootstrap(second_arguments, now=self.now)
 
             account_id = first["account_ids"][0]
-            authentication = AuthenticationRepository(db_path)
+            authentication = SQLiteAuthenticationRepository(db_path)
             credentials = authentication.create_session(account_id)
             context = authentication.authenticate(credentials.token)
             assert context is not None

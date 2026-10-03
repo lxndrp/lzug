@@ -3,7 +3,7 @@ from __future__ import annotations
 import sqlite3
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import closing
+from contextlib import closing, contextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
@@ -14,9 +14,19 @@ from backend.identity import local_auth
 from backend.identity.admin_service import OperatorAuthService
 from backend.identity.local_auth import (
     GENERIC_LOGIN_MESSAGE,
+    LocalAuthAccount,
     LocalAuthError,
     LocalAuthService,
+    LocalAuthToken,
     LoginRateLimiter,
+)
+from backend.persistence.auth import (
+    SQLiteAuthenticationRepository,
+    SQLiteOperatorAuthUnitOfWorkFactory,
+)
+from backend.persistence.local_auth import (
+    SQLiteLocalAuthenticationKey,
+    SQLiteLocalAuthUnitOfWorkFactory,
 )
 from backend.tests.helpers import TempDatabase
 
@@ -27,8 +37,10 @@ class LocalAuthTests(unittest.TestCase):
         self.now = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)
 
     def _activate(self, db_path: Path) -> tuple[LocalAuthService, int, str, list[str]]:
-        issued = OperatorAuthService(db_path).invite("member@example.invalid", now=self.now)
-        service = LocalAuthService(db_path)
+        issued = OperatorAuthService(SQLiteOperatorAuthUnitOfWorkFactory(db_path)).invite(
+            "member@example.invalid", now=self.now
+        )
+        service = self._service(db_path)
         preparation = service.prepare_invitation(issued.token, now=self.now)
         assert preparation.totp_secret is not None
         code = pyotp.TOTP(preparation.totp_secret).at(self.now)
@@ -40,6 +52,50 @@ class LocalAuthTests(unittest.TestCase):
             now=self.now,
         )
         return service, account["id"], preparation.totp_secret, recovery_codes
+
+    @staticmethod
+    def _service(db_path: Path) -> LocalAuthService:
+        return LocalAuthService(
+            unit_of_work_factory=SQLiteLocalAuthUnitOfWorkFactory(db_path),
+            key_provider=SQLiteLocalAuthenticationKey(db_path),
+        )
+
+    def test_invitation_lookup_uses_identity_owned_ports(self) -> None:
+        class UnitOfWork:
+            def valid_token(self, token_hash: str, kind: str, now: str):
+                self.called = (token_hash, kind, now)
+                account = LocalAuthAccount(
+                    7,
+                    None,
+                    "person@example.invalid",
+                    False,
+                    True,
+                    None,
+                    False,
+                    None,
+                    None,
+                    None,
+                    "created",
+                )
+                return LocalAuthToken(7, "2026-01-01T13:00:00+00:00"), account
+
+        class Factory:
+            uow = UnitOfWork()
+
+            @contextmanager
+            def unit_of_work(self):
+                yield self.uow
+
+        class Key:
+            def get_key(self) -> bytes:
+                return b"unused in this operation"
+
+        factory = Factory()
+        service = LocalAuthService(unit_of_work_factory=factory, key_provider=Key())
+        preparation = service.prepare_invitation("opaque-token", now=self.now)
+        self.assertEqual("person@example.invalid", preparation.email)
+        self.assertEqual("invitation", factory.uow.called[1])
+        self.assertEqual(LocalAuthService._token_hash("opaque-token"), factory.uow.called[0])
 
     def test_activation_hashes_factors_and_issues_recovery_codes_once(self) -> None:
         with TempDatabase(with_seed=False) as db_path:
@@ -107,6 +163,37 @@ class LocalAuthTests(unittest.TestCase):
                     now=self.now,
                 )
 
+    def test_login_uses_identity_session_port_without_auth_repository_helpers(self) -> None:
+        with TempDatabase(with_seed=False) as db_path:
+            service, account_id, secret, _recovery_codes = self._activate(db_path)
+            authentication = SQLiteAuthenticationRepository(db_path)
+            previous = authentication.create_session(account_id, now=self.now)
+
+            with (
+                patch.object(
+                    SQLiteAuthenticationRepository,
+                    "_create_session",
+                    side_effect=AssertionError("local auth must create sessions through its UoW"),
+                ),
+                patch.object(
+                    SQLiteAuthenticationRepository,
+                    "_revoke_account_sessions",
+                    side_effect=AssertionError("local auth must revoke sessions through its UoW"),
+                ),
+            ):
+                result = service.login(
+                    "member@example.invalid",
+                    "correct horse battery staple",
+                    pyotp.TOTP(secret).at(self.now),
+                    now=self.now,
+                )
+
+            self.assertEqual(account_id, result.account_id)
+            self.assertIsNone(authentication.authenticate(previous.token, now=self.now))
+            self.assertIsNotNone(
+                authentication.authenticate(result.credentials.token, now=self.now)
+            )
+
     def test_recovery_code_is_single_use_and_recovery_token_replaces_factors(self) -> None:
         with TempDatabase(with_seed=False) as db_path:
             service, account_id, _secret, recovery_codes = self._activate(db_path)
@@ -126,7 +213,9 @@ class LocalAuthTests(unittest.TestCase):
                     now=self.now + timedelta(minutes=2),
                 )
 
-            recovery = OperatorAuthService(db_path).recover(account_id=account_id, now=self.now)
+            recovery = OperatorAuthService(SQLiteOperatorAuthUnitOfWorkFactory(db_path)).recover(
+                account_id=account_id, now=self.now
+            )
             new_secret = pyotp.random_base32()
             new_code = pyotp.TOTP(new_secret).at(self.now)
             _account, new_codes = service.complete_recovery(
@@ -181,8 +270,10 @@ class LocalAuthTests(unittest.TestCase):
 
     def test_expired_tokens_and_disabled_accounts_fail_closed(self) -> None:
         with TempDatabase(with_seed=False) as db_path:
-            issued = OperatorAuthService(db_path).invite("expired@example.invalid", now=self.now)
-            service = LocalAuthService(db_path)
+            issued = OperatorAuthService(SQLiteOperatorAuthUnitOfWorkFactory(db_path)).invite(
+                "expired@example.invalid", now=self.now
+            )
+            service = self._service(db_path)
             with self.assertRaisesRegex(LocalAuthError, "abgelaufen"):
                 service.prepare_invitation(
                     issued.token,
@@ -190,14 +281,17 @@ class LocalAuthTests(unittest.TestCase):
                 )
 
             service, account_id, secret, _codes = self._activate(db_path)
-            credentials = service.authentication.create_session(account_id, now=self.now)
-            OperatorAuthService(db_path).disable(account_id)
-            self.assertIsNone(service.authentication.authenticate(credentials.token, now=self.now))
+            authentication = SQLiteAuthenticationRepository(db_path)
+            credentials = authentication.create_session(account_id, now=self.now)
+            OperatorAuthService(SQLiteOperatorAuthUnitOfWorkFactory(db_path)).disable(account_id)
+            self.assertIsNone(authentication.authenticate(credentials.token, now=self.now))
 
     def test_unknown_and_passwordless_accounts_perform_dummy_hash_verification(self) -> None:
         with TempDatabase(with_seed=False) as db_path:
-            OperatorAuthService(db_path).invite("pending@example.invalid", now=self.now)
-            service = LocalAuthService(db_path)
+            OperatorAuthService(SQLiteOperatorAuthUnitOfWorkFactory(db_path)).invite(
+                "pending@example.invalid", now=self.now
+            )
+            service = self._service(db_path)
             for email in ("unknown@example.invalid", "pending@example.invalid"):
                 with (
                     self.subTest(email=email),
@@ -216,7 +310,8 @@ class LocalAuthTests(unittest.TestCase):
     def test_login_failure_rolls_back_factor_rehash_and_session_revocation(self) -> None:
         with TempDatabase(with_seed=False) as db_path:
             service, account_id, secret, recovery_codes = self._activate(db_path)
-            previous = service.authentication.create_session(account_id, now=self.now)
+            authentication = SQLiteAuthenticationRepository(db_path)
+            previous = authentication.create_session(account_id, now=self.now)
             with closing(sqlite3.connect(db_path)) as connection:
                 original_hash = connection.execute(
                     "SELECT password_hash FROM user_account WHERE id = ?", (account_id,)
@@ -228,9 +323,8 @@ class LocalAuthTests(unittest.TestCase):
                         patch.object(
                             local_auth.PasswordHasher, "check_needs_rehash", return_value=True
                         ),
-                        patch.object(
-                            service.authentication,
-                            "_create_session",
+                        patch(
+                            "backend.persistence.local_auth._SQLiteLocalAuthUnitOfWork.create_session",
                             side_effect=RuntimeError("test failure"),
                         ),
                         self.assertRaisesRegex(RuntimeError, "test failure"),
@@ -241,9 +335,7 @@ class LocalAuthTests(unittest.TestCase):
                             factor,
                             now=self.now,
                         )
-                    self.assertIsNotNone(
-                        service.authentication.authenticate(previous.token, now=self.now)
-                    )
+                    self.assertIsNotNone(authentication.authenticate(previous.token, now=self.now))
                     with closing(sqlite3.connect(db_path)) as connection:
                         state = connection.execute(
                             "SELECT password_hash, totp_last_step, last_login_at "
@@ -265,9 +357,9 @@ class LocalAuthTests(unittest.TestCase):
                 pyotp.TOTP(secret).at(self.now),
                 now=self.now,
             )
-            self.assertIsNone(service.authentication.authenticate(previous.token, now=self.now))
+            self.assertIsNone(authentication.authenticate(previous.token, now=self.now))
             self.assertIsNotNone(
-                service.authentication.authenticate(current.credentials.token, now=self.now)
+                authentication.authenticate(current.credentials.token, now=self.now)
             )
             self.assertIsNone(
                 LoginRateLimiter.retry_after("local:member@example.invalid", self.now)

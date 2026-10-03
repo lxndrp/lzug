@@ -10,7 +10,7 @@ from unittest.mock import patch
 from backend.assessment.exam_results import ExamResultConflictError, ExamResultService
 from backend.composition import authorization_service
 from backend.execution.exam_protocols import create_protocol_for_started_slot
-from backend.identity.auth import AuthenticationRepository
+from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.persistence.database import session_scope
 from backend.persistence.models import (
     CandidateExamAttendance,
@@ -261,7 +261,7 @@ class ExamResultTests(unittest.TestCase):
     def setUp(self) -> None:
         self.database = TempDatabase()
         self.db_path = self.database.__enter__()
-        authentication = AuthenticationRepository(self.db_path)
+        authentication = SQLiteAuthenticationRepository(self.db_path)
         self.chair = authentication.create_session(1)
         self.examiner = authentication.create_session(2)
         outsider = authentication.create_account(
@@ -390,7 +390,7 @@ class ExamResultTests(unittest.TestCase):
         with ApiServer(self.db_path) as api:
             result = self.prepare_result(api)
 
-        context = AuthenticationRepository(self.db_path).authenticate(self.chair.token)
+        context = SQLiteAuthenticationRepository(self.db_path).authenticate(self.chair.token)
         self.assertIsNotNone(context)
         scope = authorization_service(self.db_path).scope(context)
         initial_version = result["version"]

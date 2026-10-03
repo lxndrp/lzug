@@ -6,7 +6,11 @@ from tempfile import TemporaryDirectory
 
 from fastapi.routing import APIRoute
 
-from backend.application import ReadApplication
+from backend.application import (
+    ApplicationServices,
+    AuthenticationRequiredError,
+    ReadApplication,
+)
 from backend.fastapi_assembly import FastAPIConfig, create_app
 from backend.fastapi_operations_routes import (
     create_auth_router,
@@ -38,6 +42,33 @@ class FastAPIOperationsRouterTests(unittest.TestCase):
         self.application = ReadApplication(self.config.db_path)
         self.read_security = {"security": [{"sessionCookie": []}]}
         self.write_security = {"security": [{"sessionCookie": [], "csrfHeader": []}]}
+
+    def test_read_application_requires_and_uses_an_explicit_authentication_factory(self) -> None:
+        class RejectingAuthenticationRepository:
+            def __init__(self) -> None:
+                self.tokens: list[str | None] = []
+
+            def authenticate(self, token: str | None):
+                self.tokens.append(token)
+                return None
+
+        authentication = RejectingAuthenticationRepository()
+        application = ReadApplication(
+            self.config.db_path,
+            ApplicationServices(authentication_factory=lambda _path: authentication),
+        )
+
+        with self.assertRaises(AuthenticationRequiredError):
+            application.authenticated_scope("invalid-session")
+
+        self.assertEqual(["invalid-session"], authentication.tokens)
+
+    def test_read_application_fails_fast_without_authentication_factory(self) -> None:
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "Authentication repository factory must be injected by the composition root",
+        ):
+            self.application.authenticated_scope("invalid-session")
 
     def test_operations_router_composes_owned_route_groups(self) -> None:
         runtime = _operations(create_runtime_router(self.application))

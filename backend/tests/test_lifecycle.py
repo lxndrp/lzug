@@ -15,12 +15,12 @@ from fastapi.testclient import TestClient
 
 from backend.application.admin import AdminActorContext
 from backend.fastapi_assembly import FastAPIConfig, create_admin_application, create_app
-from backend.identity.local_auth import authentication_key
 from backend.operations.artifact_packages import ClearArtifactService
 from backend.operations.backup_recipients import BackupRecipientRepository, recipient_fingerprint
 from backend.operations.backup_restore import ArtifactError
 from backend.operations.lifecycle import LifecycleError, LifecycleService
 from backend.persistence.database import database_readiness, initialize, persistence_paths
+from backend.persistence.local_auth import SQLiteLocalAuthenticationKey
 from backend.runtime import RuntimeConflictError, RuntimeCoordinator
 from backend.tests.test_backup_recipients import RECIPIENT
 from backend.version import BuildMetadata
@@ -36,7 +36,7 @@ class LifecycleTests(unittest.TestCase):
         self.paths.documents.mkdir(parents=True)
         self.paths.backups.mkdir()
         initialize(self.paths.database)
-        authentication_key(self.paths.database)
+        SQLiteLocalAuthenticationKey(self.paths.database).get_key()
         self.fingerprint = recipient_fingerprint(RECIPIENT)
         BackupRecipientRepository(self.paths.database).set(RECIPIENT, self.fingerprint)
         with closing(sqlite3.connect(self.paths.database)) as db, db:

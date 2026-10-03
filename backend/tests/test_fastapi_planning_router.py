@@ -10,7 +10,7 @@ from backend.fastapi_planning_router import (
     MIGRATED_PLANNING_RESOURCES,
     PLANNING_DOMAIN_RESOURCES,
 )
-from backend.identity.auth import AuthenticationRepository
+from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.tests.helpers import TempDatabase, openapi_document
 
 
@@ -27,7 +27,7 @@ def api_routes(routes):
 class FastAPIPlanningRouterTests(unittest.TestCase):
     def setUp(self) -> None:
         self.db_path = self.enterContext(TempDatabase())
-        authentication = AuthenticationRepository(self.db_path)
+        authentication = SQLiteAuthenticationRepository(self.db_path)
         self.chair = authentication.create_session(1)
         self.examiner = authentication.create_session(2)
         self.app = create_app(FastAPIConfig(db_path=self.db_path, session_cookie_name="session"))
