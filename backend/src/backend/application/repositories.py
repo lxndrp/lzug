@@ -41,8 +41,8 @@ from backend.persistence.models import (
     Resource,
 )
 from backend.persistence.resource_access import SQLiteResourceAccessQueryFactory
+from backend.persistence.sqlite_exam_venues import room_is_usable_for_committee
 from backend.persistence.store import Store
-from backend.planning.exam_venues import room_is_usable_for_committee
 
 SPECIALIZATION_LABELS = {
     "application_development": "Anwendungsentwicklung",
@@ -87,9 +87,12 @@ class ResourceRepository:
         self,
         db_path: Path = DEFAULT_DB_PATH,
         access_queries: ResourceAccessQueryFactory | None = None,
+        *,
+        require_confirmed_coordinates: bool = False,
     ):
         self.db_path = db_path
         self.access_queries = access_queries or SQLiteResourceAccessQueryFactory(db_path)
+        self.require_confirmed_coordinates = require_confirmed_coordinates
 
     def _authorize_mutation(
         self,
@@ -1565,7 +1568,10 @@ class ResourceRepository:
 
         if "default_room_id" in payload and payload["default_room_id"] is not None:
             if not room_is_usable_for_committee(
-                store.session, payload["default_room_id"], exam_round["committee_id"]
+                store.session,
+                payload["default_room_id"],
+                exam_round["committee_id"],
+                require_confirmed_coordinates=self.require_confirmed_coordinates,
             ):
                 raise ValueError("Default room is not active for the exam round committee")
 

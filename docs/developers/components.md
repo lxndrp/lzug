@@ -185,6 +185,19 @@ Das Lebensdauerdiagramm und ein konkreter Ablauf stehen im
 [Backend-Vertrag](backend-architecture-contract.md#vertikaler-pilot-kandidatentage).
 Andere Planning-Services verwenden weiterhin ihre dokumentierten Übergangspfade.
 
+Prüfungsorte verwenden denselben Portansatz:
+`backend.planning_ports` enthält den Planning-owned Vertrag für typisierte
+Abfragen, Commands,
+Ergebnisse und die providerfreie Geocoder-Schnittstelle.
+`backend.planning.exam_venues` enthält die dazugehörigen Use Cases.
+`backend.persistence.sqlite_exam_venues` hält Entity-Mapping, Autorisierung,
+Validierung, Audit und venuebezogene Änderungen im SQLite-Schreib-UoW.
+`backend.integrations.map_provider` implementiert den Geocoder-Vertrag;
+`backend.composition` verdrahtet ihn gemeinsam mit dem expliziten
+Providerverhalten und dem pro Runtime-Policy ausgewählten Datenbankpfad.
+Ein bestätigter Venue-Commit liefert eine typisierte `VenueChange`.
+Die bisherige Auditverarbeitung läuft als injizierter Post-Commit-Übergang.
+
 In `execution.absence` und `execution.exam_protocols` bleiben die öffentlichen
 Servicebefehle die autoritative Grenze für Zustandsübergänge.
 Der Runden-Lifecycle ist im Ist-Zustand noch nicht in diese Modulgrenzen

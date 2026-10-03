@@ -8,9 +8,9 @@ from typing import TYPE_CHECKING
 from fastapi import APIRouter, FastAPI, Request
 
 from backend.application import ForbiddenRequestError, hateoas
-from backend.application.exam_venue_api import ExamVenueApi
 from backend.application.repositories import PLAN_AGGREGATE_RESOURCES, REST_RESOURCES
 from backend.application.transport import RequestContext
+from backend.composition import exam_venue_api
 from backend.persistence.models import CANDIDATE_COMMITTEE_ASSIGNMENT, COMMITTEE
 
 from .api_contracts import (
@@ -392,7 +392,7 @@ def _resource_routes(resolved: FastAPIConfig, resource_name: str):
 
 
 def _register_exam_venue_routes(app, resolved, application, read_security, write_security):
-    venue_api = ExamVenueApi(resolved.db_path, resolved.map_provider)
+    venue_api = exam_venue_api(resolved.db_path, resolved.map_provider)
     _register_exam_venue_change_routes(app, venue_api, read_security, write_security)
     _register_exam_venue_resource_routes(app, venue_api, read_security, write_security)
 
@@ -650,7 +650,7 @@ def _register_exam_venue_resource_routes(app, venue_api, read_security, write_se
 
 
 def _register_exam_room_routes(app, resolved, application, read_security, write_security):
-    venue_api = ExamVenueApi(resolved.db_path)
+    venue_api = exam_venue_api(resolved.db_path, resolved.map_provider)
 
     @app.post(
         "/api/exam-venues/{id}/rooms",
@@ -735,7 +735,7 @@ def _register_exam_room_routes(app, resolved, application, read_security, write_
 
 
 def _register_exam_venue_contact_routes(app, resolved, application, read_security, write_security):
-    venue_api = ExamVenueApi(resolved.db_path)
+    venue_api = exam_venue_api(resolved.db_path, resolved.map_provider)
 
     @app.post(
         "/api/exam-venues/{id}/contacts",
@@ -822,7 +822,7 @@ def _register_exam_venue_contact_routes(app, resolved, application, read_securit
 
 
 def _register_legacy_location_routes(app, resolved, application, read_security, write_security):
-    venue_api = ExamVenueApi(resolved.db_path)
+    venue_api = exam_venue_api(resolved.db_path, resolved.map_provider)
 
     @app.get(
         "/api/locations",

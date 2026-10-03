@@ -5,11 +5,11 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass
-from typing import Any
 from urllib.error import HTTPError
 from urllib.parse import urlencode, urlsplit
 from urllib.request import Request, urlopen
 
+from backend.planning_ports import GeocodeCandidate
 from backend.settings import IntegrationSettings, RuntimeSettings
 
 LOGGER = logging.getLogger(__name__)
@@ -111,7 +111,7 @@ class NominatimGeocoder:
         self.config = config
         self.timeout_seconds = timeout_seconds
 
-    def geocode(self, address: str) -> dict[str, Any]:
+    def geocode(self, address: str) -> GeocodeCandidate:
         if not self.config.active:
             raise MapProviderDisabledError("Map provider is disabled")
         query = urlencode({"format": "jsonv2", "limit": "1", "q": address})
@@ -140,16 +140,11 @@ class NominatimGeocoder:
             self._raise_unavailable("invalid_response", error)
         if not -90 <= latitude <= 90 or not -180 <= longitude <= 180:
             self._raise_unavailable("invalid_response", None)
-        return {"latitude": latitude, "longitude": longitude, "source": "nominatim"}
+        return GeocodeCandidate(latitude, longitude, "nominatim")
 
     def _raise_unavailable(self, category: str, error: Exception | None) -> None:
         LOGGER.warning("map_provider_request_failed provider=nominatim category=%s", category)
         raise MapProviderUnavailableError("Geocoding is currently unavailable") from error
-
-
-def planning_requires_confirmed_coordinates() -> bool:
-    """Keep the shared planning guard aligned with the deployed provider mode."""
-    return MapProviderConfig.from_environment().active
 
 
 def _validate_nominatim_url(value: str) -> None:

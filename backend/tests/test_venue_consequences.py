@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 from sqlalchemy import func, select
 
-from backend.application.exam_venue_api import ExamVenueApi
+from backend.composition import exam_venue_api, exam_venue_service
 from backend.identity.auth import AuthenticationRepository
 from backend.identity.authorization import AuthorizationScope
 from backend.integrations.calendar import CalendarService
@@ -21,8 +21,8 @@ from backend.persistence.models import (
     PlanConsequenceBatch,
 )
 from backend.planning import PlanningService
-from backend.planning.exam_venues import ExamVenueConfirmationRequiredError, ExamVenueService
 from backend.planning.venue_consequences import VenueConsequenceService
+from backend.planning_ports import ExamVenueConfirmationRequiredError
 from backend.tests.fixture_data import FIXTURE_IDS, FIXTURE_ROOT
 from backend.tests.helpers import ApiServer, TempDatabase, assert_status
 
@@ -40,7 +40,7 @@ class VenueConsequenceTests(unittest.TestCase):
     def test_preview_and_meaningful_update_refresh_calendar_and_notify_members(self) -> None:
         database, db_path = self._confirmed_database()
         try:
-            venues = ExamVenueService(db_path)
+            venues = exam_venue_service(db_path)
             venue = venues.get_venue(1)
             assert venue is not None
             payload = {
@@ -92,7 +92,7 @@ class VenueConsequenceTests(unittest.TestCase):
     def test_non_triggers_and_spelling_correction_do_not_notify(self) -> None:
         database, db_path = self._confirmed_database()
         try:
-            venues = ExamVenueService(db_path)
+            venues = exam_venue_service(db_path)
             venue = venues.get_venue(1)
             assert venue is not None
             coordinate_impact = venues.future_impact(
@@ -125,7 +125,7 @@ class VenueConsequenceTests(unittest.TestCase):
         database, db_path = self._confirmed_database()
         try:
             service = VenueConsequenceService(db_path)
-            venue = ExamVenueService(db_path).get_venue(1)
+            venue = exam_venue_service(db_path).get_venue(1)
             assert venue is not None
             room_id = FIXTURE_IDS[f"{FIXTURE_ROOT}.room.zappeion.theseus"]["id"]
             room = next(item for item in venue["rooms"] if item["id"] == room_id)
@@ -221,7 +221,7 @@ class VenueConsequenceTests(unittest.TestCase):
                 past_event_id = event.id
                 past_version = event.version
 
-            venues = ExamVenueService(db_path)
+            venues = exam_venue_service(db_path)
             venue = venues.get_venue(1)
             assert venue is not None
             venues.update_venue(
@@ -244,7 +244,7 @@ class VenueConsequenceTests(unittest.TestCase):
     def test_failed_effect_does_not_roll_back_master_data_and_retry_is_current(self) -> None:
         database, db_path = self._confirmed_database()
         try:
-            venues = ExamVenueService(db_path)
+            venues = exam_venue_service(db_path)
             venue = venues.get_venue(1)
             assert venue is not None
             with patch(
@@ -279,7 +279,7 @@ class VenueConsequenceTests(unittest.TestCase):
                 management_committee_ids=frozenset({1}),
                 member_by_committee={1: 1},
             )
-            chair_view = ExamVenueApi(db_path).get_venue(1, chair_scope)
+            chair_view = exam_venue_api(db_path).get_venue(1, chair_scope)
             assert chair_view is not None
             self.assertTrue(chair_view["consequence_problems"])
             self.assertFalse(chair_view["capabilities"]["retry_consequences"])
@@ -291,7 +291,7 @@ class VenueConsequenceTests(unittest.TestCase):
                 management_committee_ids=frozenset(),
                 member_by_committee={1: 1},
             )
-            member_view = ExamVenueApi(db_path).get_venue(1, member_scope)
+            member_view = exam_venue_api(db_path).get_venue(1, member_scope)
             assert member_view is not None
             self.assertEqual([], member_view["consequence_problems"])
 
@@ -320,7 +320,7 @@ class VenueConsequenceTests(unittest.TestCase):
     def test_retry_supersedes_an_effect_after_a_newer_relevant_change(self) -> None:
         database, db_path = self._confirmed_database()
         try:
-            venues = ExamVenueService(db_path)
+            venues = exam_venue_service(db_path)
             venue = venues.get_venue(1)
             assert venue is not None
             with patch(
@@ -358,7 +358,7 @@ class VenueConsequenceTests(unittest.TestCase):
     def test_abort_requires_confirmation_before_master_data_change(self) -> None:
         database, db_path = self._confirmed_database()
         try:
-            venues = ExamVenueService(db_path)
+            venues = exam_venue_service(db_path)
             venue = venues.get_venue(1)
             assert venue is not None
             with self.assertRaises(ExamVenueConfirmationRequiredError):
@@ -381,7 +381,7 @@ class VenueConsequenceApiTests(unittest.TestCase):
             PlanningService(db_path).generate_proposal(1)
             PlanningService(db_path).confirm_plan(1)
             CalendarService(db_path).sync_round(1)
-            venues = ExamVenueService(db_path)
+            venues = exam_venue_service(db_path)
             venue = venues.get_venue(1)
             assert venue is not None
             payload = {

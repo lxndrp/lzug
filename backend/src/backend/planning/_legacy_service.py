@@ -29,8 +29,8 @@ from backend.persistence.models import (
     ExamRound,
     ExamSlot,
 )
+from backend.persistence.sqlite_exam_venues import room_is_usable_for_committee
 from backend.persistence.store import Store
-from backend.planning.exam_venues import room_is_usable_for_committee
 
 SIDES = ("employer", "employee", "school")
 
@@ -149,8 +149,14 @@ class PlanningService:
     proposals and partially confirmed plans are rolled back on errors.
     """
 
-    def __init__(self, db_path: Path = DEFAULT_DB_PATH):
+    def __init__(
+        self,
+        db_path: Path = DEFAULT_DB_PATH,
+        *,
+        require_confirmed_coordinates: bool = False,
+    ):
         self.db_path = db_path
+        self.require_confirmed_coordinates = require_confirmed_coordinates
 
     def request_availabilities(self, round_id: int) -> dict[str, Any]:
         """Move a prepared draft into availability coordination.
@@ -1062,7 +1068,10 @@ class PlanningService:
                 )
             )
         if not room_is_usable_for_committee(
-            store.session, day.room_id, context.exam_round["committee_id"]
+            store.session,
+            day.room_id,
+            context.exam_round["committee_id"],
+            require_confirmed_coordinates=self.require_confirmed_coordinates,
         ):
             issues.append(
                 PlanValidationIssue(

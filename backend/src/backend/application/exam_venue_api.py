@@ -2,12 +2,9 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from backend.identity.auth import AuthContext
 from backend.identity.authorization import AuthorizationScope
-from backend.integrations.map_provider import MapProviderConfig, NominatimGeocoder
-from backend.persistence.database import DEFAULT_DB_PATH
+from backend.integrations.map_provider import MapProviderConfig
 from backend.planning.exam_venues import ExamVenueService
 from backend.planning.venue_consequences import VenueConsequenceService
 
@@ -16,11 +13,14 @@ class ExamVenueApi:
     """Apply member, management, operator, and promotion visibility rules."""
 
     def __init__(
-        self, db_path: Path = DEFAULT_DB_PATH, map_provider: MapProviderConfig | None = None
+        self,
+        service: ExamVenueService,
+        map_provider: MapProviderConfig,
+        consequences: VenueConsequenceService,
     ):
-        self.service = ExamVenueService(db_path)
-        self.consequences = VenueConsequenceService(db_path)
-        self.map_provider = map_provider or MapProviderConfig()
+        self.service = service
+        self.consequences = consequences
+        self.map_provider = map_provider
 
     def list_venues(self, scope: AuthorizationScope, auth: AuthContext | None = None):
         return [
@@ -102,7 +102,12 @@ class ExamVenueApi:
         address = self.service.address_label(venue_id)
         if not address:
             raise ValueError("A complete address is required for geocoding")
-        return NominatimGeocoder(self.map_provider).geocode(address)
+        candidate = self.service.geocode(address)
+        return {
+            "latitude": candidate.latitude,
+            "longitude": candidate.longitude,
+            "source": candidate.source,
+        }
 
     def delete_venue(self, venue_id, payload, scope, auth=None):
         venue = self.service.get_venue(venue_id)
