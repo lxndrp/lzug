@@ -273,15 +273,18 @@ vergangen ist.
 Damit committen Rundungsentscheidung und lokale Kalenderstornierung gemeinsam;
 es gibt für diesen Pfad keinen nachgelagerten Calendar-Sync-Auftrag.
 
-Im Ziel liest Application vor der Rundungsentscheidung über einen Calendar-
-Port die Membership-IDs aller nicht stornierten künftigen Eventprojektionen
-mit `date >= decision_date`; der Snapshot umfasst auch noch aktive Events
-veralteter oder ersetzter Assignees. Planning speichert diese ursprünglichen
-Empfänger-IDs, das Entscheidungsdatum und die Notice-Beschreibung atomar mit
+Im Ziel materialisiert Application im gemeinsamen UoW vor der
+Rundungsentscheidung die vollständige Empfängermenge: alle Planning-
+Zuweisungen, aktive Vorsitz-/Stellvertretungs-Memberships aus Identity und
+alle nicht stornierten künftigen Calendar-Projektionen mit
+`date >= decision_date`. Der Calendar-Anteil umfasst noch aktive Events
+veralteter oder ersetzter Assignees; die übrigen Quellen behalten bisherige
+Empfänger auch ohne Eventprojektion bei. Planning speichert die vereinigten
+Membership-IDs, das Entscheidungsdatum und die Notice-Beschreibung atomar mit
 der Rundungsentscheidung und ihrer unveränderlichen Folgequelle. Nach dem
 Commit storniert Calendar die Events mit demselben inklusiven Datum. Replay
-verwendet die gespeicherten Empfänger-IDs und rekonstruiert sie nicht aus der
-inzwischen veränderten Projektion.
+verwendet die gespeicherten Empfänger-IDs und rekonstruiert sie nicht aus
+inzwischen veränderten Projektionen oder Memberships.
 
 Die Composition Root teilt einen prozessweiten Feed-Lifecycle-Lock mit
 Token-ICS-Reads, Rotation und explizitem `DELETE /api/calendar/feed`.
