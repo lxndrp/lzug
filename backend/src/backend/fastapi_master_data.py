@@ -214,17 +214,27 @@ def _resource_create_route(resolved: FastAPIConfig, resource_name: str, resource
         )
         status = HTTPStatus.CREATED
         if resource_name == "candidates":
-            row = context.repository.create_candidate(payload)
+            row = context.repository.create_candidate(
+                payload, authorization_scope=context.authorization_scope
+            )
         elif resource_name == "planning-settings":
-            row = context.repository.save_planning_settings(payload)
+            row = context.repository.save_planning_settings(
+                payload, authorization_scope=context.authorization_scope
+            )
             status = HTTPStatus.OK
         elif resource_name == "member-availabilities":
-            row = context.repository.save_member_availability(payload)
+            row = context.repository.save_member_availability(
+                payload, authorization_scope=context.authorization_scope
+            )
             status = HTTPStatus.OK
         elif resource_name in {"members", "memberships"}:
-            row = context.repository.create_membership(payload)
+            row = context.repository.create_membership(
+                payload, authorization_scope=context.authorization_scope
+            )
         else:
-            row = context.repository.create(resource, payload)
+            row = context.repository.create(
+                resource, payload, authorization_scope=context.authorization_scope
+            )
         return _finish(
             context,
             context.respond(hateoas.resource_item(resource_name, resource, row), status),
@@ -241,17 +251,32 @@ def _resource_update_route(resolved: FastAPIConfig, resource_name: str, resource
             resource_name, identifier, payload_data(context, request), "update"
         )
         if resource_name == "planning-settings":
-            row = context.repository.update_planning_settings(identifier, payload)
+            row = context.repository.update_planning_settings(
+                identifier, payload, authorization_scope=context.authorization_scope
+            )
         elif resource_name == "member-availabilities":
-            row = context.repository.update_member_availability(identifier, payload)
+            row = context.repository.update_member_availability(
+                identifier, payload, authorization_scope=context.authorization_scope
+            )
         elif resource_name == "candidates":
-            row = context.repository.update_candidate(identifier, payload)
+            row = context.repository.update_candidate(
+                identifier, payload, authorization_scope=context.authorization_scope
+            )
         elif resource_name == "exam-rounds":
-            row = context.repository.update_exam_round(identifier, payload)
+            row = context.repository.update_exam_round(
+                identifier, payload, authorization_scope=context.authorization_scope
+            )
         elif resource_name in {"members", "memberships"}:
-            row = context.repository.update_membership(identifier, payload)
+            row = context.repository.update_membership(
+                identifier, payload, authorization_scope=context.authorization_scope
+            )
         else:
-            row = context.repository.update(resource, identifier, payload)
+            row = context.repository.update(
+                resource,
+                identifier,
+                payload,
+                authorization_scope=context.authorization_scope,
+            )
         return (
             _not_found()
             if row is None
@@ -268,13 +293,17 @@ def _resource_delete_route(resolved: FastAPIConfig, resource_name: str, resource
     def delete(context: EmptyWriteContext, id: int):
         context.authorize_resource_action(resource_name, id, {}, "delete")
         if resource_name == "candidates":
-            deleted = context.repository.delete_candidate(id)
+            deleted = context.repository.delete_candidate(
+                id, authorization_scope=context.authorization_scope
+            )
         elif resource_name == "exam-rounds":
             deleted = context.exam_round_lifecycle_service.delete_empty_draft(
                 context.authorization_scope, id
             )
         else:
-            deleted = context.repository.delete(resource, id)
+            deleted = context.repository.delete(
+                resource, id, authorization_scope=context.authorization_scope
+            )
         return (
             _not_found()
             if not deleted

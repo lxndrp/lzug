@@ -27,6 +27,7 @@ from backend.application.planning_payloads import (
     planning_proposal_from_payload as planning_proposal_from_payload,
 )
 from backend.application.repositories import REST_RESOURCES, ResourceRepository
+from backend.application.resource_access import ResourceAccessQueryFactory, ResourceKind
 from backend.application.resource_authorization import ResourceAuthorizer
 from backend.assessment.exam_results import ExamResultService
 from backend.execution.absence import AbsenceService
@@ -39,9 +40,7 @@ from backend.identity.local_auth import LocalAuthService
 from backend.integrations.calendar import CalendarService
 from backend.integrations.notifications import NotificationService
 from backend.observability import emit_event
-from backend.persistence.models import (
-    Resource,
-)
+from backend.persistence.models import Resource
 from backend.planning import PlanningService
 from backend.planning.candidate_days import CandidateDayService
 from backend.planning.plan_consequences import PlanConsequenceService
@@ -71,6 +70,7 @@ class RequestContext:
     max_request_bytes: int
     runtime_policy: RuntimePolicy
     candidate_day_service_factory: Callable[[Path], CandidateDayService]
+    resource_access_query_factory: Callable[[Path], ResourceAccessQueryFactory]
     auth_rate_limiter: RequestRateLimiter
     observability_rate_limiter: RequestRateLimiter
     observability_global_rate_limiter: RequestRateLimiter
@@ -87,7 +87,11 @@ class RequestContext:
 
     @property
     def repository(self) -> ResourceRepository:
-        return ResourceRepository(self.db_path)
+        return ResourceRepository(self.db_path, self.resource_access_query_factory(self.db_path))
+
+    @property
+    def resource_access_queries(self) -> ResourceAccessQueryFactory:
+        return self.resource_access_query_factory(self.db_path)
 
     @property
     def planning_service(self) -> PlanningService:
@@ -229,9 +233,9 @@ class RequestContext:
         )
 
     def require_round_access(self, round_id: int, *, manage: bool = False) -> None:
-        ResourceAuthorizer(self.db_path, self.authorization_scope).require_round_access(
-            round_id, manage=manage
-        )
+        ResourceAuthorizer(
+            self.resource_access_queries, self.authorization_scope
+        ).require_round_access(round_id, manage=manage)
 
     def create_notifications_best_effort(self, event_type: str, round_id: int) -> str | None:
         try:
@@ -253,16 +257,17 @@ class RequestContext:
     def require_day_access(
         self, day_id: int, *, manage: bool = False, member_id: int | None = None
     ) -> None:
-        ResourceAuthorizer(self.db_path, self.authorization_scope).require_day_access(
-            day_id, manage=manage, member_id=member_id
-        )
+        ResourceAuthorizer(
+            self.resource_access_queries, self.authorization_scope
+        ).require_day_access(day_id, manage=manage, member_id=member_id)
 
     def authorize_resource_action(
         self, resource_name: str, entity_id: int | None, payload: dict[str, Any], action: str
     ) -> dict[str, Any]:
         del action
-        return ResourceAuthorizer(self.db_path, self.authorization_scope).authorize(
-            REST_RESOURCES[resource_name], entity_id, payload
+        resource = ResourceKind(REST_RESOURCES[resource_name].table)
+        return ResourceAuthorizer(self.resource_access_queries, self.authorization_scope).authorize(
+            resource, entity_id, payload
         )
 
     def issue_session_cookies(

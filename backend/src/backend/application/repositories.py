@@ -6,13 +6,16 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from backend.application.resource_ownership import ResourceOwnership
-from backend.application.resource_visibility import visibility_condition
+from backend.application.resource_access import (
+    ResourceAccessQueryFactory,
+    ResourceKind,
+    reference_changes,
+)
 from backend.execution.exam_day_closures import complete_day_mutation, guard_day_mutation
 from backend.execution.exam_protocols import create_protocol_for_started_slot
 from backend.identity.authorization import AuthorizationScope
 from backend.integrations.holiday_provider import GERMAN_SUBDIVISION_CODES
-from backend.persistence.database import DEFAULT_DB_PATH, read_session_scope, session_scope
+from backend.persistence.database import DEFAULT_DB_PATH, session_scope
 from backend.persistence.models import (
     CANDIDATE,
     CANDIDATE_COMMITTEE_ASSIGNMENT,
@@ -32,8 +35,11 @@ from backend.persistence.models import (
     PERSON,
     PLANNING_SETTINGS,
     ROUND_CANDIDATE,
-    Person,
     Resource,
+)
+from backend.persistence.resource_access import (
+    SQLiteResourceAccessQueries,
+    SQLiteResourceAccessQueryFactory,
 )
 from backend.persistence.store import Store
 from backend.planning.exam_venues import room_is_usable_for_committee
@@ -77,8 +83,34 @@ class ResourceRepository:
     candidate records, and cross-committee assignment conflicts.
     """
 
-    def __init__(self, db_path: Path = DEFAULT_DB_PATH):
+    def __init__(
+        self,
+        db_path: Path = DEFAULT_DB_PATH,
+        access_queries: ResourceAccessQueryFactory | None = None,
+    ):
         self.db_path = db_path
+        self.access_queries = access_queries or SQLiteResourceAccessQueryFactory(db_path)
+
+    def _authorize_mutation(
+        self,
+        store: Store,
+        resource: Resource,
+        resource_id: int | None,
+        payload: dict[str, Any],
+        scope: AuthorizationScope | None,
+    ) -> dict[str, Any]:
+        """Recheck mutable ownership inside the write transaction when scoped."""
+        if scope is None:
+            return payload
+        from backend.application.resource_authorization import ResourceAuthorizer
+
+        authorizer = ResourceAuthorizer(self.access_queries, scope)
+        return authorizer.authorize_with_queries(
+            SQLiteResourceAccessQueries(store),
+            ResourceKind(resource.table),
+            resource_id,
+            payload,
+        )
 
     def list(self, resource: Resource) -> list[dict[str, Any]]:
         with session_scope(self.db_path) as session:
@@ -99,9 +131,11 @@ class ResourceRepository:
         filters: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         """Return only rows belonging to an active committee in ``scope``."""
-        with read_session_scope(self.db_path) as session:
-            store = Store(session)
-            return store.where(resource, visibility_condition(resource, scope), **(filters or {}))
+        with self.access_queries.snapshot() as queries:
+            return [
+                dict(row)
+                for row in queries.list_visible(ResourceKind(resource.table), scope, filters or {})
+            ]
 
     def get(self, resource: Resource, resource_id: int) -> dict[str, Any] | None:
         with session_scope(self.db_path) as session:
@@ -113,10 +147,9 @@ class ResourceRepository:
         resource_id: int,
         scope: AuthorizationScope,
     ) -> dict[str, Any] | None:
-        with read_session_scope(self.db_path) as session:
-            store = Store(session)
-            rows = store.where(resource, visibility_condition(resource, scope), id=resource_id)
-            return rows[0] if rows else None
+        with self.access_queries.snapshot() as queries:
+            row = queries.get_visible(ResourceKind(resource.table), resource_id, scope)
+            return dict(row) if row is not None else None
 
     def round_id_for_resource(
         self,
@@ -125,9 +158,10 @@ class ResourceRepository:
         payload: dict[str, Any] | None = None,
     ) -> int | None:
         """Resolve the owning exam round for authorization, never for response data."""
-        with read_session_scope(self.db_path) as session:
-            ownership = ResourceOwnership(Store(session))
-            return ownership.round_id(resource, ownership.values(resource, resource_id, payload))
+        with self.access_queries.snapshot() as queries:
+            return queries.ownership(
+                ResourceKind(resource.table), resource_id, reference_changes(payload or {})
+            ).round_id
 
     def committee_id_for_resource(
         self,
@@ -136,14 +170,18 @@ class ResourceRepository:
         payload: dict[str, Any] | None = None,
     ) -> int | None:
         """Resolve the owning committee for authorization-only decisions."""
-        with read_session_scope(self.db_path) as session:
-            return (
-                ResourceOwnership(Store(session))
-                .resolve(resource, resource_id, payload)
-                .committee_id
-            )
+        with self.access_queries.snapshot() as queries:
+            return queries.ownership(
+                ResourceKind(resource.table), resource_id, reference_changes(payload or {})
+            ).committee_id
 
-    def create(self, resource: Resource, payload: dict[str, Any]) -> dict[str, Any]:
+    def create(
+        self,
+        resource: Resource,
+        payload: dict[str, Any],
+        *,
+        authorization_scope: AuthorizationScope | None = None,
+    ) -> dict[str, Any]:
         """Create a resource after applying its domain-specific write rules.
 
         Person payloads are normalized, memberships are created through their
@@ -156,6 +194,7 @@ class ResourceRepository:
         """
         with session_scope(self.db_path) as session:
             store = Store(session)
+            payload = self._authorize_mutation(store, resource, None, payload, authorization_scope)
             if resource in PLAN_AGGREGATE_RESOURCES:
                 raise ValueError(PLAN_AGGREGATE_WRITE_ERROR)
             if resource == PERSON:
@@ -177,6 +216,8 @@ class ResourceRepository:
         resource: Resource,
         resource_id: int,
         payload: dict[str, Any],
+        *,
+        authorization_scope: AuthorizationScope | None = None,
     ) -> dict[str, Any] | None:
         """Update a resource and return ``None`` only when it does not exist.
 
@@ -186,6 +227,9 @@ class ResourceRepository:
         """
         with session_scope(self.db_path) as session:
             store = Store(session)
+            payload = self._authorize_mutation(
+                store, resource, resource_id, payload, authorization_scope
+            )
             if resource in PLAN_AGGREGATE_RESOURCES:
                 raise ValueError(PLAN_AGGREGATE_WRITE_ERROR)
             if resource == PERSON:
@@ -212,32 +256,42 @@ class ResourceRepository:
         filters: dict[str, Any] | None = None,
         scope: AuthorizationScope | None = None,
     ) -> list[dict[str, Any]]:
-        with read_session_scope(self.db_path) as session:
-            store = Store(session)
-            conditions = (visibility_condition(COMMITTEE_MEMBER, scope),) if scope else ()
-            rows = store.where(COMMITTEE_MEMBER, *conditions, **(filters or {}))
-            people = {
-                person["id"]: person
-                for person in store.where(PERSON, Person.id.in_({row["person_id"] for row in rows}))
-            }
-            return [self._member_with_person(row, people[row["person_id"]]) for row in rows]
+        with self.access_queries.snapshot() as queries:
+            return [dict(row) for row in queries.list_members(filters or {}, scope)]
 
     def member_get(
         self, member_id: int, scope: AuthorizationScope | None = None
     ) -> dict[str, Any] | None:
-        with read_session_scope(self.db_path) as session:
+        with self.access_queries.snapshot() as queries:
+            row = queries.get_member(member_id, scope)
+            return dict(row) if row is not None else None
+
+    def create_membership(
+        self,
+        payload: dict[str, Any],
+        *,
+        authorization_scope: AuthorizationScope | None = None,
+    ) -> dict[str, Any]:
+        with session_scope(self.db_path) as session:
             store = Store(session)
-            conditions = (visibility_condition(COMMITTEE_MEMBER, scope),) if scope else ()
-            rows = store.where(COMMITTEE_MEMBER, *conditions, id=member_id)
-            return self._member_view(store, rows[0]) if rows else None
+            payload = self._authorize_mutation(
+                store, COMMITTEE_MEMBER, None, payload, authorization_scope
+            )
+            return self._create_membership(store, payload)
 
-    def create_membership(self, payload: dict[str, Any]) -> dict[str, Any]:
+    def update_membership(
+        self,
+        member_id: int,
+        payload: dict[str, Any],
+        *,
+        authorization_scope: AuthorizationScope | None = None,
+    ) -> dict[str, Any] | None:
         with session_scope(self.db_path) as session:
-            return self._create_membership(Store(session), payload)
-
-    def update_membership(self, member_id: int, payload: dict[str, Any]) -> dict[str, Any] | None:
-        with session_scope(self.db_path) as session:
-            return self._update_membership(Store(session), member_id, payload)
+            store = Store(session)
+            payload = self._authorize_mutation(
+                store, COMMITTEE_MEMBER, member_id, payload, authorization_scope
+            )
+            return self._update_membership(store, member_id, payload)
 
     def _person_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
         normalized = dict(payload)
@@ -456,11 +510,19 @@ class ResourceRepository:
                     f"on {other_day['date']} ({assignment['day_part']})"
                 )
 
-    def delete(self, resource: Resource, resource_id: int) -> bool:
+    def delete(
+        self,
+        resource: Resource,
+        resource_id: int,
+        *,
+        authorization_scope: AuthorizationScope | None = None,
+    ) -> bool:
         with session_scope(self.db_path) as session:
+            store = Store(session)
+            self._authorize_mutation(store, resource, resource_id, {}, authorization_scope)
             if resource in PLAN_AGGREGATE_RESOURCES:
                 raise ValueError(PLAN_AGGREGATE_WRITE_ERROR)
-            return Store(session).delete(resource, resource_id)
+            return store.delete(resource, resource_id)
 
     def candidate_list(self, scope: AuthorizationScope | None = None) -> list[dict[str, Any]]:
         rows = self.list_visible(CANDIDATE, scope) if scope is not None else self.list(CANDIDATE)
@@ -470,9 +532,15 @@ class ResourceRepository:
             )
         return rows
 
-    def create_candidate(self, payload: dict[str, Any]) -> dict[str, Any]:
+    def create_candidate(
+        self,
+        payload: dict[str, Any],
+        *,
+        authorization_scope: AuthorizationScope | None = None,
+    ) -> dict[str, Any]:
         with session_scope(self.db_path) as session:
             store = Store(session)
+            payload = self._authorize_mutation(store, CANDIDATE, None, payload, authorization_scope)
             candidate = store.create(CANDIDATE, payload)
             if "exam_round_id" in payload:
                 self._assign_candidate_to_round(
@@ -488,9 +556,14 @@ class ResourceRepository:
         self,
         candidate_id: int,
         payload: dict[str, Any],
+        *,
+        authorization_scope: AuthorizationScope | None = None,
     ) -> dict[str, Any] | None:
         with session_scope(self.db_path) as session:
             store = Store(session)
+            payload = self._authorize_mutation(
+                store, CANDIDATE, candidate_id, payload, authorization_scope
+            )
             candidate = store.update(CANDIDATE, candidate_id, payload)
             if candidate is None:
                 return None
@@ -606,9 +679,17 @@ class ResourceRepository:
         )
         store.update(ROUND_CANDIDATE, assignment["round_candidate_id"], {"is_active": 0})
 
-    def save_planning_settings(self, payload: dict[str, Any]) -> dict[str, Any]:
+    def save_planning_settings(
+        self,
+        payload: dict[str, Any],
+        *,
+        authorization_scope: AuthorizationScope | None = None,
+    ) -> dict[str, Any]:
         with session_scope(self.db_path) as session:
             store = Store(session)
+            payload = self._authorize_mutation(
+                store, PLANNING_SETTINGS, None, payload, authorization_scope
+            )
             self._validate_planning_settings(store, payload)
             existing = store.first(
                 PLANNING_SETTINGS,
@@ -622,9 +703,14 @@ class ResourceRepository:
         self,
         settings_id: int,
         payload: dict[str, Any],
+        *,
+        authorization_scope: AuthorizationScope | None = None,
     ) -> dict[str, Any] | None:
         with session_scope(self.db_path) as session:
             store = Store(session)
+            payload = self._authorize_mutation(
+                store, PLANNING_SETTINGS, settings_id, payload, authorization_scope
+            )
             existing = store.get(PLANNING_SETTINGS, settings_id)
             if existing is None:
                 return None
@@ -636,9 +722,14 @@ class ResourceRepository:
         self,
         round_id: int,
         payload: dict[str, Any],
+        *,
+        authorization_scope: AuthorizationScope | None = None,
     ) -> dict[str, Any] | None:
         with session_scope(self.db_path) as session:
             store = Store(session)
+            payload = self._authorize_mutation(
+                store, EXAM_ROUND, round_id, payload, authorization_scope
+            )
             existing = store.get(EXAM_ROUND, round_id)
             if existing is None:
                 return None
@@ -667,9 +758,17 @@ class ResourceRepository:
 
             return store.update(EXAM_ROUND, round_id, payload) or existing
 
-    def save_member_availability(self, payload: dict[str, Any]) -> dict[str, Any]:
+    def save_member_availability(
+        self,
+        payload: dict[str, Any],
+        *,
+        authorization_scope: AuthorizationScope | None = None,
+    ) -> dict[str, Any]:
         with session_scope(self.db_path) as session:
             store = Store(session)
+            payload = self._authorize_mutation(
+                store, MEMBER_AVAILABILITY, None, payload, authorization_scope
+            )
             payload = self._availability_payload(store, payload)
             existing = store.first(
                 MEMBER_AVAILABILITY,
@@ -689,9 +788,14 @@ class ResourceRepository:
         self,
         availability_id: int,
         payload: dict[str, Any],
+        *,
+        authorization_scope: AuthorizationScope | None = None,
     ) -> dict[str, Any] | None:
         with session_scope(self.db_path) as session:
             store = Store(session)
+            payload = self._authorize_mutation(
+                store, MEMBER_AVAILABILITY, availability_id, payload, authorization_scope
+            )
             existing = store.get(MEMBER_AVAILABILITY, availability_id)
             if existing is None:
                 return None
@@ -700,9 +804,15 @@ class ResourceRepository:
             self._propagate_person_availability(store, saved)
             return saved
 
-    def delete_candidate(self, candidate_id: int) -> bool:
+    def delete_candidate(
+        self,
+        candidate_id: int,
+        *,
+        authorization_scope: AuthorizationScope | None = None,
+    ) -> bool:
         with session_scope(self.db_path) as session:
             store = Store(session)
+            self._authorize_mutation(store, CANDIDATE, candidate_id, {}, authorization_scope)
             store.delete_where(CANDIDATE_COMMITTEE_ASSIGNMENT, candidate_id=candidate_id)
             store.delete_where(ROUND_CANDIDATE, candidate_id=candidate_id)
             return store.delete(CANDIDATE, candidate_id)

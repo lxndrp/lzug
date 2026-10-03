@@ -12,6 +12,7 @@ from fastapi import FastAPI
 
 from .application import ApplicationServices, ReadApplication
 from .application.admin import AdminApplication, AdminServices
+from .application.resource_access import ResourceAccessQueryFactory
 from .composition import candidate_day_service as compose_candidate_day_service
 from .fastapi_app import (
     FastAPIConfig,
@@ -33,6 +34,7 @@ from .operations.backup_restore import ArtifactService
 from .operations.diagnostics import run_diagnostics
 from .operations.lifecycle import LifecycleService
 from .persistence.database import PersistencePaths, database_readiness, persistence_paths
+from .persistence.resource_access import SQLiteResourceAccessQueryFactory
 from .planning.candidate_days import CandidateDayService
 from .planning.plan_consequences import PlanConsequenceService
 from .runtime import RuntimeCoordinator
@@ -105,6 +107,7 @@ def create_app(
     *,
     runtime: RuntimeCoordinator | None = None,
     candidate_day_service_factory: Callable[[Path], CandidateDayService] | None = None,
+    resource_access_query_factory: Callable[[Path], ResourceAccessQueryFactory] | None = None,
 ) -> FastAPI:
     """Create the single FastAPI application used by product and demo images."""
     resolved = config or FastAPIConfig.from_environment()
@@ -125,6 +128,9 @@ def create_app(
     app.state.runtime = runtime
     app.state.candidate_day_service_factory = (
         candidate_day_service_factory or compose_candidate_day_service
+    )
+    app.state.resource_access_query_factory = (
+        resource_access_query_factory or SQLiteResourceAccessQueryFactory
     )
     app.state.auth_rate_limiter = resolved.auth_rate_limiter or RequestRateLimiter(
         resolved.auth_rate_limit, resolved.auth_rate_window
