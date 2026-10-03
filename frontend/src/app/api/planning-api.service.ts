@@ -73,6 +73,10 @@ export class PlanningApiService {
     return this.client.list<SchedulingOverviewItem>('/api/scheduling-overview');
   }
 
+  getLocations() {
+    return this.client.list<Location>('/api/locations');
+  }
+
   getPlanningBoard(roundId = this.roundId) {
     return forkJoin({
       days: this.client.list<ExamDay>(`/api/exam-days?round_id=${roundId}`),
@@ -121,6 +125,40 @@ export class PlanningApiService {
     );
   }
 
+  /** Load only the dashboard projection, independently from master-data administration. */
+  loadDashboardProjection(roundId = this.roundId) {
+    return this.getRoot().pipe(
+      switchMap((root) =>
+        forkJoin({
+          round: this.getExamRound(roundId),
+          summary: this.getRoundSummary(roundId),
+          board: this.getPlanningBoard(roundId),
+        }).pipe(map((projection) => ({ root, ...projection }))),
+      ),
+    );
+  }
+
+  /** Load only the small context labels and application version required by the shell. */
+  loadShellContext(roundId = this.roundId) {
+    return this.getRoot().pipe(
+      switchMap((root) =>
+        forkJoin({
+          round: this.getExamRound(roundId),
+          summary: this.getRoundSummary(roundId),
+          halfYears: this.masterData.getExamHalfYears(),
+        }).pipe(
+          map(({ round, summary, halfYears }) => ({
+            root,
+            round,
+            summary,
+            halfYear: halfYears.find((item) => item.id === round.exam_half_year_id)!,
+          })),
+        ),
+      ),
+    );
+  }
+
+  /** Transitional aggregate retained for planning consumers not yet migrated. */
   refreshDashboard(roundId = this.roundId) {
     return this.getRoot().pipe(
       switchMap((root) =>

@@ -1,295 +1,345 @@
 <div class="app-page-grid">
-  <div class="app-page-full">
-    @if (contextualHelp(); as help) {
-      <section class="app-context-help" aria-labelledby="dashboard-help-title">
-        <div>
-          <span class="app-eyebrow">Kontextuelle Hilfe</span>
-          <h2 id="dashboard-help-title">{{ help.title }}</h2>
-          <p>{{ help.text }}</p>
+  @if (error) {
+    <div class="app-page-full">
+      <section class="app-panel app-state app-state-error" role="alert">
+        <div class="app-panel-body">
+          <h2>Übersicht konnte nicht geladen werden</h2>
+          <p>Die unabhängigen Verwaltungsbereiche bleiben über ihre Navigation erreichbar.</p>
+          <button tuiButton appearance="secondary" type="button" (click)="retry.emit()">
+            Erneut versuchen
+          </button>
         </div>
-        <a tuiButton appearance="secondary" [href]="help.href">Passende Hilfe öffnen</a>
       </section>
+    </div>
+  } @else {
+    @if (locationRefreshError) {
+      <div class="app-page-full">
+        <p class="app-state app-state-error" role="alert">
+          Prüfungsorte konnten nicht aktualisiert werden. Andere Übersichtsbereiche bleiben
+          verfügbar.
+        </p>
+      </div>
     }
-  </div>
-
-  <div class="app-page-full">
-    <section class="app-panel app-dashboard-hero">
-      <div class="app-panel-body">
-        <div class="app-dashboard-hero-layout">
-          <div class="app-dashboard-hero-copy">
-            <div class="app-dashboard-status-line">
-              <span class="app-eyebrow">Aktueller Stand</span>
-              <span tuiBadge [appearance]="badgeAppearance('primary')">{{
-                statusLabel(summary?.round?.status)
-              }}</span>
-            </div>
-            <h2>{{ summary?.round?.committee_name || 'Prüfungsausschuss' }}</h2>
-            <p>{{ phaseDescription() }}</p>
-          </div>
-          <div class="app-dashboard-actions">
-            <button
-              tuiButton
-              appearance="primary"
-              type="button"
-              (click)="openView.emit('scheduling-overview')"
-              [disabled]="loading || actionBusy"
-            >
-              <svg [cIcon]="icons.proposal" class="app-button-icon" aria-hidden="true"></svg>
-              Terminorganisationen öffnen
-            </button>
-            <span class="app-action-hint">
-              Bearbeitung und Bestätigung erfolgen im statusgesteuerten Arbeitsablauf.
-            </span>
-          </div>
-        </div>
+    @if (candidateRefreshLoading) {
+      <div class="app-page-full">
+        <p class="app-state" role="status">Prüflingsdaten werden aktualisiert.</p>
       </div>
-    </section>
-  </div>
-
-  <div class="app-page-full">
-    <section aria-labelledby="dashboardMetricsTitle">
-      <div class="app-section-heading">
-        <div>
-          <span class="app-eyebrow">Auf einen Blick</span>
-          <h2 id="dashboardMetricsTitle">Kennzahlen</h2>
-        </div>
-        <span class="app-muted">Stand der aktuellen Prüfungsrunde</span>
+    }
+    @if (candidateRefreshError) {
+      <div class="app-page-full">
+        <p class="app-state app-state-error" role="alert">
+          Prüflingsdaten konnten nicht aktualisiert werden. Bitte laden Sie die Übersicht erneut.
+        </p>
       </div>
-      <dl class="app-metric-grid">
-        @for (metric of metrics(); track metric.label) {
-          <div class="app-metric-card">
-            <dt>{{ metric.label }}</dt>
-            <dd>{{ metric.value }}</dd>
-            <dd class="app-metric-hint">{{ metric.hint }}</dd>
+    }
+    @if (committeeRefreshLoading) {
+      <div class="app-page-full">
+        <p class="app-state" role="status">Ausschussdaten werden aktualisiert.</p>
+      </div>
+    }
+    @if (committeeRefreshError) {
+      <div class="app-page-full">
+        <p class="app-state app-state-error" role="alert">
+          Ausschussdaten konnten nicht aktualisiert werden. Bitte laden Sie die Übersicht erneut.
+        </p>
+      </div>
+    }
+    <div class="app-page-full">
+      @if (contextualHelp(); as help) {
+        <section class="app-context-help" aria-labelledby="dashboard-help-title">
+          <div>
+            <span class="app-eyebrow">Kontextuelle Hilfe</span>
+            <h2 id="dashboard-help-title">{{ help.title }}</h2>
+            <p>{{ help.text }}</p>
           </div>
-        }
-      </dl>
-    </section>
-  </div>
+          <a tuiButton appearance="secondary" [href]="help.href">Passende Hilfe öffnen</a>
+        </section>
+      }
+    </div>
 
-  <div class="app-page-span-7">
-    <section class="app-panel" aria-labelledby="dashboardTasksTitle">
-      <header tuiHeader="body-m" class="app-panel-header">
-        <div>
-          <span class="app-eyebrow">Arbeitsvorrat</span>
-          <h2 id="dashboardTasksTitle">Nächste Schritte</h2>
-        </div>
-        <span class="app-muted">Direkt zum betreffenden Bereich</span>
-      </header>
-      <div class="app-panel-body">
-        <ul class="app-task-list" aria-labelledby="dashboardTasksTitle">
-          @for (task of tasks(); track task.label) {
-            <li class="app-task-row">
-              <div class="app-task-copy">
-                <strong>{{ task.label }}</strong>
-                <small>{{ task.hint }}</small>
+    <div class="app-page-full">
+      <section class="app-panel app-dashboard-hero">
+        <div class="app-panel-body">
+          <div class="app-dashboard-hero-layout">
+            <div class="app-dashboard-hero-copy">
+              <div class="app-dashboard-status-line">
+                <span class="app-eyebrow">Aktueller Stand</span>
+                <span tuiBadge [appearance]="badgeAppearance('primary')">{{
+                  statusLabel(summary?.round?.status)
+                }}</span>
               </div>
-              <span tuiBadge [appearance]="badgeAppearance(task.color)">{{ task.detail }}</span>
+              <h2>{{ summary?.round?.committee_name || 'Prüfungsausschuss' }}</h2>
+              <p>{{ phaseDescription() }}</p>
+            </div>
+            <div class="app-dashboard-actions">
               <button
                 tuiButton
-                appearance="flat"
+                appearance="primary"
                 type="button"
-                class="app-task-action"
-                [attr.aria-label]="task.label + ': ' + task.actionLabel"
-                (click)="openTask(task)"
+                (click)="openView.emit('scheduling-overview')"
+                [disabled]="loading || actionBusy"
               >
-                {{ task.actionLabel }}
-                <svg [cIcon]="icons.arrowRight" class="app-icon-only" aria-hidden="true"></svg>
+                <svg [cIcon]="icons.proposal" class="app-button-icon" aria-hidden="true"></svg>
+                Terminorganisationen öffnen
               </button>
-            </li>
-          }
-        </ul>
-      </div>
-    </section>
-  </div>
-
-  <div class="app-page-span-5">
-    <section class="app-panel">
-      <header tuiHeader="body-m" class="app-panel-header">
-        <div>
-          <span class="app-eyebrow">Rahmen</span>
-          <strong class="app-block">Planung und Fristen</strong>
-        </div>
-        <span tuiBadge [appearance]="badgeAppearance(pendingCount() ? 'warning' : 'success')">
-          {{ pendingCount() ? pendingCount() + ' offen' : 'Rücklauf vollständig' }}
-        </span>
-      </header>
-      <div class="app-panel-body">
-        <dl class="app-context-list">
-          <div>
-            <dt>Prüfungsrunde</dt>
-            <dd>{{ round?.name || summary?.round?.name || '–' }}</dd>
-          </div>
-          <div>
-            <dt>Planungszeitraum</dt>
-            <dd>
-              {{ summary?.settings?.calendar_week_from || '–' }} bis
-              {{ summary?.settings?.calendar_week_to || '–' }}
-            </dd>
-          </div>
-          <div>
-            <dt>Prüfungen pro Tag</dt>
-            <dd>{{ summary?.settings?.exams_per_day ?? '–' }}</dd>
-          </div>
-          <div>
-            <dt>Max. Tage pro Woche</dt>
-            <dd>{{ summary?.settings?.max_exam_days_per_week ?? '–' }}</dd>
-          </div>
-          <div>
-            <dt>Rückmeldefrist</dt>
-            <dd>{{ dateTimeLabel(round?.availability_deadline) }}</dd>
-          </div>
-          <div>
-            <dt>Erinnerung</dt>
-            <dd>{{ dateTimeLabel(round?.availability_reminder_at) }}</dd>
-          </div>
-        </dl>
-
-        <div class="app-context-section">
-          <h3>Rücklauf</h3>
-          <div class="app-inline-actions">
-            @for (item of summary?.availability || []; track item.availability) {
-              <span tuiBadge [appearance]="badgeAppearance(availabilityColor(item.availability))">
-                {{ availabilityLabel(item.availability) }}: {{ item.count }}
+              <span class="app-action-hint">
+                Bearbeitung und Bestätigung erfolgen im statusgesteuerten Arbeitsablauf.
               </span>
-            }
+            </div>
           </div>
         </div>
-      </div>
-    </section>
-  </div>
+      </section>
+    </div>
 
-  @if (planningResult?.validation; as validation) {
     <div class="app-page-full">
-      <div tuiNotification [appearance]="validation.passed ? 'positive' : 'warning'" role="status">
-        <strong>Validierungsreport</strong>
-        @if (validation.messages.length) {
-          <ul class="app-flush">
-            @for (message of validation.messages; track message) {
-              <li>{{ message }}</li>
+      <section aria-labelledby="dashboardMetricsTitle">
+        <div class="app-section-heading">
+          <div>
+            <span class="app-eyebrow">Auf einen Blick</span>
+            <h2 id="dashboardMetricsTitle">Kennzahlen</h2>
+          </div>
+          <span class="app-muted">Stand der aktuellen Prüfungsrunde</span>
+        </div>
+        <dl class="app-metric-grid">
+          @for (metric of metrics(); track metric.label) {
+            <div class="app-metric-card">
+              <dt>{{ metric.label }}</dt>
+              <dd>{{ metric.value }}</dd>
+              <dd class="app-metric-hint">{{ metric.hint }}</dd>
+            </div>
+          }
+        </dl>
+      </section>
+    </div>
+
+    <div class="app-page-span-7">
+      <section class="app-panel" aria-labelledby="dashboardTasksTitle">
+        <header tuiHeader="body-m" class="app-panel-header">
+          <div>
+            <span class="app-eyebrow">Arbeitsvorrat</span>
+            <h2 id="dashboardTasksTitle">Nächste Schritte</h2>
+          </div>
+          <span class="app-muted">Direkt zum betreffenden Bereich</span>
+        </header>
+        <div class="app-panel-body">
+          <ul class="app-task-list" aria-labelledby="dashboardTasksTitle">
+            @for (task of tasks(); track task.label) {
+              <li class="app-task-row">
+                <div class="app-task-copy">
+                  <strong>{{ task.label }}</strong>
+                  <small>{{ task.hint }}</small>
+                </div>
+                <span tuiBadge [appearance]="badgeAppearance(task.color)">{{ task.detail }}</span>
+                <button
+                  tuiButton
+                  appearance="flat"
+                  type="button"
+                  class="app-task-action"
+                  [attr.aria-label]="task.label + ': ' + task.actionLabel"
+                  (click)="openTask(task)"
+                >
+                  {{ task.actionLabel }}
+                  <svg [cIcon]="icons.arrowRight" class="app-icon-only" aria-hidden="true"></svg>
+                </button>
+              </li>
             }
           </ul>
-        } @else {
-          <span>Keine Hinweise.</span>
-        }
-      </div>
+        </div>
+      </section>
     </div>
-  }
 
-  <div class="app-page-span-8">
-    <section class="app-panel">
-      <header tuiHeader="body-m" class="app-panel-header">
-        <strong>Terminplan</strong>
-        <span class="app-muted">{{ plannedSlotCount() }} geplante Prüfungstermine</span>
-      </header>
-      <div class="app-panel-body">
-        @if (board?.days?.length) {
-          <div class="app-stack">
-            @for (item of board.days; track item.day.id) {
-              <article class="app-panel app-panel-nested">
-                <div class="app-panel-body">
-                  <div class="app-day-heading">
-                    <div>
-                      <h3>{{ dateLabel(item.day.date) }}</h3>
-                      <p class="app-muted">
-                        {{ item.location?.name || 'Prüfungsort offen' }} ·
-                        {{ item.location?.room || 'Raum offen' }} ·
-                        {{ statusLabel(item.day.status) }}
-                      </p>
+    <div class="app-page-span-5">
+      <section class="app-panel">
+        <header tuiHeader="body-m" class="app-panel-header">
+          <div>
+            <span class="app-eyebrow">Rahmen</span>
+            <strong class="app-block">Planung und Fristen</strong>
+          </div>
+          <span tuiBadge [appearance]="badgeAppearance(pendingCount() ? 'warning' : 'success')">
+            {{ pendingCount() ? pendingCount() + ' offen' : 'Rücklauf vollständig' }}
+          </span>
+        </header>
+        <div class="app-panel-body">
+          <dl class="app-context-list">
+            <div>
+              <dt>Prüfungsrunde</dt>
+              <dd>{{ round?.name || summary?.round?.name || '–' }}</dd>
+            </div>
+            <div>
+              <dt>Planungszeitraum</dt>
+              <dd>
+                {{ summary?.settings?.calendar_week_from || '–' }} bis
+                {{ summary?.settings?.calendar_week_to || '–' }}
+              </dd>
+            </div>
+            <div>
+              <dt>Prüfungen pro Tag</dt>
+              <dd>{{ summary?.settings?.exams_per_day ?? '–' }}</dd>
+            </div>
+            <div>
+              <dt>Max. Tage pro Woche</dt>
+              <dd>{{ summary?.settings?.max_exam_days_per_week ?? '–' }}</dd>
+            </div>
+            <div>
+              <dt>Rückmeldefrist</dt>
+              <dd>{{ dateTimeLabel(round?.availability_deadline) }}</dd>
+            </div>
+            <div>
+              <dt>Erinnerung</dt>
+              <dd>{{ dateTimeLabel(round?.availability_reminder_at) }}</dd>
+            </div>
+          </dl>
+
+          <div class="app-context-section">
+            <h3>Rücklauf</h3>
+            <div class="app-inline-actions">
+              @for (item of summary?.availability || []; track item.availability) {
+                <span tuiBadge [appearance]="badgeAppearance(availabilityColor(item.availability))">
+                  {{ availabilityLabel(item.availability) }}: {{ item.count }}
+                </span>
+              }
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    @if (planningResult?.validation; as validation) {
+      <div class="app-page-full">
+        <div
+          tuiNotification
+          [appearance]="validation.passed ? 'positive' : 'warning'"
+          role="status"
+        >
+          <strong>Validierungsreport</strong>
+          @if (validation.messages.length) {
+            <ul class="app-flush">
+              @for (message of validation.messages; track message) {
+                <li>{{ message }}</li>
+              }
+            </ul>
+          } @else {
+            <span>Keine Hinweise.</span>
+          }
+        </div>
+      </div>
+    }
+
+    <div class="app-page-span-8">
+      <section class="app-panel">
+        <header tuiHeader="body-m" class="app-panel-header">
+          <strong>Terminplan</strong>
+          <span class="app-muted">{{ plannedSlotCount() }} geplante Prüfungstermine</span>
+        </header>
+        <div class="app-panel-body">
+          @if (board?.days?.length) {
+            <div class="app-stack">
+              @for (item of board.days; track item.day.id) {
+                <article class="app-panel app-panel-nested">
+                  <div class="app-panel-body">
+                    <div class="app-day-heading">
+                      <div>
+                        <h3>{{ dateLabel(item.day.date) }}</h3>
+                        <p class="app-muted">
+                          {{ item.location?.name || 'Prüfungsort offen' }} ·
+                          {{ item.location?.room || 'Raum offen' }} ·
+                          {{ statusLabel(item.day.status) }}
+                        </p>
+                      </div>
+                      <div class="app-day-slots">
+                        @for (slot of item.slots; track slot.id) {
+                          <span tuiBadge [appearance]="badgeAppearance('secondary')">
+                            {{ slotTitle(slot) }}
+                            @if (slot.slot_type === 'mep') {
+                              · MEP
+                            }
+                          </span>
+                        }
+                      </div>
                     </div>
-                    <div class="app-day-slots">
-                      @for (slot of item.slots; track slot.id) {
+
+                    <h4>Vormittag</h4>
+                    <div class="app-badge-list">
+                      @for (assignment of assignmentsFor(item, 'morning'); track assignment.id) {
+                        <span tuiBadge [appearance]="badgeAppearance(assignmentColor(assignment))">
+                          {{ memberName(assignment.committee_member_id) }} ·
+                          {{ memberSide(assignment.committee_member_id) }} ·
+                          {{ assignmentRoleLabel(assignment) }}
+                        </span>
+                      }
+                    </div>
+
+                    <h4>Nachmittag</h4>
+                    <div class="app-badge-list">
+                      @for (assignment of assignmentsFor(item, 'afternoon'); track assignment.id) {
+                        <span tuiBadge [appearance]="badgeAppearance(assignmentColor(assignment))">
+                          {{ memberName(assignment.committee_member_id) }} ·
+                          {{ memberSide(assignment.committee_member_id) }} ·
+                          {{ assignmentRoleLabel(assignment) }}
+                        </span>
+                      } @empty {
                         <span tuiBadge [appearance]="badgeAppearance('secondary')">
-                          {{ slotTitle(slot) }}
-                          @if (slot.slot_type === 'mep') {
-                            · MEP
-                          }
+                          Keine Nachmittagstermine
                         </span>
                       }
                     </div>
                   </div>
-
-                  <h4>Vormittag</h4>
-                  <div class="app-badge-list">
-                    @for (assignment of assignmentsFor(item, 'morning'); track assignment.id) {
-                      <span tuiBadge [appearance]="badgeAppearance(assignmentColor(assignment))">
-                        {{ memberName(assignment.committee_member_id) }} ·
-                        {{ memberSide(assignment.committee_member_id) }} ·
-                        {{ assignmentRoleLabel(assignment) }}
-                      </span>
-                    }
-                  </div>
-
-                  <h4>Nachmittag</h4>
-                  <div class="app-badge-list">
-                    @for (assignment of assignmentsFor(item, 'afternoon'); track assignment.id) {
-                      <span tuiBadge [appearance]="badgeAppearance(assignmentColor(assignment))">
-                        {{ memberName(assignment.committee_member_id) }} ·
-                        {{ memberSide(assignment.committee_member_id) }} ·
-                        {{ assignmentRoleLabel(assignment) }}
-                      </span>
-                    } @empty {
-                      <span tuiBadge [appearance]="badgeAppearance('secondary')">
-                        Keine Nachmittagstermine
-                      </span>
-                    }
-                  </div>
-                </div>
-              </article>
-            }
-          </div>
-        } @else {
-          <div class="app-empty-state">
-            <strong>Noch kein Planungsvorschlag</strong>
-            <span>Erzeugen Sie einen Vorschlag, sobald alle Grundlagen vollständig sind.</span>
-          </div>
-        }
-      </div>
-    </section>
-  </div>
-
-  <div class="app-page-span-4">
-    <section class="app-panel" aria-labelledby="dashboardAgendaTitle">
-      <header tuiHeader="body-m" class="app-panel-header">
-        <h2 id="dashboardAgendaTitle">Bestätigte Termine</h2>
-      </header>
-      <div class="app-panel-body">
-        <div class="app-agenda-list">
-          @for (item of confirmedDays(); track item.day.id) {
-            <article class="app-agenda-item">
-              <div class="app-agenda-date">
-                <strong>{{ dateLabel(item.day.date) }}</strong>
-                <span>{{ summary?.round?.committee_name || 'Prüfungsausschuss' }}</span>
-              </div>
-              <div class="app-agenda-details">
-                <span>{{ item.location?.name || 'Prüfungsort offen' }}</span>
-                <span class="app-muted">
-                  {{ item.location?.room ? 'Raum ' + item.location.room : 'Raum offen' }} ·
-                  {{ item.slots.length }} Termine
-                </span>
-              </div>
-              <button
-                tuiButton
-                appearance="flat"
-                type="button"
-                class="app-agenda-link"
-                [attr.aria-label]="dateLabel(item.day.date) + ': Prüfungsplan öffnen'"
-                (click)="openConfirmedPlan()"
-              >
-                Prüfungsplan öffnen
-                <svg [cIcon]="icons.arrowRight" class="app-icon-only" aria-hidden="true"></svg>
-              </button>
-            </article>
-          } @empty {
+                </article>
+              }
+            </div>
+          } @else {
             <div class="app-empty-state">
-              <strong>Noch keine bestätigten Termine</strong>
-              <span>
-                Sobald ein Plan bestätigt ist, erscheinen die Termine hier als kompakte Agenda.
-              </span>
+              <strong>Noch kein Planungsvorschlag</strong>
+              <span>Erzeugen Sie einen Vorschlag, sobald alle Grundlagen vollständig sind.</span>
             </div>
           }
         </div>
-      </div>
-    </section>
-  </div>
+      </section>
+    </div>
+
+    <div class="app-page-span-4">
+      <section class="app-panel" aria-labelledby="dashboardAgendaTitle">
+        <header tuiHeader="body-m" class="app-panel-header">
+          <h2 id="dashboardAgendaTitle">Bestätigte Termine</h2>
+        </header>
+        <div class="app-panel-body">
+          <div class="app-agenda-list">
+            @for (item of confirmedDays(); track item.day.id) {
+              <article class="app-agenda-item">
+                <div class="app-agenda-date">
+                  <strong>{{ dateLabel(item.day.date) }}</strong>
+                  <span>{{ summary?.round?.committee_name || 'Prüfungsausschuss' }}</span>
+                </div>
+                <div class="app-agenda-details">
+                  <span>{{ item.location?.name || 'Prüfungsort offen' }}</span>
+                  <span class="app-muted">
+                    {{ item.location?.room ? 'Raum ' + item.location.room : 'Raum offen' }} ·
+                    {{ item.slots.length }} Termine
+                  </span>
+                </div>
+                <button
+                  tuiButton
+                  appearance="flat"
+                  type="button"
+                  class="app-agenda-link"
+                  [attr.aria-label]="dateLabel(item.day.date) + ': Prüfungsplan öffnen'"
+                  (click)="openConfirmedPlan()"
+                >
+                  Prüfungsplan öffnen
+                  <svg [cIcon]="icons.arrowRight" class="app-icon-only" aria-hidden="true"></svg>
+                </button>
+              </article>
+            } @empty {
+              <div class="app-empty-state">
+                <strong>Noch keine bestätigten Termine</strong>
+                <span>
+                  Sobald ein Plan bestätigt ist, erscheinen die Termine hier als kompakte Agenda.
+                </span>
+              </div>
+            }
+          </div>
+        </div>
+      </section>
+    </div>
+  }
 </div>

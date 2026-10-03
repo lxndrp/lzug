@@ -35,6 +35,7 @@ import type {
 } from './planning-view-effect';
 import type { ProposalEditorState } from './planning-proposal-editor.component';
 import { ApplicationWorkspaceService } from '../shell/application-workspace.service';
+import { ApplicationShellContextService } from '../shell/application-shell-context.service';
 import { UiFeedbackService } from '../shell/ui-feedback.service';
 import { PLANNING_PORT } from './planning.port';
 
@@ -48,6 +49,7 @@ export class PlanningWorkflowService {
   private readonly roundContext = inject(RoundContextService);
   private readonly router = inject(Router);
   private readonly workspace = inject(ApplicationWorkspaceService);
+  private readonly shellContext = inject(ApplicationShellContextService, { optional: true });
   private readonly pending = signal(false);
   private activeView: symbol | null = null;
   private activeViewEnded: Subject<void> | null = null;
@@ -195,6 +197,7 @@ export class PlanningWorkflowService {
             'Die Änderungen sind übernommen.',
           );
           this.workspace.refresh();
+          this.shellContext?.refresh();
         },
         error: () => {
           if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
@@ -229,6 +232,7 @@ export class PlanningWorkflowService {
             result.notification_warning ?? 'Die Terminorganisation ist jetzt in Abstimmung.',
           );
           this.workspace.refresh();
+          this.shellContext?.refresh();
         },
         error: () => {
           if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
@@ -428,6 +432,7 @@ export class PlanningWorkflowService {
             `${planned} Termine${suffix}`,
           );
           this.workspace.refresh();
+          this.shellContext?.refresh();
         },
         error: () => {
           if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
@@ -614,6 +619,7 @@ export class PlanningWorkflowService {
       warning ?? `${confirmed} Termine sind verbindlich.`,
     );
     this.workspace.refresh();
+    this.shellContext?.refresh();
     void this.router.navigateByUrl(`/confirmed-plans/${roundId}`);
   }
 

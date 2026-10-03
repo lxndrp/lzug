@@ -100,9 +100,12 @@ class FastAPIDependencyTests(unittest.TestCase):
             403,
             "Forbidden.",
         )
+        venue_response = self.client.get("/api/exam-venues", headers=self.headers(self.operator))
+        self.assertEqual(200, venue_response.status_code)
+        self.assertIn("committee_name", venue_response.json()["items"][0])
         self.assertEqual(
-            200,
-            self.client.get("/api/exam-venues", headers=self.headers(self.operator)).status_code,
+            403,
+            self.client.get("/api/committees", headers=self.headers(self.operator)).status_code,
         )
         member_id = min(
             authorization_service(self.db_path)

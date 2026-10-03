@@ -754,8 +754,16 @@ assert.match(importsOf(committeeComponent), /master-data\.models/);
 assert.match(importsOf(candidatesRoute), /master-data\.models/);
 assert.match(importsOf(committeeRoute), /master-data\.models/);
 assert.match(masterDataWorkflow, /MASTER_DATA_PORT/);
-assert.match(masterDataWorkflow, /this\.workspace\.candidateWorkspace\(\)/);
-assert.match(masterDataWorkflow, /this\.workspace\.committeeWorkspace\(\)/);
+assert.match(
+  masterDataWorkflow,
+  /readonly candidateWorkspace = signal<CandidateWorkspace \| null>/,
+);
+assert.match(
+  masterDataWorkflow,
+  /readonly committeeWorkspace = signal<CommitteeWorkspace \| null>/,
+);
+assert.match(masterDataWorkflow, /loadCandidateWorkspace\(roundId\)/);
+assert.match(masterDataWorkflow, /loadCommitteeWorkspace\(\)/);
 assert.doesNotMatch(
   importsOf(masterDataWorkflow),
   /MasterDataApiService|master-data-api\.service|ApiClient|api-client\.service/,
@@ -766,12 +774,10 @@ assert.doesNotMatch(
   /first_name|last_name|committee_id|candidate_id|exam_round_id|roundCandidate\.requires_mep/,
   'master-data workflow consumes feature-owned workspace models, not API-shaped records',
 );
-assert.match(workspaceAdapter, /candidateWorkspace:\s*toCandidateWorkspace/);
-assert.match(workspaceAdapter, /committeeWorkspace:\s*toCommitteeWorkspace/);
-assert.match(workspaceAdapter, /function toCandidateWorkspace\(/);
-assert.match(workspaceAdapter, /function toCommitteeWorkspace\(/);
-assert.match(workspaceAdapterSpec, /candidateWorkspace:/);
-assert.match(workspaceAdapterSpec, /committeeWorkspace:/);
+assert.doesNotMatch(workspaceAdapter, /candidateWorkspace|committeeWorkspace/);
+assert.doesNotMatch(workspacePort, /CandidateWorkspace|CommitteeWorkspace/);
+assert.match(masterDataAdapter, /loadCandidateWorkspace\(/);
+assert.match(masterDataAdapter, /loadCommitteeWorkspace\(/);
 assert.deepEqual(relativeImportsOf(masterDataPort), ['./master-data.models']);
 assert.doesNotMatch(
   importsOf(masterDataPort),

@@ -8,6 +8,7 @@ import { RoundContextService } from '../api/round-context.service';
 import { AuthService } from '../auth/auth.service';
 import { SessionScopeService } from '../auth/session-scope.service';
 import { ApplicationWorkspaceService } from '../shell/application-workspace.service';
+import { ApplicationShellContextService } from '../shell/application-shell-context.service';
 import { UiFeedbackService } from '../shell/ui-feedback.service';
 import { PLANNING_PORT } from './planning.port';
 import { PlanningWorkflowService } from './planning-workflow.service';
@@ -25,12 +26,14 @@ describe('PlanningWorkflowService', () => {
     const planning = {
       updateExamRound: vi.fn(() => of({ id: 2, name: 'Runde B aktualisiert' })),
     };
+    const shellContext = { refresh: vi.fn() };
     const feedback = { notify: vi.fn(), roleRestriction: vi.fn() };
 
     TestBed.configureTestingModule({
       providers: [
         provideRouter([]),
         { provide: ApplicationWorkspaceService, useValue: workspace },
+        { provide: ApplicationShellContextService, useValue: shellContext },
         { provide: PLANNING_PORT, useValue: planning },
         { provide: AuthService, useValue: { hasCapability: () => true, session: () => null } },
         { provide: UiFeedbackService, useValue: feedback },
@@ -68,6 +71,7 @@ describe('PlanningWorkflowService', () => {
       'Prüfungsrunde gespeichert',
       'Die Änderungen sind übernommen.',
     );
+    expect(shellContext.refresh).toHaveBeenCalledOnce();
   });
 
   it('shows feedback when a same-round save is rejected during refresh', () => {

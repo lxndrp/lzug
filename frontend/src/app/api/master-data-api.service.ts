@@ -59,6 +59,30 @@ export class MasterDataApiService {
     );
   }
 
+  getCommittees() {
+    return this.client.list<Committee>('/api/committees');
+  }
+
+  getExamHalfYears() {
+    return this.client.list<ExamHalfYear>('/api/exam-half-years');
+  }
+
+  getCommitteeMembers() {
+    return this.client.list<CommitteeMember>('/api/members');
+  }
+
+  getPersons() {
+    return this.client.list<Person>('/api/persons');
+  }
+
+  getCandidateAssignments() {
+    return this.client.list<CandidateCommitteeAssignment>('/api/candidate-committee-assignments');
+  }
+
+  getExamRounds() {
+    return this.client.list<ExamRound>('/api/exam-rounds');
+  }
+
   /**
    * Attach active-round data to each global candidate without hiding candidates
    * that have not yet been added to the selected round.
