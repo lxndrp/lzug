@@ -902,7 +902,10 @@ Snapshot ohne HAL-Links; die anwendungsweite Bindung liegt in
 Vorschlagserzeugung und Vorschlagsspeicherung sind dabei persistierende
 Planning-Commands; die Leseoperation für den gespeicherten Vorschlag bleibt
 getrennt.
-Die derzeitigen Planning-Portmethoden nehmen keine Quellrevision entgegen.
+Einstellungen, Verfügbarkeiten, Vorschauerzeugung und erstmalige Bestätigung
+nehmen keine Quellrevision entgegen.
+`savePlanningProposal()` erhält dagegen die Revision des geladenen Vorschlags
+und übermittelt sie unverändert für die optimistische Sperre.
 Prüfungstag-Anwesenheit übergibt Slot-ID für Prüflinge beziehungsweise
 Assignment-ID für Ausschussmitglieder sowie die vom Befehl akzeptierte
 Tagesrevision.
