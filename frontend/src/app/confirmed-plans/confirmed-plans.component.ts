@@ -37,7 +37,14 @@ export class ConfirmedPlansComponent implements OnInit, OnChanges, OnDestroy {
     this.editorReferencesLoad = undefined;
     this.board.set(null);
     this.editorReferencesState.set('idle');
-    if (established && this.canEditRequested() && this.editRequested() !== null) {
+    this.plansGeneration += 1;
+    this.plansLoad?.unsubscribe();
+    this.plansLoad = undefined;
+    this.plans.set([]);
+    this.state.set(established ? 'loading' : 'ready');
+    if (!established) return;
+    this.load();
+    if (this.canEditRequested() && this.editRequested() !== null) {
       this.loadEditorReferences(this.editRequested());
     }
   });
@@ -54,6 +61,8 @@ export class ConfirmedPlansComponent implements OnInit, OnChanges, OnDestroy {
   private readonly canEditRequested = signal(false);
   private editorReferencesLoad?: Subscription;
   private editorReferencesGeneration = 0;
+  private plansLoad?: Subscription;
+  private plansGeneration = 0;
   protected readonly selectedCommitteeId = signal<number | null>(null);
   protected readonly visiblePlans = computed(() => {
     const roundId = this.requestedRoundId();
@@ -91,6 +100,7 @@ export class ConfirmedPlansComponent implements OnInit, OnChanges, OnDestroy {
 
   ngOnDestroy(): void {
     this.editorReferencesLoad?.unsubscribe();
+    this.plansLoad?.unsubscribe();
     this.sessionChanges.unsubscribe();
   }
 
@@ -99,15 +109,34 @@ export class ConfirmedPlansComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   protected load(): void {
+    const generation = ++this.plansGeneration;
+    this.plansLoad?.unsubscribe();
     this.state.set('loading');
-    this.confirmedPlans.getConfirmedPlans().subscribe({
-      next: (plans) => {
-        this.plans.set(plans);
-        this.selectFirstVisibleCommittee();
-        this.state.set('ready');
-      },
-      error: () => this.state.set('error'),
-    });
+    const sessionGeneration = this.sessionScope.generation();
+    this.plansLoad = this.sessionScope
+      .forCurrentSession(this.confirmedPlans.getConfirmedPlans())
+      .subscribe({
+        next: (plans) => {
+          if (
+            generation !== this.plansGeneration ||
+            sessionGeneration !== this.sessionScope.generation()
+          ) {
+            return;
+          }
+          this.plans.set(plans);
+          this.selectFirstVisibleCommittee();
+          this.state.set('ready');
+        },
+        error: () => {
+          if (
+            generation !== this.plansGeneration ||
+            sessionGeneration !== this.sessionScope.generation()
+          ) {
+            return;
+          }
+          this.state.set('error');
+        },
+      });
   }
 
   private selectFirstVisibleCommittee(): void {

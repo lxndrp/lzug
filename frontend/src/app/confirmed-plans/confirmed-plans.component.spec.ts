@@ -221,6 +221,38 @@ describe('ConfirmedPlansComponent', () => {
     ).toEqual(editorBoard(2));
   });
 
+  it('discards confirmed plans from an earlier session', () => {
+    const sessionScope = TestBed.inject(SessionScopeService);
+    fixture.destroy();
+    const session = {
+      authenticated: true,
+      account_id: 4,
+      person_id: 9,
+      committee_member_id: 12,
+      is_operator: false,
+    };
+    sessionScope.establish(session);
+    fixture = TestBed.createComponent(ConfirmedPlansComponent);
+    const previousSession = new Subject<ReturnType<typeof plans>>();
+    const currentSession = new Subject<ReturnType<typeof plans>>();
+    workflow.getConfirmedPlans
+      .mockReturnValueOnce(previousSession as Observable<ReturnType<typeof plans>>)
+      .mockReturnValueOnce(currentSession as Observable<ReturnType<typeof plans>>);
+    fixture.detectChanges();
+
+    sessionScope.establish({ ...session, demo_role: 'chair' });
+    previousSession.next(plans());
+    expect(
+      (fixture.componentInstance as unknown as { plans: () => ReturnType<typeof plans> }).plans(),
+    ).toEqual([]);
+    expect(workflow.getConfirmedPlans).toHaveBeenCalledTimes(2);
+
+    currentSession.next(plans());
+    expect(
+      (fixture.componentInstance as unknown as { plans: () => ReturnType<typeof plans> }).plans(),
+    ).toHaveLength(2);
+  });
+
   it('shows and retries an editor-reference error', () => {
     workflow.getEditorReferences
       .mockReturnValueOnce(throwError(() => new Error('unavailable')))
