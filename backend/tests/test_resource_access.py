@@ -427,10 +427,14 @@ class ResourceAccessTests(unittest.TestCase):
         )["id"]
         authorization_complete = Event()
         allow_mutation = Event()
-        writer_started = Event()
+        writer_attempted_update = Event()
         writer_finished = Event()
         errors: list[BaseException] = []
         original_authorize = self.repository._authorize_mutation
+
+        def track_competing_update(_connection, _cursor, statement, _parameters, _context, _many):
+            if "update committee_member" in statement.lower():
+                writer_attempted_update.set()
 
         def pause_after_authorization(*args, **kwargs):
             result = original_authorize(*args, **kwargs)
@@ -451,7 +455,6 @@ class ResourceAccessTests(unittest.TestCase):
                 errors.append(error)
 
         def move_membership() -> None:
-            writer_started.set()
             try:
                 with session_scope(self.db_path) as session:
                     Store(session).update(
@@ -464,11 +467,12 @@ class ResourceAccessTests(unittest.TestCase):
 
         mutation = Thread(target=update_membership)
         move = Thread(target=move_membership)
-        mutation.start()
-        self.assertTrue(authorization_complete.wait(5))
-        move.start()
+        event.listen(Engine, "before_cursor_execute", track_competing_update)
         try:
-            self.assertTrue(writer_started.wait(5))
+            mutation.start()
+            self.assertTrue(authorization_complete.wait(5))
+            move.start()
+            self.assertTrue(writer_attempted_update.wait(5))
             self.assertFalse(
                 writer_finished.wait(0.2),
                 "a competing ownership write committed after authorization but before mutation",
@@ -477,6 +481,7 @@ class ResourceAccessTests(unittest.TestCase):
             allow_mutation.set()
             mutation.join(5)
             move.join(5)
+            event.remove(Engine, "before_cursor_execute", track_competing_update)
 
         self.assertFalse(mutation.is_alive())
         self.assertFalse(move.is_alive())
