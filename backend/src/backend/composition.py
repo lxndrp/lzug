@@ -5,9 +5,11 @@ from __future__ import annotations
 from pathlib import Path
 
 from backend.identity.authorization import AuthorizationService
+from backend.identity.committee_admin import CommitteeAdminService
 from backend.identity.people import IdentityService
 from backend.integrations.holiday_provider import PythonHolidaysProvider
 from backend.persistence.candidate_days import SQLiteCandidateDayUnitOfWorkFactory
+from backend.persistence.committee_admin import SQLiteCommitteeAdminUnitOfWorkFactory
 from backend.persistence.identity import (
     SQLiteIdentityQueryFactory,
     SQLiteIdentityUnitOfWorkFactory,
@@ -26,11 +28,16 @@ def candidate_day_service(db_path: Path) -> CandidateDayService:
 def identity_service(db_path: Path) -> IdentityService:
     """Wire Identity's write/read ports to their SQLite adapters."""
     return IdentityService(
-        SQLiteIdentityUnitOfWorkFactory(),
+        SQLiteIdentityUnitOfWorkFactory(db_path),
         SQLiteIdentityQueryFactory(db_path),
     )
 
 
 def authorization_service(db_path: Path) -> AuthorizationService:
     """Wire actor resolution to Identity's active-membership query port."""
-    return AuthorizationService(SQLiteIdentityQueryFactory(db_path))
+    return AuthorizationService(identity_service(db_path))
+
+
+def committee_admin_service(db_path: Path) -> CommitteeAdminService:
+    """Wire Identity committee commands to their transactional SQLite adapter."""
+    return CommitteeAdminService(SQLiteCommitteeAdminUnitOfWorkFactory(db_path))

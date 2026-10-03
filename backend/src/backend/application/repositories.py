@@ -17,7 +17,6 @@ from backend.application.resource_access import (
 from backend.execution.exam_day_closures import complete_day_mutation, guard_day_mutation
 from backend.execution.exam_protocols import create_protocol_for_started_slot
 from backend.identity.authorization import AuthorizationScope
-from backend.identity.people import IdentityService
 from backend.integrations.holiday_provider import GERMAN_SUBDIVISION_CODES
 from backend.persistence.database import DEFAULT_DB_PATH, session_scope
 from backend.persistence.models import (
@@ -88,15 +87,9 @@ class ResourceRepository:
         self,
         db_path: Path = DEFAULT_DB_PATH,
         access_queries: ResourceAccessQueryFactory | None = None,
-        identity_service: IdentityService | None = None,
     ):
         self.db_path = db_path
         self.access_queries = access_queries or SQLiteResourceAccessQueryFactory(db_path)
-        if identity_service is None:
-            from backend.composition import identity_service as compose_identity_service
-
-            identity_service = compose_identity_service(db_path)
-        self.identity_service = identity_service
 
     def _authorize_mutation(
         self,
@@ -123,38 +116,6 @@ class ResourceRepository:
         self, scope: AuthorizationScope | None
     ) -> AbstractContextManager[Session]:
         return session_scope(self.db_path, begin_immediate=scope is not None)
-
-    def _authorize_identity_mutation(
-        self,
-        store: Store,
-        resource: Resource,
-        resource_id: int | None,
-        payload: dict[str, Any],
-        scope: AuthorizationScope | None,
-    ) -> dict[str, Any]:
-        """Revalidate ownership and stored management membership in this write UoW."""
-        normalized = self._authorize_mutation(store, resource, resource_id, payload, scope)
-        if scope is None or resource != COMMITTEE_MEMBER:
-            return normalized
-        queries = self.access_queries.for_transaction(store)
-        kind = ResourceKind(resource.table)
-        owner = queries.ownership(resource=kind, resource_id=resource_id)
-        committee_id = owner.committee_id
-        if committee_id is None and resource_id is None:
-            owner = queries.ownership(kind, None, reference_changes(normalized))
-            committee_id = owner.committee_id
-        actor_id = scope.member_for_committee(committee_id)
-        actor = queries.committee_member(actor_id) if actor_id is not None else None
-        if (
-            actor is None
-            or not actor.is_active
-            or actor.committee_id != committee_id
-            or actor.committee_role not in {"chair", "deputy_chair"}
-        ):
-            from backend.application import ForbiddenRequestError
-
-            raise ForbiddenRequestError("Forbidden.")
-        return normalized
 
     def list(self, resource: Resource) -> list[dict[str, Any]]:
         with session_scope(self.db_path) as session:
@@ -228,8 +189,8 @@ class ResourceRepository:
     ) -> dict[str, Any]:
         """Create a resource after applying its domain-specific write rules.
 
-        Person and membership writes are delegated to Identity. Assignment
-        conflicts are rejected before a row is written.
+        Identity resources are intentionally excluded from this generic write
+        boundary. Assignment conflicts are rejected before a row is written.
 
         Raises:
             ValueError: If the payload violates a resource invariant or names
@@ -238,19 +199,10 @@ class ResourceRepository:
         with self._authorization_session_scope(authorization_scope) as session:
             store = Store(session)
             if resource in {PERSON, COMMITTEE_MEMBER}:
-                payload = self._authorize_identity_mutation(
-                    store, resource, None, payload, authorization_scope
-                )
-            else:
-                payload = self._authorize_mutation(
-                    store, resource, None, payload, authorization_scope
-                )
+                raise ValueError("Identity resources must be changed through IdentityService")
+            payload = self._authorize_mutation(store, resource, None, payload, authorization_scope)
             if resource in PLAN_AGGREGATE_RESOURCES:
                 raise ValueError(PLAN_AGGREGATE_WRITE_ERROR)
-            if resource == PERSON:
-                return self.identity_service.create_person(store, payload)
-            if resource == COMMITTEE_MEMBER:
-                return self.identity_service.create_membership(store, payload)
             if resource == EXAM_HALF_YEAR:
                 return store.create(EXAM_HALF_YEAR, self._exam_half_year_payload(payload))
             if resource == EXAM_ROUND:
@@ -271,26 +223,19 @@ class ResourceRepository:
     ) -> dict[str, Any] | None:
         """Update a resource and return ``None`` only when it does not exist.
 
-        Membership and assignment writes reuse the same validation as creation.
-        In particular, an assignment update cannot bypass person-wide conflict
-        checks by changing only one of its fields.
+        Assignment writes reuse the same validation as creation. In particular,
+        an assignment update cannot bypass person-wide conflict checks by
+        changing only one of its fields.
         """
         with self._authorization_session_scope(authorization_scope) as session:
             store = Store(session)
             if resource in {PERSON, COMMITTEE_MEMBER}:
-                payload = self._authorize_identity_mutation(
-                    store, resource, resource_id, payload, authorization_scope
-                )
-            else:
-                payload = self._authorize_mutation(
-                    store, resource, resource_id, payload, authorization_scope
-                )
+                raise ValueError("Identity resources must be changed through IdentityService")
+            payload = self._authorize_mutation(
+                store, resource, resource_id, payload, authorization_scope
+            )
             if resource in PLAN_AGGREGATE_RESOURCES:
                 raise ValueError(PLAN_AGGREGATE_WRITE_ERROR)
-            if resource == PERSON:
-                return self.identity_service.update_person(store, resource_id, payload)
-            if resource == COMMITTEE_MEMBER:
-                return self.identity_service.update_membership(store, resource_id, payload)
             if resource == EXAM_HALF_YEAR:
                 return store.update(
                     EXAM_HALF_YEAR, resource_id, self._exam_half_year_payload(payload)
@@ -305,33 +250,6 @@ class ResourceRepository:
                     "Round candidate assignments must be changed through the candidate endpoint"
                 )
             return store.update(resource, resource_id, payload)
-
-    def create_membership(
-        self,
-        payload: dict[str, Any],
-        *,
-        authorization_scope: AuthorizationScope | None = None,
-    ) -> dict[str, Any]:
-        with self._authorization_session_scope(authorization_scope) as session:
-            store = Store(session)
-            payload = self._authorize_identity_mutation(
-                store, COMMITTEE_MEMBER, None, payload, authorization_scope
-            )
-            return self.identity_service.create_membership(store, payload)
-
-    def update_membership(
-        self,
-        member_id: int,
-        payload: dict[str, Any],
-        *,
-        authorization_scope: AuthorizationScope | None = None,
-    ) -> dict[str, Any] | None:
-        with self._authorization_session_scope(authorization_scope) as session:
-            store = Store(session)
-            payload = self._authorize_identity_mutation(
-                store, COMMITTEE_MEMBER, member_id, payload, authorization_scope
-            )
-            return self.identity_service.update_membership(store, member_id, payload)
 
     def _exam_half_year_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
         normalized = dict(payload)
@@ -490,6 +408,8 @@ class ResourceRepository:
     ) -> bool:
         with self._authorization_session_scope(authorization_scope) as session:
             store = Store(session)
+            if resource in {PERSON, COMMITTEE_MEMBER}:
+                raise ValueError("Identity resources must be changed through IdentityService")
             self._authorize_mutation(store, resource, resource_id, {}, authorization_scope)
             if resource in PLAN_AGGREGATE_RESOURCES:
                 raise ValueError(PLAN_AGGREGATE_WRITE_ERROR)
@@ -918,11 +838,20 @@ class ResourceRepository:
             "candidates": {row["id"]: row for row in store.all(CANDIDATE)},
             "round_candidates": {row["id"]: row for row in store.all(ROUND_CANDIDATE)},
             "members": {
-                row["id"]: self.identity_service.unit_of_work_factory.for_transaction(
-                    store
-                ).member_view(row)
+                row["id"]: self._member_projection(store, row)
                 for row in store.all(COMMITTEE_MEMBER)
             },
+        }
+
+    @staticmethod
+    def _member_projection(store: Store, membership: dict[str, Any]) -> dict[str, Any]:
+        person = store.get(PERSON, membership["person_id"])
+        if person is None:
+            raise ValueError("Membership person not found")
+        return {
+            **membership,
+            **{key: person[key] for key in ("first_name", "last_name", "email", "mobile")},
+            "email_verified_at": None,
         }
 
     def _confirmed_plan_view(

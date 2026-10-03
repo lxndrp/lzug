@@ -13,7 +13,12 @@ from fastapi import FastAPI
 from .application import ApplicationServices, ReadApplication
 from .application.admin import AdminApplication, AdminServices
 from .application.resource_access import ResourceAccessQueryFactory
-from .composition import candidate_day_service as compose_candidate_day_service
+from .composition import (
+    candidate_day_service as compose_candidate_day_service,
+)
+from .composition import (
+    committee_admin_service as compose_committee_admin_service,
+)
 from .fastapi_app import (
     FastAPIConfig,
     register_application_routes,
@@ -86,7 +91,9 @@ def create_admin_application(
         notification_factory=lambda db_path: notifications
         or NotificationService(db_path, settings=require_settings()),
         committee_factory=lambda db_path: committee_service
-        or CommitteeAdminService(Path(service.db_path) if service is not None else db_path),
+        or compose_committee_admin_service(
+            Path(service.db_path) if service is not None else db_path
+        ),
         consequence_factory=lambda db_path, notification_service: consequences
         or PlanConsequenceService(db_path, notification_service),
         artifact_factory=lambda persistence: artifacts

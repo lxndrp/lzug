@@ -94,7 +94,6 @@ class RequestContext:
         return ResourceRepository(
             self.db_path,
             queries,
-            self.identity_service,
         )
 
     @property

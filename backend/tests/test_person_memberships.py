@@ -3,7 +3,8 @@ from __future__ import annotations
 import unittest
 
 from backend.application.repositories import ResourceRepository
-from backend.persistence.models import COMMITTEE, EXAM_DAY_ASSIGNMENT, PERSON
+from backend.composition import identity_service
+from backend.persistence.models import COMMITTEE, EXAM_DAY_ASSIGNMENT
 from backend.planning import PlanningService
 from backend.tests.helpers import TempDatabase
 
@@ -13,7 +14,7 @@ class PersonMembershipTests(unittest.TestCase):
         with TempDatabase() as db_path:
             repository = ResourceRepository(db_path)
             committee = repository.create(COMMITTEE, {"name": "PA 2", "occupation": "FI"})
-            membership = repository.create_membership(
+            membership = identity_service(db_path).create_membership(
                 {
                     "person_id": 1,
                     "committee_id": committee["id"],
@@ -27,8 +28,7 @@ class PersonMembershipTests(unittest.TestCase):
 
     def test_person_email_is_canonical(self) -> None:
         with TempDatabase() as db_path:
-            person = ResourceRepository(db_path).create(
-                PERSON,
+            person = identity_service(db_path).create_person(
                 {
                     "first_name": "Testperson",
                     "last_name": "Normalisierung",

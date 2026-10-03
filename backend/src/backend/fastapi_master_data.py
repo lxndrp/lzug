@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, FastAPI, Request
 
-from backend.application import hateoas
+from backend.application import ForbiddenRequestError, hateoas
 from backend.application.exam_venue_api import ExamVenueApi
 from backend.application.repositories import PLAN_AGGREGATE_RESOURCES, REST_RESOURCES
 from backend.application.transport import RequestContext
@@ -228,9 +228,21 @@ def _resource_create_route(resolved: FastAPIConfig, resource_name: str, resource
             )
             status = HTTPStatus.OK
         elif resource_name in {"members", "memberships"}:
-            row = context.repository.create_membership(
-                payload, authorization_scope=context.authorization_scope
-            )
+            try:
+                row = context.identity_service.create_membership(
+                    payload,
+                    actor_memberships=context.authorization_scope.member_by_committee,
+                )
+            except PermissionError as error:
+                raise ForbiddenRequestError("Forbidden.") from error
+        elif resource.table == "person":
+            try:
+                row = context.identity_service.create_person(
+                    payload,
+                    actor_memberships=context.authorization_scope.member_by_committee,
+                )
+            except PermissionError as error:
+                raise ForbiddenRequestError("Forbidden.") from error
         else:
             row = context.repository.create(
                 resource, payload, authorization_scope=context.authorization_scope
@@ -267,9 +279,23 @@ def _resource_update_route(resolved: FastAPIConfig, resource_name: str, resource
                 identifier, payload, authorization_scope=context.authorization_scope
             )
         elif resource_name in {"members", "memberships"}:
-            row = context.repository.update_membership(
-                identifier, payload, authorization_scope=context.authorization_scope
-            )
+            try:
+                row = context.identity_service.update_membership(
+                    identifier,
+                    payload,
+                    actor_memberships=context.authorization_scope.member_by_committee,
+                )
+            except PermissionError as error:
+                raise ForbiddenRequestError("Forbidden.") from error
+        elif resource.table == "person":
+            try:
+                row = context.identity_service.update_person(
+                    identifier,
+                    payload,
+                    actor_memberships=context.authorization_scope.member_by_committee,
+                )
+            except PermissionError as error:
+                raise ForbiddenRequestError("Forbidden.") from error
         else:
             row = context.repository.update(
                 resource,
@@ -300,6 +326,22 @@ def _resource_delete_route(resolved: FastAPIConfig, resource_name: str, resource
             deleted = context.exam_round_lifecycle_service.delete_empty_draft(
                 context.authorization_scope, id
             )
+        elif resource_name in {"members", "memberships"}:
+            try:
+                deleted = context.identity_service.delete_membership(
+                    id,
+                    actor_memberships=context.authorization_scope.member_by_committee,
+                )
+            except PermissionError as error:
+                raise ForbiddenRequestError("Forbidden.") from error
+        elif resource.table == "person":
+            try:
+                deleted = context.identity_service.delete_person(
+                    id,
+                    actor_memberships=context.authorization_scope.member_by_committee,
+                )
+            except PermissionError as error:
+                raise ForbiddenRequestError("Forbidden.") from error
         else:
             deleted = context.repository.delete(
                 resource, id, authorization_scope=context.authorization_scope

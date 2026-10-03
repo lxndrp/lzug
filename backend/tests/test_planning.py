@@ -7,6 +7,7 @@ from unittest.mock import patch
 from sqlalchemy import text
 
 from backend.application.repositories import ResourceRepository
+from backend.composition import identity_service
 from backend.persistence.database import connect, session_scope
 from backend.persistence.models import (
     CANDIDATE,
@@ -682,8 +683,9 @@ class PlanningTests(unittest.TestCase):
         with TempDatabase() as db_path:
             repository = ResourceRepository(db_path)
             other_round = self._create_overlapping_round(repository)
-            for member_id in range(5, 9):
-                repository.update(COMMITTEE_MEMBER, member_id, {"is_active": 0})
+            with session_scope(db_path) as session:
+                for member_id in range(5, 9):
+                    Store(session).update(COMMITTEE_MEMBER, member_id, {"is_active": 0})
 
             PlanningService(db_path).generate_proposal(other_round["id"])
             PlanningService(db_path).confirm_plan(other_round["id"])
@@ -705,8 +707,9 @@ class PlanningTests(unittest.TestCase):
         with TempDatabase() as db_path:
             repository = ResourceRepository(db_path)
             other_round = self._create_overlapping_round(repository)
-            for member_id in range(5, 9):
-                repository.update(COMMITTEE_MEMBER, member_id, {"is_active": 0})
+            with session_scope(db_path) as session:
+                for member_id in range(5, 9):
+                    Store(session).update(COMMITTEE_MEMBER, member_id, {"is_active": 0})
 
             PlanningService(db_path).generate_proposal(other_round["id"])
             other_assignments = repository.list(EXAM_DAY_ASSIGNMENT)
@@ -724,7 +727,7 @@ class PlanningTests(unittest.TestCase):
         members = []
         for person_id, side in enumerate(("employer", "employee", "school", "employer"), start=1):
             members.append(
-                repository.create_membership(
+                identity_service(repository.db_path).create_membership(
                     {
                         "person_id": person_id,
                         "committee_id": committee["id"],

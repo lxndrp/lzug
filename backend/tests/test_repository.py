@@ -5,12 +5,12 @@ import unittest
 from sqlalchemy.exc import IntegrityError
 
 from backend.application.repositories import ResourceRepository
+from backend.composition import identity_service
 from backend.persistence.database import session_scope
 from backend.persistence.models import (
     CANDIDATE,
     CANDIDATE_EXAM_DAY,
     COMMITTEE,
-    COMMITTEE_MEMBER,
     EXAM_HALF_YEAR,
     EXAM_ROUND,
     MEMBER_AVAILABILITY,
@@ -110,8 +110,7 @@ class RepositoryTests(unittest.TestCase):
                     "occupation": "Fachinformatiker/in",
                 },
             )
-            member = repository.create(
-                COMMITTEE_MEMBER,
+            member = identity_service(db_path).create_membership(
                 {
                     "person_id": 1,
                     "committee_id": committee["id"],
@@ -194,7 +193,7 @@ class RepositoryTests(unittest.TestCase):
     def test_exam_round_creation_records_deputy_chair_as_actor(self) -> None:
         with TempDatabase() as db_path:
             repository = ResourceRepository(db_path)
-            repository.update_membership(2, {"committee_role": "deputy_chair"})
+            identity_service(db_path).update_membership(2, {"committee_role": "deputy_chair"})
             half_year = repository.create(
                 EXAM_HALF_YEAR,
                 {"season": "summer", "year": 2027, "status": "active"},
@@ -320,7 +319,7 @@ class RepositoryTests(unittest.TestCase):
                 }
             )
 
-            repository.update_membership(
+            identity_service(db_path).update_membership(
                 2,
                 {"committee_role": "deputy_chair", "is_active": 1},
             )
@@ -405,7 +404,7 @@ class RepositoryTests(unittest.TestCase):
         with TempDatabase() as db_path:
             repository = ResourceRepository(db_path)
             committee = repository.create(COMMITTEE, {"name": "PA 2", "occupation": "FI"})
-            membership = repository.create_membership(
+            membership = identity_service(db_path).create_membership(
                 {
                     "person_id": 1,
                     "committee_id": committee["id"],

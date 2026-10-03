@@ -8,6 +8,7 @@ from typing import NamedTuple
 from sqlalchemy.exc import IntegrityError
 
 from backend.application.repositories import ResourceRepository
+from backend.composition import identity_service
 from backend.identity.auth import AuthContext
 from backend.identity.authorization import AuthorizationService
 from backend.identity.people import (
@@ -22,28 +23,43 @@ from backend.tests.helpers import TempDatabase
 
 class IdentityPortTests(unittest.TestCase):
     def test_service_uses_one_injected_write_uow_and_canonicalizes_email(self) -> None:
-        transaction = object()
         uow = _IdentityDouble()
         factory = _IdentityFactory(uow)
         service = IdentityService(factory, _IdentityQueryFactory(_IdentityQueryDouble()))
 
         created = service.create_person(
-            transaction,
             {"first_name": "Ada", "last_name": "Lovelace", "email": " ADA@EXAMPLE.INVALID "},
         )
 
-        self.assertIs(transaction, factory.transaction)
+        self.assertEqual(1, factory.open_count)
         self.assertEqual("ada@example.invalid", created["email"])
         self.assertEqual(
             {"first_name": "Ada", "last_name": "Lovelace", "email": "ada@example.invalid"},
             uow.created_person,
         )
 
+    def test_membership_creation_normalizes_new_person_email_before_uow(self) -> None:
+        uow = _IdentityDouble()
+        service = IdentityService(
+            _IdentityFactory(uow), _IdentityQueryFactory(_IdentityQueryDouble())
+        )
+
+        service.create_membership(
+            {
+                "first_name": "Ada",
+                "last_name": "Lovelace",
+                "email": " ADA@EXAMPLE.INVALID ",
+                "committee_id": 1,
+            }
+        )
+
+        self.assertEqual("ada@example.invalid", uow.created_membership["email"])
+
     def test_sqlite_membership_write_rolls_back_person_when_membership_fails(self) -> None:
         with TempDatabase(with_seed=False) as db_path:
             repository = ResourceRepository(db_path)
             with self.assertRaises(IntegrityError):
-                repository.create_membership(
+                identity_service(db_path).create_membership(
                     {
                         "first_name": "Ada",
                         "last_name": "Lovelace",
@@ -61,15 +77,15 @@ class IdentityPortTests(unittest.TestCase):
     def test_actor_scope_uses_identity_query_double(self) -> None:
         query = _IdentityQueryDouble()
         factory = _IdentityQueryFactory(query)
+        identity = IdentityService(_IdentityFactory(_IdentityDouble()), factory)
         context = AuthContext(
             session_id=12,
             account_id=8,
             person_id=4,
             is_operator=False,
-            committee_member_id=3,
         )
 
-        scope = AuthorizationService(query_factory=factory).scope(context)
+        scope = AuthorizationService(identity).scope(context)
 
         self.assertEqual(frozenset({9}), scope.committee_ids)
         self.assertEqual({9: 3}, scope.member_by_committee)
@@ -77,9 +93,11 @@ class IdentityPortTests(unittest.TestCase):
 
     def test_sqlite_identity_query_projects_login_and_active_actor_memberships(self) -> None:
         with TempDatabase() as db_path:
-            with SQLiteIdentityQueryFactory(db_path).snapshot() as queries:
-                login_person = queries.login_person("THESEUS.ATHEN@demo.lzug.invalid")
-                memberships = queries.active_memberships(1)
+            identity = IdentityService(
+                _IdentityFactory(_IdentityDouble()), SQLiteIdentityQueryFactory(db_path)
+            )
+            login_person = identity.login_person("THESEUS.ATHEN@demo.lzug.invalid")
+            memberships = identity.active_memberships(1)
 
         self.assertEqual(1, login_person.person_id)
         self.assertEqual("theseus.athen@demo.lzug.invalid", login_person.email)
@@ -98,20 +116,25 @@ class IdentityPortTests(unittest.TestCase):
 class _IdentityDouble:
     def __init__(self) -> None:
         self.created_person: dict[str, object] | None = None
+        self.created_membership: dict[str, object] = {}
 
     def create_person(self, values):
         self.created_person = dict(values)
         return {"id": 4, **values}
 
+    def create_membership(self, values):
+        self.created_membership = dict(values)
+        return values
+
 
 class _IdentityFactory:
     def __init__(self, unit_of_work: _IdentityDouble) -> None:
-        self.unit_of_work = unit_of_work
-        self.transaction: object | None = None
+        self.unit_of_work_double = unit_of_work
+        self.open_count = 0
 
-    def for_transaction(self, transaction: object) -> _IdentityDouble:
-        self.transaction = transaction
-        return self.unit_of_work
+    def unit_of_work(self):
+        self.open_count += 1
+        return _Snapshot(self.unit_of_work_double)
 
 
 class _IdentityQueryDouble:

@@ -32,7 +32,6 @@ class AuthenticationTests(unittest.TestCase):
 
         self.assertIsNotNone(context)
         self.assertEqual(4, context.person_id)
-        self.assertEqual(4, context.committee_member_id)
         self.assertNotEqual(credentials.token, row[0])
         self.assertNotEqual(credentials.csrf_token, row[1])
         self.assertEqual(hashlib.sha256(credentials.token.encode()).hexdigest(), row[0])

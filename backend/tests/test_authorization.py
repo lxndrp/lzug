@@ -4,14 +4,13 @@ import unittest
 from http import HTTPStatus
 
 from backend.application.repositories import ResourceRepository
+from backend.composition import identity_service
 from backend.identity.auth import AuthenticationRepository
 from backend.persistence.database import session_scope
 from backend.persistence.models import (
     CANDIDATE_EXAM_DAY,
     COMMITTEE,
-    COMMITTEE_MEMBER,
     EXAM_ROUND,
-    PERSON,
     Committee,
 )
 from backend.planning import PlanningService
@@ -36,16 +35,14 @@ class AuthorizationTests(unittest.TestCase):
             (11, "ordinary", "member"),
             (12, "deputy", "member"),
         ):
-            person = self.repository.create(
-                PERSON,
+            person = identity_service(self.db_path).create_person(
                 {
                     "first_name": "Testperson",
                     "last_name": str(person_number),
                     "email": f"testperson.{person_number}@example.invalid",
                 },
             )
-            member = self.repository.create(
-                COMMITTEE_MEMBER,
+            member = identity_service(self.db_path).create_membership(
                 {
                     "person_id": person["id"],
                     "committee_id": self.committee_id,
@@ -287,7 +284,7 @@ class AuthorizationTests(unittest.TestCase):
 
     def test_inactive_membership_has_no_actor_scope(self) -> None:
         member_id = self.members[12]
-        self.repository.update_membership(member_id, {"is_active": 0})
+        identity_service(self.db_path).update_membership(member_id, {"is_active": 0})
         with ApiServer(self.db_path) as api:
             status, error = api.request("GET", "/api/committees", credentials=self.credentials(12))
         assert_status(status, HTTPStatus.FORBIDDEN)

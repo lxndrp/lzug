@@ -64,6 +64,37 @@ class ApiTests(unittest.TestCase):
             self.assertEqual(committee["id"], unchanged["committee_id"])
             self.assertEqual(person["id"], unchanged["person_id"])
 
+    def test_membership_delete_uses_identity_and_returns_no_content(self) -> None:
+        with TempDatabase() as db_path:
+            with session_scope(db_path) as session:
+                store = Store(session)
+                person = store.create(
+                    PERSON,
+                    {
+                        "first_name": "Löschbare",
+                        "last_name": "Mitgliedschaft",
+                        "email": "delete.membership@demo.lzug.invalid",
+                    },
+                )
+                membership = store.create(
+                    COMMITTEE_MEMBER,
+                    {
+                        "committee_id": 1,
+                        "person_id": person["id"],
+                        "member_status": "ordinary",
+                        "committee_role": "member",
+                        "representing_side": "employer",
+                        "is_active": 1,
+                    },
+                )
+            with ApiServer(db_path) as api:
+                status, body = api.request("DELETE", f"/api/members/{membership['id']}")
+                assert_status(status, HTTPStatus.NO_CONTENT)
+                self.assertIsNone(body)
+                status, body = api.request("GET", f"/api/members/{membership['id']}")
+            assert_status(status, HTTPStatus.NOT_FOUND)
+            self.assertEqual("Not found", body["error"])
+
     def test_static_files_and_spa_fallback_do_not_hide_api_or_assets(self) -> None:
         with TemporaryDirectory() as directory, TempDatabase() as db_path:
             static_dir = Path(directory) / "static"

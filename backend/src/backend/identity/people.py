@@ -23,11 +23,28 @@ class IdentityUnitOfWork(Protocol):
 
     def member_view(self, membership: dict[str, Any]) -> dict[str, Any]: ...
 
+    def delete_person(self, person_id: int) -> bool: ...
+
+    def delete_membership(self, member_id: int) -> bool: ...
+
+    def require_membership_manager(
+        self,
+        member_id: int | None,
+        values: Mapping[str, Any],
+        actor_memberships: Mapping[int, int],
+    ) -> None: ...
+
+    def require_person_manager(
+        self, person_id: int, actor_memberships: Mapping[int, int]
+    ) -> None: ...
+
+    def require_any_membership_manager(self, actor_memberships: Mapping[int, int]) -> None: ...
+
 
 class IdentityUnitOfWorkFactory(Protocol):
-    """Bind identity operations to an existing write transaction."""
+    """Open Identity-owned transactional write units."""
 
-    def for_transaction(self, transaction: object) -> IdentityUnitOfWork: ...
+    def unit_of_work(self) -> AbstractContextManager[IdentityUnitOfWork]: ...
 
 
 class IdentityMembership(Protocol):
@@ -81,6 +98,14 @@ class IdentityService:
     unit_of_work_factory: IdentityUnitOfWorkFactory
     query_factory: IdentityQueryFactory
 
+    def login_person(self, email: str) -> LoginPerson | None:
+        with self.query_factory.snapshot() as queries:
+            return queries.login_person(email.strip().lower())
+
+    def active_memberships(self, person_id: int) -> tuple[IdentityMembership, ...]:
+        with self.query_factory.snapshot() as queries:
+            return queries.active_memberships(person_id)
+
     def members(self, filters: Mapping[str, object], scope: object | None) -> list[dict]:
         with self.query_factory.snapshot() as queries:
             return [dict(row) for row in queries.members(filters, scope)]
@@ -92,40 +117,79 @@ class IdentityService:
 
     def create_person(
         self,
-        transaction: object,
         values: dict[str, Any],
+        *,
+        actor_memberships: Mapping[int, int] | None = None,
     ) -> dict[str, Any]:
-        return self.unit_of_work_factory.for_transaction(transaction).create_person(
-            self.normalize_person(values)
-        )
+        with self.unit_of_work_factory.unit_of_work() as uow:
+            if actor_memberships is not None:
+                uow.require_any_membership_manager(actor_memberships)
+            return uow.create_person(self.normalize_person(values))
 
     def update_person(
         self,
-        transaction: object,
         person_id: int,
         values: dict[str, Any],
+        *,
+        actor_memberships: Mapping[int, int] | None = None,
     ) -> dict[str, Any] | None:
         values = self.normalize_person(values)
-        return self.unit_of_work_factory.for_transaction(transaction).update_person(
-            person_id, values
-        )
+        with self.unit_of_work_factory.unit_of_work() as uow:
+            if actor_memberships is not None:
+                uow.require_person_manager(person_id, actor_memberships)
+            return uow.update_person(person_id, values)
+
+    def delete_person(
+        self,
+        person_id: int,
+        *,
+        actor_memberships: Mapping[int, int] | None = None,
+    ) -> bool:
+        with self.unit_of_work_factory.unit_of_work() as uow:
+            if actor_memberships is not None:
+                uow.require_person_manager(person_id, actor_memberships)
+            return uow.delete_person(person_id)
 
     def create_membership(
         self,
-        transaction: object,
         values: dict[str, Any],
+        *,
+        actor_memberships: Mapping[int, int] | None = None,
     ) -> dict[str, Any]:
-        return self.unit_of_work_factory.for_transaction(transaction).create_membership(values)
+        membership = dict(values)
+        person_fields: dict[str, Any] = {
+            key: membership[key]
+            for key in ("first_name", "last_name", "email", "mobile")
+            if key in membership
+        }
+        membership.update(self.normalize_person(person_fields))
+        with self.unit_of_work_factory.unit_of_work() as uow:
+            if actor_memberships is not None:
+                uow.require_membership_manager(None, membership, actor_memberships)
+            return uow.create_membership(membership)
 
     def update_membership(
         self,
-        transaction: object,
         member_id: int,
         values: dict[str, Any],
+        *,
+        actor_memberships: Mapping[int, int] | None = None,
     ) -> dict[str, Any] | None:
-        return self.unit_of_work_factory.for_transaction(transaction).update_membership(
-            member_id, values
-        )
+        with self.unit_of_work_factory.unit_of_work() as uow:
+            if actor_memberships is not None:
+                uow.require_membership_manager(member_id, values, actor_memberships)
+            return uow.update_membership(member_id, values)
+
+    def delete_membership(
+        self,
+        member_id: int,
+        *,
+        actor_memberships: Mapping[int, int] | None = None,
+    ) -> bool:
+        with self.unit_of_work_factory.unit_of_work() as uow:
+            if actor_memberships is not None:
+                uow.require_membership_manager(member_id, {}, actor_memberships)
+            return uow.delete_membership(member_id)
 
     @staticmethod
     def normalize_person(values: Mapping[str, Any]) -> dict[str, Any]:

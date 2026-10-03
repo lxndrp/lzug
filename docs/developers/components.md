@@ -151,13 +151,20 @@ sowie Login- und Actor-Projektionen.
 `persistence.identity` implementiert sie für SQLite und projiziert
 Mitgliedschaften für Listen über die bestehende Query-Grenze aus #1072.
 `composition` wählt beide Identity-Adapter.
-Personen- und Membership-Änderungen laufen im Schreib-UoW des Aufrufers;
+Personen- und Membership-Änderungen öffnen ihren Schreib-UoW über Identity;
 die Membership-Autorisierung verwendet darin die Ownership-Abfragen aus #1072
 und prüft die gespeicherte aktive Managementrolle des Actors erneut.
+Der HTTP-Rand übergibt nur Actor-Membership-IDs als Werte.
+`identity.committee_admin` verwendet ebenfalls einen Identity-eigenen UoW-Port
+für Bootstrap, Abschluss, Wiedereinladung und Ausschuss-Lifecycle.
+Seine Committee-, Person-, Membership-, Account-, Invitation- und
+Operationsergebnisse sind strukturelle Werte; SQLAlchemy-Objekte verlassen
+Persistence nicht.
 `AuthorizationService` baut seinen serverseitigen Scope aus der Identity-
 Membership-Projektion auf.
 Die SQLite-Projektionen sind unveränderliche, strukturell kompatible Werte;
-Persistence importiert dafür keine Identity-Laufzeittypen zurück.
+Persistence importiert die Identity-Porttypen dafür nur unter
+`TYPE_CHECKING`.
 Planning behält Kandidaten- und Rundenregeln.
 
 Die Kandidatentage sind der erste Planning-Port-Pilot:

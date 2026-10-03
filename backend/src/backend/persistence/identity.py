@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 
 from sqlalchemy import func, select
 
-from backend.persistence.database import DEFAULT_DB_PATH, read_session_scope
+from backend.persistence.database import DEFAULT_DB_PATH, read_session_scope, session_scope
 from backend.persistence.models import (
     COMMITTEE_MEMBER,
     PERSON,
@@ -17,7 +17,7 @@ from backend.persistence.models import (
     CommitteeMember,
     Person,
 )
-from backend.persistence.resource_access import SQLiteResourceAccessQueries
+from backend.persistence.resource_access import SQLiteResourceAccessQueries, _ResourceKind
 from backend.persistence.store import Store
 
 if TYPE_CHECKING:
@@ -37,7 +37,7 @@ class _SQLiteLoginPerson(NamedTuple):
 
 
 class SQLiteIdentityUnitOfWork:
-    """Map identity values to the existing tables using the root transaction."""
+    """Map identity values to the existing tables inside an Identity transaction."""
 
     def __init__(self, store: Store) -> None:
         self._store = store
@@ -47,6 +47,9 @@ class SQLiteIdentityUnitOfWork:
 
     def update_person(self, person_id: int, values: Mapping[str, Any]) -> dict[str, Any] | None:
         return self._store.update(PERSON, person_id, dict(values))
+
+    def delete_person(self, person_id: int) -> bool:
+        return self._store.delete(PERSON, person_id)
 
     def create_membership(self, values: Mapping[str, Any]) -> dict[str, Any]:
         membership = dict(values)
@@ -97,6 +100,9 @@ class SQLiteIdentityUnitOfWork:
         )
         return self.member_view(row)
 
+    def delete_membership(self, member_id: int) -> bool:
+        return self._store.delete(COMMITTEE_MEMBER, member_id)
+
     def member_view(self, member: dict[str, Any]) -> dict[str, Any]:
         person = self._store.get(PERSON, member["person_id"])
         if person is None:
@@ -106,6 +112,56 @@ class SQLiteIdentityUnitOfWork:
             **{key: person[key] for key in ("first_name", "last_name", "email", "mobile")},
             "email_verified_at": None,
         }
+
+    def require_membership_manager(
+        self,
+        member_id: int | None,
+        values: Mapping[str, Any],
+        actor_memberships: Mapping[int, int],
+    ) -> None:
+        queries = SQLiteResourceAccessQueries(self._store)
+        current = self._store.get(COMMITTEE_MEMBER, member_id) if member_id is not None else None
+        committee_id = (
+            int(current["committee_id"]) if current is not None else int(values["committee_id"])
+        )
+        if current is not None and values.get("committee_id", committee_id) != committee_id:
+            raise PermissionError("Forbidden.")
+        actor_id = actor_memberships.get(committee_id)
+        actor = queries.committee_member(actor_id) if actor_id is not None else None
+        if (
+            actor is None
+            or not actor.is_active
+            or actor.committee_id != committee_id
+            or actor.committee_role not in {"chair", "deputy_chair"}
+        ):
+            raise PermissionError("Forbidden.")
+
+    def require_person_manager(self, person_id: int, actor_memberships: Mapping[int, int]) -> None:
+        queries = SQLiteResourceAccessQueries(self._store)
+        owner = queries.ownership(_ResourceKind.PERSON, person_id)
+        committee_id = owner.committee_id
+        actor_id = actor_memberships.get(committee_id) if committee_id is not None else None
+        actor = queries.committee_member(actor_id) if actor_id is not None else None
+        if (
+            actor is None
+            or not actor.is_active
+            or actor.committee_id != committee_id
+            or actor.committee_role not in {"chair", "deputy_chair"}
+        ):
+            raise PermissionError("Forbidden.")
+
+    def require_any_membership_manager(self, actor_memberships: Mapping[int, int]) -> None:
+        queries = SQLiteResourceAccessQueries(self._store)
+        for committee_id, actor_id in actor_memberships.items():
+            actor = queries.committee_member(actor_id)
+            if (
+                actor is not None
+                and actor.is_active
+                and actor.committee_id == committee_id
+                and actor.committee_role in {"chair", "deputy_chair"}
+            ):
+                return
+        raise PermissionError("Forbidden.")
 
     @staticmethod
     def normalize_person(values: Mapping[str, Any]) -> dict[str, Any]:
@@ -119,12 +175,15 @@ class SQLiteIdentityUnitOfWork:
 
 
 class SQLiteIdentityUnitOfWorkFactory:
-    """Adapt an existing repository transaction to the Identity port."""
+    """Open Identity-owned write transactions over the configured SQLite store."""
 
-    def for_transaction(self, transaction: object) -> IdentityUnitOfWork:
-        if isinstance(transaction, Store):
-            return SQLiteIdentityUnitOfWork(transaction)
-        return SQLiteIdentityUnitOfWork(Store(transaction))
+    def __init__(self, db_path: Path = DEFAULT_DB_PATH) -> None:
+        self.db_path = Path(db_path)
+
+    @contextmanager
+    def unit_of_work(self) -> Iterator[IdentityUnitOfWork]:
+        with session_scope(self.db_path, begin_immediate=True) as session:
+            yield SQLiteIdentityUnitOfWork(Store(session))
 
 
 class SQLiteIdentityQueryFactory:

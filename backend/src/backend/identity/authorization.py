@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from backend.identity.auth import AuthContext
-from backend.identity.people import IdentityQueryFactory
+from backend.identity.people import IdentityService
 
 
 @dataclass(frozen=True)
@@ -50,15 +50,14 @@ class AuthorizationService:
 
     def __init__(
         self,
-        query_factory: IdentityQueryFactory,
+        identity_service: IdentityService,
     ):
-        self.query_factory = query_factory
+        self.identity_service = identity_service
 
     def scope(self, context: AuthContext) -> AuthorizationScope:
         if context.person_id is None:
             return AuthorizationScope(None, frozenset(), frozenset(), frozenset(), frozenset(), {})
-        with self.query_factory.snapshot() as queries:
-            memberships = queries.active_memberships(context.person_id)
+        memberships = self.identity_service.active_memberships(context.person_id)
 
         member_by_committee = {membership.committee_id: membership.id for membership in memberships}
         management_committee_ids = {
