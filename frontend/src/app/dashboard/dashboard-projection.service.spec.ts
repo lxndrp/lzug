@@ -121,6 +121,32 @@ describe('DashboardProjectionService', () => {
     expect(service.committeeRefreshLoading()).toBe(false);
   });
 
+  it('cancels targeted dashboard GETs when the selected round changes', () => {
+    const service = TestBed.inject(DashboardProjectionService);
+    service.activate();
+    const locations = new Subject<never>();
+    const candidates = new Subject<never>();
+    const members = new Subject<never>();
+    loadLocations.mockReturnValueOnce(locations);
+    loadCandidateReferences.mockReturnValueOnce(candidates);
+    loadCommitteeMembers.mockReturnValueOnce(members);
+
+    service.refreshLocations();
+    service.refreshCandidateReferences();
+    service.refreshCommitteeMembers();
+    expect(candidates.observed).toBe(true);
+    expect(members.observed).toBe(true);
+    expect(locations.observed).toBe(true);
+
+    TestBed.inject(RoundContextService).select(2);
+
+    expect(candidates.observed).toBe(false);
+    expect(members.observed).toBe(false);
+    expect(locations.observed).toBe(false);
+    expect(load).toHaveBeenCalledTimes(2);
+    expect(service.loading()).toBe(false);
+  });
+
   it('loads an independent projection and exposes its own failure state', () => {
     load.mockReturnValueOnce(throwError(() => new Error('dashboard unavailable')));
     const service = TestBed.inject(DashboardProjectionService);

@@ -63,7 +63,9 @@ export class DashboardProjectionService {
   constructor() {
     this.sessionScope.changes$.subscribe(() => this.clear());
     this.roundContext.changes$.subscribe(() => {
-      if (this.active) this.refresh();
+      if (!this.active) return;
+      this.cancelTargetedReads();
+      this.refresh();
     });
   }
 
@@ -341,17 +343,9 @@ export class DashboardProjectionService {
 
   private clear(): void {
     this.generation += 1;
-    this.locationGeneration += 1;
-    this.candidateReferenceGeneration += 1;
-    this.committeeMemberGeneration += 1;
     this.fullRead?.unsubscribe();
-    this.locationRead?.unsubscribe();
-    this.candidateReferenceRead?.unsubscribe();
-    this.committeeMemberRead?.unsubscribe();
+    this.cancelTargetedReads();
     this.fullRead = null;
-    this.locationRead = null;
-    this.candidateReferenceRead = null;
-    this.committeeMemberRead = null;
     this.latestLocations = null;
     this.latestCandidateReferences = null;
     this.latestCommitteeMembers = null;
@@ -360,6 +354,23 @@ export class DashboardProjectionService {
     this.projection.set(null);
     this.loading.set(false);
     this.error.set(false);
+    this.locationRefreshError.set(false);
+    this.candidateRefreshError.set(false);
+    this.committeeRefreshError.set(false);
+    this.candidateRefreshLoading.set(false);
+    this.committeeRefreshLoading.set(false);
+  }
+
+  private cancelTargetedReads(): void {
+    this.locationGeneration += 1;
+    this.candidateReferenceGeneration += 1;
+    this.committeeMemberGeneration += 1;
+    this.locationRead?.unsubscribe();
+    this.candidateReferenceRead?.unsubscribe();
+    this.committeeMemberRead?.unsubscribe();
+    this.locationRead = null;
+    this.candidateReferenceRead = null;
+    this.committeeMemberRead = null;
     this.locationRefreshError.set(false);
     this.candidateRefreshError.set(false);
     this.committeeRefreshError.set(false);
