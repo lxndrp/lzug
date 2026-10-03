@@ -134,6 +134,26 @@ describe('LocationsComponent', () => {
     expect(root.textContent).not.toContain('Ort bearbeiten');
   });
 
+  it('shows loading and retry states before interpreting direct detail navigation as missing', () => {
+    fixture.componentRef.setInput('snapshot', null);
+    fixture.componentRef.setInput('detailVenueId', locationSnapshotFixture.venues[0].id);
+    fixture.componentRef.setInput('loading', true);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Prüfungsorte werden geladen');
+    expect(fixture.nativeElement.textContent).not.toContain('Prüfungsort nicht hinterlegt');
+
+    fixture.componentRef.setInput('loading', false);
+    fixture.componentRef.setInput('loadError', true);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain(
+      'Prüfungsorte konnten nicht synchronisiert werden.',
+    );
+    expect(fixture.nativeElement.querySelector('button')?.textContent).toContain(
+      'Erneut versuchen',
+    );
+    expect(fixture.nativeElement.textContent).not.toContain('Prüfungsort nicht hinterlegt');
+  });
+
   it('covers venue labels, filter branches and detail fallbacks', () => {
     const harness = fixture.componentInstance as unknown as LocationsHarness;
     const baseVenue = locationSnapshotFixture.venues[0];
@@ -429,12 +449,24 @@ describe('LocationsComponent', () => {
     fixture.componentRef.setInput('snapshot', {
       ...locationSnapshotFixture,
       canCreateVenue: true,
-      committeeLoadError: true,
+      committeeLoadPending: true,
+      committeeLoadError: false,
     });
     fixture.componentRef.setInput('canCreateVenue', true);
     fixture.detectChanges();
 
     const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('button[aria-controls="location-create-editor"]')).toBeNull();
+
+    fixture.componentRef.setInput('snapshot', {
+      ...locationSnapshotFixture,
+      canCreateVenue: true,
+      committeeLoadPending: false,
+      committeeLoadError: true,
+    });
+    fixture.componentRef.setInput('canCreateVenue', true);
+    fixture.detectChanges();
+
     expect(root.querySelector('button[aria-controls="location-create-editor"]')).toBeNull();
 
     fixture.componentRef.setInput('isOperator', true);

@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
-import { catchError, forkJoin, map, of } from 'rxjs';
+import { catchError, combineLatest, map, of, startWith } from 'rxjs';
 
+import { AuthService } from '../auth/auth.service';
 import { MasterDataApiService } from './master-data-api.service';
 import { VenueApiService } from './venue-api.service';
 import { toVenue } from './http-locations.mapper';
@@ -12,18 +13,23 @@ import { withoutHttpLinks } from '../application/without-http-links';
 @Injectable({ providedIn: 'root' })
 export class HttpLocationsReadAdapter implements LocationsReadPort {
   private readonly masterData = inject(MasterDataApiService);
+  private readonly auth = inject(AuthService);
   private readonly api = inject(VenueApiService);
 
   load() {
-    const committees = this.masterData.getCommittees().pipe(
-      map((items) => ({ items, failed: false as const })),
-      catchError(() => of({ items: [], failed: true as const })),
-    );
-    return forkJoin({ collection: this.api.listExamVenues(), committees }).pipe(
+    const committees = this.auth.session()?.is_operator
+      ? of({ items: [], failed: false, pending: false })
+      : this.masterData.getCommittees().pipe(
+          map((items) => ({ items, failed: false, pending: false })),
+          catchError(() => of({ items: [], failed: true, pending: false })),
+          startWith({ items: [], failed: false, pending: true }),
+        );
+    return combineLatest({ collection: this.api.listExamVenues(), committees }).pipe(
       map(
         ({ collection, committees }) =>
           ({
             committees: committees.items.map(({ id, name }) => ({ id, name })),
+            committeeLoadPending: committees.pending,
             committeeLoadError: committees.failed,
             venues: collection.items.map((venue) => toVenue(withoutHttpLinks(venue))),
             canCreateVenue: Boolean(collection._links['create']),

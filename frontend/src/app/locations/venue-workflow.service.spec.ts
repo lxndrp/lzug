@@ -95,6 +95,8 @@ describe('VenueWorkflowService', () => {
     const { workflow } = configure(port);
     const viewA = Symbol('locations-view-a');
     const viewB = Symbol('locations-view-b');
+    const refreshA = vi.fn();
+    const refreshB = vi.fn();
     const command = {
       scope: 'committee' as const,
       committeeId: 4,
@@ -108,13 +110,15 @@ describe('VenueWorkflowService', () => {
       isActive: true,
     };
 
-    workflow.activateView(viewA, vi.fn());
+    workflow.activateView(viewA, refreshA);
     workflow.createVenue(command, viewA);
-    workflow.activateView(viewB, vi.fn());
+    workflow.activateView(viewB, refreshB);
     creation.next(venue);
     creation.complete();
 
     expect(workflow.viewEffect()).toBeNull();
+    expect(refreshA).not.toHaveBeenCalled();
+    expect(refreshB).toHaveBeenCalledOnce();
     expect(workflow.actionBusy()).toBe(false);
   });
 

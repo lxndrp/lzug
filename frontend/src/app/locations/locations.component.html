@@ -1,8 +1,32 @@
 <div class="app-page-shell locations-view">
   <div class="app-page-grid">
     <section class="app-panel app-page-full" aria-labelledby="locations-title">
+      @if (loadError) {
+        <div class="locations-state locations-state-error" role="alert">
+          <strong>Prüfungsorte konnten nicht synchronisiert werden.</strong>
+          <span
+            >Die aktuelle Ortsansicht bleibt erhalten, sofern bereits Daten geladen wurden.</span
+          >
+          <button tuiButton type="button" appearance="secondary" (click)="retryLoad.emit()">
+            Erneut versuchen
+          </button>
+        </div>
+      }
       @if (detailVenueId !== null) {
-        @if (detailVenue(); as venue) {
+        @if (loading && !snapshot) {
+          <div class="locations-state" role="status" aria-live="polite">
+            <strong>Prüfungsorte werden geladen</strong>
+            <span>Die sichtbaren Orte und ihre Räume werden synchronisiert.</span>
+          </div>
+        } @else if (!snapshot) {
+          <div class="locations-state locations-state-error" role="alert">
+            <strong>Keine Ortsdaten verfügbar</strong>
+            <span>Die Ortsdaten konnten nicht geladen werden.</span>
+            <button tuiButton type="button" appearance="secondary" (click)="retryLoad.emit()">
+              Erneut versuchen
+            </button>
+          </div>
+        } @else if (detailVenue(); as venue) {
           <header class="app-panel-header locations-detail-header" tuiHeader="h2">
             <div>
               <button
@@ -606,7 +630,11 @@
               >Orte, Räume und zulässige Kontakte im eigenen Verantwortungsbereich</span
             >
           </div>
-          @if (!readOnly && canCreateVenue && (isOperator || !snapshot?.committeeLoadError)) {
+          @if (
+            !readOnly &&
+            canCreateVenue &&
+            (isOperator || (!snapshot?.committeeLoadError && !snapshot?.committeeLoadPending))
+          ) {
             <button
               #venueCreateButton
               tuiButton
@@ -620,18 +648,6 @@
             </button>
           }
         </header>
-
-        @if (loadError) {
-          <div class="locations-state locations-state-error" role="alert">
-            <strong>Prüfungsorte konnten nicht synchronisiert werden.</strong>
-            <span
-              >Die aktuelle Ortsansicht bleibt erhalten, sofern bereits Daten geladen wurden.</span
-            >
-            <button tuiButton type="button" appearance="secondary" (click)="retryLoad.emit()">
-              Erneut versuchen
-            </button>
-          </div>
-        }
 
         @if (snapshot?.committeeLoadError) {
           <div class="locations-state locations-state-error" role="alert">

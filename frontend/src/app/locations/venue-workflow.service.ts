@@ -135,7 +135,7 @@ export class VenueWorkflowService {
       (venue) => {
         this.emitViewEffect(view, { type: 'reset-draft' });
         this.feedback.notify('success', 'Prüfungsort angelegt', venue.name);
-        this.refreshView(view);
+        this.refreshView();
       },
       () =>
         this.feedback.notify(
@@ -214,7 +214,7 @@ export class VenueWorkflowService {
             : 'Prüfungsort gespeichert',
           venue.consequenceWarning ?? venue.name,
         );
-        this.refreshView(view);
+        this.refreshView();
       },
       () =>
         this.feedback.notify('error', 'Prüfungsort nicht gespeichert', 'Bitte erneut versuchen.'),
@@ -417,7 +417,7 @@ export class VenueWorkflowService {
       warning ? `${title}, Folgen unvollständig` : title,
       warning ?? detail,
     );
-    this.refreshView(view);
+    this.refreshView();
   }
 
   private runOperation<T>(
@@ -474,8 +474,8 @@ export class VenueWorkflowService {
     this.activeViewEnded = null;
   }
 
-  private refreshView(view: symbol | null): void {
-    if (this.isCurrentView(view)) this.refreshCurrentView?.();
+  private refreshView(): void {
+    if (this.activeView !== null) this.refreshCurrentView?.();
   }
 
   private venueImpactMessage(impact: VenueChangeImpact): string {

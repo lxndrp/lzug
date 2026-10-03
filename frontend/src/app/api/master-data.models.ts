@@ -109,6 +109,7 @@ export type ExamVenue = {
   id: number;
   scope: 'global' | 'committee';
   committee_id: number | null;
+  committee_name?: string | null;
   name: string;
   street: string;
   postal_code: string;

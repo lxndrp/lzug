@@ -1,7 +1,10 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
+import { signal } from '@angular/core';
 import { masterDataFixture } from '../testing/fixtures';
+import { AuthService } from '../auth/auth.service';
+import type { LocationSnapshot } from '../locations/locations.models';
 import { HttpLocationsReadAdapter } from './http-locations-read.adapter';
 
 describe('HttpLocationsReadAdapter', () => {
@@ -11,44 +14,43 @@ describe('HttpLocationsReadAdapter', () => {
   afterEach(() => http.verify());
 
   it('loads venues independently and preserves the collection capability', () => {
-    TestBed.configureTestingModule({
-      providers: [HttpLocationsReadAdapter, provideHttpClient(), provideHttpClientTesting()],
-    });
-    adapter = TestBed.inject(HttpLocationsReadAdapter);
-    http = TestBed.inject(HttpTestingController);
-    let result: ReturnType<typeof adapter.load> extends import('rxjs').Observable<infer T>
-      ? T | undefined
-      : never;
+    configure();
+    const results: LocationSnapshot[] = [];
 
-    adapter.load().subscribe((snapshot) => (result = snapshot));
+    adapter.load().subscribe((snapshot) => results.push(snapshot));
 
     const request = http.expectOne('/api/exam-venues');
     const committees = http.expectOne('/api/committees');
     expect(request.request.method).toBe('GET');
     expect(committees.request.method).toBe('GET');
-    committees.flush({ items: masterDataFixture.committees, _links: {} });
     request.flush({
       items: masterDataFixture.examVenues,
       _links: { create: { href: '/api/exam-venues' } },
     });
+    expect(results.at(-1)).toMatchObject({
+      venues: expect.any(Array),
+      committeeLoadPending: true,
+    });
+    committees.flush({ items: masterDataFixture.committees, _links: {} });
 
-    expect(result?.venues[0]).toMatchObject({
+    expect(results.at(-1)).toMatchObject({
+      venues: expect.any(Array),
+      committeeLoadPending: false,
+    });
+    const result = results.at(-1)!;
+    expect(result.venues[0]).toMatchObject({
       id: masterDataFixture.examVenues[0].id,
       name: masterDataFixture.examVenues[0].name,
     });
-    expect(result?.canCreateVenue).toBe(true);
-    expect(result?.committees).toEqual(
+    expect(result.canCreateVenue).toBe(true);
+    expect(result.committees).toEqual(
       masterDataFixture.committees.map(({ id, name }) => ({ id, name })),
     );
-    expect(result?.committeeLoadError).toBe(false);
+    expect(result.committeeLoadError).toBe(false);
   });
 
   it('keeps a venue read failure visible to the feature instead of returning empty data', () => {
-    TestBed.configureTestingModule({
-      providers: [HttpLocationsReadAdapter, provideHttpClient(), provideHttpClientTesting()],
-    });
-    adapter = TestBed.inject(HttpLocationsReadAdapter);
-    http = TestBed.inject(HttpTestingController);
+    configure();
     let failed = false;
 
     adapter.load().subscribe({ error: () => (failed = true) });
@@ -61,11 +63,7 @@ describe('HttpLocationsReadAdapter', () => {
   });
 
   it('keeps venues available and reports when supplementary committee names fail', () => {
-    TestBed.configureTestingModule({
-      providers: [HttpLocationsReadAdapter, provideHttpClient(), provideHttpClientTesting()],
-    });
-    adapter = TestBed.inject(HttpLocationsReadAdapter);
-    http = TestBed.inject(HttpTestingController);
+    configure();
     let result: ReturnType<typeof adapter.load> extends import('rxjs').Observable<infer T>
       ? T | undefined
       : never;
@@ -83,4 +81,34 @@ describe('HttpLocationsReadAdapter', () => {
     expect(result?.committees).toEqual([]);
     expect(result?.committeeLoadError).toBe(true);
   });
+
+  it('uses venue-provided committee names for operators without requesting the member-only list', () => {
+    configure(true);
+    let result: LocationSnapshot | undefined;
+
+    adapter.load().subscribe((snapshot) => (result = snapshot));
+
+    http.expectNone('/api/committees');
+    http.expectOne('/api/exam-venues').flush({
+      items: [{ ...masterDataFixture.examVenues[0], committee_name: 'Hamburg' }],
+      _links: {},
+    });
+
+    expect(result?.committees).toEqual([]);
+    expect(result?.committeeLoadError).toBe(false);
+    expect(result?.venues[0].committeeName).toBe('Hamburg');
+  });
+
+  function configure(isOperator = false): void {
+    TestBed.configureTestingModule({
+      providers: [
+        HttpLocationsReadAdapter,
+        { provide: AuthService, useValue: { session: signal({ is_operator: isOperator }) } },
+        provideHttpClient(),
+        provideHttpClientTesting(),
+      ],
+    });
+    adapter = TestBed.inject(HttpLocationsReadAdapter);
+    http = TestBed.inject(HttpTestingController);
+  }
 });

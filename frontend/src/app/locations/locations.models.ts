@@ -6,6 +6,7 @@ export type CommitteeSummary = { id: number; name: string };
 
 export type LocationSnapshot = {
   committees: CommitteeSummary[];
+  committeeLoadPending: boolean;
   committeeLoadError: boolean;
   venues: Venue[];
   canCreateVenue: boolean;
@@ -55,6 +56,7 @@ export type Venue = {
   id: number;
   scope: VenueScope;
   committeeId: number | null;
+  committeeName: string | null;
   name: string;
   street: string;
   postalCode: string;

@@ -67,6 +67,7 @@ export class LocationsWorkspaceFacade {
         next: (snapshot) => {
           if (!this.isCurrent(generation, sessionGeneration)) return;
           this.snapshot.set(snapshot);
+          this.loading.set(false);
         },
         error: () => {
           if (!this.isCurrent(generation, sessionGeneration)) return;

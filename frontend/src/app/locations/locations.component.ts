@@ -195,6 +195,7 @@ export class LocationsComponent implements OnChanges {
   protected committeeName(venue: Venue): string {
     if (venue.scope === 'global') return 'Alle Ausschüsse';
     return (
+      venue.committeeName ??
       this.snapshot?.committees.find((committee) => committee.id === venue.committeeId)?.name ??
       'Zuständiger Ausschuss'
     );
