@@ -15,6 +15,8 @@ import { LifecycleService, lifecycleStates } from './lifecycle.service';
 import { LIFECYCLE_AVAILABILITY_PORT } from './lifecycle.port';
 import { LifecycleNoticeComponent } from './lifecycle-notice.component';
 import { WORKSPACE_PORT } from '../shell/workspace.port';
+import { DashboardProjectionService } from '../dashboard/dashboard-projection.service';
+import { ApplicationShellContextService } from '../shell/application-shell-context.service';
 
 describe('public lifecycle', () => {
   let http: HttpTestingController;
@@ -29,6 +31,26 @@ describe('public lifecycle', () => {
         provideHttpClient(withInterceptors([lifecycleInterceptor])),
         provideHttpClientTesting(),
         { provide: WORKSPACE_PORT, useClass: HttpWorkspaceAdapter },
+        {
+          provide: DashboardProjectionService,
+          useValue: {
+            projection: signal(null),
+            loading: signal(false),
+            error: signal(false),
+            locationRefreshError: signal(false),
+            refresh: vi.fn(),
+            refreshLocations: vi.fn(),
+          },
+        },
+        {
+          provide: ApplicationShellContextService,
+          useValue: {
+            context: signal(null),
+            loading: signal(false),
+            error: signal(false),
+            refresh: vi.fn(),
+          },
+        },
         { provide: LIFECYCLE_AVAILABILITY_PORT, useExisting: LifecycleService },
         provideTaiga({ scrollbars: 'native' }),
         TuiConfirmService,

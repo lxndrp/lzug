@@ -4,6 +4,7 @@ import { Router } from '@angular/router';
 import { RoundContextService } from '../api/round-context.service';
 import type { AppView } from '../app-view';
 import { DashboardComponent } from '../dashboard/dashboard.component';
+import { DashboardProjectionService } from '../dashboard/dashboard-projection.service';
 import { PlanningWorkflowService } from '../planning/planning-workflow.service';
 import { ApplicationWorkspaceService } from '../shell/application-workspace.service';
 
@@ -12,21 +13,29 @@ import { ApplicationWorkspaceService } from '../shell/application-workspace.serv
   imports: [DashboardComponent],
   template: `
     <app-dashboard
-      [summary]="workspace.summary()"
-      [round]="workspace.round()"
-      [board]="workspace.board()"
+      [summary]="dashboard.projection()?.summary ?? null"
+      [round]="dashboard.projection()?.round ?? null"
+      [board]="dashboard.projection()?.board ?? null"
       [planningResult]="planning.lastResult()"
-      [loading]="workspace.loading()"
+      [loading]="dashboard.loading()"
+      [error]="dashboard.error()"
+      [locationRefreshError]="dashboard.locationRefreshError()"
       [actionBusy]="workspace.actionBusy()"
       (openView)="openView($event)"
+      (retry)="dashboard.refresh()"
     />
   `,
 })
 export class DashboardRouteComponent {
   protected readonly workspace = inject(ApplicationWorkspaceService);
+  protected readonly dashboard = inject(DashboardProjectionService);
   protected readonly planning = inject(PlanningWorkflowService);
   private readonly roundContext = inject(RoundContextService);
   private readonly router = inject(Router);
+
+  constructor() {
+    this.dashboard.refresh();
+  }
 
   protected openView(view: AppView): void {
     const paths: Record<AppView, string> = {

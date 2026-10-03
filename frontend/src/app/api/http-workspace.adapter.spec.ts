@@ -137,54 +137,6 @@ describe('HttpWorkspaceAdapter', () => {
           },
         ],
       }),
-      candidateWorkspace: {
-        candidates: [
-          {
-            candidate: {
-              id: 6,
-              firstName: 'Grace',
-              lastName: 'Hopper',
-              examNumber: 'E-006',
-              specialization: 'application-development',
-              trainingCompany: 'Company',
-            },
-            roundCandidate: { attemptNumber: 2, requiresMep: true },
-          },
-        ],
-        assignments: [
-          {
-            id: 8,
-            candidateId: 6,
-            examRoundId: 7,
-            assignedAt: '2026-01-01T00:00:00Z',
-            endedAt: null,
-            changeReason: null,
-          },
-        ],
-        examRounds: [{ id: 7, name: 'Runde 7', halfYearId: 2, committeeId: 3 }],
-        committees: [{ id: 3, name: 'Ausschuss 3' }],
-        activeRound: { id: 7, name: 'Runde 7', halfYearId: 2, committeeId: 3, status: 'planning' },
-      },
-      committeeWorkspace: {
-        committees: [{ id: 3, name: 'Ausschuss 3', occupation: 'Fachinformatiker/in', ihk: 'IHK' }],
-        members: [
-          {
-            id: 5,
-            personId: 4,
-            committeeId: 3,
-            firstName: 'Ada',
-            lastName: 'Lovelace',
-            memberStatus: 'ordinary',
-            committeeRole: 'member',
-            representingSide: 'employer',
-            email: 'ada@example.invalid',
-            emailVerifiedAt: null,
-            mobile: null,
-            isActive: true,
-          },
-        ],
-        persons: [{ id: 4, firstName: 'Ada', lastName: 'Lovelace', email: 'ada@example.invalid' }],
-      },
     });
   });
 });

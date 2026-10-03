@@ -1,4 +1,5 @@
 import { Component, ViewChild, inject } from '@angular/core';
+import { TuiButton } from '@taiga-ui/core';
 
 import { CandidatesComponent } from '../candidates/candidates.component';
 import { MasterDataWorkflowService } from '../master-data/master-data-workflow.service';
@@ -7,8 +8,26 @@ import { UiFeedbackService } from '../shell/ui-feedback.service';
 
 /** Route entry and command boundary for candidate master data. */
 @Component({
-  imports: [CandidatesComponent],
+  imports: [CandidatesComponent, TuiButton],
   template: `
+    @if (workflow.candidateLoading()) {
+      <p class="app-state" role="status">Prüflingsdaten werden geladen…</p>
+    }
+    @if (workflow.candidateError()) {
+      <section class="app-panel app-state app-state-error" role="alert">
+        <div class="app-panel-body">
+          <h2>Prüflinge konnten nicht geladen werden</h2>
+          <button
+            tuiButton
+            appearance="secondary"
+            type="button"
+            (click)="workflow.loadCandidates()"
+          >
+            Erneut versuchen
+          </button>
+        </div>
+      </section>
+    }
     <app-candidates
       [masterData]="workflow.candidateWorkspace()"
       [activeRound]="workflow.candidateWorkspace()?.activeRound ?? null"
@@ -25,6 +44,10 @@ export class CandidatesRouteComponent {
   protected readonly workflow = inject(MasterDataWorkflowService);
   private readonly feedback = inject(UiFeedbackService);
   @ViewChild(CandidatesComponent) private component?: CandidatesComponent;
+
+  constructor() {
+    this.workflow.loadCandidates();
+  }
 
   protected createCandidate(payload: CandidateCommand): void {
     this.workflow.createCandidate(payload).subscribe((result) => {

@@ -7,6 +7,7 @@ import { RoundContextService } from '../api/round-context.service';
 import { AuthService } from '../auth/auth.service';
 import { SessionScopeService } from '../auth/session-scope.service';
 import { UiFeedbackService } from './ui-feedback.service';
+import type { Location } from '../api/master-data.models';
 import { WORKSPACE_PORT, type WorkspaceSnapshot } from './workspace.port';
 
 /** Coherent application-wide read state shared by shell and feature coordinators. */
@@ -23,15 +24,13 @@ export class ApplicationWorkspaceService {
   readonly summary = signal<WorkspaceSnapshot['summary'] | null>(null);
   readonly board = signal<WorkspaceSnapshot['board'] | null>(null);
   readonly masterData = signal<WorkspaceSnapshot['masterData'] | null>(null);
-  readonly candidateWorkspace = signal<WorkspaceSnapshot['candidateWorkspace'] | null>(null);
-  readonly committeeWorkspace = signal<WorkspaceSnapshot['committeeWorkspace'] | null>(null);
-  readonly selectedCommitteeId = signal<number | null>(null);
   readonly message = signal('Bereit');
   readonly loading = signal(false);
   readonly actionBusy = signal(false);
   readonly applicationVersion = signal<string | null>(null);
   readonly masterDataError = signal(false);
   private refreshGeneration = 0;
+  private locationRefreshGeneration = 0;
 
   constructor() {
     this.sessionScope.changes$.subscribe(() => this.clear());
@@ -47,8 +46,6 @@ export class ApplicationWorkspaceService {
       this.summary.set(null);
       this.board.set(null);
       this.masterData.set(null);
-      this.candidateWorkspace.set(null);
-      this.committeeWorkspace.set(null);
     }
     this.masterDataError.set(false);
     this.loading.set(true);
@@ -60,15 +57,7 @@ export class ApplicationWorkspaceService {
         }),
       )
       .subscribe({
-        next: ({
-          applicationVersion,
-          round,
-          summary,
-          board,
-          masterData,
-          candidateWorkspace,
-          committeeWorkspace,
-        }) => {
+        next: ({ applicationVersion, round, summary, board, masterData }) => {
           if (
             generation !== this.refreshGeneration ||
             sessionGeneration !== this.sessionScope.generation() ||
@@ -82,11 +71,6 @@ export class ApplicationWorkspaceService {
           this.summary.set(summary);
           this.board.set(board);
           this.masterData.set(masterData);
-          this.candidateWorkspace.set(candidateWorkspace);
-          this.committeeWorkspace.set(committeeWorkspace);
-          if (!this.selectedCommitteeId()) {
-            this.selectedCommitteeId.set(committeeWorkspace.committees[0]?.id ?? null);
-          }
           if (
             this.router.url.startsWith('/scheduling-overview/') &&
             round.status === 'plan_confirmed'
@@ -118,8 +102,43 @@ export class ApplicationWorkspaceService {
       });
   }
 
-  selectCommittee(id: number | null): void {
-    this.selectedCommitteeId.set(id);
+  /** Refresh only locations in the transitional planning workspace. */
+  refreshLocations(): void {
+    if (!this.board() && !this.masterData()) return;
+    const roundId = this.roundContext.roundId();
+    const generation = ++this.locationRefreshGeneration;
+    const sessionGeneration = this.sessionScope.generation();
+    this.sessionScope.forCurrentSession(this.workspacePort.loadLocations()).subscribe({
+      next: (locations) => {
+        if (
+          generation !== this.locationRefreshGeneration ||
+          sessionGeneration !== this.sessionScope.generation() ||
+          roundId !== this.roundContext.roundId()
+        )
+          return;
+        const board = this.board();
+        if (board) this.board.set(withLocations(board, locations));
+        const masterData = this.masterData();
+        if (masterData) this.masterData.set({ ...masterData, locations });
+      },
+      error: (error: ApplicationError) => {
+        if (
+          generation !== this.locationRefreshGeneration ||
+          sessionGeneration !== this.sessionScope.generation() ||
+          roundId !== this.roundContext.roundId()
+        ) {
+          return;
+        }
+        if (error.kind === 'unauthenticated') this.auth.markAnonymous();
+        else {
+          this.feedback.notify(
+            'error',
+            'Prüfungsorte nicht aktualisiert',
+            'Die angezeigten Planungsdaten bleiben erhalten. Bitte erneut laden.',
+          );
+        }
+      },
+    });
   }
 
   selectExamRound(id: number): void {
@@ -130,17 +149,27 @@ export class ApplicationWorkspaceService {
 
   private clear(): void {
     this.refreshGeneration += 1;
+    this.locationRefreshGeneration += 1;
     this.round.set(null);
     this.summary.set(null);
     this.board.set(null);
     this.masterData.set(null);
-    this.candidateWorkspace.set(null);
-    this.committeeWorkspace.set(null);
-    this.selectedCommitteeId.set(null);
     this.message.set('Bereit');
     this.loading.set(false);
     this.actionBusy.set(false);
     this.applicationVersion.set(null);
     this.masterDataError.set(false);
   }
+}
+
+function withLocations<T extends WorkspaceSnapshot['board']>(board: T, locations: Location[]): T {
+  const byId = new Map(locations.map((location) => [location.id, location]));
+  return {
+    ...board,
+    locations,
+    days: board.days.map((item) => ({
+      ...item,
+      location: byId.get(item.day.location_id),
+    })),
+  };
 }

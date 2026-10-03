@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { Subject } from 'rxjs';
+import { Subject, of } from 'rxjs';
 
 import { RoundContextService } from '../api/round-context.service';
 import { AuthService } from '../auth/auth.service';
@@ -12,6 +12,7 @@ import { WORKSPACE_PORT } from './workspace.port';
 describe('ApplicationWorkspaceService', () => {
   let requests: Subject<unknown>[];
   let loadDashboard: ReturnType<typeof vi.fn>;
+  let loadLocations: ReturnType<typeof vi.fn>;
   let feedback: { notify: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
@@ -21,12 +22,13 @@ describe('ApplicationWorkspaceService', () => {
       requests.push(request);
       return request;
     });
+    loadLocations = vi.fn(() => of([]));
     feedback = { notify: vi.fn() };
 
     TestBed.configureTestingModule({
       providers: [
         provideRouter([]),
-        { provide: WORKSPACE_PORT, useValue: { loadDashboard } },
+        { provide: WORKSPACE_PORT, useValue: { loadDashboard, loadLocations } },
         {
           provide: AuthService,
           useValue: { state: () => 'authenticated', markAnonymous: vi.fn() },
@@ -88,6 +90,18 @@ describe('ApplicationWorkspaceService', () => {
     expect(workspace.loading()).toBe(false);
   });
 
+  it('updates cached location projections with a targeted read only', () => {
+    const workspace = TestBed.inject(ApplicationWorkspaceService);
+    workspace.refresh();
+    requests[0].next(dashboard(1, 'Runde A'));
+    requests[0].complete();
+
+    workspace.refreshLocations();
+
+    expect(loadDashboard).toHaveBeenCalledOnce();
+    expect(loadLocations).toHaveBeenCalledOnce();
+  });
+
   it('clears cached workspace and ignores a response from the previous session', () => {
     const workspace = TestBed.inject(ApplicationWorkspaceService);
     const context = TestBed.inject(RoundContextService);
@@ -104,7 +118,6 @@ describe('ApplicationWorkspaceService', () => {
     requests[0].next(dashboard(1, 'Vorherige Runde'));
     requests[0].complete();
     context.select(8);
-    workspace.selectedCommitteeId.set(6);
     workspace.refresh();
 
     scope.clear();
@@ -113,9 +126,6 @@ describe('ApplicationWorkspaceService', () => {
 
     expect(workspace.round()).toBeNull();
     expect(workspace.masterData()).toBeNull();
-    expect(workspace.candidateWorkspace()).toBeNull();
-    expect(workspace.committeeWorkspace()).toBeNull();
-    expect(workspace.selectedCommitteeId()).toBeNull();
     expect(context.roundId()).toBe(1);
     expect(workspace.loading()).toBe(false);
   });
@@ -126,15 +136,7 @@ function dashboard(id: number, name: string) {
     applicationVersion: 'test',
     round: { id, name, status: 'planning' },
     summary: {},
-    board: {},
-    masterData: { committees: [] },
-    candidateWorkspace: {
-      candidates: [],
-      assignments: [],
-      examRounds: [],
-      committees: [],
-      activeRound: null,
-    },
-    committeeWorkspace: { committees: [], members: [], persons: [] },
+    board: { days: [], locations: [] },
+    masterData: { committees: [], locations: [] },
   };
 }

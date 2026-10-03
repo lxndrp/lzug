@@ -53,9 +53,12 @@ export class DashboardComponent {
   @Input() board: PlanningBoard | null = null;
   @Input() planningResult: PlanningResult | null = null;
   @Input() loading = false;
+  @Input() error = false;
+  @Input() locationRefreshError = false;
   @Input() actionBusy = false;
 
   @Output() openView = new EventEmitter<AppView>();
+  @Output() retry = new EventEmitter<void>();
 
   protected metrics() {
     return [

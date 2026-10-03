@@ -309,6 +309,19 @@
               }
             </header>
 
+            @if (shellContext.error()) {
+              <section class="app-state app-state-error" role="alert">
+                <span>Der aktuelle Prüfungskontext konnte nicht geladen werden.</span>
+                <button
+                  tuiButton
+                  appearance="secondary"
+                  type="button"
+                  (click)="shellContext.refresh()"
+                >
+                  Erneut versuchen
+                </button>
+              </section>
+            }
             @if (isContextualView()) {
               @if (activeContext(); as context) {
                 <section class="app-active-context" aria-labelledby="activeContextHeading">

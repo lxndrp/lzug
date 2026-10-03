@@ -4,6 +4,8 @@ import { Subject, of, throwError } from 'rxjs';
 import { masterDataFixture } from '../testing/fixtures';
 import { toLocationSnapshot } from '../api/http-locations.mapper';
 import { UiFeedbackService } from '../shell/ui-feedback.service';
+import { ApplicationWorkspaceService } from '../shell/application-workspace.service';
+import { DashboardProjectionService } from '../dashboard/dashboard-projection.service';
 import { LOCATIONS_PORT, type LocationsPort } from './locations.port';
 import { VenueWorkflowService } from './venue-workflow.service';
 
@@ -225,7 +227,8 @@ describe('VenueWorkflowService', () => {
       createRoom: vi.fn(() => of({ ...room, consequenceWarning: undefined })),
       decidePromotion: vi.fn(() => of({ ...venue, consequenceWarning: undefined })),
     });
-    const { workflow, feedback } = configure(port);
+    const { workflow, feedback, workspaceRefreshLocations, dashboardRefreshLocations } =
+      configure(port);
 
     workflow.createRoom({
       venueId: venue.id,
@@ -240,6 +243,8 @@ describe('VenueWorkflowService', () => {
       'Prüfungsort hochgestuft',
       venue.name,
     );
+    expect(workspaceRefreshLocations).toHaveBeenCalledTimes(2);
+    expect(dashboardRefreshLocations).toHaveBeenCalledTimes(2);
   });
 
   it('preserves venue deletion guard text and room-impact confirmation behavior', () => {
@@ -325,15 +330,27 @@ function configure(port: LocationsPort, feedbackOverrides: Record<string, unknow
     ...feedback,
     confirm$: feedbackOverrides['confirm$'] ?? vi.fn(() => of(true)),
   };
+  const workspaceRefreshLocations = vi.fn();
+  const dashboardRefreshLocations = vi.fn();
   TestBed.configureTestingModule({
     providers: [
       { provide: LOCATIONS_PORT, useValue: port },
       { provide: UiFeedbackService, useValue: feedbackWithConfirmation },
+      {
+        provide: ApplicationWorkspaceService,
+        useValue: { refreshLocations: workspaceRefreshLocations },
+      },
+      {
+        provide: DashboardProjectionService,
+        useValue: { refreshLocations: dashboardRefreshLocations },
+      },
     ],
   });
   return {
     workflow: TestBed.inject(VenueWorkflowService),
     refresh,
     feedback: feedbackWithConfirmation,
+    workspaceRefreshLocations,
+    dashboardRefreshLocations,
   };
 }

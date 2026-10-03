@@ -32,6 +32,8 @@ import type {
 } from './locations.models';
 import type { VenueViewEffect, VenueViewEffectCommand } from './venue-view-effect';
 import { UiFeedbackService } from '../shell/ui-feedback.service';
+import { ApplicationWorkspaceService } from '../shell/application-workspace.service';
+import { DashboardProjectionService } from '../dashboard/dashboard-projection.service';
 
 /** UI-facing venue workflows, including confirmations and post-save feedback. */
 @Injectable({ providedIn: 'root' })
@@ -39,6 +41,8 @@ export class VenueWorkflowService {
   private readonly port = inject(LOCATIONS_PORT);
   private readonly feedback = inject(UiFeedbackService);
   private readonly sessionScope = inject(SessionScopeService);
+  private readonly workspace = inject(ApplicationWorkspaceService);
+  private readonly dashboard = inject(DashboardProjectionService);
   private readonly pending = signal(false);
   private activeView: symbol | null = null;
   private activeViewEnded: Subject<void> | null = null;
@@ -84,7 +88,7 @@ export class VenueWorkflowService {
           filter((confirmed) => confirmed && this.isCurrentView(view)),
           switchMap(() => defer(() => this.port.deleteVenue(venue.id, venue.revision))),
         ),
-      () => this.completeVenueAction(undefined, 'Prüfungsort gelöscht', venue.name, view),
+      () => this.completeVenueAction(undefined, 'Prüfungsort gelöscht', venue.name, view, true),
       () =>
         this.feedback.notify(
           'error',
@@ -136,6 +140,7 @@ export class VenueWorkflowService {
         this.emitViewEffect(view, { type: 'reset-draft' });
         this.feedback.notify('success', 'Prüfungsort angelegt', venue.name);
         this.refreshView();
+        this.refreshLocationProjections();
       },
       () =>
         this.feedback.notify(
@@ -215,6 +220,7 @@ export class VenueWorkflowService {
           venue.consequenceWarning ?? venue.name,
         );
         this.refreshView();
+        this.refreshLocationProjections();
       },
       () =>
         this.feedback.notify('error', 'Prüfungsort nicht gespeichert', 'Bitte erneut versuchen.'),
@@ -248,6 +254,7 @@ export class VenueWorkflowService {
       'Prüfungsort gelöscht',
       venue.name,
       view,
+      true,
     );
   }
 
@@ -257,6 +264,7 @@ export class VenueWorkflowService {
       'Raum angelegt',
       command.payload.name,
       view,
+      true,
     );
   }
 
@@ -302,7 +310,7 @@ export class VenueWorkflowService {
             return EMPTY;
           }),
         ),
-      (result) => this.completeVenueAction(result, 'Raum gespeichert', '', view),
+      (result) => this.completeVenueAction(result, 'Raum gespeichert', '', view, true),
       () =>
         this.feedback.notify(
           'error',
@@ -318,6 +326,7 @@ export class VenueWorkflowService {
       'Raum gelöscht',
       room.name,
       view,
+      true,
     );
   }
 
@@ -327,6 +336,7 @@ export class VenueWorkflowService {
       'Folgen erneut verarbeitet',
       'Der aktuelle Status wurde geprüft.',
       view,
+      true,
     );
   }
 
@@ -376,6 +386,7 @@ export class VenueWorkflowService {
       command.decision === 'approve' ? 'Prüfungsort hochgestuft' : 'Hochstufung abgelehnt',
       command.venue.name,
       view,
+      command.decision === 'approve',
     );
   }
 
@@ -384,10 +395,11 @@ export class VenueWorkflowService {
     title: string,
     detail: string,
     view: symbol | null,
+    refreshLocations = false,
   ): void {
     this.runOperation(
       request,
-      (result) => this.completeVenueAction(result, title, detail, view),
+      (result) => this.completeVenueAction(result, title, detail, view, refreshLocations),
       () =>
         this.feedback.notify(
           'error',
@@ -402,6 +414,7 @@ export class VenueWorkflowService {
     title: string,
     detail: string,
     view: symbol | null,
+    refreshLocations = false,
   ): void {
     this.finishEditing(-1, view);
     const warning =
@@ -418,6 +431,12 @@ export class VenueWorkflowService {
       warning ?? detail,
     );
     this.refreshView();
+    if (refreshLocations) this.refreshLocationProjections();
+  }
+
+  private refreshLocationProjections(): void {
+    this.dashboard.refreshLocations();
+    this.workspace.refreshLocations();
   }
 
   private runOperation<T>(
