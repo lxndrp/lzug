@@ -26,7 +26,6 @@ def operator() -> AuthContext:
         account_id=2,
         person_id=None,
         is_operator=True,
-        committee_member_id=None,
     )
 
 

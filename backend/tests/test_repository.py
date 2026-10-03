@@ -5,12 +5,12 @@ import unittest
 from sqlalchemy.exc import IntegrityError
 
 from backend.application.repositories import ResourceRepository
+from backend.composition import identity_service
 from backend.persistence.database import session_scope
 from backend.persistence.models import (
     CANDIDATE,
     CANDIDATE_EXAM_DAY,
     COMMITTEE,
-    COMMITTEE_MEMBER,
     EXAM_HALF_YEAR,
     EXAM_ROUND,
     MEMBER_AVAILABILITY,
@@ -18,10 +18,24 @@ from backend.persistence.models import (
     ROUND_CANDIDATE,
     Committee,
 )
-from backend.tests.helpers import TempDatabase
+from backend.tests.helpers import TempDatabase, create_committee_record
 
 
 class RepositoryTests(unittest.TestCase):
+    def test_generic_repository_cannot_mutate_identity_resources(self) -> None:
+        with TempDatabase() as db_path:
+            repository = ResourceRepository(db_path)
+            for operation in (
+                lambda: repository.create(COMMITTEE, {"name": "Generic"}),
+                lambda: repository.update(COMMITTEE, 1, {"name": "Generic"}),
+                lambda: repository.delete(COMMITTEE, 1),
+            ):
+                with (
+                    self.subTest(operation=operation),
+                    self.assertRaisesRegex(ValueError, "Identity resources"),
+                ):
+                    operation()
+
     def test_candidate_list_adds_human_readable_specialization_labels(self) -> None:
         with TempDatabase() as db_path:
             candidates = ResourceRepository(db_path).candidate_list()
@@ -103,15 +117,14 @@ class RepositoryTests(unittest.TestCase):
     def test_candidate_committee_change_preserves_history_and_deactivates_old_round(self) -> None:
         with TempDatabase() as db_path:
             repository = ResourceRepository(db_path)
-            committee = repository.create(
-                COMMITTEE,
+            committee = create_committee_record(
+                db_path,
                 {
                     "name": "Prüfungsausschuss Teststadt 2",
                     "occupation": "Fachinformatiker/in",
                 },
             )
-            member = repository.create(
-                COMMITTEE_MEMBER,
+            member = identity_service(db_path).create_membership(
                 {
                     "person_id": 1,
                     "committee_id": committee["id"],
@@ -194,7 +207,7 @@ class RepositoryTests(unittest.TestCase):
     def test_exam_round_creation_records_deputy_chair_as_actor(self) -> None:
         with TempDatabase() as db_path:
             repository = ResourceRepository(db_path)
-            repository.update_membership(2, {"committee_role": "deputy_chair"})
+            identity_service(db_path).update_membership(2, {"committee_role": "deputy_chair"})
             half_year = repository.create(
                 EXAM_HALF_YEAR,
                 {"season": "summer", "year": 2027, "status": "active"},
@@ -320,7 +333,7 @@ class RepositoryTests(unittest.TestCase):
                 }
             )
 
-            repository.update_membership(
+            identity_service(db_path).update_membership(
                 2,
                 {"committee_role": "deputy_chair", "is_active": 1},
             )
@@ -404,8 +417,8 @@ class RepositoryTests(unittest.TestCase):
     def test_availability_is_shared_by_person_only_within_the_same_half_year(self) -> None:
         with TempDatabase() as db_path:
             repository = ResourceRepository(db_path)
-            committee = repository.create(COMMITTEE, {"name": "PA 2", "occupation": "FI"})
-            membership = repository.create_membership(
+            committee = create_committee_record(db_path, {"name": "PA 2", "occupation": "FI"})
+            membership = identity_service(db_path).create_membership(
                 {
                     "person_id": 1,
                     "committee_id": committee["id"],

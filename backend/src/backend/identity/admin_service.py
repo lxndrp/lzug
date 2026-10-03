@@ -19,20 +19,13 @@ from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 
 from backend.identity.auth import EMAIL_PATTERN, AuthenticationError, AuthenticationRepository
+from backend.identity.errors import AdminOperationError
 from backend.persistence.database import DEFAULT_DB_PATH, session_scope
 from backend.persistence.models import AuthToken, UserAccount
 
 INVITATION_TTL = timedelta(hours=24)
 RECOVERY_TTL = timedelta(minutes=30)
 TokenKind = Literal["invitation", "recovery"]
-
-
-class AdminOperationError(ValueError):
-    """A safe, stable operator operation failure."""
-
-    def __init__(self, code: str, message: str):
-        super().__init__(message)
-        self.code = code
 
 
 @dataclass(frozen=True)

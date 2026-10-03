@@ -267,6 +267,7 @@ def create_session_router(resolved: FastAPIConfig) -> APIRouter:
     )
     def session(context: SessionContext):
         auth = context.auth_context
+        member_ids = context.authorization_scope.member_ids
         return finish(
             context,
             context.respond(
@@ -274,7 +275,7 @@ def create_session_router(resolved: FastAPIConfig) -> APIRouter:
                     "authenticated": True,
                     "account_id": auth.account_id,
                     "person_id": auth.person_id,
-                    "committee_member_id": auth.committee_member_id,
+                    "committee_member_id": min(member_ids) if member_ids else None,
                     "is_operator": auth.is_operator,
                     **resolved.runtime_policy.session_view(context, auth),
                 }

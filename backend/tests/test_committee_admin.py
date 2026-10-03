@@ -11,23 +11,19 @@ from unittest.mock import patch
 import pyotp
 from sqlalchemy import func, select
 
-from backend.application.repositories import ResourceRepository
+from backend.composition import authorization_service, committee_admin_service, identity_service
 from backend.identity.admin_service import AdminOperationError
 from backend.identity.auth import AuthenticationRepository
-from backend.identity.authorization import AuthorizationService
-from backend.identity.committee_admin import CommitteeAdminService
 from backend.identity.local_auth import LocalAuthService
 from backend.persistence.database import session_scope
 from backend.persistence.models import (
-    COMMITTEE,
-    PERSON,
     AuthToken,
     Committee,
     CommitteeAdminOperation,
     Person,
     UserAccount,
 )
-from backend.tests.helpers import TempDatabase
+from backend.tests.helpers import TempDatabase, create_committee_record
 
 
 def new_person(email: str, *, side: str = "employer") -> dict[str, object]:
@@ -68,12 +64,36 @@ class CommitteeAdminTests(unittest.TestCase):
     def setUp(self) -> None:
         self.now = datetime(2026, 8, 30, 10, 0, tzinfo=UTC)
 
+    def test_committee_master_data_update_uses_identity_uow_and_saved_actor(self) -> None:
+        with TempDatabase(with_seed=False) as db_path:
+            service = committee_admin_service(db_path)
+            created = service.bootstrap(bootstrap_arguments(), now=self.now)
+            committee_id = created["committee_id"]
+            actor_id = created["membership_ids"][0]
+            actor_person_id = created["person_ids"][0]
+
+            updated = service.update_master_data(
+                committee_id,
+                {"name": "Prüfungsausschuss Süd"},
+                actor_memberships={committee_id: actor_id},
+                actor_person_id=actor_person_id,
+                now=self.now + timedelta(minutes=1),
+            )
+
+            self.assertIsNotNone(updated)
+            self.assertEqual("Prüfungsausschuss Süd", updated["name"])
+            self.assertEqual("ready", updated["bootstrap_state"])
+            with session_scope(db_path) as session:
+                committee = session.get(Committee, committee_id)
+                self.assertIsNotNone(committee)
+                self.assertEqual("Prüfungsausschuss Süd", committee.name)
+
     def test_bootstrap_creates_complete_committee_and_secret_free_evidence(self) -> None:
         with TempDatabase(with_seed=False) as db_path:
             arguments = bootstrap_arguments()
             arguments["deputy"] = new_person("deputy@example.invalid", side="school")
 
-            result = CommitteeAdminService(db_path).bootstrap(arguments, now=self.now)
+            result = committee_admin_service(db_path).bootstrap(arguments, now=self.now)
 
             self.assertEqual("ready", result["bootstrap_state"])
             self.assertTrue(result["is_active"])
@@ -131,10 +151,8 @@ class CommitteeAdminTests(unittest.TestCase):
 
     def test_existing_person_and_active_linked_account_are_reused(self) -> None:
         with TempDatabase(with_seed=False) as db_path:
-            repository = ResourceRepository(db_path)
-            person = repository.create(
-                resource=PERSON,
-                payload={
+            person = identity_service(db_path).create_person(
+                {
                     "first_name": "Vorhanden",
                     "last_name": "Vorsitz",
                     "email": "existing@example.invalid",
@@ -146,7 +164,7 @@ class CommitteeAdminTests(unittest.TestCase):
             arguments = bootstrap_arguments()
             arguments["chair"] = existing_person("EXISTING@example.invalid")
 
-            result = CommitteeAdminService(db_path).bootstrap(arguments, now=self.now)
+            result = committee_admin_service(db_path).bootstrap(arguments, now=self.now)
 
             self.assertEqual([person["id"]], result["person_ids"])
             self.assertEqual([account["id"]], result["account_ids"])
@@ -163,14 +181,12 @@ class CommitteeAdminTests(unittest.TestCase):
         self,
     ) -> None:
         with TempDatabase(with_seed=False) as db_path:
-            repository = ResourceRepository(db_path)
             selections = {}
             for role, email in (
                 ("chair", "existing.chair@example.invalid"),
                 ("deputy", "existing.deputy@example.invalid"),
             ):
-                person = repository.create(
-                    PERSON,
+                person = identity_service(db_path).create_person(
                     {
                         "first_name": "Vorhanden",
                         "last_name": role.title(),
@@ -185,7 +201,7 @@ class CommitteeAdminTests(unittest.TestCase):
             arguments = bootstrap_arguments()
             arguments["chair"] = selections["chair"]
             arguments["deputy"] = selections["deputy"]
-            result = CommitteeAdminService(db_path).bootstrap(arguments, now=self.now)
+            result = committee_admin_service(db_path).bootstrap(arguments, now=self.now)
 
             self.assertEqual(2, len(result["person_ids"]))
             self.assertEqual(2, len(result["membership_ids"]))
@@ -195,9 +211,7 @@ class CommitteeAdminTests(unittest.TestCase):
 
     def test_same_person_cannot_be_chair_and_deputy(self) -> None:
         with TempDatabase(with_seed=False) as db_path:
-            repository = ResourceRepository(db_path)
-            person = repository.create(
-                PERSON,
+            person = identity_service(db_path).create_person(
                 {
                     "first_name": "Doppelt",
                     "last_name": "Gewählt",
@@ -212,7 +226,7 @@ class CommitteeAdminTests(unittest.TestCase):
             arguments["deputy"] = existing_person("same@example.invalid")
 
             with self.assertRaises(AdminOperationError) as raised:
-                CommitteeAdminService(db_path).bootstrap(arguments, now=self.now)
+                committee_admin_service(db_path).bootstrap(arguments, now=self.now)
 
             self.assertEqual("person_conflict", raised.exception.code)
             with closing(sqlite3.connect(db_path)) as connection, connection:
@@ -222,9 +236,7 @@ class CommitteeAdminTests(unittest.TestCase):
 
     def test_conflicting_account_requires_explicit_clarification_and_rolls_back(self) -> None:
         with TempDatabase(with_seed=False) as db_path:
-            repository = ResourceRepository(db_path)
-            repository.create(
-                PERSON,
+            identity_service(db_path).create_person(
                 {
                     "first_name": "Ziel",
                     "last_name": "Person",
@@ -236,7 +248,7 @@ class CommitteeAdminTests(unittest.TestCase):
             arguments["chair"] = existing_person("conflict@example.invalid")
 
             with self.assertRaisesRegex(AdminOperationError, "requires clarification") as raised:
-                CommitteeAdminService(db_path).bootstrap(arguments, now=self.now)
+                committee_admin_service(db_path).bootstrap(arguments, now=self.now)
 
             self.assertEqual("account_conflict", raised.exception.code)
             with closing(sqlite3.connect(db_path)) as connection, connection:
@@ -256,9 +268,7 @@ class CommitteeAdminTests(unittest.TestCase):
 
     def test_operator_account_cannot_become_committee_leadership(self) -> None:
         with TempDatabase(with_seed=False) as db_path:
-            repository = ResourceRepository(db_path)
-            person = repository.create(
-                PERSON,
+            person = identity_service(db_path).create_person(
                 {
                     "first_name": "Technik",
                     "last_name": "Operator",
@@ -272,16 +282,14 @@ class CommitteeAdminTests(unittest.TestCase):
             arguments["chair"] = existing_person("operator.person@example.invalid")
 
             with self.assertRaises(AdminOperationError) as raised:
-                CommitteeAdminService(db_path).bootstrap(arguments, now=self.now)
+                committee_admin_service(db_path).bootstrap(arguments, now=self.now)
 
             self.assertEqual("account_conflict", raised.exception.code)
 
     def test_wrongly_linked_and_inactive_accounts_are_clarification_conflicts(self) -> None:
         for case in ("wrongly_linked", "inactive"):
             with self.subTest(case=case), TempDatabase(with_seed=False) as db_path:
-                repository = ResourceRepository(db_path)
-                target = repository.create(
-                    PERSON,
+                target = identity_service(db_path).create_person(
                     {
                         "first_name": "Ziel",
                         "last_name": "Person",
@@ -290,8 +298,7 @@ class CommitteeAdminTests(unittest.TestCase):
                 )
                 authentication = AuthenticationRepository(db_path)
                 if case == "wrongly_linked":
-                    other = repository.create(
-                        PERSON,
+                    other = identity_service(db_path).create_person(
                         {
                             "first_name": "Andere",
                             "last_name": "Person",
@@ -308,7 +315,7 @@ class CommitteeAdminTests(unittest.TestCase):
                 arguments["chair"] = existing_person("target@example.invalid")
 
                 with self.assertRaises(AdminOperationError) as raised:
-                    CommitteeAdminService(db_path).bootstrap(arguments, now=self.now)
+                    committee_admin_service(db_path).bootstrap(arguments, now=self.now)
 
                 self.assertEqual("account_conflict", raised.exception.code)
                 with closing(sqlite3.connect(db_path)) as connection, connection:
@@ -319,7 +326,7 @@ class CommitteeAdminTests(unittest.TestCase):
 
     def test_idempotent_replay_omits_secret_and_changed_input_conflicts(self) -> None:
         with TempDatabase(with_seed=False) as db_path:
-            service = CommitteeAdminService(db_path)
+            service = committee_admin_service(db_path)
             arguments = bootstrap_arguments()
             first = service.bootstrap(arguments, now=self.now)
             replay = service.bootstrap(arguments, now=self.now + timedelta(minutes=1))
@@ -346,7 +353,7 @@ class CommitteeAdminTests(unittest.TestCase):
 
     def test_concurrent_identical_bootstrap_issues_secret_once(self) -> None:
         with TempDatabase(with_seed=False) as db_path:
-            service = CommitteeAdminService(db_path)
+            service = committee_admin_service(db_path)
             arguments = bootstrap_arguments("concurrent-001")
 
             with ThreadPoolExecutor(max_workers=2) as executor:
@@ -374,7 +381,7 @@ class CommitteeAdminTests(unittest.TestCase):
             arguments["deputy"] = new_person("chair@example.invalid", side="school")
 
             with self.assertRaises(AdminOperationError):
-                CommitteeAdminService(db_path).bootstrap(arguments, now=self.now)
+                committee_admin_service(db_path).bootstrap(arguments, now=self.now)
 
             with closing(sqlite3.connect(db_path)) as connection, connection:
                 for table in (
@@ -393,8 +400,8 @@ class CommitteeAdminTests(unittest.TestCase):
 
     def test_legacy_committee_can_be_completed_once_without_changing_master_data(self) -> None:
         with TempDatabase(with_seed=False) as db_path:
-            committee = ResourceRepository(db_path).create(
-                COMMITTEE,
+            committee = create_committee_record(
+                db_path,
                 {
                     "name": "Altbestand",
                     "ihk": "IHK Bestand",
@@ -407,7 +414,7 @@ class CommitteeAdminTests(unittest.TestCase):
                 "chair": new_person("legacy.chair@example.invalid"),
             }
 
-            result = CommitteeAdminService(db_path).complete(arguments, now=self.now)
+            result = committee_admin_service(db_path).complete(arguments, now=self.now)
 
             self.assertEqual("ready", result["bootstrap_state"])
             with closing(sqlite3.connect(db_path)) as connection, connection:
@@ -420,12 +427,12 @@ class CommitteeAdminTests(unittest.TestCase):
             changed_key = dict(arguments)
             changed_key["idempotency_key"] = "complete-002"
             with self.assertRaises(AdminOperationError) as raised:
-                CommitteeAdminService(db_path).complete(changed_key, now=self.now)
+                committee_admin_service(db_path).complete(changed_key, now=self.now)
             self.assertEqual("committee_conflict", raised.exception.code)
 
     def test_expired_invitation_is_reissued_and_previous_token_invalidated(self) -> None:
         with TempDatabase(with_seed=False) as db_path:
-            service = CommitteeAdminService(db_path)
+            service = committee_admin_service(db_path)
             created = service.bootstrap(bootstrap_arguments(), now=self.now)
             old_token = created["invitations"][0]["token"]
             reinvited = service.reinvite(
@@ -456,7 +463,7 @@ class CommitteeAdminTests(unittest.TestCase):
 
     def test_reinvitation_rolls_back_token_replacement_when_evidence_fails(self) -> None:
         with TempDatabase(with_seed=False) as db_path:
-            service = CommitteeAdminService(db_path)
+            service = committee_admin_service(db_path)
             created = service.bootstrap(bootstrap_arguments(), now=self.now)
             arguments = {
                 "idempotency_key": "reinvite-rollback",
@@ -480,7 +487,7 @@ class CommitteeAdminTests(unittest.TestCase):
 
     def test_concurrent_reinvitation_issues_one_secret_and_one_operation(self) -> None:
         with TempDatabase(with_seed=False) as db_path:
-            service = CommitteeAdminService(db_path)
+            service = committee_admin_service(db_path)
             created = service.bootstrap(bootstrap_arguments(), now=self.now)
             arguments = {
                 "idempotency_key": "reinvite-concurrent",
@@ -510,7 +517,7 @@ class CommitteeAdminTests(unittest.TestCase):
         with TempDatabase(with_seed=False) as db_path:
             arguments = bootstrap_arguments()
             arguments["deputy"] = new_person("deputy@example.invalid", side="school")
-            created = CommitteeAdminService(db_path).bootstrap(arguments, now=self.now)
+            created = committee_admin_service(db_path).bootstrap(arguments, now=self.now)
             local_auth = LocalAuthService(db_path)
 
             for invitation in created["invitations"]:
@@ -529,7 +536,7 @@ class CommitteeAdminTests(unittest.TestCase):
                 credentials = authentication.create_session(account_id)
                 context = authentication.authenticate(credentials.token)
                 assert context is not None
-                scope = AuthorizationService(db_path).scope(context)
+                scope = authorization_service(db_path).scope(context)
                 self.assertEqual({created["committee_id"]}, set(scope.committee_ids))
                 self.assertEqual({created["committee_id"]}, set(scope.management_committee_ids))
 
@@ -537,7 +544,7 @@ class CommitteeAdminTests(unittest.TestCase):
         self,
     ) -> None:
         with TempDatabase(with_seed=False) as db_path:
-            service = CommitteeAdminService(db_path)
+            service = committee_admin_service(db_path)
             first = service.bootstrap(bootstrap_arguments("bootstrap-first"), now=self.now)
             person_id = first["person_ids"][0]
             with session_scope(db_path) as session:
@@ -556,7 +563,7 @@ class CommitteeAdminTests(unittest.TestCase):
             assert context is not None
             self.assertEqual(
                 {first["committee_id"], second["committee_id"]},
-                set(AuthorizationService(db_path).scope(context).committee_ids),
+                set(authorization_service(db_path).scope(context).committee_ids),
             )
 
             service.deactivate(
@@ -570,7 +577,7 @@ class CommitteeAdminTests(unittest.TestCase):
             self.assertIsNotNone(authentication.authenticate(credentials.token))
             self.assertEqual(
                 {second["committee_id"]},
-                set(AuthorizationService(db_path).scope(context).committee_ids),
+                set(authorization_service(db_path).scope(context).committee_ids),
             )
 
             service.reactivate(
@@ -583,16 +590,16 @@ class CommitteeAdminTests(unittest.TestCase):
             )
             self.assertEqual(
                 {first["committee_id"], second["committee_id"]},
-                set(AuthorizationService(db_path).scope(context).committee_ids),
+                set(authorization_service(db_path).scope(context).committee_ids),
             )
 
     def test_unresolved_committee_cannot_be_reactivated(self) -> None:
         with TempDatabase(with_seed=False) as db_path:
-            committee = ResourceRepository(db_path).create(
-                COMMITTEE,
+            committee = create_committee_record(
+                db_path,
                 {"name": "Ungeklärt", "ihk": "IHK Test", "occupation": "Testberuf"},
             )
-            service = CommitteeAdminService(db_path)
+            service = committee_admin_service(db_path)
             service.deactivate(
                 {
                     "idempotency_key": "deactivate-unresolved",
@@ -615,7 +622,9 @@ class CommitteeAdminTests(unittest.TestCase):
 
     def test_evidence_contains_no_authentication_material(self) -> None:
         with TempDatabase(with_seed=False) as db_path:
-            created = CommitteeAdminService(db_path).bootstrap(bootstrap_arguments(), now=self.now)
+            created = committee_admin_service(db_path).bootstrap(
+                bootstrap_arguments(), now=self.now
+            )
             token = created["invitations"][0]["token"]
             with session_scope(db_path) as session:
                 evidence = session.scalar(select(CommitteeAdminOperation))

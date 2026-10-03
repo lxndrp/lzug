@@ -16,7 +16,13 @@ from backend.persistence.database import session_scope
 from backend.persistence.models import COMMITTEE, COMMITTEE_MEMBER, PERSON
 from backend.persistence.store import Store
 from backend.tests.fixture_data import DISPLAY_NAMES, FIXTURE_IDS, FIXTURE_ROOT
-from backend.tests.helpers import ApiServer, TempDatabase, TestLzugHandler, assert_status
+from backend.tests.helpers import (
+    ApiServer,
+    TempDatabase,
+    TestLzugHandler,
+    assert_status,
+    create_committee_record,
+)
 
 
 class StaticTestHandler(TestLzugHandler):
@@ -63,6 +69,37 @@ class ApiTests(unittest.TestCase):
                 unchanged = Store(session).get(COMMITTEE_MEMBER, member["id"])
             self.assertEqual(committee["id"], unchanged["committee_id"])
             self.assertEqual(person["id"], unchanged["person_id"])
+
+    def test_membership_delete_uses_identity_and_returns_no_content(self) -> None:
+        with TempDatabase() as db_path:
+            with session_scope(db_path) as session:
+                store = Store(session)
+                person = store.create(
+                    PERSON,
+                    {
+                        "first_name": "Löschbare",
+                        "last_name": "Mitgliedschaft",
+                        "email": "delete.membership@demo.lzug.invalid",
+                    },
+                )
+                membership = store.create(
+                    COMMITTEE_MEMBER,
+                    {
+                        "committee_id": 1,
+                        "person_id": person["id"],
+                        "member_status": "ordinary",
+                        "committee_role": "member",
+                        "representing_side": "employer",
+                        "is_active": 1,
+                    },
+                )
+            with ApiServer(db_path) as api:
+                status, body = api.request("DELETE", f"/api/members/{membership['id']}")
+                assert_status(status, HTTPStatus.NO_CONTENT)
+                self.assertIsNone(body)
+                status, body = api.request("GET", f"/api/members/{membership['id']}")
+            assert_status(status, HTTPStatus.NOT_FOUND)
+            self.assertEqual("Not found", body["error"])
 
     def test_static_files_and_spa_fallback_do_not_hide_api_or_assets(self) -> None:
         with TemporaryDirectory() as directory, TempDatabase() as db_path:
@@ -824,11 +861,8 @@ class ApiTests(unittest.TestCase):
 
     def test_candidate_committee_change_is_visible_as_history_over_http(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:
-            from backend.application.repositories import ResourceRepository
-            from backend.persistence.models import COMMITTEE
-
-            ResourceRepository(db_path).create(
-                COMMITTEE,
+            create_committee_record(
+                db_path,
                 {
                     "name": "Prüfungsausschuss Teststadt 2",
                     "occupation": "Fachinformatiker/in",

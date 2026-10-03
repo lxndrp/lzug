@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import hashlib
 import hmac
-import re
 import secrets
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -18,11 +17,11 @@ from typing import Any
 
 from sqlalchemy import select
 
+from backend.identity.validation import EMAIL_PATTERN
 from backend.persistence.database import DEFAULT_DB_PATH, session_scope
-from backend.persistence.models import AuthSession, CommitteeMember, ExamRound, UserAccount
+from backend.persistence.models import AuthSession, UserAccount
 
 SESSION_TTL = timedelta(hours=8)
-EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 class AuthenticationError(ValueError):
@@ -48,7 +47,6 @@ class AuthContext:
     account_id: int
     person_id: int | None
     is_operator: bool
-    committee_member_id: int | None
 
 
 def _now(value: datetime | None = None) -> datetime:
@@ -164,7 +162,7 @@ class AuthenticationRepository:
             account = self._active_account(session, auth_session.account_id)
             if account is None:
                 return None
-            return self._context(session, auth_session, account)
+            return self._context(auth_session, account)
 
     def verify_csrf(self, context: AuthContext, csrf_token: str | None) -> bool:
         if not csrf_token or len(csrf_token) > 256:
@@ -175,37 +173,6 @@ class AuthenticationRepository:
                 auth_session
                 and hmac.compare_digest(auth_session.csrf_token_hash, _digest(csrf_token))
             )
-
-    def member_for_committee(self, context: AuthContext, committee_id: int) -> int | None:
-        """Resolve the authenticated person to a membership in one committee."""
-        if context.person_id is None:
-            return None
-        with session_scope(self.db_path) as session:
-            return session.scalars(
-                select(CommitteeMember.id)
-                .where(
-                    CommitteeMember.person_id == context.person_id,
-                    CommitteeMember.committee_id == committee_id,
-                    CommitteeMember.is_active == 1,
-                )
-                .order_by(CommitteeMember.id)
-            ).first()
-
-    def member_for_round(self, context: AuthContext, round_id: int) -> int | None:
-        """Resolve the authenticated person to the round's committee membership."""
-        if context.person_id is None:
-            return None
-        with session_scope(self.db_path) as session:
-            return session.scalars(
-                select(CommitteeMember.id)
-                .join(ExamRound, ExamRound.committee_id == CommitteeMember.committee_id)
-                .where(
-                    context.person_id == CommitteeMember.person_id,
-                    ExamRound.id == round_id,
-                    CommitteeMember.is_active == 1,
-                )
-                .order_by(CommitteeMember.id)
-            ).first()
 
     def rotate_session(
         self,
@@ -284,23 +251,12 @@ class AuthenticationRepository:
         account = session.get(UserAccount, account_id)
         return account if account and account.is_active else None
 
-    def _context(self, session, auth_session: AuthSession, account: UserAccount) -> AuthContext:
-        member_id = None
-        if account.person_id is not None:
-            member_id = session.scalars(
-                select(CommitteeMember.id)
-                .where(
-                    CommitteeMember.person_id == account.person_id,
-                    CommitteeMember.is_active == 1,
-                )
-                .order_by(CommitteeMember.id)
-            ).first()
+    def _context(self, auth_session: AuthSession, account: UserAccount) -> AuthContext:
         return AuthContext(
             session_id=auth_session.id,
             account_id=account.id,
             person_id=account.person_id,
             is_operator=bool(account.is_operator),
-            committee_member_id=member_id,
         )
 
     def _revoke_account_sessions(self, session, account_id: int, reason: str) -> int:

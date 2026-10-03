@@ -18,7 +18,9 @@ from fastapi.testclient import TestClient
 from backend.fastapi_assembly import FastAPIConfig, create_app
 from backend.identity.auth import AuthenticationRepository, SessionCredentials
 from backend.integrations.map_provider import MapProviderConfig
-from backend.persistence.database import initialize, is_ready
+from backend.persistence.database import initialize, is_ready, session_scope
+from backend.persistence.models import COMMITTEE
+from backend.persistence.store import Store
 from backend.runtime_policy import ProductRuntimePolicy, RuntimePolicy
 from backend.security import RequestRateLimiter
 
@@ -37,6 +39,12 @@ def copy_database_template(db_path: Path, seed_sql: str) -> None:
         initialize(template, seed_sql=seed_sql, reset=True)
         _DATABASE_TEMPLATES[key] = template
     shutil.copyfile(template, db_path)
+
+
+def create_committee_record(db_path: Path, values: dict[str, Any]) -> dict[str, Any]:
+    """Create committee fixture data without using the generic application repository."""
+    with session_scope(db_path) as session:
+        return Store(session).create(COMMITTEE, values)
 
 
 def run_admin(payload: bytes, **services: Any) -> int:

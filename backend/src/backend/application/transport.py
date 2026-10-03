@@ -36,7 +36,9 @@ from backend.execution.exam_protocols import ExamProtocolService
 from backend.execution.exam_round_lifecycle import ExamRoundLifecycleService
 from backend.identity.auth import AuthContext, AuthenticationRepository, SessionCredentials
 from backend.identity.authorization import AuthorizationScope, AuthorizationService
+from backend.identity.committee_admin import CommitteeAdminService
 from backend.identity.local_auth import LocalAuthService
+from backend.identity.people import IdentityService
 from backend.integrations.calendar import CalendarService
 from backend.integrations.notifications import NotificationService
 from backend.observability import emit_event
@@ -71,6 +73,9 @@ class RequestContext:
     runtime_policy: RuntimePolicy
     candidate_day_service_factory: Callable[[Path], CandidateDayService]
     resource_access_query_factory: Callable[[Path], ResourceAccessQueryFactory]
+    identity_service_factory: Callable[[Path], IdentityService]
+    authorization_service_factory: Callable[[Path], AuthorizationService]
+    committee_admin_service_factory: Callable[[Path], CommitteeAdminService]
     auth_rate_limiter: RequestRateLimiter
     observability_rate_limiter: RequestRateLimiter
     observability_global_rate_limiter: RequestRateLimiter
@@ -87,7 +92,19 @@ class RequestContext:
 
     @property
     def repository(self) -> ResourceRepository:
-        return ResourceRepository(self.db_path, self.resource_access_query_factory(self.db_path))
+        queries = self.resource_access_query_factory(self.db_path)
+        return ResourceRepository(
+            self.db_path,
+            queries,
+        )
+
+    @property
+    def identity_service(self) -> IdentityService:
+        return self.identity_service_factory(self.db_path)
+
+    @property
+    def committee_admin_service(self) -> CommitteeAdminService:
+        return self.committee_admin_service_factory(self.db_path)
 
     @property
     def resource_access_queries(self) -> ResourceAccessQueryFactory:
@@ -107,7 +124,7 @@ class RequestContext:
 
     @property
     def authorization_service(self) -> AuthorizationService:
-        return AuthorizationService(self.db_path)
+        return self.authorization_service_factory(self.db_path)
 
     @property
     def local_auth_service(self) -> LocalAuthService:

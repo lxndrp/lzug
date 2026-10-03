@@ -22,6 +22,7 @@ from backend.application.transport import (
     UnsupportedMediaTypeError,
 )
 from backend.assessment.exam_results import ExamResultConflictError
+from backend.errors import TransactionConflictError, TransactionUnavailableError
 from backend.execution.exam_day_closures import ExamDayConflictError, ExamDayValidationError
 from backend.execution.exam_protocols import ExamProtocolConflictError
 from backend.execution.exam_round_lifecycle import ExamRoundConflictError, ExamRoundValidationError
@@ -635,6 +636,23 @@ def _request_validation_result(
     return ApplicationResult({"error": message}, HTTPStatus.BAD_REQUEST)
 
 
+def _register_transaction_errors(app):
+    @app.exception_handler(TransactionConflictError)
+    def transaction_conflict(_request: Request, _error: TransactionConflictError):
+        return _json_response(
+            ApplicationResult({"error": "Database constraint violated."}, HTTPStatus.CONFLICT)
+        )
+
+    @app.exception_handler(TransactionUnavailableError)
+    def transaction_unavailable(_request: Request, _error: TransactionUnavailableError):
+        return _json_response(
+            ApplicationResult(
+                {"error": "The database is busy; retry the request."},
+                HTTPStatus.SERVICE_UNAVAILABLE,
+            )
+        )
+
+
 def _register_request_errors(app, resolved, application, read_security, write_security):
     @app.exception_handler(ExamVenueConflictError)
     def exam_venue_conflict(_request: Request, error: ExamVenueConflictError):
@@ -704,6 +722,7 @@ def _register_request_errors(app, resolved, application, read_security, write_se
 
 
 def _register_transport_and_errors(app, resolved, application, read_security, write_security):
+    _register_transaction_errors(app)
     _register_transport_guard(app, resolved, application, read_security, write_security)
     _register_authentication_errors(app, resolved, application, read_security, write_security)
     _register_planning_errors(app, resolved, application, read_security, write_security)

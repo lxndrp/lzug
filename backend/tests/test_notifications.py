@@ -16,8 +16,8 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from pywebpush import WebPushException
 from requests.exceptions import Timeout
 
+from backend.composition import authorization_service
 from backend.identity.auth import AuthenticationRepository
-from backend.identity.authorization import AuthorizationService
 from backend.integrations.notifications import (
     DELIVERY_CLAIM_TTL,
     ClaimedDelivery,
@@ -55,7 +55,7 @@ class NotificationServiceTests(unittest.TestCase):
         credentials = self.authentication.create_session(account_id)
         context = self.authentication.authenticate(credentials.token)
         assert context is not None
-        return AuthorizationService(self.db_path).scope(context)
+        return authorization_service(self.db_path).scope(context)
 
     def create_pending_sink(self) -> int:
         with closing(sqlite3.connect(self.db_path)) as connection, connection:

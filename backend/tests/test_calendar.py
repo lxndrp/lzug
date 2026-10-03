@@ -6,8 +6,8 @@ from unittest.mock import patch
 from icalendar import Calendar
 from sqlalchemy import select, text
 
+from backend.composition import authorization_service
 from backend.identity.auth import AuthenticationRepository
-from backend.identity.authorization import AuthorizationService
 from backend.integrations.calendar import CalendarService
 from backend.persistence.database import connect, session_scope
 from backend.persistence.models import (
@@ -27,7 +27,7 @@ class CalendarServiceTests(unittest.TestCase):
         credentials = authentication.create_session(1)
         context = authentication.authenticate(credentials.token)
         assert context is not None
-        return AuthorizationService(db_path).scope(context)
+        return authorization_service(db_path).scope(context)
 
     def _confirmed_database(self):
         database = TempDatabase()

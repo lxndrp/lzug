@@ -48,7 +48,7 @@ class ApplicationServices:
     readiness_probe: Callable[[Path], dict[str, object]] = database_readiness
     repository_factory: Callable[[Path], ResourceRepository] = ResourceRepository
     authentication_factory: Callable[[Path], AuthenticationRepository] = AuthenticationRepository
-    authorization_factory: Callable[[Path], AuthorizationService] = AuthorizationService
+    authorization_factory: Callable[[Path], AuthorizationService] | None = None
 
 
 class ReadApplication:
@@ -95,6 +95,10 @@ class ReadApplication:
         context = self.services.authentication_factory(self.db_path).authenticate(token)
         if context is None:
             raise AuthenticationRequiredError
+        if self.services.authorization_factory is None:
+            raise RuntimeError(
+                "Authorization service factory must be injected by the composition root"
+            )
         scope = self.services.authorization_factory(self.db_path).scope(context)
         if not scope.has_active_membership:
             raise ForbiddenRequestError("Forbidden.")

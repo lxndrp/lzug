@@ -146,6 +146,30 @@ Die Ausführung eines Fachbefehls bleibt eine eigene Servicetransaktion.
 Session, CSRF, Actor, Ausschuss-Scope und Fehlerübersetzung liegen am
 HTTP-Rand, während der synchrone Anwendungskern frameworkunabhängig bleibt.
 
+`identity.people` besitzt Ports für Personen- und Membership-Schreibvorgänge
+sowie Login- und Actor-Projektionen.
+`persistence.identity` implementiert sie für SQLite und projiziert
+Mitgliedschaften für Listen über die bestehende Query-Grenze aus #1072.
+`composition` wählt beide Identity-Adapter.
+Personen- und Membership-Änderungen öffnen ihren Schreib-UoW über Identity;
+die Membership-Autorisierung verwendet darin die Ownership-Abfragen aus #1072
+und prüft die gespeicherte Actor-Mitgliedschaft, ihre Managementrolle und die
+authentisierte Person erneut.
+Der HTTP-Rand übergibt Actor-Membership-IDs und die authentisierte Person-ID
+als Werte.
+`identity.committee_admin` verwendet ebenfalls einen Identity-eigenen UoW-Port
+für Ausschuss-Masterdaten und ihre PATCH-/DELETE-Routen sowie für Bootstrap,
+Abschluss, Wiedereinladung und Ausschuss-Lifecycle.
+Seine Committee-, Person-, Membership-, Account-, Invitation- und
+Operationsergebnisse sind strukturelle Werte; SQLAlchemy-Objekte verlassen
+Persistence nicht.
+`AuthorizationService` baut seinen serverseitigen Scope aus der Identity-
+Membership-Projektion auf.
+Die SQLite-Projektionen sind unveränderliche, strukturell kompatible Werte;
+Persistence importiert die Identity-Porttypen dafür nur unter
+`TYPE_CHECKING`.
+Planning behält Kandidaten- und Rundenregeln.
+
 Die Kandidatentage sind der erste Planning-Port-Pilot:
 `backend.planning.candidate_days` enthält den typisierten Generierungsbefehl,
 das Ergebnis, die Providerabstraktion und den Unit-of-Work-Vertrag ohne
