@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+from contextlib import AbstractContextManager
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+from sqlalchemy.orm import Session
 
 from backend.application.resource_access import (
     ResourceAccessQueryFactory,
@@ -37,10 +40,7 @@ from backend.persistence.models import (
     ROUND_CANDIDATE,
     Resource,
 )
-from backend.persistence.resource_access import (
-    SQLiteResourceAccessQueries,
-    SQLiteResourceAccessQueryFactory,
-)
+from backend.persistence.resource_access import SQLiteResourceAccessQueryFactory
 from backend.persistence.store import Store
 from backend.planning.exam_venues import room_is_usable_for_committee
 
@@ -106,11 +106,16 @@ class ResourceRepository:
 
         authorizer = ResourceAuthorizer(self.access_queries, scope)
         return authorizer.authorize_with_queries(
-            SQLiteResourceAccessQueries(store),
+            self.access_queries.for_transaction(store),
             ResourceKind(resource.table),
             resource_id,
             payload,
         )
+
+    def _authorization_session_scope(
+        self, scope: AuthorizationScope | None
+    ) -> AbstractContextManager[Session]:
+        return session_scope(self.db_path, begin_immediate=scope is not None)
 
     def list(self, resource: Resource) -> list[dict[str, Any]]:
         with session_scope(self.db_path) as session:
@@ -192,7 +197,7 @@ class ResourceRepository:
             ValueError: If the payload violates a resource invariant or names
                 an unknown field.
         """
-        with session_scope(self.db_path) as session:
+        with self._authorization_session_scope(authorization_scope) as session:
             store = Store(session)
             payload = self._authorize_mutation(store, resource, None, payload, authorization_scope)
             if resource in PLAN_AGGREGATE_RESOURCES:
@@ -225,7 +230,7 @@ class ResourceRepository:
         In particular, an assignment update cannot bypass person-wide conflict
         checks by changing only one of its fields.
         """
-        with session_scope(self.db_path) as session:
+        with self._authorization_session_scope(authorization_scope) as session:
             store = Store(session)
             payload = self._authorize_mutation(
                 store, resource, resource_id, payload, authorization_scope
@@ -272,7 +277,7 @@ class ResourceRepository:
         *,
         authorization_scope: AuthorizationScope | None = None,
     ) -> dict[str, Any]:
-        with session_scope(self.db_path) as session:
+        with self._authorization_session_scope(authorization_scope) as session:
             store = Store(session)
             payload = self._authorize_mutation(
                 store, COMMITTEE_MEMBER, None, payload, authorization_scope
@@ -286,7 +291,7 @@ class ResourceRepository:
         *,
         authorization_scope: AuthorizationScope | None = None,
     ) -> dict[str, Any] | None:
-        with session_scope(self.db_path) as session:
+        with self._authorization_session_scope(authorization_scope) as session:
             store = Store(session)
             payload = self._authorize_mutation(
                 store, COMMITTEE_MEMBER, member_id, payload, authorization_scope
@@ -517,7 +522,7 @@ class ResourceRepository:
         *,
         authorization_scope: AuthorizationScope | None = None,
     ) -> bool:
-        with session_scope(self.db_path) as session:
+        with self._authorization_session_scope(authorization_scope) as session:
             store = Store(session)
             self._authorize_mutation(store, resource, resource_id, {}, authorization_scope)
             if resource in PLAN_AGGREGATE_RESOURCES:
@@ -538,7 +543,7 @@ class ResourceRepository:
         *,
         authorization_scope: AuthorizationScope | None = None,
     ) -> dict[str, Any]:
-        with session_scope(self.db_path) as session:
+        with self._authorization_session_scope(authorization_scope) as session:
             store = Store(session)
             payload = self._authorize_mutation(store, CANDIDATE, None, payload, authorization_scope)
             candidate = store.create(CANDIDATE, payload)
@@ -559,7 +564,7 @@ class ResourceRepository:
         *,
         authorization_scope: AuthorizationScope | None = None,
     ) -> dict[str, Any] | None:
-        with session_scope(self.db_path) as session:
+        with self._authorization_session_scope(authorization_scope) as session:
             store = Store(session)
             payload = self._authorize_mutation(
                 store, CANDIDATE, candidate_id, payload, authorization_scope
@@ -685,7 +690,7 @@ class ResourceRepository:
         *,
         authorization_scope: AuthorizationScope | None = None,
     ) -> dict[str, Any]:
-        with session_scope(self.db_path) as session:
+        with self._authorization_session_scope(authorization_scope) as session:
             store = Store(session)
             payload = self._authorize_mutation(
                 store, PLANNING_SETTINGS, None, payload, authorization_scope
@@ -706,7 +711,7 @@ class ResourceRepository:
         *,
         authorization_scope: AuthorizationScope | None = None,
     ) -> dict[str, Any] | None:
-        with session_scope(self.db_path) as session:
+        with self._authorization_session_scope(authorization_scope) as session:
             store = Store(session)
             payload = self._authorize_mutation(
                 store, PLANNING_SETTINGS, settings_id, payload, authorization_scope
@@ -725,7 +730,7 @@ class ResourceRepository:
         *,
         authorization_scope: AuthorizationScope | None = None,
     ) -> dict[str, Any] | None:
-        with session_scope(self.db_path) as session:
+        with self._authorization_session_scope(authorization_scope) as session:
             store = Store(session)
             payload = self._authorize_mutation(
                 store, EXAM_ROUND, round_id, payload, authorization_scope
@@ -764,7 +769,7 @@ class ResourceRepository:
         *,
         authorization_scope: AuthorizationScope | None = None,
     ) -> dict[str, Any]:
-        with session_scope(self.db_path) as session:
+        with self._authorization_session_scope(authorization_scope) as session:
             store = Store(session)
             payload = self._authorize_mutation(
                 store, MEMBER_AVAILABILITY, None, payload, authorization_scope
@@ -791,7 +796,7 @@ class ResourceRepository:
         *,
         authorization_scope: AuthorizationScope | None = None,
     ) -> dict[str, Any] | None:
-        with session_scope(self.db_path) as session:
+        with self._authorization_session_scope(authorization_scope) as session:
             store = Store(session)
             payload = self._authorize_mutation(
                 store, MEMBER_AVAILABILITY, availability_id, payload, authorization_scope
@@ -810,7 +815,7 @@ class ResourceRepository:
         *,
         authorization_scope: AuthorizationScope | None = None,
     ) -> bool:
-        with session_scope(self.db_path) as session:
+        with self._authorization_session_scope(authorization_scope) as session:
             store = Store(session)
             self._authorize_mutation(store, CANDIDATE, candidate_id, {}, authorization_scope)
             store.delete_where(CANDIDATE_COMMITTEE_ASSIGNMENT, candidate_id=candidate_id)

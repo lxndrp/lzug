@@ -184,6 +184,12 @@ class SQLiteResourceAccessQueryFactory:
         with read_session_scope(self.db_path) as session:
             yield SQLiteResourceAccessQueries(Store(session))
 
+    def for_transaction(self, transaction: object) -> SQLiteResourceAccessQueries:
+        """Bind to a repository-owned Store without opening another session."""
+        if not isinstance(transaction, Store):
+            raise TypeError("SQLite resource queries require a repository Store")
+        return SQLiteResourceAccessQueries(transaction)
+
 
 class SQLiteResourceAccessQueries:
     """Materialize resource ownership and visibility without leaking SQLAlchemy."""
@@ -310,7 +316,7 @@ class SQLiteResourceAccessQueries:
             member = self._store.first(COMMITTEE_MEMBER, person_id=resource_id)
             return member["committee_id"] if member else None
         if resource == _ResourceKind.EXAM_HALF_YEAR:
-            exam_round = self._store.first(EXAM_ROUND, exam_half_year_id=values.exam_half_year_id)
+            exam_round = self._store.first(EXAM_ROUND, exam_half_year_id=resource_id)
         else:
             exam_round = self._store.get(EXAM_ROUND, round_id)
         return exam_round.get("committee_id") if exam_round else None

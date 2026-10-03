@@ -133,9 +133,12 @@ class ResourceAccessQueries(Protocol):
 
 
 class ResourceAccessQueryFactory(Protocol):
-    """Open one consistent read snapshot for related authorization queries."""
+    """Bind resource queries to a read snapshot or caller-owned write UoW."""
 
     def snapshot(self) -> AbstractContextManager[ResourceAccessQueries]: ...
+
+    def for_transaction(self, transaction: object) -> ResourceAccessQueries:
+        """Bind queries to an opaque, caller-owned write transaction."""
 
 
 def reference_changes(payload: Mapping[str, object]) -> tuple[ResourceReferenceChange, ...]:

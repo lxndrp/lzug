@@ -138,6 +138,9 @@ Technische Abfragefehler bleiben von fachlichen `ForbiddenRequestError`-
 Entscheidungen unterscheidbar.
 Die generischen Schreibübergänge prüfen veränderliche Ownership-Voraussetzungen
 zusätzlich mit demselben Query-Vertrag innerhalb ihrer Schreibtransaktion.
+Bei scoped HTTP-Schreibvorgängen beginnt SQLite den Schreib-UoW mit
+`BEGIN IMMEDIATE`, damit keine konkurrierende Ownership-Änderung zwischen
+Revalidierung und Mutation committet.
 Die vorherige HTTP-Prüfung ersetzt diese UoW-Prüfung nicht.
 Die Ausführung eines Fachbefehls bleibt eine eigene Servicetransaktion.
 Session, CSRF, Actor, Ausschuss-Scope und Fehlerübersetzung liegen am

@@ -6,6 +6,7 @@ import sqlite3
 import unittest
 from contextlib import closing, contextmanager
 from dataclasses import replace
+from threading import Event, Thread
 
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
@@ -349,10 +350,16 @@ class ResourceAccessTests(unittest.TestCase):
         with self.access_queries.snapshot() as queries:
             owner = queries.ownership(ResourceKind.CANDIDATE_EXAM_DAY, self.own[CANDIDATE_EXAM_DAY])
             rows = queries.list_visible(ResourceKind.CANDIDATE_EXAM_DAY, self.scope)
+            round_row = queries.ownership(ResourceKind.EXAM_ROUND, 1)
+            half_year = queries.ownership(
+                ResourceKind.EXAM_HALF_YEAR, round_row.references.exam_half_year_id
+            )
 
         self.assertIsInstance(owner, ResourceOwnership)
         self.assertEqual((1, 1), (owner.committee_id, owner.round_id))
         self.assertTrue(owner.exists)
+        self.assertIsNotNone(half_year.committee_id)
+        self.assertIsNone(half_year.round_id)
         self.assertTrue(all(isinstance(row, dict) for row in rows))
         self.assertTrue(all(not hasattr(row, "_sa_instance_state") for row in rows))
 
@@ -412,6 +419,71 @@ class ResourceAccessTests(unittest.TestCase):
             with self.assertRaisesRegex(ForbiddenRequestError, "^Forbidden\\.$"):
                 self.repository.update_membership(1, payload, authorization_scope=self.scope)
         self.assertEqual(1, len(sessions))
+
+    def test_write_recheck_serializes_ownership_reads_with_mutation(self) -> None:
+        destination_committee = self.repository.create(
+            COMMITTEE,
+            {"name": "Weiteres Komitee", "occupation": "FI", "bootstrap_state": "ready"},
+        )["id"]
+        authorization_complete = Event()
+        allow_mutation = Event()
+        writer_started = Event()
+        writer_finished = Event()
+        errors: list[BaseException] = []
+        original_authorize = self.repository._authorize_mutation
+
+        def pause_after_authorization(*args, **kwargs):
+            result = original_authorize(*args, **kwargs)
+            if kwargs.get("scope") is self.scope or args[-1] is self.scope:
+                authorization_complete.set()
+                if not allow_mutation.wait(5):
+                    raise TimeoutError("timed out waiting to finish the authorized mutation")
+            return result
+
+        self.repository._authorize_mutation = pause_after_authorization
+
+        def update_membership() -> None:
+            try:
+                self.repository.update_membership(
+                    1, {"member_status": "ordinary"}, authorization_scope=self.scope
+                )
+            except BaseException as error:
+                errors.append(error)
+
+        def move_membership() -> None:
+            writer_started.set()
+            try:
+                with session_scope(self.db_path) as session:
+                    Store(session).update(
+                        COMMITTEE_MEMBER, 1, {"committee_id": destination_committee}
+                    )
+            except BaseException as error:
+                errors.append(error)
+            finally:
+                writer_finished.set()
+
+        mutation = Thread(target=update_membership)
+        move = Thread(target=move_membership)
+        mutation.start()
+        self.assertTrue(authorization_complete.wait(5))
+        move.start()
+        try:
+            self.assertTrue(writer_started.wait(5))
+            self.assertFalse(
+                writer_finished.wait(0.2),
+                "a competing ownership write committed after authorization but before mutation",
+            )
+        finally:
+            allow_mutation.set()
+            mutation.join(5)
+            move.join(5)
+
+        self.assertFalse(mutation.is_alive())
+        self.assertFalse(move.is_alive())
+        self.assertEqual([], errors)
+        member = self.repository.get(COMMITTEE_MEMBER, 1)
+        self.assertEqual(destination_committee, member["committee_id"])
+        self.assertEqual("ordinary", member["member_status"])
 
     def test_allowed_candidate_round_change_checks_target_scope(self) -> None:
         with self.assertRaisesRegex(ForbiddenRequestError, "^Forbidden\\.$"):
