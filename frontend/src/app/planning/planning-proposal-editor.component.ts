@@ -56,7 +56,10 @@ export class PlanningProposalEditorComponent implements OnChanges {
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['proposal'] && this.proposal) {
       const currentDraft = this.draft();
+      const saveAcknowledged =
+        changes['state']?.previousValue === 'saving' && changes['state']?.currentValue === 'ready';
       if (
+        saveAcknowledged ||
         !currentDraft ||
         !this.proposalBaseline ||
         this.sameProposal(currentDraft, this.proposalBaseline) ||

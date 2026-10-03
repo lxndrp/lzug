@@ -99,7 +99,14 @@ export class PlanningWorkflowService {
       this.sessionScope.generation();
       const view = this.activeView;
       const roundId = this.activeRoundId;
-      if (authenticated && view && roundId !== null && !this.snapshot() && !this.loading()) {
+      if (
+        authenticated &&
+        view &&
+        roundId !== null &&
+        !this.snapshot() &&
+        !this.loading() &&
+        !this.loadError()
+      ) {
         this.loadPlanning(roundId, view);
       }
     });
@@ -167,6 +174,7 @@ export class PlanningWorkflowService {
 
   private resetForSessionChange(): void {
     this.snapshot.set(null);
+    this.loadError.set(false);
     this.lastResult.set(null);
     this.lastResultRoundId = null;
     this.candidateDayGeneration.set(null);
@@ -755,6 +763,7 @@ export class PlanningWorkflowService {
     this.proposalLoad?.unsubscribe();
     this.proposalLoad = undefined;
     this.loading.set(false);
+    this.loadError.set(false);
     this.viewEffects.set([]);
     this.snapshot.set(null);
     this.lastResult.set(null);

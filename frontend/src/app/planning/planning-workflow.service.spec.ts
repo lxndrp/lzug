@@ -558,6 +558,41 @@ describe('PlanningWorkflowService', () => {
     expect(workflow.snapshot()?.round.id).toBe(1);
   });
 
+  it('does not bootstrap-loop after an initial planning read fails', () => {
+    const { workflow, port } = createHarness({
+      loadPlanning: vi.fn(() => throwError(() => new Error('offline'))),
+    });
+    const view = Symbol('planning-view');
+
+    workflow.activateView(view, 1);
+    TestBed.flushEffects();
+
+    expect(port.loadPlanning).toHaveBeenCalledOnce();
+    expect(workflow.loadError()).toBe(true);
+  });
+
+  it('clears the failed-read gate and reloads after a new session is established', () => {
+    const sessionChanges = new Subject<{ previousEstablished: boolean; established: boolean }>();
+    const { workflow, port } = createHarness({
+      sessionScopeChanges: sessionChanges,
+      loadPlanning: vi
+        .fn()
+        .mockReturnValueOnce(throwError(() => new Error('offline')))
+        .mockReturnValueOnce(of(emptySnapshot(1))),
+    });
+    const view = Symbol('planning-view');
+
+    workflow.activateView(view, 1);
+    expect(workflow.loadError()).toBe(true);
+
+    sessionChanges.next({ previousEstablished: true, established: false });
+    expect(workflow.loadError()).toBe(false);
+    sessionChanges.next({ previousEstablished: false, established: true });
+
+    expect(port.loadPlanning).toHaveBeenCalledTimes(2);
+    expect(workflow.snapshot()?.round.id).toBe(1);
+  });
+
   it('waits for an authenticated session before loading planning data', () => {
     const authState = signal<'checking' | 'authenticated'>('checking');
     const { workflow, port } = createHarness({ authState });

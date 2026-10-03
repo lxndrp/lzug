@@ -157,7 +157,7 @@ export class PlanningRouteComponent implements OnDestroy {
   }
 
   protected reloadPlanning(): void {
-    if (this.roundId !== null) this.activate(this.roundId);
+    if (this.roundId !== null) this.workflow.activateView(this.viewId, this.roundId);
   }
 
   private activate(roundId: number): void {

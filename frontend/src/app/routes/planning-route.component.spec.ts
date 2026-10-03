@@ -31,4 +31,31 @@ describe('PlanningRouteComponent', () => {
     expect(activations.map(([, roundId]) => roundId)).toEqual([1, 2, 1]);
     expect(new Set(activations.map(([view]) => view)).size).toBe(3);
   });
+
+  it('retries planning with the existing route view token', () => {
+    const routeData = new Subject<Record<string, unknown>>();
+    const workflow = { activateView: vi.fn(), deactivateView: vi.fn() };
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: ActivatedRoute, useValue: { data: routeData } },
+        { provide: Router, useValue: { navigateByUrl: vi.fn() } },
+        {
+          provide: AuthService,
+          useValue: { session: () => null, hasCapability: () => false },
+        },
+        { provide: PlanningWorkflowService, useValue: workflow },
+      ],
+    });
+
+    const route = TestBed.runInInjectionContext(() => new PlanningRouteComponent()) as unknown as {
+      reloadPlanning(): void;
+    };
+    routeData.next({ roundId: 1 });
+    const originalView = workflow.activateView.mock.calls[0][0];
+
+    route.reloadPlanning();
+
+    expect(workflow.activateView).toHaveBeenLastCalledWith(originalView, 1);
+    expect(workflow.activateView).toHaveBeenCalledTimes(2);
+  });
 });
