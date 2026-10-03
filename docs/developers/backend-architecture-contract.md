@@ -73,6 +73,11 @@ flowchart TB
   persistence -.->|"implements ports owned by"| notifications
   persistence -.->|"implements ports owned by"| documents
   persistence -.->|"implements ports owned by"| operations
+  identity -.->|"implements port owned by"| planning
+  identity -.->|"implements port owned by"| calendar
+  identity -.->|"implements port owned by"| execution
+  execution -.->|"implements port owned by"| planning
+  execution -.->|"implements port owned by"| calendar
   planning -.->|"implements port owned by"| calendar
   planning -.->|"implements diagnostic port owned by"| operations
   documents -.->|"implements diagnostic port owned by"| operations
@@ -152,27 +157,36 @@ keinen Adapter.
 | Eigentümer / Konsument | Port und Fähigkeit | Commands, Ergebnis und beobachtbarer Fehler | UoW und Lebensdauer | Aktueller Adapter / Übergang |
 | --- | --- | --- | --- | --- |
 | `planning` | Planungsdaten lesen und ändern | Availability, Proposal, ConfirmedPlan; `PlanValidationError`, Revision-/Konfliktfehler; Reads liefern materialisierte Snapshots | Planbestätigung umfasst CAS, Planaggregate, Revision und Audit atomar; UoW pro Use Case | `PlanningService` und `ResourceRepository` über `Store`; Persistence-Port wird in Planning-Phase 2 eingeführt |
+| `planning` | Verfügbarkeit anfragen und Planning-Folgequelle festschreiben | Idempotenter Command wechselt `draft` zu `availability_requested` und liefert stabile Origin-ID, typisierte Notice-Beschreibung, die beim Übergang geltende Deadline und die damals ausgewählten aktiven Membership-IDs; fehlende Runde, ungültiger Status, fehlende Frist, fehlende Planning-Einstellungen oder kein aktiver Kandidatentag bleiben fachliche Fehler. Planning fragt den Membership-Snapshot über einen Planning-eigenen Identity-Port ab | Statuswechsel, Audit/Übergangsquelle, Deadline, Notice-Beschreibung und ursprünglicher Empfängersnapshot committen atomar im selben Planning-UoW. Application speichert danach den Auftrag und replayt exakt diesen Inhalt und diese Empfänger-IDs; es rekonstruiert Empfänger nicht aus späteren Memberships. Ob die IDs beim Zustellversuch aktuell versandberechtigt sind, bleibt #1079 überlassen, ohne hier eine Suppressionspolicy festzulegen | `PlanningService.request_availabilities` speichert heute nur den Status; `fastapi_planning_router` versucht die Benachrichtigung danach direkt und best-effort. Nach Handoff ersetzt Application den direkten Aufruf und restauriert fehlende Ursprünge aus Planning-Übergangsquellen |
 | `planning` | Kandidatentage und Feiertage | Generierungsbefehl liefert Kandidatentage und Validierungsbefunde; Providerfehler sind als nicht verfügbare Feiertagsquelle erkennbar | Reiner Berechnungsteil ist ohne DB; Konfiguration/Verfügbarkeit wird beim Aufruf gelesen | `CandidateDayService` plus `HolidayProvider` aus ADR-0008; Provideradapter verbleibt unter `integrations` |
 | `planning` | Prüfungsrunden, Kandidaten und Prüfungszeiträume | Queries liefern materialisierte Runden-, Kandidaten- und Halbjahres-Snapshots; ein Round-Create-Command legt ein benötigtes Halbjahr nur als Teil der Rundenerstellung an. Es gibt keinen eigenständigen Halbjahres-Update-/Delete-Befehl; Scope, Referenzkonflikt und Validierung der Rundenerstellung sind explizit | Rundenrevision, Entscheidung, Kandidatenstatus, Audit und Halbjahresanlage atomar in einem Planning-UoW | `ResourceRepository`, `_resolve_exam_round_half_year`; allgemeine CRUD-Routen sind Übergang. Direkte Halbjahres-Schreibzugriffe sind derzeit durch `ResourceAuthorizer` verboten und werden nach Übernahme der unterstützten Planning-Commands entfernt |
 | `planning` | Prüfungsorte, Geokodierung und Planfolgen | Venue-Commands liefern Venue-/Room-/Contact-Snapshot oder Fachfehler; Geokodierung nimmt Venue-ID und erwartete Revision und liefert Koordinatenkandidaten samt Quelle oder unterscheidet fehlenden Ort, Revisionskonflikt, deaktivierten Provider, `timeout`, `quota`, `provider_error`, `not_found` und `invalid_response`; sie persistiert keine Koordinaten | Venueänderung und Audit gemeinsam; Geokodierung autorisiert und prüft Revision vor Provider-I/O, sendet nur die Adressdarstellung, und läuft außerhalb eines Schreib-UoW. Folgen werden mit stabilen Aufträgen abgeleitet, externe Arbeit danach | `ExamVenueService`, `ExamVenueApi`, `NominatimGeocoder`, `VenueConsequenceService`; Planning-Port ersetzt Route-Service-Kopplung, Provideradapter verbleibt unter `integrations` |
 | `planning` | Plan-/Ortsfolgen ableiten und erneut bereitstellen | Planning liefert aus einer bestätigten Planrevision oder unveränderlichen Venue-Audit-ID deterministisch typisierte Folgeauftragsbeschreibungen mit stabiler Ursprungsidentität; Ableitungsfehler bleiben von Fehlern einzelner Folgemodule unterscheidbar | Ableitung bleibt nach dem Domain-Commit wiederholbar; dauerhafter Folgeauftragszustand und Claim/Retry liegen beim konsumierenden Application-Modul. Unveränderliche Revisions-/Auditdaten bleiben die Quelle zum Wiederaufbau fehlender Application-Aufträge | `PlanConsequenceService`, `VenueConsequenceService`; heutige Planning-eigene Batch-/Taskpersistenz und direkte Kalenderaufrufe werden nach Handoff entfernt |
-| `execution` | Anwesenheit, Abwesenheit und Vertretung | Befehle liefern aktuellen Zustands-Snapshot oder Konflikt-/Validierungs-/Berechtigungsfehler; Auswahl bleibt serverseitig zulässig. Calendar-Folgen gehen als typisierte Beschreibung mit stabiler Audit-/Ursprungs-ID an Application | Zustandswechsel, Actor-Bindung und Audit atomar; Application-Auftrag folgt danach separat. Execution kann aus seiner unveränderlichen Auditquelle die Beschreibung wieder bereitstellen | `AbsenceService`, `ResourceRepository`; direkte Calendar-Aufrufe werden nach Handoff an Application entfernt |
+| `execution` | Anwesenheit, Abwesenheit und Vertretung | Befehle liefern aktuellen Zustands-Snapshot oder Konflikt-/Validierungs-/Berechtigungsfehler; Auswahl bleibt serverseitig zulässig. Calendar- und Notification-Folgen gehen als typisierte Beschreibung mit stabiler Ursprungs-ID an Application. Nur wenn der Prüfungstag beim Mutation-Commit offen ist, enthält die unveränderliche `select_replacement`-Calendar-Before-Image-Quelle den atomar gebundenen Guard-Snapshot `closure_status == "open"` sowie Assignment-ID, vorherige Empfänger-Membership-ID und materialisierten Eventinhalt und monoton steigende per-Assignment-Execution-Folgeversion; Generationen gehören ausschließlich Calendar. Bei `reopen` beschreibt sie die Wiederherstellung des ursprünglichen Assignees und die Ablösung des Ersatz-Events. Ist der Status beim Mutation-Commit `reopening`, entstehen weder Before-Image noch Calendar-Quelle. Für Notification-Folgen gehören die ursprünglichen Empfänger-IDs zur Beschreibung | Zustandswechsel, Actor-Bindung, Audit und unveränderliche Calendar-/Notification-Folgequelle mit Before-Image und ursprünglichen Empfänger-IDs committen atomar. Application orchestriert `select_replacement` aus Planning-, Identity- und Execution-Ports innerhalb eines gemeinsamen UoW und committet Read-Snapshots, Mutation, Audit und Quelle atomar. Application replayt eine vorhandene `select_replacement`-Quelle einschließlich ihres gespeicherten `open`-Guard-Snapshots ohne den inzwischen veränderlichen Tagesstatus neu zu bewerten. Calendar erstellt aus diesem autorisierten Before-Image auch ohne vorherige Projektion eine stornierte Eventzeile für den alten Empfänger; danach wird die neue Zuweisungssicht mit derselben Execution-Folgeversion synchronisiert. Bei einer Mutation im Status `reopening` gibt es keine Calendar-Quelle und keinen Projektionseffekt | `AbsenceService`, `ResourceRepository`; heutiges `select_replacement` synchronisiert vor und nach der Mutation nur bei offenem Prüfungstag, `reopen` nach dem Commit ebenfalls nur bei offenem Prüfungstag. Direkte Calendar-/Notification-Aufrufe werden nach Handoff an Application entfernt |
+| `execution` (Port-Eigner/Konsument; `identity` implementiert) | Ursprüngliche Notification-Empfänger für Execution-Commands lesen | Liefert Membership-IDs der nach dem bestehenden Committee-/Rollen-Scope benachrichtigten Personen für Abwesenheits-`report`/`respond`, `select_replacement` und Prüfungstags-Lifecycle-Commands; bei `replacement_selected` umfasst sie den bisherigen Assignee, das ausgewählte Ersatzmitglied und alle übrigen aktiven Ausschussmitglieder. Keine Namen oder weiteren Personendaten. Der Snapshot gehört zum auslösenden Zustand und wird nie beim Replay neu berechnet. Die Planning-eigene Rundungsabsage bezieht ihre Management-IDs im Application-UoW separat über Identity | Identity-Snapshot, Execution-Mutation, Actor-Bindung, Audit und unveränderliche Folgequelle mit Notice-Beschreibung und exakt diesen ursprünglichen Empfänger-IDs teilen den Execution-UoW; bei `select_replacement` teilen Planning, Identity und Execution denselben Application-UoW. Bei anderen Cross-Domain-Lifecycle-Commands gilt derselbe gemeinsame Application-UoW für die beteiligten Module. Die Rundungsabsage-Notice-Quelle gehört ausschließlich Planning | Heute lesen `AbsenceService` und `ExamDayClosureService` Identity-Tabellen direkt über `_management_member_ids` bzw. Rollenabfragen; der Execution-Port wird von Identity implementiert. Rundungsabsage-Empfänger werden aus Planning-, Identity- und Calendar-Read-Snapshots durch Application vereinigt |
 | `execution` | Protokoll und Tagesabschluss/Wiederöffnung | Versionierte Mutationen liefern bestätigte Revision bzw. Findings; CAS-Konflikt, ungültiger Übergang und fehlende Berechtigung bleiben unterscheidbar | CAS, Einträge, Audit, Korrekturen, Wiedereröffnungsaufgaben und stale-export-Marker gemeinsam atomar | `ExamProtocolService`, `ExamDayClosureService` und `ResourceRepository`; freie Ressourcenmutationen werden nach Route-/CLI-Migration entfernt |
-| `application` | Prüfungsrunden-Cross-Domain-Lifecycle | `close`, `cancel`, `reopening_impact`, `reopen` und Export liefern materialisierte Lifecycle-/Exportsnapshots oder fachliche Konflikt-, Validierungs- und Berechtigungsfehler; Application enthält keine Lifecycle-Regeln | Orchestrierung bindet Planning-Rundenentscheidung/-revision, Execution-Tages-/Slotfolgen und Wiederöffnungsaufgaben sowie benötigte Assessment-Ergebnis-Snapshots an einen gemeinsamen UoW-Kontext; alle Persistence-Adapter teilen intern dieselbe Session und committen nicht selbst. Notification und Kalenderprojektion folgen dem jeweiligen Domain-Commit | `ExamRoundLifecycleService` wird in Application-Orchestrierung plus Planning-, Execution- und Assessment-Ports zerlegt. Human-Export rendert der HTTP-Adapter nach dem UoW mit `presentation.exam_exports` aus bereits autorisierten, materialisierten Werten |
+| `planning` | Assignment eines Prüfungstags neu zuweisen oder wiederherstellen | Commands `reassign_assignment` und `restore_assignment` nehmen Assignment-ID, erwartete Revision, erwartete aktuelle Membership-ID und Ziel-Membership-ID an; Reassignment validiert die neue Ziel-Membership, Restore darf die gespeicherte ursprüngliche Membership-ID auch dann wiederherstellen, wenn sie inzwischen inaktiv ist. Sie liefern den neuen Snapshot oder stabile Revisions-/Mitgliedschafts-/Tagesstatuskonflikte. Die Mutation verlangt Execution-Mutationsberechtigung für einen offenen Tag oder für den explizit wiedereröffneten Scope bei passender Revision; ein offener Tag-Guard ist keine Voraussetzung für die Planning-Schreibberechtigung | Planning-CAS, Assignment-Änderung und Audit laufen im gemeinsamen Application-UoW mit Identity-/Execution-Reads sowie Execution-Mutation und unveränderlicher Folgequelle; Reopen stellt den gespeicherten ursprünglichen Membership-Bezug über denselben Planning-Port wieder her | `select_replacement` und `reopen` ändern heute `ExamDayAssignment.committee_member_id` direkt aus `AbsenceService`; diese Writes werden in Planning-Commands verschoben |
+| `application` | Ersatzzuweisung auswählen (`select_replacement`) | Application bindet Execution-Report-Snapshot und verfügbare Response, Planning-Assignment-/Candidate-Day-Snapshot, Identity-Membership-Snapshot und Execution-Mutationsberechtigung samt Tagesrevision. Für die unveränderliche `replacement_selected`-Notification-Quelle bezieht es zusätzlich über den Execution-owned Identity-Port die nach bisherigem Verhalten ausgewählten Empfänger-IDs: bisheriger Assignee, Ersatzmitglied und übrige aktive Ausschussmitglieder. Der Report muss den erlaubten Status haben, versionsaktuell sein und vor Prüfungsbeginn liegen, außer im autorisierten `reopening`-Scope. Die Zielantwort muss aktuell `available` sein; Ziel-Membership und Committee-Zugehörigkeit müssen aktiv sein, und die Vertretungsseite muss passen, außer die Zielzuweisung greift gemäß bestehender Regel als Fallback. Der aktuelle Day-Part-Snapshot muss Doppelbesetzung, bestehende Zuweisung und Konflikte ausschließen; die Fallback-Rolle behält ihre spezifischen Prüfungen. Abgelehnte, nicht verfügbare, inaktive, seitenfalsche oder inzwischen doppelt/konfliktbehaftete Kandidaten werden abgewiesen. Fehlender Scope, ungültige Antwort, Revisionskonflikt, fehlende Verfügbarkeit und unzulässiger Tagesstatus bleiben unterscheidbare Fachfehler | Alle genannten Read-Snapshots einschließlich Notification-Empfänger, Planning-Zuweisungsänderung mit CAS auf Assignment-Revision und vorherige Membership-ID, Execution-Mutation, Audit und unveränderliche Calendar-/Notification-Folgequellen teilen den Application-UoW; Planning prüft die erwartete Ziel-Membership im selben UoW erneut. Ein offener Tag erzeugt die Calendar-Before-Image-Quelle; ein autorisierter `reopening`-Scope darf Report und Planning-Assignment korrigieren, erzeugt aber keine Calendar-Quelle. Keine Domäne liest fremde Tabellen direkt oder öffnet eine zusätzliche Session | Der heutige `AbsenceService` liest Planning-/Identity-Daten und ändert das Planning-Assignment direkt; diese Abhängigkeiten werden nach Übernahme durch Application-Ports entfernt |
+| `application` | Prüfungsrunden-Cross-Domain-Lifecycle | `close`, `cancel`, `reopening_impact`, `reopen` und Export liefern materialisierte Lifecycle-/Exportsnapshots oder fachliche Konflikt-, Validierungs- und Berechtigungsfehler; Application enthält keine Lifecycle-Regeln | Orchestrierung bindet Planning-Rundenentscheidung/-revision, Execution-Tages-/Slotfolgen und Wiederöffnungsaufgaben sowie benötigte Assessment-Ergebnis-Snapshots an einen gemeinsamen UoW-Kontext; vor `cancel` liest Application Planning-Zuweisungen, Identity-Rollen und über Calendar aktive künftige Projektions-Empfänger. Planning speichert die vereinigten Empfänger-IDs, `decision_date`, Notice-Beschreibung und die alleinige Cancellation-Folgequelle mit der Rundungsentscheidung. Execution besitzt die unveränderlichen Notice-Quellen anderer Execution-eigener Zustandswechsel; für dieselbe Rundungsabsage erzeugt es keine zweite Quelle. Alle Persistence-Adapter teilen intern dieselbe Session und committen nicht selbst. Application übernimmt und re-drived die unveränderliche Quelle des jeweiligen Fachmoduls nach dem Domain-Commit | `ExamRoundLifecycleService` wird in Application-Orchestrierung plus Planning-, Execution-, Assessment- und Calendar-Ports zerlegt. Human-Export rendert der HTTP-Adapter nach dem UoW mit `presentation.exam_exports` aus bereits autorisierten, materialisierten Werten |
 | `application` | Prüfungstags-Lifecycle über Execution und Assessment | `close` liefert Execution-Tagesergebnis unter Berücksichtigung des Assessment-Readiness-Snapshots; `reopen` liefert Impact und atomare Korrekturen. Scope-, Revisions-, readiness- und Impactkonflikte bleiben unterscheidbar | Application orchestriert Execution-Tagesstatus und Assessment-Bewertung/Korrektur in einem gemeinsamen UoW; Dayrevision/Audit/Wiedereröffnung und Resultrevision/Korrekturstatus/-Audit committen gemeinsam. Benachrichtigungen folgen erst nach dem Domain-Commit | `ExamDayClosureService.close`, `_evaluate` und `_open_result_correction` lesen bzw. ändern derzeit Assessment-Modelle/Ergebnisse direkt in der Execution-Session; wird in Execution- und Assessment-Ports aufgeteilt |
-| `application` | Prüfungssummen-Abfrage | Typisierter Query liefert Rundenstatus/-name, Halbjahr, Planungssettings, aktive Kandidaten-/MEP-Zahlen, Verfügbarkeit und autorisierten Ausschussnamen; Mitgliedschaft/Committee-Scope wird vor Ausgabe geprüft. Die bestehenden HTTP-Status bleiben erhalten: nicht authentisiert `401`, verbotener Scope `403`, fehlende Summary nach erfolgreicher Scope-Prüfung `404`. Heute führt eine bereits fehlende Runde wegen `can_read_committee(None)` vor dem Summary-Read zu `403`; der `404`-Zweig ist nach erfolgreicher Scope-Prüfung erreichbar, etwa wenn die Runde zwischen den heutigen UoWs verschwindet. Die HATEOAS-Antwort bleibt erhalten | Ein gemeinsamer schreibfreier Read-Snapshot umfasst Planning- und Identity-Snapshots; keine ORM-Werte verlassen Adapter | `ReadApplication.round_summary`, `ResourceRepository.round_summary`, `GET /api/round-summary`; der heutige Pfad fragt Scope und Summary in getrennten `ResourceRepository`-UoWs ab; generischer Read-Pfad wird nach Portmigration entfernt |
-| `application` | Dauerhafter Zustand und Wiederanlauf modulübergreifender Folgeaufträge | Konsumenten-Port speichert stabile Ursprungs-/Folgeschlüssel, Claim, Retry, Ergebnis und Fehlerzuordnung; Ergebnis unterscheidet erledigt, erneut versuchen und terminalen Fehler. Wiederholung derselben Quelle erzeugt keinen zweiten Folgeauftrag; fehlende Queue-Einträge und Ableitungsfehler sind beobachtbar | Application speichert den Folgeauftrag nach dem auslösenden Domain-Commit in seinem eigenen UoW; Claim wird vor Kalender-/Provider-I/O committed, Completion/Retry danach separat. Der erneut ausgelöste Verarbeitungslauf (`lzug-admin notification process`) gleicht bestätigte Planrevisionen, Venue-Auditquellen und betroffene Execution-Lifecycle-/Auditquellen mit Application-Ursprüngen ab; fehlende Beschreibungen werden deterministisch mit demselben stabilen Schlüssel erneut abgeleitet und gespeichert. Automatischer Startup-Hook oder Hintergrundworker ist damit nicht beauftragt. Kein Folgefehler rollt die bestätigte Fachänderung zurück | #1081 verlangt consumer-eigenen Zustand und Restart-Prüfung; heutige Planning-Batch-/Taskpersistenz und weitere direkte Orchestrierung werden nach Handoff entfernt |
-| `application` | Geplante Benachrichtigungserzeugung | Use Case liest fällige Reminder-/Deadline-Snapshots über Planning-Port und ruft danach Notifications-Commands für fachlich definierte Ereignisse auf; Fehler und leere Läufe bleiben beobachtbar | Verarbeitung läuft beim expliziten Admin-Befehl `lzug-admin notification process`; Notifications werden nach dem auslösenden Fach-Commit gespeichert/zugestellt. Kein automatischer Worker oder Startup-Aufruf ist Teil des Vertrags | Heute `process_due_events` in `NotificationService`; direkte Reads von Planning-Runden werden durch Planning-Snapshot-Port plus Application-Orchestrierung ersetzt |
-| `planning` | Rundenentscheidung, Kandidatenabschluss und IHK-Dokumentstatus | Planning-Commands liefern Rundensnapshot, bestätigte Entscheidung/Revision, Kandidatenstatus und IHK-Dokumentstatus oder Konflikt-, Validierungs- und Berechtigungsfehler; Planning besitzt auch Entwurfsrundenlöschung | Revisionsprüfung, Planning-eigene Entscheidung, Kandidaten-/Dokumentstatus und Audit atomar; Halbjahres-Update/-Delete sind keine eigenständigen Commands | Der aktuelle `ExamRoundLifecycleService` greift direkt auf Planning- und weitere Tabellen zu; wird auf Planning-Port und UoW begrenzt |
-| `execution` | Rundenfolgen, Tages-/Slotstatus und Wiederöffnung | Port liefert betroffene Tages-/Slot-Snapshots sowie Execution-eigene fachliche Wiederöffnungsaufgaben oder Konflikt-/Validierungsfehler. Kalenderfolgeaufträge werden nicht hier persistiert; ihre Ursprungsidentität ergibt sich aus unveränderlicher Lifecycle-/Audit-ID | Tages-/Slotänderungen, Audit und Execution-eigene fachliche Wiederöffnungsaufgaben im gemeinsamen Cross-Domain-UoW; Application-Folgeaufträge entstehen danach separat und sind aus der Lifecycle-/Auditquelle wieder ableitbar | `ExamRoundLifecycleService`, `ExamDayClosureService`; direkte Lifecycle-ORM-Mutationen werden nach Portübernahme entfernt |
+| `application` | Prüfungssummen-Abfrage | Typisierter Query liefert Rundenstatus/-name, Halbjahr, Planungssettings, aktive Kandidaten-/MEP-Zahlen, Verfügbarkeit und autorisierten Ausschussnamen; Mitgliedschaft/Committee-Scope wird vor Ausgabe geprüft. Nicht authentisiert ergibt `401`; verbotener Scope und eine fehlende Runde ergeben `403`, weil für eine fehlende Runde kein Committee-Scope autoritativ feststeht. Die HATEOAS-Antwort bleibt erhalten | Ein gemeinsamer schreibfreier Read-Snapshot umfasst Planning- und Identity-Snapshots; keine ORM-Werte verlassen Adapter | `ReadApplication.round_summary`, `ResourceRepository.round_summary`, `GET /api/round-summary`; der heutige getrennte Scope- und Summary-Read kann bei Verschwinden der Runde zwischen den UoWs noch `404` liefern. Diese Legacy-Race entfällt nach Portmigration |
+| `application` | Dauerhafter Zustand und Wiederanlauf modulübergreifender Folgeaufträge | Konsumenten-Port speichert stabile Ursprungs-/Folgeschlüssel, Claim, Retry, Ergebnis und Fehlerzuordnung; Ergebnis unterscheidet erledigt, erneut versuchen und terminalen Fehler. Wiederholung derselben Quelle erzeugt keinen zweiten Folgeauftrag; fehlende Queue-Einträge und Ableitungsfehler sind beobachtbar | Application speichert den Folgeauftrag nach dem auslösenden Domain-Commit in seinem eigenen UoW; Claim wird vor Kalender-/Provider-I/O committed, Completion/Retry danach separat. Der erneut ausgelöste Verarbeitungslauf (`lzug-admin notification process`) gleicht bestätigte Planrevisionen, Planning-Availability-Übergangsquellen, Planning-Rundungsabsagequellen, Venue-Auditquellen und unveränderliche Execution-Folgequellen mit Application-Ursprüngen ab. Ein beim Upgrade persistiertes Cutover-Wasserzeichen je Execution-Auditstream grenzt neue Folgen ab: nur atomar mit Mutationen nach dem Cutover gespeicherte unveränderliche Quellen werden wiederhergestellt. Historische Execution-Auditzeilen ohne solche Folgequelle werden weder rekonstruiert noch zugestellt. Für die Rundungsabsage liest er die unveränderliche Planning-Quelle samt `decision_date`, Notice-Beschreibung und ursprünglichen Empfänger-IDs; Execution wird dafür nicht als Quelle abgefragt. Automatischer Startup-Hook oder Hintergrundworker ist damit nicht beauftragt. Kein Folgefehler rollt die bestätigte Fachänderung zurück | #1081 verlangt consumer-eigenen Zustand und Restart-Prüfung; heutige Planning-Batch-/Taskpersistenz und weitere direkte Orchestrierung werden nach Handoff entfernt |
+| `application` | Geplante Benachrichtigungserzeugung | Use Case liest fällige Reminder-/Deadline-Snapshots über Planning-Port und ruft danach Notifications-Commands für fachlich definierte Ereignisse auf; die erste `availability_requested`-Notice wird mit der atomaren Planning-Übergangsquelle aus stabiler Origin-ID, fixierter Frist-/Nachrichtenbeschreibung und den damals ausgewählten Empfänger-IDs wiederhergestellt, nicht aus aktuellen Rundendaten oder Memberships rekonstruiert | Verarbeitung läuft beim expliziten Admin-Befehl `lzug-admin notification process`; Notifications werden nach dem auslösenden Fach-Commit gespeichert/zugestellt. Wiederholung nutzt denselben Ursprung, Nachrichtinhalt und Empfänger-IDs. Zustellberechtigung bei verändertem Membership-/Ereignisstatus bleibt in #1079 offen; keine Suppressionspolicy wird hier festgelegt. Kein automatischer Worker oder Startup-Aufruf ist Teil des Vertrags | Heute `process_due_events` liest Reminder und Deadline aus `ExamRound`; direkte Reads von Planning-Runden werden durch Planning-Snapshot-Port plus Application-Orchestrierung ersetzt |
+| `planning` | Rundenentscheidung und Kandidatenabschluss | Planning-Commands liefern Rundensnapshot, bestätigte Entscheidung/Revision und Kandidatenstatus oder Konflikt-, Validierungs- und Berechtigungsfehler; Planning besitzt auch Entwurfsrundenlöschung. IHK-Dokumentstatus ist kein Planning-Port, sondern wird von Application mit Planning- und Assessment-Ports orchestriert | Revisionsprüfung, Planning-eigene Entscheidung, Kandidatenstatus und Audit atomar; Halbjahres-Update/-Delete sind keine eigenständigen Commands | Der aktuelle `ExamRoundLifecycleService` greift direkt auf Planning- und weitere Tabellen zu; wird auf Planning-Port und UoW begrenzt |
+| `planning` | Rundungsabsage und unveränderliche Notice-Quelle | Cancellation-Command nimmt erwartete Rundenrevision, `decision_date`, die von Application aus Planning-, Identity- und Calendar-Snapshots materialisierten ursprünglichen Membership-IDs sowie typisierte Notice-Beschreibung an; Ergebnis enthält stabile Origin-ID und dieselben unveränderlichen Werte | Entscheidung, Revision, Audit und Cancellation-Folgequelle inklusive Datum und vollständiger Empfängermenge committen atomar im Planning-UoW; Application replayt exakt diese Quelle | Der heutige `ExamRoundLifecycleService` mutiert Calendar-Projektionen direkt; Application materialisiert künftig vor der Entscheidung die Planning-Zuweisungen, aktiven Vorsitz-/Stellvertretungsrollen und Calendar-Projektionen und Planning schreibt die Vereinigung unveränderlich fest |
+| `execution` | Tages-/Rundenfolgen, Tages-/Slotstatus und Wiederöffnung | Port liefert betroffene Tages-/Slot-Snapshots sowie Execution-eigene fachliche Wiederöffnungsaufgaben oder Konflikt-/Validierungsfehler. Kalender- und Execution-eigene Notification-Folgequellen tragen stabile Ursprünge; Cancellation-Notice-Quelle der Rundungsabsage gehört ausschließlich Planning | Tages-/Slotänderungen, Audit, Execution-eigene fachliche Wiederöffnungsaufgaben und unveränderliche Folgequellen im gemeinsamen Cross-Domain-UoW; Application-Folgeaufträge entstehen danach separat und sind samt ursprünglichem Empfängerscope wiederherstellbar | `ExamRoundLifecycleService`, `ExamDayClosureService`; direkte Lifecycle-ORM-Mutationen werden nach Portübernahme entfernt |
 | `assessment` | Ergebnisstatus für Runden-/Prüfungstags-Lifecycle und Export | Materialisierte, autorisierte Modell-/Ergebnis-/Readiness-/Impact-Snapshots; für explizites Wiederöffnen ein typisierter Befehl zum Öffnen der erforderlichen Result-Korrekturen mit Ergebnisrevision, Korrekturstatus und fachlichen Folgeeffekten | Read oder Mutation innerhalb des Application-UoW, wenn Teil der Lifecycle-Entscheidung; Assessment bleibt Eigentümer der Ergebnisregeln und Persistenz | `ExamRoundLifecycleService`, `ExamDayClosureService`, `ExamResultService`; Lifecycle konsumiert Assessment-Port statt Ergebnistabellen direkt zu lesen oder zu ändern |
 | `assessment` | Ergebnis lesen, berechnen, festschreiben oder korrigieren | Commands liefern typisierte Ergebnis-/Revisions-Snapshots oder Validierungs-, Konflikt- und Berechtigungsfehler; ungültige Berechnung wird nicht als Ergebnis ausgegeben | Ergebnis-CAS, Revision, Audit und betroffene Korrekturaufgaben atomar; Offenlegung stets nach Scope und Ergebnisstatus | `ExamResultService` und `ResourceRepository`; generische Ergebniszugriffe werden nach Portumstellung entfernt |
 | `application` | Ergebnisänderung mit Wiederöffnung eines geschlossenen Prüfungstags | Orchestriert autorisierte Assessment-Ergebnisänderung und Execution-Tagesmutation; stale revision, gesperrte Änderung, fehlender Scope und ungültiger Zustand bleiben unterscheidbar | Assessment-CAS/Ergebnis/Audit und Execution-Tagesrevision, Wiederöffnungs-Audit/-Aufgabe sowie Export-Stale-Marker teilen einen UoW und committen oder rollen gemeinsam zurück | `ExamResultService` ruft derzeit `guard_day_mutation` und `complete_day_mutation` im gemeinsamen Session-Kontext auf; wird durch Assessment- und Execution-Ports unter Application-Orchestrierung ersetzt |
-| `assessment` | Modellkatalog, unveränderliche Bewertungsmodelle und Rundenbindung | Queries liefern materialisierte Modell-/Versions-Snapshots; Modellanlage ist unveränderlich; Bindung liefert bestätigte Bindungsversion oder Scope-, Anwendbarkeits- und CAS-Konflikt | Planning-Rundensnapshot und Assessment-Bindung werden im Binding-UoW geprüft; bestehende Bindung ändert sich nur per erwarteter Version, nach erster Bewertung ist Modellwechsel gesperrt; fehlende Ergebniszeilen entstehen mit der Bindung atomar | `ExamResultService.bind_round`, Assessment-Modellservices und `ResourceRepository`; Routen werden auf Assessment-Commands/Queries umgestellt |
+| `assessment` | Modellkatalog, unveränderliche Bewertungsmodelle und Assessment-Seite der Rundenbindung | Queries liefern materialisierte Modell-/Versions-Snapshots; Modellanlage ist unveränderlich; Bindungs-Commands erhalten einen typisierten Applicability-Snapshot und liefern bestätigte Bindungsversion oder fachlichen Anwendbarkeits-/CAS-Konflikt. Assessment entscheidet die Anwendbarkeit des Bewertungsmodells nach seinen Domainregeln anhand von Committee-Beruf/IHK aus Identity sowie aktiven Kandidaten-Schwerpunkten und effektivem Rundungsdatum aus Planning. Planning-Runde und Assessment-Bindung werden durch Application orchestriert | Application komponiert im gemeinsamen UoW Planning-Runden-/Halbjahres-/Prüfungstag-/aktive-Kandidaten-Snapshots, den Identity-Committee-Snapshot mit Beruf und IHK sowie Assessment-Modell-/Bindungssnapshots und ruft Assessment zur Anwendbarkeitsprüfung/-mutation auf; bestehende Bindung ändert sich nur per erwarteter Version, nach erster Bewertung ist Modellwechsel gesperrt; fehlende Ergebniszeilen entstehen mit der Bindung atomar | `ExamResultService.bind_round` und Assessment-Modellservices; Cross-Domain-Route wird auf Application-Use-Case plus Planning-/Identity-/Assessment-Ports umgestellt |
 | `identity` | Anmeldung, Konto, Person, Mitgliedschaft und Ausschussverwaltung | Authentisierung nach außen generisch; Konten, Einladungen, Recovery, Personen/Mitgliedschaften und Ausschuss-Lifecycle liefern autorisierte Identity-Snapshots oder nicht offenlegende/stabile Fachfehler | TOTP-/Recovery-Verbrauch, Rehash und Sessionersatz atomar; Bootstrap, Abschluss, Wiedereinladung, Deaktivierung/Reaktivierung, Mitgliedschaftsänderung, Audit und Tokenwechsel je schreibendem Identity-UoW | `AuthenticationRepository`, `LocalAuthService`, `CommitteeAdminService`, `ResourceRepository`; generische Fassade fällt nach Migration von `/api/committees`, Admin-`committee-*` und Identitätscommands weg |
 | `calendar` | Bestätigten Planstand beziehen | Kalenderdefinierter Port liefert einen typisierten, materialisierten Snapshot der bestätigten Zuweisungen samt erforderlicher Termin-, Empfänger- und Ortswerte; keine ORM- oder HTTP-Typen | Read-Snapshot über den Planning-Adapter; die Snapshot-Transaktion commitet keine Kalenderprojektion | Heute fragt `integrations.calendar` Planungsmodelle direkt ab; #1078 ersetzt das durch einen vom `calendar`-Konsumenten definierten Port, den ein Planning-Adapter erfüllt |
-| `application` (Port-Eigner/Konsument; `calendar` implementiert) | Kalenderprojektion aktualisieren, stornieren und Ergebnis beziehen | Commands decken `sync_round`, `sync_assignment(future_from)`, `cancel_assignment` und `cancel_round_future` ab; Ergebnisse sind materialisierte Event-ID/Versionen und pro Event ein Abschluss-/Stornierungsstatus oder klassifizierter, wiederholbarer Fehler. Kein Aufrufer liest oder mutiert `CalendarEvent` direkt | Jeder Calendar-Befehl besitzt seinen Calendar-Schreib-UoW; ein Rundenrefresh ist all-or-nothing. Der auslösende Planning-/Execution-Commit bleibt bestehen, wenn Projektion danach fehlschlägt. Application speichert, claimt und bestätigt den Folgeauftrag in eigenen UoWs, unabhängig vom jeweiligen Fach- und Calendar-UoW; ein Folgefehler lässt ihn wiederholbar offen | Heute rufen `planning.plan_consequences`, `planning.venue_consequences`, `execution.absence`, `execution.exam_round_lifecycle`, FastAPI-Routen und Calendar-Reads `CalendarService` direkt auf oder mutieren `CalendarEvent`; diese Aufruf- und ORM-Pfade werden nach Handoff entfernt. Provider-Claim oder Provider-I/O gibt es nicht |
-| `calendar` | Feed-Status, Aktivierung, Tokenrotation, Widerruf und ICS ausgeben | Status liefert Credential-/Sync-Status; Aktivierung/Rotation gibt das Feed-Secret genau einmal zurück; Widerruf liefert bestätigten Zustand. Autorisierte Event-/ICS-Reads enthalten materialisierte Werte; Fehler unterscheiden Scope, fehlendes Feed, bereits aktiven Feed (Rotation erforderlich) und Syncfehler | Credential-Erstellung/Rotation und Widerruf haben jeweils eigenen Calendar-UoW. Aktivierung committet das Credential vor separater Event-Synchronisierung; deren Fehler macht das Credential nicht rückgängig und Sync kann erneut aufgerufen werden. `list_events`, `feed_ics` und `event_ics` synchronisieren lokal vor Read/Rendern in getrennten Session-Scopes; kein externer Provideraufruf | `CalendarService.status`, `activate`, `revoke`, `list_events`, `feed_ics`, `event_ics`; HTTP `GET/POST/DELETE /api/calendar/feed` und Event-/ICS-Routen werden auf den Calendar-Port abgebildet |
+| `application` (Port-Eigner/Konsument; `calendar` implementiert) | Kalenderprojektion aktualisieren, stornieren und Ergebnis beziehen | Commands decken `sync_round`, `sync_assignment(future_from)`, `cancel_assignment` und `cancel_round_future` ab; Ergebnisse sind materialisierte Event-ID/Versionen und pro Event ein Abschluss-/Stornierungsstatus oder klassifizierter, wiederholbarer Fehler. `cancel_round_future` übernimmt das bei der Rundungsentscheidung gespeicherte `decision_date` als inklusiven Cutoff `CalendarEvent.date >= decision_date`, auch wenn Retry nach Mitternacht erfolgt: es storniert Events am Entscheidungstag und an späteren Tagen, nicht nur spätere Zeitpunkte. Kein Aufrufer liest oder mutiert `CalendarEvent` direkt | Jeder Calendar-Befehl besitzt seinen Calendar-Schreib-UoW; ein Rundenrefresh ist all-or-nothing. Ein Calendar-eigener, je Assignment serialisierter Allocator reserviert Generationen in diesem UoW und persistiert eindeutige, idempotente Zuordnungen von stabilem Ursprung zu Generation. `sync_round`, `sync_assignment`, `sync_person`, ICS-read-triggered Sync, `select_replacement`-Before-Image-Replay und Reopen-Folgen verwenden vor jeder Assignment-Reconciliation denselben Planning- und Execution-Snapshot sowie denselben Allocator. Execution-Folgen tragen eine monotone per-Assignment-Folgeversion und einen Zustand einschließlich Cancellation-Tombstone; Calendar speichert die zuletzt angewandte Version atomar mit der Projektion, überspringt ältere Versionen als `superseded` und lässt eine Tombstone nicht durch einen weiterhin aktiven Planning-Snapshot reaktivieren. Nur eine höhere Execution-Folgeversion kann die Projektion erneut aktivieren. So reserviert Before-Image-Replay die alte Tombstone-Generation kollisionsfrei auch dann, wenn ein anderer Sync die aktuelle Ersatzprojektion bereits angelegt hat; es entsteht keine zweite aktive Generation. Der auslösende Planning-/Execution-Commit bleibt bestehen, wenn Projektion danach fehlschlägt. Application speichert, claimt und bestätigt Folgeaufträge in eigenen UoWs, unabhängig vom jeweiligen Fach- und Calendar-UoW; ein Folgefehler lässt ihn wiederholbar offen | Heute rufen `planning.plan_consequences`, `planning.venue_consequences`, `execution.absence`, `execution.exam_round_lifecycle`, FastAPI-Routen und Calendar-Reads `CalendarService` direkt auf oder mutieren `CalendarEvent`; diese Aufruf- und ORM-Pfade werden nach Handoff entfernt. Provider-Claim oder Provider-I/O gibt es nicht |
+| `calendar` (Port-Eigner/Konsument; `identity` implementiert) | Aktiven Membership- und Committee-Scope einer Person lesen | Identity liefert eine materialisierte Liste aktiver Membership-ID-/Committee-ID-Paare für die angefragte Person; die Liste enthält keine Namen oder weiteren Personendaten. Eine leere Liste autorisiert keine Kalenderdaten. Calendar beschränkt die personenbezogene Sync-Projektion und Ausgabe auf genau diese Mitgliedschaften/Committees und prüft den Scope vor Sync, vor dem Read-Snapshot und erneut unmittelbar vor ICS-Antwortfreigabe | Identity-Snapshot wird vor Calendar-Sync, vor der nachfolgenden Ausgabe und unmittelbar vor ICS-Antwortfreigabe erneut gelesen; bei verändertem Scope verwirft Calendar das gesamte materialisierte ICS-Ergebnis. Die Snapshotabfragen sind read-only und geben keine ORM-Typen heraus | Heute prüft `feed_ics` nur, ob die Person irgendeine aktive Membership hat, und Kalenderpfade filtern/synchronisieren weitgehend per `person_id`; Identity stellt künftig den vom Calendar-Konsumenten definierten Port bereit |
+| `calendar` (Port-Eigner/Konsument; `execution` implementiert) | Neueste Execution-Projektion eines Assignments lesen | Read liefert pro Assignment die monotone Execution-Sequenz und den Zustand der neuesten autoritativen Projektion einschließlich Cancellation-Tombstone; fehlende Quelle ist von einer neueren Cancellation unterscheidbar. Planning-Snapshotdaten dürfen eine Cancellation nicht reaktivieren; nur eine höhere Execution-Sequenz kann den Zustand ändern | Calendar kombiniert Planning- und Execution-Snapshots vor jeder Assignment-Reconciliation durch `sync_round`, `sync_assignment` oder `sync_person`, einschließlich verzögerter Planning-Folgeaufträge und der Read-Aufrufer `list_events`, `feed_ics` und `event_ics`; Reads bleiben materialisiert und schreibfrei | Read- und Planning-Syncs konsumieren heute keinen Execution-Zustand und können nach Abwesenheitsstorno eine aktive Planning-Zuweisung neu anlegen; der Calendar-eigene Port wird von Execution implementiert |
+| `calendar` (Port-Eigner/Konsument) | Künftige Rundungsprojektionsempfänger vor Storno lesen | `snapshot_future_projection_recipients(round_id, decision_date)` liefert Membership-IDs aller nicht stornierten Calendar-Event-Zeilen mit `date >= decision_date`, einschließlich veralteter oder ersetzter Assignees. Planning liefert zusätzlich alle der Runde zugewiesenen Membership-IDs; Identity liefert die bestehenden aktiven Vorsitz-/Stellvertretungs-Membership-IDs | Calendar-, Planning- und Identity-Reads sowie Rundungsentscheidung, Execution-Folgen und Audit teilen denselben schreibenden Application-UoW und dieselbe Session; Application speichert die Vereinigung als vollständige Empfängerliste atomar mit Planning-Entscheidung, `decision_date` und Notice-Beschreibung. Replay verwendet genau diese Liste; Calendar storniert danach mit demselben Cutoff | Der heutige Rundungsstorno mutiert Calendar-Zeilen direkt im Lifecycle-Service; Application materialisiert künftig auch aktuelle fachliche Empfänger ohne Calendar-Event und noch aktive obsolete Projektionen |
+| `calendar` | Feed-Status, Aktivierung, Tokenrotation, Widerruf und ICS ausgeben | Status liefert Credential-/Sync-Status; Aktivierung/Rotation gibt das Feed-Secret genau einmal zurück; Widerruf liefert bestätigten Zustand. Die personenbezogene Sync-Projektion und Event-/ICS-Reads enthalten ausschließlich aktive Membership-IDs und Committees aus dem Identity-Scope-Snapshot. Teilwiderruf einer Mitgliedschaft entzieht deren Kalenderdaten auch dann, wenn andere Memberships aktiv bleiben; ein Token allein gewährt keine widerrufenen Committee-Daten. Fehler unterscheiden Scope, fehlendes Feed, bereits aktiven Feed, laufende Rotation, Status-/CAS-Konflikt und Syncfehler | Initiale Aktivierung persistiert unter dem kurzen Lifecycle-Lock eine nicht-geheime, generationengebundene Pending-Absicht, synchronisiert danach außerhalb der Sperre und legt das Credential erst nach erneutem Lock-/CAS-Check atomar an, sofern Absicht und Revocation-Generation unverändert sind; Syncfehler legen kein Credential an und können durch erneuten Sync-Aufruf wiederholt werden. Rotation invalidiert das bisher aktive Credential zuerst in einem eigenen atomaren Calendar-UoW und persistiert dabei einen nicht-geheimen Pending-Generationsstand. Sync läuft außerhalb der Feed-Lifecycle-Sperre; bei Syncfehler bleibt der alte Token widerrufen und der Pending-Stand kann durch einen ausdrücklichen Retry erneut synchronisiert werden. Finalisierung erwirbt die Sperre erneut, prüft die unveränderte Pending-Generation, erzeugt einen neuen Token und aktiviert dessen Hash atomar per CAS; nur nach Commit wird die URL einmalig ausgegeben. Jeder Aktivierungs-/Rotations-POST setzt einen vorhandenen Pending-Stand vor Auswertung von `rotate` fort. `DELETE` setzt unter der prozessweit geteilten Feed-Lifecycle-Sperre und dem Commit-Gate zuerst den prozesslokalen Revocation-Fence und verwirft wartende Sync-Aufträge. Es gibt beide Sperren während Abschluss/Rollback des einzelnen aktiven UoW frei; danach revalidiert es den Stand erneut und committet Revocation-Generation samt Löschen oder Fencing aktiver sowie initialer Pending-Stände atomar, so dass ein späterer Finalizer nicht reaktivieren kann. Commitfehler geben kein Secret aus; ein weiter bestehender Pending-Stand darf erneut synchronisiert und finalisiert werden; bei bereits aktivierter neuer Generation wird ein verlorenes Secret nie erneut offengelegt und erfordert eine neue ausdrückliche Rotation. Konkurrierende Aktivierungen/Rotationen/Widerrufe liefern stabile `FeedAlreadyActive`-, `FeedRotationPending`- oder `FeedConflict`-Ergebnisse ohne Secret; CAS-/Unique-Konflikte werden als Domainfehler abgebildet. Ein Token-ICS-Read validiert Credential-Generation und Identity-Scope unter der Sperre, führt Sync außerhalb aus und materialisiert den Read-Snapshot unter kurzer Sperre; Rendering läuft außerhalb und vor Rückgabe wird die aktive Generation erneut geprüft. Ist der Widerruf zuerst committet, wird das Ergebnis verworfen. Kein externer Provideraufruf | `CalendarService.status`, `activate`, `revoke`, `list_events`, `feed_ics`, `event_ics`; heute commitet `activate` erst das neue Credential (und invalidiert damit den alten Token), synchronisiert danach und kann bei Syncfehler die nicht ausgegebene URL dauerhaft verlieren. Initiale Aktivierung bleibt künftig Sync-first; Rotation widerruft/persistiert Pending vor dem Sync, und Credential-Übergänge verwenden kurze Sperrabschnitte. HTTP `GET/POST/DELETE /api/calendar/feed` und Event-/ICS-Routen werden auf den Calendar-Port abgebildet |
+| `calendar` | Widerruf nach fehlgeschlagenem durablem Commit fortsetzen | `revoke` liefert bei nicht bestätigtem SQLite-Commit `FeedRevocationPending`; dieser Fehler ist retryfähig und unterscheidbar von bestätigtem Widerruf | `RevocationPending` hält den prozesslokalen Fence aktiv. Ein erneutes `DELETE` setzt den dauerhaften Widerruf fort und liefert Erfolg erst nach Commit; ein Neustart rekonstruiert ausschließlich den persistierten Zustand | Der Fencing-Zustand darf bei Commitfehler nicht als Erfolg gemeldet oder vor Retry aufgehoben werden |
 | `notifications` | Dauerhafte Hinweise, Supersession und Empfänger-Lesen | Erzeugung ist pro Empfänger/Ereignisursprung idempotent; Supersession blendet nur noch nicht versuchte Planänderungen aus; Empfänger lesen materialisierte eigene Hinweise. Es gibt derzeit keinen persistenten individuellen Gelesen-Status | Hinweise und Supersession werden je Befehl in einem DB-UoW gespeichert; optionale Kanalaufträge werden darin angelegt und erst nach Commit verarbeitet | `NotificationService.create_for_event`, `create_direct`, `list_own`, `supersede_unsent_plan_changes` |
 | `notifications` | Push-Subscription-Lifecycle | Registrierung/Reaktivierung und nutzereigene Entfernung | Je Befehl ein DB-UoW | `NotificationService.register_push`, `unregister_push` |
 | `notifications` | Zustelldiagnose | Management sieht in Scope begrenzte, inhaltsfreie Zustellmetadaten und Fehlerlisten | Materialisierte, schreibfreie Abfrage | `NotificationService.problems`, `management_overview` |
@@ -213,6 +227,77 @@ den Port.
 
 ## Konsistenz- und UoW-Matrix
 
+### Ergänzende Cross-Domain-Verträge
+
+Diese Verträge konkretisieren die Porttabelle für bereits vorhandene
+Aufrufpfade.
+Sie legen Zielverhalten fest; die darunter genannten Services und
+Repositories bleiben Übergangsadapter bis zur jeweiligen Portmigration.
+
+| Fähigkeit | Eigentümer und Konsument | Snapshot, Fehler und Transaktion | Übergang und Entfernung |
+| --- | --- | --- | --- |
+| Planning-Identitätssnapshots | `planning` besitzt und konsumiert den Port; `identity` implementiert ihn | Planning liest im eigenen Snapshot seine `ExamDayAssignment`-Zeilen und Membership-Referenzen aus Planning-eigenen Tabellen. Es übergibt neue Kandidaten und bestehende Zuweisungen an Identity; Identity liefert neue Kandidaten mit aktiver Membership-/Person-/Committee-Zuordnung und bestehende IDs mit Person-IDs auch bei inaktiver Membership, sodass `_blocked_person_ids` und `_validate_assignment_conflict` ihre Cross-Committee-Prüfung erhalten. Für `availability_requested` liefert derselbe Planning-owned Port die damals ausgewählten aktiven Membership-IDs der Rundenzuordnung. Es werden nur IDs und Committee-Bezüge, keine Namen oder sonstigen Personendaten benötigt; unbekannte oder nicht aktive IDs einer neuen Zuweisung führen zu einem Planning-Validierungsfehler. Identity liest in seinem Read-Snapshot ausschließlich eigene Identitätstabellen und fragt Planning-Schema nicht ab; der Snapshot und die resultierende Planning-Mutation/Quelle teilen den Planning-UoW | `PlanningService._load_context`, `_blocked_person_ids` und `ResourceRepository._validate_assignment_conflict` lesen heute Planning- und Identity-Tabellen direkt. Planning-lokale Zuordnungs-Reads bleiben im Planning-Adapter; direkte Identity-Reads werden durch den Planning-owned Port ersetzt und vom Identity-Adapter implementiert |
+| `GET /api/scheduling-overview` | `application` komponiert Planning- und Identity-Reads | Ein gemeinsamer read-only Snapshot liefert je sichtbarer Runde Status und Statusgruppe, Rundenname/-ID, autorisierten Ausschussnamen, Halbjahr, Kalenderwochen und `can_continue`. Planning liefert Rundendaten/Settings; Identity liefert Membership-Scope und Committee-Namen. Nicht sichtbare Runden fehlen statt teilweise angereicherter Antworten | `ResourceRepository.scheduling_overview` und seine direkten Tabellenreads werden nach Migration entfernt; HTTP- und HATEOAS-Felder bleiben kompatibel |
+| `GET /api/confirmed-plans` | `application` komponiert Planning-, Identity- und Execution-Reads | Ein gemeinsamer read-only Snapshot enthält ausschließlich bestätigte Pläne sowie Committee, Halbjahr, bestätigte Tage, Slots, Zuweisungen, Räume/Prüfungsorte, Kandidaten, Round-Candidate- und Mitgliedschaftsreferenzen, Anwesenheit und Ausführungsstatus. Planning besitzt Plan und Stammdaten; Identity liefert Committee-Namen und die vom bestehenden Wire-View verwendeten Mitgliedschafts-/Personenfelder, einschließlich weiter dargestellter zugewiesener Mitglieder; Execution besitzt Anwesenheit sowie Tages-/Slotstatus. Scope wird vor Ausgabe geprüft; vorgeschlagene Pläne bleiben verborgen | `ResourceRepository.confirmed_plans` und `_confirmed_plan_context` werden durch Application-Query plus typisierte Domänensnapshots ersetzt; existierende Antwortfelder bleiben erhalten |
+| `GET /api/confirmed-plan-days/{id}` | `application` komponiert Planning-, Identity- und Execution-Reads | Derselbe konsistente Snapshotvertrag wie für bestätigte Pläne, begrenzt auf den autorisierten bestätigten Tag. Der Execution-Snapshot ergänzt Closure-View, Tagesabschlussstatus, Abschluss-/Wiederöffnungsrevision und Anwesenheit; unbekannte, vorgeschlagene oder nicht sichtbare Tage ergeben die bestehende nicht verfügbare Antwort ohne Datenleck | `confirmed_plan_day` wird nicht über eine zweite, unabhängige Planabfrage mit nachgelagerter Closure-Abfrage aufgebaut; Closure-Snapshot und Planwerte stammen aus demselben Read-UoW |
+| Rundenzusammenfassung, `GET /api/round-summary` | `application` komponiert Planning- und Identity-Reads | Eine einzelne schreibfreie Snapshotabfrage bindet Runde und Committee-Scope. Ohne Authentisierung gilt `401`; verbotener Scope oder eine fehlende Runde gilt `403`, da für eine fehlende Runde kein Committee-Scope autoritativ bestimmt ist | Der heutige getrennte Scope- und Summary-Read kann bei Verschwinden der Runde zwischen UoWs noch `404` liefern. Diese Legacy-Race ist kein Zielvertrag und entfällt mit dem einzelnen Snapshot |
+| Rundungsbindung an ein Bewertungsmodell | `application` orchestriert Planning-, Identity- und Assessment-Ports | Application liest im selben UoW die autorisierte Planning-Runde samt aktivem Kandidaten-Schwerpunkt- und effektivem Datums-Snapshot, den Identity-Committee-Snapshot mit Beruf/IHK sowie Assessment-Modell-/Bindungssnapshots, prüft Scope und erwartete Bindungsversion und ruft Assessment-Commands mit diesen materialisierten Anwendbarkeitswerten auf. Assessment entscheidet die Modellanwendbarkeit und liefert dafür einen typisierten fachlichen Konflikt. Bindung, gegebenenfalls initiale Ergebniszeilen und CAS committen gemeinsam. Fehlende Runde/Modell, unzulässiges Modell, fehlender Scope und Versionskonflikt bleiben unterscheidbar | `ExamResultService.bind_round` wird in Application-Orchestrierung sowie Planning-, Identity- und Assessment-Ports aufgeteilt; die Persistence-Adapter teilen den UoW und committen nicht selbst |
+| IHK-Dokumentstatus erfassen | `application` orchestriert Planning- und Assessment-Ports | Planning liefert die autorisierte Rundenzuordnung; Assessment prüft, dass das Ergebnis zu genau dieser Runde gehört, und speichert Status, Referenz, Actor und idempotenten Befehlsfingerabdruck. Rundenzuordnung, Ergebnisprüfung und Status-/Idempotenzrecord teilen einen UoW. Ein Ergebnis aus einer anderen Runde wird abgewiesen | `ExamRoundLifecycleService.document_ihk_status` wird aus dem Execution-Service entfernt und in Application-Orchestrierung mit Planning- und Assessment-Commands zerlegt |
+| Bestätigten Plan gegen laufende Ausführung schützen | `planning` besitzt und konsumiert den Guard-Port; `execution` implementiert ihn, `application` komponiert den gemeinsamen UoW | Vor Revisionserhöhung, Aggregatänderung oder Auditbildung lädt Planning für alle betroffenen bestätigten Tage einen Execution-Snapshot mit Tages-/Closurestatus, Slotstatus und tatsächlichen Start-/Abschlusszeitpunkten. Begonnene, geschlossene oder anderweitig operativ gesperrte Tage dürfen weder geändert noch entfernt werden. Ein Konflikt bricht die gesamte Mutation ab; Snapshot, CAS, Revision, Planänderung und Audit teilen einen UoW | `_protected_confirmed_day_ids` prüft heute nur lokal gespeicherte Plan-/Execution-Felder innerhalb Planning. Dieser technische Zwischenstand wird durch den Execution-Port ersetzt, ohne die Schutzregel aus dem Planungsservice in ein universelles Repository zu verschieben |
+
+`availability_requested` wird bei der heutigen Requestverarbeitung nach dem
+Planning-Commit direkt an Notifications gemeldet; ein verlorener Aufruf ist
+aus dem aktuellen Rundestatus nicht eindeutig als noch ausstehende
+Erstbenachrichtigung erkennbar.
+Der Ziel-Planning-Command liest im Planning-UoW über seinen Identity-Port die
+damals ausgewählten aktiven Membership-IDs und persistiert Statusübergang
+sowie unveränderliche, stabile Übergangs-/Auditquelle gemeinsam.
+Diese Quelle enthält Origin-ID, Empfänger-IDs und den bei der Anfrage
+beobachteten Deadline-Wert oder die daraus bereits gebildete typisierte
+Benachrichtigungsbeschreibung samt Fristtext.
+Der Application-Processing-Lauf vergleicht diese Quellen mit seinen
+Benachrichtigungsursprüngen und leitet eine fehlende
+`availability_requested`-Benachrichtigung mit demselben stabilen Ursprung
+wieder ab, wobei er gespeicherten Fristtext, Nachrichtinhalt und Empfänger-IDs
+exakt übernimmt statt spätere `ExamRound`- oder Membership-Werte neu zu lesen.
+Die gespeicherten IDs definieren die Recovery-Identität des Auftrags; eine
+aktuelle Versandberechtigungsentscheidung und mögliche Suppression bleiben
+außerhalb dieses Vertrags bei #1079.
+Das ist eine künftig erforderliche Quelle und behauptet kein heute vorhandenes
+Availability-Audit.
+
+Beim Rollout der Übergangsquelle erhalten bereits `availability_requested`-
+Runden einen dauerhaften Legacy-Cutover-Marker und werden nicht automatisch
+als neue Transition re-drived: der frühere Best-Effort-Versand ist aus dem
+Status allein nicht feststellbar, und ein automatischer Replay könnte eine
+bereits zugestellte Notice duplizieren. Der Marker behauptet nicht, dass die
+Notice zugestellt wurde; ein neuer Request nach Cutover erhält wie üblich eine
+vollständige unveränderliche Quelle. Migrationstests belegen, dass Legacy-Zeilen
+keine neue Notice erzeugen und neue Transitionen nach Neustart replaybar sind.
+
+Execution-generierte Benachrichtigungsfolgen tragen stabile Ursprünge aus den
+fachlichen Audit-Identitäten:
+Abwesenheitsbericht/-audit und Tagesabschluss-/Wiederöffnungs-Audit.
+Execution persistiert mit dem Fachzustand und Audit atomar eine unveränderliche,
+typisierte Notification-Beschreibung mit Ereignis, Empfängern, Inhalt,
+Handlungspfad und stabiler Ursprungs-ID.
+Die Empfänger-IDs entsprechen der beim Auslösen ausgewählten Menge und werden
+nicht später aus aktuellen Membership- oder Rollenwerten neu berechnet.
+Application speichert danach den dauerhaften Queueeintrag, verwaltet
+Claim/Retry und rekonstruiert fehlende Einträge aus genau dieser
+Consequenzquelle.
+So bleiben Inhalt und Empfängerscope bei einem Replay unverändert.
+Die Rundungsabsage ist Planning-eigen: ihre einzige Notification-Quelle
+entsteht mit Planning-Entscheidung und Audit und wird ausschließlich aus dieser
+Quelle wiederhergestellt; Execution erzeugt dafür keine Folgequelle.
+Die Rundungsabsage ist Planning-eigen: ihre einzige Notification-Quelle
+entsteht mit Planning-Entscheidung und Audit und wird ausschließlich aus dieser
+Quelle wiederhergestellt; Execution erzeugt dafür keine Folgequelle.
+Der Notifications-Port beansprucht den Zustellversuch vor Provider-I/O und
+bestätigt ausschließlich den weiterhin gültigen Claim.
+Direkte `_notify`-/`create_direct`-Aufrufe aus Execution werden nach Handoff
+entfernt.
+
 Ein UoW ist der äußerste Commit-/Rollback-Besitzer.
 Verbraucher-Ports erhalten einen domänenspezifischen Transaktionskontext,
 keine SQLAlchemy-Session.
@@ -222,14 +307,19 @@ Materialisierte Leseoperationen definieren ihren Snapshotumfang ausdrücklich.
 
 | Use Case | Konsistenzvertrag | Commit / externe Grenze | Materialisierte Leseoperation |
 | --- | --- | --- | --- |
-| Planungsvorschlag/-bestätigung | erwartete Revision vergleichen; bestätigte Tage schützen; Aggregat, Revision und Audit aus demselben Stand | Die Planbestätigung committet CAS, Aggregat, Revision und Audit. `save_confirmed_plan` und `PlanConsequenceService.process_revision` laufen heute in getrennten UoWs; schlägt die Ableitung fehl, bleibt der Plan bestätigt und der Request meldet `derivation_status=missing`. Die abgeleitete Konsequenzbatch kann separat erneut verarbeitet werden. Im Ziel wird der Folgeauftrag danach im Application-UoW gespeichert; fehlt dieser Commit oder crasht der Prozess vorher, entdeckt der nächste `lzug-admin notification process`-Lauf die bestätigte Revision und leitet mit demselben Ursprungsschlüssel erneut ab. Kalenderprojektion folgt nach dem Application-Auftragscommit; Benachrichtigungen folgen dem Plan-Commit | `get_proposal`, `get_confirmed_plan`, Revisions- und Konsequenzübersichten geben Values statt ORM-Objekte zurück |
-| Prüfungstag schließen/wiederöffnen | Tagesrevision und Managementscope prüfen; Assessment-Readiness vor Abschluss und Result-Impact vor expliziter Wiederöffnung materialisieren | Application orchestriert Execution-Tagesstatus/Audit und nötige Assessment-Korrektur-/Ergebnisversionen im gemeinsamen UoW. Fachdaten und eine unveränderliche Quell-/Audit-ID committen gemeinsam; dauerhafte Application-Aufträge folgen in separatem UoW. Benachrichtigungen folgen dem bestätigten Domain-Commit | Day-Status, readiness items, betroffene Protokoll-/Ergebnisrevisionen und offenlegbare Impactdetails sind vollständig materialisiert |
-| Prüfungssumme lesen | aktiven Mitgliedschafts-/Committee-Scope vor Ausgabe prüfen; Planning liefert Runde, Halbjahr, Einstellungen, Kandidaten-/MEP-Zahlen und Verfügbarkeit; Identity liefert Ausschussname | Schreibfreier gemeinsamer Read-Snapshot; kein ORM-Wert verlässt Adapter. Nicht authentisiert, verboten und fehlende Summary nach erfolgreicher Scope-Prüfung behalten den bestehenden HTTP-Status. Im aktuellen Ablauf wird eine bereits fehlende Runde vor dem Summary-Read als verbotener Scope (`403`) behandelt; `404` ist nach erfolgreicher Scope-Prüfung erreichbar, etwa bei Verschwinden zwischen den heutigen UoWs | Antwort enthält ausschließlich die typisierten Summen-/Planungswerte und den zulässigen Ausschussnamen |
-| Ausführung und Protokoll | Slot-/Tagesrevision prüfen; Mutation und Audit dürfen nicht auseinanderlaufen | Zustandswechsel, Protokollrevision, Audit und unveränderliche Quell-/Audit-ID atomar; Application speichert daraus abgeleitete Folgeaufträge nach dem Fach-Commit in einem eigenen UoW. Benachrichtigungen folgen dem jeweiligen Execution-Commit; Kalenderfolgen laufen danach über `application` | Abschluss-/Protokoll-Snapshot lädt erforderliche Slots, Anwesenheit, Protokolle, Ergebnisse und Findings konsistent |
+| Planungsvorschlag/-bestätigung | erwartete Revision vergleichen; bestätigte Tage schützen; Aggregat, Revision und Audit aus demselben Stand | Die Planbestätigung committet CAS, Aggregat, Revision und Audit. `save_confirmed_plan` und `PlanConsequenceService.process_revision` laufen heute in getrennten UoWs; schlägt die Ableitung fehl, bleibt der Plan bestätigt und der Request meldet `derivation_status=missing`. Die abgeleitete Konsequenzbatch kann separat erneut verarbeitet werden. Im Ziel wird der Folgeauftrag danach im Application-UoW gespeichert; fehlt dieser Commit oder crasht der Prozess vorher, entdeckt der nächste `lzug-admin notification process`-Lauf die bestätigte Revision und leitet mit demselben Ursprungsschlüssel erneut ab. `availability_requested` erhält zusätzlich die stabile Planning-Übergangsquelle samt Deadline, typisierter Notice-Beschreibung und damals ausgewählten Membership-IDs atomar mit dem Statuswechsel; Application übernimmt beim Replay exakt diese Empfänger-IDs und rekonstruiert sie nicht aus späteren Memberships. Die Frage der Versandberechtigung beim Zustellversuch bleibt in #1079 offen. Kalenderprojektion folgt nach dem Application-Auftragscommit; Benachrichtigungen folgen dem Plan-Commit | `get_proposal`, `get_confirmed_plan`, Revisions- und Konsequenzübersichten geben Values statt ORM-Objekte zurück |
+| Verfügbarkeit anfragen | Vorhandene Runde ist im erlaubten Status, Planning-Einstellungen und mindestens ein aktiver Kandidatentag sind vorhanden; gespeicherte Frist, typisierte Erstnachricht und ursprünglich ausgewählte aktive Membership-IDs gehören zu derselben Planning-Transition | Planning fragt Membership-IDs über den Planning-owned Identity-Read-Port ab. Statuswechsel, Audit/Übergangsquelle, Deadline, Notice-Beschreibung und Empfängersnapshot committen atomar. Application legt den Folgeauftrag danach separat an und re-drived ihn mit derselben Origin-ID, Deadline, Nachricht und denselben Empfänger-IDs, ohne spätere `ExamRound`- oder Membership-Werte zur Rekonstruktion zu verwenden. Ob Empfänger beim Zustellversuch aktuell versandberechtigt sind, bleibt in #1079 offen; keine Suppressionspolicy wird hier festgelegt | Planning liefert die materialisierte Übergangsquelle; Application liest für Erstbenachrichtigung oder Replay weder Deadline noch Empfänger erneut aus veränderlichen Planungs-/Identitätsdaten |
+| Prüfungstag schließen/wiederöffnen | Tagesrevision und Managementscope prüfen; Assessment-Readiness vor Abschluss und Result-Impact vor expliziter Wiederöffnung materialisieren | Application orchestriert Execution-Tagesstatus/Audit und nötige Assessment-Korrektur-/Ergebnisversionen im gemeinsamen UoW. Fachdaten, Audit und unveränderliche Notification-Beschreibung samt ursprünglich ausgewählten Empfänger-IDs committen gemeinsam; dauerhafte Application-Aufträge folgen in separatem UoW und werden aus dieser Quelle unverändert wiederhergestellt | Day-Status, readiness items, betroffene Protokoll-/Ergebnisrevisionen und offenlegbare Impactdetails sind vollständig materialisiert |
+| Prüfungssumme lesen | aktiven Mitgliedschafts-/Committee-Scope vor Ausgabe prüfen; Planning liefert Runde, Halbjahr, Einstellungen, Kandidaten-/MEP-Zahlen und Verfügbarkeit; Identity liefert Ausschussname | Schreibfreier gemeinsamer Read-Snapshot; kein ORM-Wert verlässt Adapter. Nicht authentisiert ergibt `401`; verbotener Scope oder eine fehlende Runde ergibt `403`, weil für eine fehlende Runde kein autoritativer Committee-Scope vorliegt. Der heutige getrennte Scope- und Summary-Read kann bei Verschwinden der Runde zwischen UoWs noch `404` liefern; dies ist eine Legacy-Race, keine Zielsemantik | Antwort enthält ausschließlich die typisierten Summen-/Planungswerte und den zulässigen Ausschussnamen |
+| Ausführung und Protokoll | Slot-/Tagesrevision prüfen; Mutation und Audit dürfen nicht auseinanderlaufen | Zustandswechsel, Protokollrevision, Audit sowie unveränderliche Folgequelle atomar; für Benachrichtigungen enthält sie die typisierte Beschreibung und die bei Auslösung gewählten Empfänger-IDs. Application speichert daraus Calendar- und Notification-Aufträge nach dem Fach-Commit in eigenem UoW; ein Replay übernimmt Beschreibung und Empfänger-IDs exakt als Recovery-Identität aus der Quelle. Ob und wie aktuelle Memberships/Rollen oder Ereignisstatus die Zustellung beeinflussen, bleibt als offene Versandberechtigungsfrage bei #1079 | Abschluss-/Protokoll-Snapshot lädt erforderliche Slots, Anwesenheit, Protokolle, Ergebnisse und Findings konsistent |
+| Execution-Notice-Empfänger | Execution-owned Identity-Snapshot für Abwesenheits-, `select_replacement`- und Prüfungstags-Notices; bestehende Committee-/Rollen-Auswahl erhalten | Identity liefert nur die ursprünglich gewählten Membership-IDs im selben Execution-UoW; bei `replacement_selected` umfasst die Menge den bisherigen Assignee, das ausgewählte Ersatzmitglied und alle übrigen aktiven Ausschussmitglieder. Mutation, Audit und unveränderliche Notification-Quelle committen damit atomar. Replay übernimmt diese IDs unverändert. Die Rundungsabsage-Notice ist eine Planning-eigene Quelle | Execution liest keine Identity-Tabellen direkt; Identity implementiert den consumer-owned Port |
 | Ergebnisse und Wiederöffnung | Ergebnis-CAS vor Mutation; Korrektur-/Wiederöffnungsfolge bleibt an bestätigte Revision gebunden | Ergebnisänderung, Assessment-/Execution-Audit, Tagesrevision, Wiederöffnung und stale-export-Marker committen gemeinsam im Cross-Domain-UoW; eine unveränderliche Quell-/Audit-ID bleibt für die Folgeableitung erhalten. Der dauerhafte Application-Auftrag samt Claim/Retry wird danach in einem eigenen UoW gespeichert und ist aus dieser Quelle wiederherstellbar | Exporte enthalten nur autorisierte und freigegebene Ergebniswerte; verborgene aktuelle und historische Ergebnisse fehlen vollständig |
 | Identität und Authentisierung | Konto- und Mitgliedschaftsscope vor Mutation binden; generische Fehler verhindern Identitätsauskunft | TOTP-/Recovery-Verbrauch, Rehash und Sessionersatz in einer atomaren Änderung | Authentisierung verwendet einen abgeschlossenen Entscheidungsdatensatz; Loginfehler enthüllen weder unbekanntes Konto noch Status |
-| Kalenderprojektion | Bestätigte Planrevision und stabile Folgeaufträge führen zur aktuellen lokalen Projektion; Identität, Generation und Eventversion bleiben über Wiederholungen und Planänderungen gemäß #1078 stabil | Fach-Commit, Application-Auftrag und Folgeausführung haben getrennte UoWs. Application speichert den Auftrag im consumer-eigenen UoW, claimt und führt ihn aus: Calendar bezieht Planungsdaten über seinen typisierten Snapshot-Port und führt `sync_round`, `sync_assignment`, `cancel_assignment` oder `cancel_round_future` im eigenen Calendar-UoW aus. Payloadfehler rollen alle Änderungen eines Rundenrefreshes zurück. Application speichert typisierte Eventresultate im eigenen Task-UoW. Fehlt nach Commit ein Application-Auftrag, stellt der nächste explizite Admin-Processing-Lauf ihn aus dem jeweiligen unveränderlichen Domain-Quellstand mit derselben Ursprungsidentität wieder her; ein Startup-Hook oder Hintergrundworker ist nicht vorausgesetzt. Es gibt keine Exactly-once- oder gemeinsame Commit-Garantie | `list_events`, `feed_ics` und `event_ics` synchronisieren lokal vor dem Lesen/Rendern. Feedprüfung (nur bei `feed_ics`), Refresh und Read haben getrennte Session-Scopes; Ausgabe nutzt autorisierte materialisierte Werte |
-| Benachrichtigungen | Aktuell gehört der Claim eindeutig zu einem Delivery-Versuch; Empfänger-/Ereignisgültigkeit wird nicht erneut geprüft. Das bleibt als Risiko in #1079 zu entscheiden und ist keine bestätigte Zielpolicy | Claim zuerst committen, dann Provider-I/O; Completion/Retries nur auf gültigem eigenen Claim. Eine spätere Mitgliedschafts- oder Ereignisänderung stoppt bereits gequeue-te Sendungen nicht zuverlässig; der Notice-Text kann konkrete Termine und Orte enthalten | Zustellansicht materialisiert Empfänger und begrenzte Nachrichtendaten vor Netz-I/O |
+| Kalenderprojektion | Bestätigte Planrevision und stabile Folgeaufträge führen zur aktuellen lokalen Projektion; Identität, Generation und Eventversion bleiben über Wiederholungen und Planänderungen gemäß #1078 stabil | Fach-Commit, Application-Auftrag und Folgeausführung haben getrennte UoWs. Eine Rundungsabsage trägt ihr bei der Fachentscheidung materialisiertes Entscheidungsdatum als inklusiven Calendar-Cutoff, damit Retry am Folgetag denselben Bestand storniert. Application speichert den Auftrag im consumer-eigenen UoW, claimt und führt ihn aus: Calendar bezieht Planungsdaten über seinen typisierten Snapshot-Port und führt `sync_round`, `sync_assignment`, `cancel_assignment` oder `cancel_round_future` im eigenen Calendar-UoW aus. Payloadfehler rollen alle Änderungen eines Rundenrefreshes zurück. Application speichert typisierte Eventresultate im eigenen Task-UoW. Fehlt nach Commit ein Application-Auftrag, stellt der nächste explizite Admin-Processing-Lauf ihn aus dem jeweiligen unveränderlichen Domain-Quellstand mit derselben Ursprungsidentität wieder her; ein Startup-Hook oder Hintergrundworker ist nicht vorausgesetzt. Es gibt keine Exactly-once- oder gemeinsame Commit-Garantie | Identity liefert vor `sync_person` und erneut vor Event-/ICS-Read eine materialisierte Liste aktiver Membership-ID-/Committee-ID-Paare. Execution liefert vor jeder `sync_round`-/`sync_assignment`-/`sync_person`-Reconciliation die höchste Assignment-Folgeversion samt Cancellation-Tombstone; verzögerte Planning-Aufträge reaktivieren keine stornierte Zuweisung, nur eine höhere Execution-Folgeversion kann sie wiederherstellen. Personen-Sync-Projektion und Ausgabe filtern nach genau den jeweils gültigen Membership-/Committee-IDs; ein Teilwiderruf entzieht dessen Committee-Daten auch bei weiterer aktiver Mitgliedschaft. Feed-Token allein autorisiert keine widerrufene Mitgliedschaft. Refresh und Read nutzen getrennte Session-Scopes |
+| Abwesenheit, Ersatz und Wiederöffnung | Vorherige Empfängeridentität bleibt nach Mutation erhalten; Planning-/Execution-Berechtigung gilt für `open` oder einen explizit autorisierten `reopening`-Scope mit passender Revision. Nur Calendar-Folgen verlangen den gebundenen `open`-Guard-Snapshot | Bei `open` speichert `select_replacement` Before-Image, Empfänger-ID und Guard-Snapshot im selben Cross-Domain-UoW. Application replayt diese unveränderliche Quelle ohne Prüfung des späteren Tagesstatus; Calendar weist per stabilem Origin über seinen je Assignment serialisierten Allocator Tombstone- und aktuelle Generationen kollisionsfrei zu und verwirft überholte Execution-Folgeversionen ohne Projektionseffekt. Bei autorisiertem `reopening` darf die Mutation Report und Planning-Assignment korrigieren, erzeugt aber keine Calendar-Quelle und keinen Projektionseffekt. `reopen` stellt bei offenem Tag den Originalassignee wieder her; Calendar storniert das Ersatz-Event samt Versionssprung und reserviert die Originalassignee-Generation | Before-Image und Guard-Snapshot sind vollständig materialisiert und unveränderlich; Generationsreservierungen und Origin-Zuordnungen gehören in den Calendar-UoW; keine zweite Planning-/Execution-Session wird innerhalb des Cross-Domain-UoW geöffnet |
+| Planning-Zuweisung bei Ersatz und Wiederöffnung | `committee_member_id` bleibt Planning-eigener Zustand; erwartete Revision und vorherige Membership-ID verhindern verlorene Updates. Execution autorisiert entweder einen offenen Tag oder einen explizit wiedereröffneten Scope; der `open`-Calendar-Guard autorisiert nur die Folgeprojektion | `select_replacement` ruft Planning-Reassignment auf und `reopen` ruft Planning-Restore auf; beide Mutationen teilen mit Execution-Mutation, Audit und Folgequelle den Application-UoW und rollen bei jedem Konflikt gemeinsam zurück. Im `reopening`-Scope wird die Calendar-Folge unterdrückt | Application besitzt die Orchestrierung; Planning-Port besitzt CAS und Assignment-Schreibzugriff, Execution liefert die aktuelle Mutationsberechtigung und schreibt eigene Ausführungszustände |
+| Feed-Token, Rotation und expliziter Widerruf | Nach Widerrufscommit darf kein später autorisierter Read den alten Token verwenden; parallele Rotation darf expliziten Widerruf nicht überschreiben oder verzögern. Ein vor der ICS-Antwortfreigabe geänderter Identity-Scope verwirft die ICS-Antwort | Initiale Aktivierung, Token-ICS, Rotation und `DELETE /api/calendar/feed` verwenden dieselbe Composition-Root-geteilte prozessweite Sperre nur für kurze Credential-Prüfungen, Revalidierungen und Commits. Alle Sync-Auslöser laufen durch den je Feed serialisierten Coordinator; gleiche Credential- oder Pending-Generationen teilen einen Lauf. ICS prüft Credential-Generation und Identity-Scope am Anfang, führt Sync außerhalb aus und materialisiert den Read-Snapshot unter kurzer Sperre; Rendering läuft außerhalb. Vor Rückgabe werden aktive Credential-Generation und Identity-Scope erneut gelesen; bei geändertem Scope wird das gesamte materialisierte ICS-Ergebnis verworfen. Initiale Aktivierung reserviert eine nicht-geheime Pending-Generation kurz unter Sperre, synchronisiert außerhalb und finalisiert nur, wenn kein neuerer Widerruf sie gefenced hat. Rotation committet Widerruf und Pending-Generation kurz unter Sperre, synchronisiert außerhalb und finalisiert nach erneuter Pending-CAS-Prüfung unter Sperre. `DELETE` setzt unter einem kurzen Commit-Gate den prozesslokalen Cancellation-Fence und verwirft wartende Sync-Aufträge. Es lässt beide Sperren während des Wartens auf Abschluss/Rollback des einzelnen aktiven Sync-UoW frei; erst danach revalidiert es und committet die dauerhafte Revocation-Generation sowie Fencing aktiver und initialer Pending-Stände atomar. Das Gate serialisiert letzte Cancellation-Prüfung und Calendar-Commit, damit SQLite keinen Widerrufs-Write parallel zu einem aktiven Writer committen muss. Reads, deren letzte Revalidierung nach einem Widerrufscommit stattfindet oder eine veraltete Generation erkennt, werden verworfen | Der letzte Credential- und Identity-Scope-Check vor der Rückgabe ist der Autorisierungszeitpunkt des ICS-Reads; bereits zugelassene Antworten werden nicht bis zum Ende des Netzwerktransfers gesperrt. Registry/Service wird prozessweit geteilt, nicht pro `RequestContext` oder `CalendarService`; die Sperre gilt im einzelnen autoritativen Backendprozess, mehrere Serverprozesse pro DB werden nicht unterstützt |
+| Benachrichtigungen | Aktuell gehört der Claim eindeutig zu einem Delivery-Versuch; Empfänger-/Ereignisgültigkeit wird nicht erneut geprüft. Die unveränderlichen ursprünglichen Empfänger-IDs sind Recovery-Identität für verlustfreies Replay, keine Entscheidung über aktuelle Versandberechtigung. Ob Membership- oder Ereignisgültigkeit beim Versand erneut geprüft wird, bleibt als Risiko in #1079 offen; hier wird keine Suppressionspolicy festgelegt | Claim zuerst committen, dann Provider-I/O; Completion/Retries nur auf gültigem eigenen Claim. Eine spätere Mitgliedschafts- oder Ereignisänderung stoppt bereits gequeue-te Sendungen nicht zuverlässig; der Notice-Text kann konkrete Termine und Orte enthalten | Zustellansicht materialisiert Empfänger und begrenzte Nachrichtendaten vor Netz-I/O |
 | Dokumente | Dateiinhalt und Metadaten bleiben eine zusammengehörige Änderung | Lock, Dateiänderung und DB-Metadaten werden mit expliziter Kompensation gekoppelt; Cleanupfehler bleibt diagnostizierbar | Download-/Exportwerte enthalten geprüfte opaque ID, Metadaten und Inhaltshandle mit festgelegter Lebensdauer |
 | Wartung, Snapshot und Restore | Backup-Snapshot umfasst DB, Dokumente und Auth-Schlüssel als zusammengehörige Instanz | Snapshot-/Activation-/Migration-Locks folgen fester Reihenfolge; Restore staged und validiert vor mehrteiliger Aktivierung. Python-Ausnahmen lösen Kompensation aus; Prozess-/Hostabbruch kann Teilaktivierung hinterlassen, und Recovery folgt dem Operationsverfahren oben | Diagnose und Backup-Report materialisieren Lifecycle, Schema, Migrationshistorie und Inhaltsmanifest vor Ausgabe |
 
@@ -260,6 +350,182 @@ Lesen in getrennten `session_scope`-Transaktionen.
 Feed-Credential zu validieren.
 Keiner dieser Read-Pfade hat eine gemeinsame Snapshot- oder Commit-Grenze über
 Synchronisierung und anschließendes Lesen.
+
+Der heutige Adapter prüft bei `feed_ics`, ob die Person irgendeine aktive
+Mitgliedschaft hat, und filtert Kalenderereignisse anschließend nach
+`person_id`.
+Bei einem Teilwiderruf bleibt dadurch die Ausgabe von Zuweisungen aus einem
+inzwischen deaktivierten Committee möglich, solange eine andere Mitgliedschaft
+aktiv ist.
+Die Sync- und Read-Pfade verwenden heute keine Liste aktiver Committees als
+Scope.
+
+Im Ziel liefert Identity für die Person eine materialisierte Liste aktiver
+Membership-ID-/Committee-ID-Paare.
+`feed_ics` validiert zusätzlich das Credential, aber das Token allein gewährt
+keine Membership-Rechte.
+Calendar bezieht den Identity-Snapshot vor `sync_person` und beschränkt die
+Projektion auf genau diese Membership- und Committee-IDs.
+Vor dem nachfolgenden Read/Render prüft Calendar den Scope erneut und filtert
+Events ausschließlich nach denselben aktiven Membership-/Committee-IDs. Ändert
+sich der Scope zwischen diesem Snapshot und der finalen ICS-Antwortfreigabe,
+verwirft Calendar das gesamte gerenderte ICS-Ergebnis.
+Das gilt ebenso für `list_events` und `event_ics`.
+Ein Teilwiderruf blendet daher Kalenderdaten des widerrufenen Committees aus,
+auch wenn eine andere Mitgliedschaft aktiv bleibt; eine leere Scope-Liste
+autorisiert weder Sync noch Kalenderausgabe.
+
+Vor jeder Assignment-Reconciliation — auch in `sync_round` und
+`sync_assignment` nach einem verzögerten Planning-Folgeauftrag — kombiniert
+Calendar den Planning-Snapshot mit dem vom Execution-Port gelieferten neuesten
+Zustand je Assignment. Der Execution-Snapshot enthält eine monotone
+Folgeversion und Cancellation-Tombstones. Ein Planning-Snapshot mit noch
+aktiver Zuweisung darf eine Cancellation nicht reaktivieren; erst eine höhere
+Execution-Folgeversion kann die Projektion wieder aktivieren. Das gilt ebenso
+für Read-Sync in `list_events`, `feed_ics` und `event_ics`.
+
+Für initiale Feed-Aktivierung und Rotation gelten getrennte Recovery-Wege.
+Bei initialer Aktivierung reserviert Calendar unter dem kurzen Lifecycle-Lock
+eine nicht-geheime, generationengebundene Pending-Absicht und synchronisiert
+danach die lokale Projektion im eigenen Calendar-UoW außerhalb der Sperre.
+Nach Sync legt ein Credential-UoW das Credential nur an, wenn Pending-Absicht
+und Revocation-Generation unverändert sind; die Credential-Aktivierung erfolgt
+also erst nach erfolgreichem Sync.
+Ein Syncfehler legt kein aktives Credential an; ein erneuter Aufruf setzt die
+Pending-Absicht fort und wiederholt den Sync.
+Ein Credential-Commitfehler gibt kein Secret aus; bei weiterhin gültiger
+Pending-Absicht kann die Aktivierung mit erneutem Sync wiederholt werden.
+Nach erfolgreichem Credential-Commit wird die URL genau einmal ausgegeben.
+Geht diese Antwort verloren, wird das Hash nicht in ein Secret zurückgewandelt;
+die Person startet eine ausdrückliche Rotation.
+
+Bei Rotation prüft Calendar den Identity-Scope und committet zunächst in
+einem eigenen Calendar-UoW den Widerruf des bisherigen Credentials samt
+nicht-geheimer Pending-Generation.
+Der bisherige Token ist unmittelbar nach diesem Commit ungültig.
+Erst danach synchronisiert Calendar die lokale Projektion außerhalb des Locks.
+Scheitert Sync, bleibt der alte Token widerrufen und der Pending-Stand erhalten;
+ein ausdrücklicher Retry wiederholt Sync für diese Generation.
+Nach erfolgreichem Sync erzeugt Calendar ein neues zufälliges Token und
+finalisiert Hash, Aktivstatus und Pending-Generationswechsel atomar per CAS.
+Nur der erfolgreiche Commit gibt die URL genau einmal aus.
+Scheitert die Finalisierung mit sicherem Rollback, bleibt der Pending-Stand
+erhalten und Retry wiederholt Sync sowie Token-Erzeugung.
+Ist der Commit erfolgt, aber die Antwort verloren, bleibt das Secret
+unverfügbar; eine neue ausdrückliche Rotation widerruft die unbekannte
+Generation und beginnt den Ablauf erneut.
+`DELETE` fenced ältere initiale Pending-Absichten. Für einen aktiven Feed-Sync
+setzt es zuerst unter einem prozessweit geteilten, je Feed indizierten
+Commit-Gate einen sofort sichtbaren Cancellation-Fence; dieses Signal benötigt
+keinen SQLite-Write-Commit. Der Sync prüft das Signal vor jedem begrenzten
+Schreibabschnitt und erneut im Commit-Gate unmittelbar vor Verlassen seines
+Calendar-UoW. Hat `DELETE` das Gate zuerst erhalten, rollt der Sync zurück,
+bestätigt das Ende seines UoW und legt keine Projektion an. Hat der Sync das
+Gate für seine abschließende Prüfung und den Commit zuerst erhalten, darf
+dieser Commit vor dem Widerruf linearisiert werden; `DELETE` setzt danach den
+Fence und wartet höchstens auf diesen einzelnen Commit. Während ein Widerruf
+auf den Rollback wartet, sehen neue Reads und Finalizer den prozesslokalen
+Fence bereits und liefern oder aktivieren nichts. Erst nach Ende des aktiven
+UoW committet `DELETE` die dauerhafte Revocation-Generation samt Löschen oder
+Fencing aktiver und initialer Pending-Stände in SQLite. Das Gate serialisiert
+Cancellation-Prüfung und Sync-Commit, nicht den gesamten Refresh; es wird vor
+dem Warten auf Rollback freigegeben. Auch den Lifecycle-Lock gibt `DELETE`
+während dieses Wartens frei und erwirbt ihn für den dauerhaften Revocation-
+Commit erneut. Der Finalizer darf nach dem Fence kein Credential anlegen.
+
+Kann dieser dauerhafte `DELETE`-Commit nicht bestätigt werden, bleibt der
+prozesslokale Fence als `RevocationPending` bestehen. Calendar liefert einen
+stabilen retryfähigen Fehler `FeedRevocationPending`; Reads, Syncs und
+Finalizer bleiben gefenced. Ein erneutes `DELETE` setzt den Widerruf fort und
+meldet Erfolg erst nach bestätigtem SQLite-Commit. Nach Prozessneustart gilt
+ausschließlich der persistierte Zustand: ein nicht committeter Widerruf gilt
+nicht als erfolgreich.
+
+Der pro-Feed Lifecycle-Lock lebt in einem vom Composition Root erzeugten,
+prozessweit geteilten Registry-/Serviceobjekt, nicht in `RequestContext` oder
+einer pro Request neu erzeugten `CalendarService`-Instanz.
+Er wird nach aufgelöster Datenbankidentität und Feed-Person indiziert.
+Initiale Aktivierung, ICS-Reads, Rotation und `DELETE` verwenden ihn nur für
+kurze Credential-Prüfungen, Fences, Revalidierungen und Commits; Sync,
+Read-Snapshot, Rendering und sonstige Refresh-Arbeit laufen außerhalb.
+Der Calendar-Sync-Coordinator fasst parallele Feed-GET-Refreshes pro Feed zu
+höchstens einem laufenden Sync-UoW zusammen. Derselbe je Feed serialisierte
+Coordinator umfasst auch initiale Aktivierung sowie Rotation und Retry einer
+Pending-Generation; gleichzeitige Aufträge für dieselbe aktive oder Pending-
+Generation teilen einen Lauf. Wartende GETs starten keinen weiteren Refresh
+und revalidieren Credential und Identity-Scope vor ihrem Read-Snapshot erneut.
+Jeder aktive Refresh besitzt ein prozessweit sichtbares Cancellation-Signal.
+Seine begrenzten Schreibabschnitte prüfen dieses Signal; die letzte
+Signalprüfung und der SQLite-Commit werden für denselben Feed durch ein kurzes
+Commit-Gate serialisiert. `DELETE` setzt den Fence unter diesem Gate, gibt es
+vor dem Warten frei und committet den dauerhaften Widerruf erst, nachdem der
+aktive Writer sein UoW zurückgerollt hat. Zugleich verwirft es alle wartenden
+Sync-Aufträge; sie prüfen den Fence und starten keinen UoW. Damit muss SQLite
+keinen Revocation-Write parallel zu einem aktiven Writer committen, und
+zwischen letzter Prüfung und Sync-Commit kann kein Widerruf vorbeilaufen. Ein
+bereits vor dem Fence abgeschlossener Sync darf committen; der danach
+linearisierte Widerruf blockiert Read-Snapshots, Feed-Finalizer und
+Antwortfreigaben.
+Ein Token-ICS-Request ermittelt den möglichen Sperrschlüssel aus dem Tokenhash,
+prüft nach Sperrerwerb Credential-Generation und Identity-Scope und führt danach
+Sync außerhalb der Sperre aus.
+Für den Read-Snapshot erwirbt er die Sperre erneut und prüft Credential und
+Identity-Scope noch einmal; Rendering erfolgt danach außerhalb der Sperre.
+Unmittelbar vor Rückgabe erwirbt der Read dieselbe Sperre erneut und prüft,
+dass die beobachtete Credential-Generation unverändert aktiv und der
+Identity-Membership-/Committee-Scope noch aktuell ist. Hat sich der Scope seit
+dem Read-Snapshot geändert, verwirft Calendar das gesamte materialisierte
+ICS-Ergebnis und gibt keine Events aus diesem Read zurück. Das Rendering
+erzeugt nur das finale ICS-Dokument; Calendar muss keine bereits gerenderte
+Antwort nachträglich parsen oder filtern. Ein bereits committeter
+Credential-Widerruf oder eine Scope-Änderung vor diesem finalen Identity-Check
+verwirft damit das Ergebnis.
+Dieser letzte Credential- und Identity-Check ist der Autorisierungszeitpunkt
+der Antwort; die Sperre wird nicht bis zum Ende des Netzwerktransfers gehalten.
+Rotation validiert Scope und Generation unter der Sperre und committet
+Widerruf samt Pending-Generation atomar. Sync läuft außerhalb der Sperre;
+die Finalisierung erwirbt sie erneut und aktiviert nur nach erfolgreicher
+Pending-CAS-Prüfung.
+`DELETE` setzt unter Lifecycle-Lock und Commit-Gate zuerst den prozesslokalen
+Revocation-Fence; offene Rotations- und Aktivierungsstände sowie wartende Reads
+und Sync-Aufträge werden dadurch gefenced. Es gibt beide Sperren frei und wartet
+höchstens auf Abschluss oder Rollback des einzelnen aktiven Sync-UoW, nie auf
+eine Refresh-Warteschlange oder ICS-Rendering. Danach erwirbt es den
+Lifecycle-Lock erneut, revalidiert Status/Generation und committet den
+dauerhaften Widerruf samt Löschen oder Fencing offener Pending-Stände atomar.
+Jeder Finalizer revalidiert die beobachtete Credential- oder Pending-Generation.
+Ein veralteter Rotationsfinalizer kann den Feed nicht reaktivieren.
+Die Sperre gilt prozessweit im einzelnen autoritativen Backendprozess und ist
+nicht mehrprozessfähig.
+Das bestehende Runtime-Lease lässt für dieselbe Datenbank nur einen
+autoritativen Backendprozess zu; mehrere Serverprozesse, die eine Datenbank
+gemeinsam bedienen, sind kein unterstütztes Laufzeitmodell.
+CAS-, Insert- und Unique-Konflikte werden auf diese Domainfehler abgebildet;
+rohe Datenbankfehler verlassen den Adapter nicht.
+Der bestehende `POST`-Use-Case prüft einen gespeicherten Pending-Stand vor
+dem `rotate`-Argument.
+Solange er besteht, setzt jeder explizite Aktivierungsaufruf genau diese
+Generation fort, auch `rotate=false` nach Reload oder `rotate=true` aus einem
+veralteten aktiven UI-Zustand; er ersetzt den Pending-Stand nicht und widerruft
+keine Generation ein zweites Mal.
+`GET` behält sein bestehendes Statusformat ohne Pending-Feld und meldet nach
+dem ersten Widerrufscommit `active=false`.
+Ein fehlgeschlagener Sync liefert den stabilen Retry-Fehler im vorhandenen
+HTTP-Fehlerformat, ohne Secret; ein erneuter `POST` setzt den persistierten
+Pending-Stand fort.
+Nach jedem fehlgeschlagenen Aktivierungs-/Rotations-`POST` liest der UI-Adapter
+den Status erneut und ersetzt seinen lokalen Feedstatus durch diese Antwort.
+Er löscht oder verbirgt zugleich sofort die lokal gehaltene einmalige
+Feed-URL; `GET` enthält kein Secret und kann den Link nie wiederherstellen.
+Auch wenn der Status-Read `active=true` meldet, bleibt der Link verborgen;
+bei unbekanntem Secret kann der Nutzer bewusst erneut rotieren.
+Scheitert auch der Status-Read, wird ein zuvor geladenes `active=true` als
+veraltet/unbekannt markiert, die alte URL bleibt verborgen und der Status darf
+nicht als aktuell aktiv dargestellt werden.
+Ist die Finalisierung bereits committet, meldet `GET` `active=true`, aber das
+verlorene Secret bleibt unlesbar und nur eine ausdrückliche Rotation erzeugt
+eine neue einmalige URL.
+Der Sync ist eine lokale Projektion und hat keine externe Providerwirkung.
 
 Das Ziel aus [Issue #1078](https://github.com/lxndrp/lzug/issues/1078) ist,
 stabile Kalenderidentitäten und Generationen über Wiederholungen und
@@ -330,11 +596,159 @@ bevor der zugehörige Kompatibilitätsadapter entfernt wird.
 | Phase | Eigentümer der Übergangsfassade | Arbeit und Entfernungsschritt |
 | --- | --- | --- |
 | 1. Composition und Ports | `application` für Cross-Domain-Aufrufe; jede Domäne für ihren Port | UoW-/Adapterfactories aus einer Composition Root verdrahten; bestehende Services zunächst über Adapter anbinden; Adapter entfernen, wenn alle Aufrufer denselben domänenspezifischen Port und UoW nutzen und die Persistence-Adapter intern dieselbe Session teilen |
-| 2. Planning | `planning` | `ResourceRepository`-Operationen für Kandidaten, Rundenzuordnung, Prüfungszeiträume, Verfügbarkeit, Planung und Orte in fachliche Commands/Queries überführen; Rundenerstellung erhält den benötigten Halbjahres-Snapshot und legt ein fehlendes Halbjahr im selben Planning-UoW an. Keine selbstständigen Halbjahres-Update-/Delete-Commands einführen; die aktuell verbotenen generischen Schreibpfade nach Migration der unterstützten Aufrufer entfernen. Geokodierung als Planning-Port mit Autorisierung und Revisionsprüfung vor Provider-I/O anbinden; `ExamVenueApi` nach Routeumstellung entfernen |
-| 3. Execution und Assessment | jeweiliges `execution`- oder `assessment`-Modul, Cross-Domain-Koordination durch `application` | Slot-/Protokoll-/Tages- und Ergebniszugriffe in Use-Case-Ports überführen; Runden-Lifecycle in Application-Orchestrierung sowie Planning-/Execution-/Assessment-Ports mit gemeinsamem UoW aufteilen; Ergebnisänderung mit Tageswiederöffnung und die inverse Day-Close-/Reopen-Richtung mit Assessment-Readiness/Result-Korrekturen ebenso; CAS-/Audit-/Wiederöffnungs- und Offenlegungstests bestehen. Kalender- und Benachrichtigungsfolgen an den jeweiligen Planning- bzw. Execution-Post-Commit hängen; Application speichert Claim/Retry und Ergebnis unter stabiler Ursprungsidentität und kann fehlende Aufträge nach Crash anhand der unveränderlichen Planning-/Execution-Revision oder Audit-ID erneut ableiten. Direkte Kalenderaufrufe und `CalendarEvent`-Mutationen aus `execution.absence`, `planning.venue_consequences`, `execution.exam_round_lifecycle` und HTTP-Routen nach Handoff entfernen |
+| 2. Planning | `planning` | `ResourceRepository`-Operationen für Kandidaten, Rundenzuordnung, Prüfungszeiträume, Verfügbarkeit, Planung und Orte in fachliche Commands/Queries überführen; Rundenerstellung erhält den benötigten Halbjahres-Snapshot und legt ein fehlendes Halbjahr im selben Planning-UoW an. Assignment-Reassignment und Restore für `select_replacement`/`reopen` als Planning-Commands mit CAS einführen. Keine selbstständigen Halbjahres-Update-/Delete-Commands einführen; die aktuell verbotenen generischen Schreibpfade nach Migration der unterstützten Aufrufer entfernen. Geokodierung als Planning-Port mit Autorisierung und Revisionsprüfung vor Provider-I/O anbinden; `ExamVenueApi` nach Routeumstellung entfernen |
+| 3. Execution und Assessment | jeweiliges `execution`- oder `assessment`-Modul, Cross-Domain-Koordination durch `application` | Slot-/Protokoll-/Tages- und Ergebniszugriffe in Use-Case-Ports überführen; Runden-Lifecycle in Application-Orchestrierung sowie Planning-/Execution-/Assessment-Ports mit gemeinsamem UoW aufteilen; Ergebnisänderung mit Tageswiederöffnung und die inverse Day-Close-/Reopen-Richtung mit Assessment-Readiness/Result-Korrekturen ebenso; CAS-/Audit-/Wiederöffnungs- und Offenlegungstests bestehen. Kalender- und Benachrichtigungsfolgen an den jeweiligen Planning- bzw. Execution-Post-Commit hängen; Application speichert Claim/Retry und Ergebnis unter stabiler Ursprungsidentität und kann fehlende Aufträge nach Crash anhand unveränderlicher Folgequellen erneut ableiten. Für Execution kommen nur Quellen mit Audit-ID nach dem im Upgrade persistierten Cutover-Wasserzeichen infrage; historische Auditzeilen ohne Folgequelle werden diagnostiziert, aber weder rekonstruiert noch zugestellt. Direkte Kalenderaufrufe und `CalendarEvent`-Mutationen aus `execution.absence`, `planning.venue_consequences`, `execution.exam_round_lifecycle` und HTTP-Routen nach Handoff entfernen |
 | 4. Identity | `identity` | Konto-, Personen-, Mitgliedschafts- und Ausschusszugriffe aus generischem Resource-Zugriff lösen; `/api/committees`, `committee-*` und Bootstrap-/Einladungs-/Recovery-Kommandos über Identity-Commands abbilden; Auth-Atomarität, Membership-Scope und nicht offenlegende HTTP-Fehler belegen; Identity-Adapter nach letztem alten Aufrufer entfernen |
-| 5. Supporting und Operations | `calendar`, `notifications`, `documents`, `operations`; Planning/Execution liefern fachliche Folgeauftragsbeschreibungen, Application besitzt ihren dauerhaften Ausführungszustand | Calendar erhält Planungsdaten über seinen typisierten Snapshot-Port, den ein Planning-Adapter erfüllt. Der Application-Port deckt Rundenrefresh, einzelne Zuweisungssynchronisierung, Zuweisungsstorno und Storno künftiger Rundentermine mit typisierten Ergebnissen ab. Feedstatus, Aktivierung, Rotation, Widerruf und ICS-Reads bleiben Calendar-Use-Cases; Credential-Commit und nachfolgende Projektion werden als getrennte, beobachtbare UoWs getestet. Planning behält die Ableitung, Execution die fachlichen Zustandsänderungen; Application speichert Folgeaufträge, stabile Ursprungsidentitäten, Claim/Retry und Ergebnisse in seinem consumer-eigenen Vertrag. Geplante Reminder-/Deadline-Verarbeitung läuft über Application mit Planning-Snapshot-Port und dem expliziten Admin-Processing-Befehl. Alle direkten `CalendarService`-Aufrufe und `CalendarEvent`-Reads/-Mutationen außerhalb Calendar werden nach Handoff entfernt. Notifications erhalten Ports für Kanalübersicht und synthetische Zustellung; Operations behält `config`-/`doctor`-Checks über secret-freie Ports zu Dokumenten-, Notifications- und Planning-Adaptern. Backup-Empfängerverwaltung samt Environment-Migration und atomarem Audit in Operations aufnehmen; die aktuelle fehlende Empfänger-/Ereignis-Revalidierung am Notification-Claim als offenes Risiko in #1079 entscheiden; Dokumentkompensation sowie Runtime-/Restore-Sperr- und Crash-Recovery-Verfahren nachweisen |
+| 5. Supporting und Operations | `calendar`, `notifications`, `documents`, `operations`; Planning/Execution liefern fachliche Folgeauftragsbeschreibungen, Application besitzt ihren dauerhaften Ausführungszustand | Calendar erhält Planungsdaten über seinen typisierten Planning-Snapshot-Port und aktive Membership-/Committee-Scopes über seinen Calendar-eigenen Identity-Port. Ein Identity-Adapter implementiert diesen Port; Sync-Projektion und Event-/ICS-Reads bleiben strikt auf die aktiven IDs begrenzt. Der Application-Port deckt Rundenrefresh, einzelne Zuweisungssynchronisierung, Zuweisungsstorno und Storno künftiger Rundentermine mit typisierten Ergebnissen ab. Feedstatus, Aktivierung, Rotation, Widerruf und ICS-Reads bleiben Calendar-Use-Cases; initiale Aktivierung reserviert eine nicht-geheime Pending-Generation unter kurzem Lock, synchronisiert außerhalb und speichert das aktive Credential nach erfolgreicher CAS-Revalidierung; `DELETE` fencet die Pending-Generation. Alle Sync-Auslöser laufen durch den je Feed serialisierten Coordinator; ein prozesslokaler Revocation-Fence bricht den aktiven UoW ab und verwirft wartende Sync-Aufträge. `DELETE` committet den dauerhaften Widerruf erst nach Abschluss oder Rollback des einzelnen aktiven UoW. Rotation widerruft das bisherige Credential vor dem Sync in einem eigenen UoW und persistiert einen nicht-geheimen Pending-Stand; nach Sync wird eine neue Token-Generation nur per CAS auf diesen Stand aktiviert. Der pro-Feed Lifecycle-Lock schützt nur kurze Credential-Prüfungen und Commits; Sync/Rendering liegen außerhalb und Generation-Revalidierung schützt konkurrierende Requests; Secret-Ausgabe erfolgt genau einmal nach Finalisierungscommit. Planning behält die Ableitung, Execution die fachlichen Zustandsänderungen; Application speichert Folgeaufträge, stabile Ursprungsidentitäten, Claim/Retry und Ergebnisse in seinem consumer-eigenen Vertrag. Notification-Beschreibung und ursprüngliche Empfänger-IDs committen mit Execution-Fachzustand/Audit atomar und sind Application-Recovery-Quelle. Geplante Reminder/Deadline-Verarbeitung läuft über Application mit Planning-Snapshot-Port und explizitem Admin-Processing-Befehl. Alle direkten `CalendarService`-Aufrufe und `CalendarEvent`-Reads/-Mutationen außerhalb Calendar werden nach Handoff entfernt. Notifications erhalten Ports für Kanalübersicht und synthetische Zustellung; Operations behält `config`-/`doctor`-Checks über secret-freie Ports zu Dokumenten-, Notifications- und Planning-Adaptern. Backup-Empfängerverwaltung samt Environment-Migration und atomarem Audit in Operations aufnehmen; die aktuelle fehlende Empfänger-/Ereignis-Revalidierung am Notification-Claim als offenes Risiko in #1079 entscheiden; Dokumentkompensation sowie Runtime-/Restore-Sperr- und Crash-Recovery-Verfahren nachweisen |
 | 6. Adapterbereinigung | `application` komponiert; jeweiliger Adaptereigentümer entfernt | `GET /api/round-summary`, `GET /api/notification-channels`, Admin `test-notification`, `config` und `doctor` auf die beschriebenen Query-/Command-/Diagnostic-Ports abbilden. HTTP und Admin auf dieselben Commands/Ergebnisse mappen; `RequestContext`-/Transport-Kompatibilitätsmethoden nach Wegfall des letzten Legacy-Aufrufers entfernen; Wire- und OpenAPI-Verträge unverändert prüfen |
+
+Execution besitzt Notification-Folgequellen für seine eigenen Zustandswechsel.
+Die Rundungsabsage ist davon ausgenommen: Planning speichert ihre einzige
+Cancellation-Notice-Quelle einschließlich der vollständigen, von Application
+im gemeinsamen UoW materialisierten Empfängermenge.
+
+In Planning-Phase 2 liest der Planning-Adapter seine eigenen
+`ExamDayAssignment`- und Membership-Referenzen im lokalen Snapshot und
+übergibt die referenzierten Membership-IDs an den Planning-owned
+Identity-Port.
+Der Identity-Adapter löst ausschließlich eigene Identitätstabellen auf und
+liefert Person-IDs auch für inaktive Memberships; er liest kein Planning-
+Schema.
+Für `availability_requested` liefert der Planning-owned Identity-Port in
+demselben Planning-UoW die ausgewählten aktiven Membership-IDs der Runde;
+Planning committet sie mit Statuswechsel, Auditquelle, Origin-ID, Deadline
+und unveränderlicher Notice-Beschreibung.
+Application replayt genau diese Empfänger-IDs und berechnet sie nicht aus
+späteren Memberships neu.
+Die aktuelle Versandberechtigung bleibt als Frage in #1079 offen; es wird hier
+keine Suppressionspolicy festgelegt.
+
+Die Ersatzzuweisung wird als Application-Use-Case ausgeführt: Application
+liest Execution-Report und aktuelle verfügbare Response, den Planning-
+Assignment-/Candidate-Day-Snapshot, aktive Ziel-Membership samt Committee und
+Vertretungsseite über Identity sowie die Execution-Mutationsberechtigung mit
+Tagesrevision. Der Reportstatus muss `fallback_confirmed`,
+`replacement_requested` oder `fallback_expired` sein, seine erwartete Version
+muss stimmen, und vor Prüfungsbeginn muss die Mutation abgeschlossen sein,
+außer wenn ein explizit autorisierter `reopening`-Scope gilt. Der Kandidat muss
+eine aktuelle `available`-Antwort haben und aktiv sein. Sie muss für die
+passende Vertretungsseite zugelassen sein, außer die Zielzuweisung folgt der
+bestehenden Fallback-Ausnahme. Planning prüft anhand des aktuellen
+Day-Part-Snapshots erneut, dass keine doppelte reguläre Prüferzuweisung,
+Zielbelegung oder Verfügbarkeits-/Zuweisungskollision vorliegt; eine
+Fallback-Rolle behält dabei ihre dafür geltenden Sonderregeln. Abgelehnte,
+nicht verfügbare, inaktive oder zwischenzeitlich unzulässige Kandidaten werden
+im selben UoW abgewiesen.
+
+Planning besitzt die Reassignment- und Restore-Commands für
+`ExamDayAssignment.committee_member_id`; Execution besitzt Anwesenheit und die
+Ausführungsfolgequelle. Application führt Planning-, Identity- und
+Execution-Reads, beide Mutationen, Audit und unveränderliche Folgequelle im
+gemeinsamen UoW aus. Die Quelle für `replacement_selected` friert auch die
+ursprüngliche Notification-Empfängermenge (alter Assignee, Ersatzmitglied und
+übrige aktive Ausschussmitglieder) ein. Planning-CAS bindet Assignment-Revision und vorherige
+Membership-ID. Keine Domäne liest fremde Tabellen direkt oder öffnet eine
+zweite Session.
+
+In Execution-Phase 3 entfällt der heutige Pre-Sync von `select_replacement`.
+Execution autorisiert eine Report- und Planning-Mutation entweder für einen
+offenen Tag oder für einen explizit wiedereröffneten Scope bei passender
+Revision. Nur wenn der Tag beim Mutation-Commit offen ist, committet Execution
+zusätzlich das unveränderliche Assignment-Before-Image mit altem
+Membership-Bezug, materialisiertem Calendar-Eventinhalt und dem gebundenen
+`closure_status == "open"`-Guard-Snapshot gemeinsam mit der
+Abwesenheitsmutation.
+Application replayt diese autorisierte Quelle ohne Prüfung des inzwischen
+veränderlichen Tagesstatus.
+Der Calendar-Port kann daraus die alte stornierte Eventzeile auch ohne
+vorherige Projektion erzeugen und anschließend die neue Generation syncen.
+Wenn der Tag beim Mutation-Commit den Status `reopening` hat und der Scope
+autorisiert ist, werden Report und Planning-Assignment korrigiert, aber weder
+ein solches Before-Image noch eine Calendar-Quelle erzeugt. Der offene
+Calendar-Guard autorisiert nur die Folgeprojektion und ist keine Voraussetzung
+für die Planning- oder Execution-Schreibberechtigung.
+Jede Calendar-Folge aus einer Execution-Mutation enthält zusätzlich die
+monotone Execution-Folgeversion der betroffenen Assignment-Projektion.
+Calendar speichert die zuletzt angewandte Version pro Assignment im selben
+Calendar-UoW; ältere Folgen sind `superseded` und ändern keine Events.
+Gleiche Versionen sind nur bei identischer stabiler Origin-ID idempotente
+Wiederholungen; unterschiedliche Quellen mit derselben Version ergeben einen
+stabilen Konflikt.
+Eine Rundungsabsage persistiert ihr fachliches Entscheidungsdatum mit der
+unveränderlichen Application-/Rundungsentscheidungsquelle und übergibt es als
+`decision_date` an `cancel_round_future`; ein Retry nach Mitternacht verwendet
+weiterhin den ursprünglichen inklusiven Tages-Cutoff.
+
+Vor der Rundungsentscheidung liest Application über den Calendar-Port die
+Membership-IDs aller nicht stornierten künftigen Projektionen ab
+`decision_date`, einschließlich aktiver Projektionen veralteter Assignees.
+Planning speichert diese unveränderliche Empfängerliste mit Entscheidung,
+Datum und Notice-Beschreibung. Replay verwendet dieselben Empfänger; die
+nachgelagerte Stornierung nutzt weiterhin dasselbe `decision_date`.
+
+Beim offenen Prüfungstag führt `reopen` den ursprünglichen Assignee zurück;
+Calendar storniert das Ersatz-Event mit Versionssprung und legt für den
+Originalassignee eine neue Generation an.
+
+In Supporting-Phase 5 teilen initiale Aktivierung, Token-ICS-Read, Rotation
+und explizites Feed-`DELETE` denselben prozessweit geteilten Lifecycle-Lock
+aus der Composition-Root-Registry für kurze Credential-Prüfungen, Fences und
+Commits.
+Parallele ICS-Refreshes werden pro Feed auf einen laufenden Sync-UoW
+zusammengeführt; derselbe Coordinator serialisiert Sync-Aufträge aus initialer
+Aktivierung, Rotation und deren Retries und führt identische
+Generationsaufträge zusammen. Das prozessweit geteilte Commit-Gate je Feed
+serialisiert nur Cancellation-Prüfung und abschließenden SQLite-Commit des
+aktiven Syncs. `DELETE` setzt darunter sofort den prozesslokalen Fence, gibt das
+Gate frei, verwirft wartende Aufträge und fenced wartende Reads. Es wartet auf
+Rollback oder Abschluss des einzelnen aktiven UoW; erst danach committet es die
+dauerhafte Revocation-Generation. Wartende Aktivierungs-/Rotationsaufrufe sehen
+den Fence und starten keinen neuen Sync. So konkurriert der Widerrufs-Write
+nicht mit einem aktiven SQLite-Writer. `DELETE` wartet nicht auf eine
+Refresh-Warteschlange oder Rendering.
+Vor Rückgabe revalidiert der ICS-Read Credential-Generation und
+Identity-Membership-/Committee-Scope.
+Hat sich der Scope seit dem Read-Snapshot geändert, verwirft Calendar das
+gesamte materialisierte ICS-Ergebnis.
+
+Der Calendar-Repository-UoW serialisiert zusätzlich Generationreservierungen
+je Assignment und persistiert sie idempotent unter dem stabilen fachlichen
+Origin.
+`sync_person`- und ICS-read-triggered Sync sowie Before-Image-Replay nutzen
+denselben Allocator; Tombstone- und aktuelle Projektion erhalten so bei jeder
+Reihenfolge kollisionsfreie, stabile Generationen, auch wenn ein Read-Sync
+die Ersatzzuweisung bereits angelegt hat.
+
+Für die initiale Calendar-Feed-Aktivierung bleibt die Projektion Sync-first:
+Calendar reserviert unter kurzem Lifecycle-Lock eine nicht-geheime Pending-
+Generation und synchronisiert außerhalb der Sperre.
+Erst nach erfolgreichem Sync legt ein Credential-UoW das aktive Feed-Credential
+an, wenn Pending-Generation und Revocation-Generation noch aktuell sind.
+`DELETE` fencet diese Pending-Generation; ein späterer Finalizer legt kein
+Credential an.
+Eine Rotation widerruft das alte Credential dagegen vor dem Sync in einem
+eigenen atomaren UoW und hinterlässt einen nicht-geheimen Pending-Stand.
+Der alte Token ist ab diesem Commit ungültig, auch wenn Sync oder spätere
+Finalisierung scheitern.
+Ein expliziter Retry synchronisiert den Pending-Stand erneut und aktiviert
+eine neu erzeugte Token-Generation nur per CAS auf genau diesen Stand.
+Ein pro-Feed Lifecycle-Lock schützt nur kurze Credential-Übergänge; Sync und
+Rendering laufen außerhalb. Jeder Finalizer revalidiert nach Lock-Erwerb die
+beobachtete Pending-Generation.
+Damit kann ein wartender Request nicht unbemerkt eine zwischenzeitlich
+ausgegebene URL wieder rotieren.
+Es wird ausschließlich nach erfolgreichem Finalisierungscommit einmalig die
+Feed-URL ausgegeben.
+Commitfehler geben kein Secret aus; bei weiterem Pending-Stand kann der
+Aufruf wiederholt werden.
+Wenn die Finalisierung bereits committet wurde und nur die Antwort verloren
+ging, bleibt das Secret unverfügbar und der Nutzer startet eine neue
+ausdrückliche Rotation.
+Konkurrierende Requests dürfen den Pending-Stand nicht doppelt finalisieren:
+der erfolgreiche CAS gewinnt, weitere Aufrufe erhalten stabil
+`FeedRotationPending` oder `FeedConflict` ohne Secret.
+Insert-, CAS- und Unique-Konflikte werden in diese stabilen Domainfehler
+übersetzt und erscheinen nie als rohe Datenbankfehler.
 
 Zulässige Übergänge sind ein synchroner Aufruf im selben Prozess, ein
 kurzlebiger Adapter mit expliziter Übergabe desselben UoW und eine temporäre
@@ -401,6 +815,25 @@ nicht zu dieser Migration.
 - HTTP/OpenAPI/Admin-Verträge, Demo-Isolation und bestehende
   migrationskompatible Daten bleiben kompatibel.
 
+Jede Calendar-Assignment-Reconciliation — `sync_round`, `sync_assignment` und
+`sync_person`, einschließlich verspäteter Planning-Aufträge — liest die neueste
+Execution-Folgeversion samt Cancellation-Tombstone. Ein noch aktiver
+Planning-Snapshot reaktiviert eine stornierte Zuweisung nicht; dafür ist eine
+höhere autorisierte Execution-Folgeversion erforderlich.
+
+Die Assessment-Modellanwendbarkeit erhält Committee-Beruf und IHK aus einem
+Identity-Snapshot sowie aktive Kandidaten-Schwerpunkte und das effektive
+Rundungsdatum aus Planning im gemeinsamen Application-UoW. Das Datum ist der
+erste Prüfungstag oder, wenn dieser fehlt, der fachliche Beginn des Halbjahrs.
+Assessment entscheidet die Regel anhand dieser materialisierten Werte.
+
+Das Upgrade persistiert je Execution-Auditstream ein Cutover-Wasserzeichen.
+Recovery berücksichtigt nur unveränderliche Execution-Folgequellen, die
+atomar mit Mutationen nach diesem Cutover gespeichert wurden. Historische
+Auditzeilen ohne Folgequelle werden diagnostiziert und zur manuellen
+Abstimmung ausgewiesen; sie werden weder aus veränderlichem Zustand
+rekonstruiert noch erneut zugestellt.
+
 ## Prüfung
 
 Die Modulverantwortung wird durch Tests der jeweiligen Portverträge und der
@@ -410,7 +843,57 @@ Für jede Post-Commit-Folge belegt ein Wiederanlauftest den Ablauf
 Fach-Commit → Queue-Insertionfehler oder Prozessabbruch → Neustart → expliziter
 Admin-Processing-Command → erneute Ableitung mit derselben stabilen
 Ursprungsidentität; eine fehlende Queue wird diagnostiziert und kann wieder
-eingereiht werden.
+eingereiht werden. Der Lauf findet Planning-Rundungsabsagen aus ihrer
+unveränderlichen Planning-Entscheidungsquelle wieder und übernimmt
+`decision_date`, Notice-Beschreibung und ursprüngliche Empfänger-IDs unverändert.
+Upgrade-Tests belegen das persistierte Cutover-Wasserzeichen je Execution-
+Auditstream: historische Auditzeilen ohne Folgequelle werden diagnostiziert,
+nicht rekonstruiert und nicht zugestellt; eine nach Cutover atomar gespeicherte
+unveränderliche Quelle wird mit identischer Notice und Empfängermenge replayt.
+Assessment-Tests belegen, dass die Modellbindung Beruf/IHK, aktive
+Kandidatenschwerpunkte und effektives Datum aus materialisierten Identity-
+und Planning-Snapshots erhält und typisierte Anwendbarkeitskonflikte liefert.
+Calendar-Contract-Tests belegen den einmaligen Feed-Refresh bei parallelen GETs,
+den prozesslokalen Cancellation-Fence, die Gate-Reihenfolge für Check/Commit,
+SQLite-Rollback vor dauerhaftem Revocation-Commit und Abbruch
+wartender/aktiver Refreshes aus GET, initialer Aktivierung und Rotation sowie
+den DELETE-Wettlauf mit Aktivierung, Rotation und ICS-Read. Sie prüfen, dass ein Read nach
+Widerrufscommit kein ICS-Ergebnis liefert und dass ein Identity-Teilwiderruf
+zwischen Read-Snapshot und finaler Antwortfreigabe das gesamte ICS-Ergebnis
+verwirft, auch wenn andere Memberships aktiv bleiben.
+Kalenderfolgen-Tests belegen den stabilen `decision_date`-Cutoff über Mitternacht
+und dass ältere Assignment-Folgeversionen nach neueren Mutationen keine Events
+ändern. Planning-Tests belegen, dass Legacy-Availability-Zeilen nicht replayt
+werden, neue Übergänge nach Neustart wiederhergestellt werden und fehlende
+Planning-Einstellungen oder aktive Kandidatentage die Transition verhindern.
+Zusätzliche Calendar-Contract-Tests belegen, dass verzögerte oder wiederholte
+`sync_round`- und `sync_assignment`-Folgen nach einer Execution-Cancellation
+kein Planning-Assignment reaktivieren, ein höherer Execution-Stand aber eine
+spätere Wiederzuweisung erlaubt; `DELETE` nach
+fehlgeschlagenem SQLite-Commit bleibt mit `FeedRevocationPending` gefenced und
+erfolgreicher Retry bestätigt den Widerruf. Planning-/Application-Tests
+belegen, dass `select_replacement` den bisherigen Assignee, das ausgewählte
+Ersatzmitglied und alle übrigen aktiven Ausschussmitglieder als ursprüngliche
+Empfänger-IDs im selben Cross-Domain-UoW einfriert. Sie belegen Assignment-
+Reassignment und Restore in `select_replacement`/`reopen`
+im gemeinsamen UoW, die erneute Prüfung von Assignment-Revision und Ziel-
+Membership sowie Abweisung abgelehnter, nicht verfügbarer, inaktiver,
+seitenfalscher, doppelt besetzter und konfliktbehafteter Ersatzkandidaten.
+Sie belegen außerdem, dass ein gültiger `reopening`-Scope Report und
+Planning-Assignment bei passender Revision ändern darf, dabei aber keine
+Calendar-Folge erzeugt; ein geschlossener oder nicht autorisierter Scope bleibt
+verboten. Planning-/Application-Tests belegen die vollständige
+Rundungsstorno-Empfängerunion aus Planning-Zuweisungen, aktiven Vorsitz-/
+Stellvertretungsrollen und noch aktiven obsoleten Calendar-Projektionen, auch
+wenn kein Event für einen Planning-Empfänger existiert; Replay hält dieselbe
+Menge stabil.
+Execution-Contract-Tests belegen für Abwesenheits-`report`/`respond` und
+Prüfungstags-Lifecycle-Kommandos, dass die Identity-Snapshots im gemeinsamen
+UoW mit Mutation, Audit und Folgequelle gebunden sind und Replay die
+ursprünglichen Empfänger-IDs unverändert übernimmt. Planning-Tests belegen,
+dass ausschließlich die Rundungsabsage ihre vollständige Empfängervereinigung
+samt `decision_date` in der Planning-Folgequelle speichert; Application findet
+diese Quelle nach Neustart wieder und erzeugt keine Execution-Duplikatquelle.
 Fachtests erhalten die oben genannten CAS-, Autorisierungs-, Offenlegungs-,
 Claim-, Kompensations- und Runtime-Invarianten.
 Adaptertests belegen unveränderte HTTP/OpenAPI/Admin-Verträge.

@@ -180,6 +180,10 @@ Plan-Commit in einem separaten, idempotent wiederholbaren Planning-UoW ab.
 Scheitert die Ableitung, bleibt der bestätigte Plan bestehen; der Request
 meldet `derivation_status=missing`, und `process_due` kann die Ableitung
 erneut ausführen.
+Dieser Pfad betrifft die aus bestätigten Planrevisionen abgeleiteten
+Kalenderfolgen.
+Er ist nicht mit den direkten Kalenderaufrufen aus dem Abwesenheitsprozess
+oder der Rundungsabsage gleichzusetzen.
 `_process_calendars` gruppiert sie pro Runde, aktualisiert die Projektion in
 einem separaten Datenbank-UoW und speichert danach Auftragsstatus, Event-ID
 und Eventversion in einem weiteren UoW.
@@ -196,6 +200,11 @@ Planning-eigene Taskpersistenz werden nach dem Handoff entfernt.
 ebenfalls vor dem Lesen oder Rendern; Refresh und Read laufen in getrennten
 Session-Scopes.
 Nur `feed_ics` validiert dabei ein Feed-Credential.
+Heute beschränkt die Feedprüfung die Person nur darauf, mindestens eine aktive
+Mitgliedschaft zu haben; die Synchronisierung und Ausgabe filtern anschließend
+nach `person_id`.
+Bei aktivem Committee A und deaktiviertem Committee B können so weiterhin
+Kalenderereignisse aus B synchronisiert oder ausgegeben werden.
 Die Umsetzung von #1078 muss stabile Identitäten und Generationen über
 Wiederholungen und Planänderungen sowie diese Sync-Seiteneffekte erhalten.
 Sie bezieht Planungsdaten über einen typisierten Snapshot aus einem
@@ -212,6 +221,198 @@ Der direkte Planning-Aufruf von `CalendarService` und der ORM-Zugriff in
 Orchestrierung.
 Eine zusätzliche Generation-Fencing-Garantie für verspätete Task-Abschlüsse
 ist damit nicht festgelegt.
+
+Weitere heutige Kalenderpfade liegen in `execution.absence`:
+`select_replacement` ermittelt über `_report_round_id` eine Runde nur für
+einen offenen Prüfungstag und ruft dann `sync_round` vor der
+Abwesenheitsmutation auf.
+Nach dem Commit ruft es `sync_round` erneut auf, ebenfalls nur bei offenem
+Prüfungstag.
+Der Zielvertrag entfernt diesen Pre-Sync.
+Nur wenn der Prüfungstag beim `select_replacement`-Commit offen ist, speichert
+die Execution-Folgequelle im selben Mutation-UoW das unveränderliche
+Before-Image einschließlich des Guard-Snapshots `closure_status == "open"`,
+Assignment-ID, alter Empfänger-Membership-ID und materialisiertem Eventinhalt.
+Generationen gehören ausschließlich Calendar und werden nicht von Execution
+vorhergesagt oder gespeichert.
+Application replayt diese bereits autorisierte Quelle samt Guard-Snapshot
+ohne den zwischenzeitlich veränderlichen Tagesstatus neu zu bewerten und
+übergibt das Image an den Calendar-Port: dieser storniert die alte Generation
+und erzeugt die stornierte Zeile aus dem Before-Image auch dann, wenn noch
+keine Projektion existiert; danach synchronisiert er die neue
+Zuweisungsgeneration.
+Wenn der Tag beim Mutation-Commit den Status `reopening` hat, entstehen aus
+`select_replacement` weder Before-Image noch Calendar-Quelle.
+So bleiben Abwesenheitsmutation und Wiederherstellung der alten
+Kalenderprojektion/Eventzeile nach Prozessabbruch wiederholbar.
+Die unveränderliche `replacement_selected`-Notification-Quelle friert im
+gleichen Cross-Domain-UoW den bisherigen Assignee, das Ersatzmitglied und alle
+übrigen aktiven Ausschussmitglieder als ursprüngliche Empfänger-IDs ein.
+Calendar serialisiert die Generationreservierung je Assignment in seinem
+eigenen Repository-UoW und speichert die idempotente Zuordnung von stabilem
+Quellursprung zu Generation.
+`sync_round`, `sync_assignment` und `sync_person` kombinieren vor jeder
+Assignment-Reconciliation den Planning-Snapshot mit der neuesten Execution-
+Folgeversion samt Cancellation-Tombstone. Ein verzögerter Planning-Auftrag
+reaktiviert keine stornierte Zuweisung; nur eine höhere Execution-Folgeversion
+kann sie wieder aktivieren. ICS-read-triggered Sync und Before-Image-Replay
+reservieren ausschließlich über denselben Calendar-Allocator.
+Damit kann ein Read-Sync die Ersatzprojektion bereits anlegen, ohne dass ein
+späteres Replay der alten Empfängerzeile eine UID-Kollision oder zweite
+aktive Generation erzeugt; Wiederholungen behalten dieselben
+Origin-zu-Generation-Zuordnungen.
+Wiederöffnung stellt im Execution-Zustand den ursprünglichen
+Assignee wieder her und ruft `sync_round` nach dem Commit nur für einen
+offenen Prüfungstag auf.
+Dieser Sync storniert das Ersatz-Event mit Versionssprung und erzeugt für den
+ursprünglichen Assignee eine neue Eventgeneration.
+Abbruch ruft `cancel_assignment` nach dem Commit ebenfalls nur für einen
+offenen Prüfungstag auf.
+Diese Aufrufe sind direkte synchrone Folgen ohne dauerhaften Application-
+Auftrag und ohne garantierte Wiederholung nach Prozessabbruch.
+Eine Rundungsabsage verhält sich anders:
+`ExamRoundLifecycleService` setzt nicht stornierte `CalendarEvent`-Zeilen mit
+`date >= now[:10]` während derselben Rundungsentscheidungs-Transaktion auf
+`cancelled` und erhöht ihre Version.
+Der inklusive Tages-Cutoff umfasst damit alle Events des Entscheidungstags
+und späterer Tage, auch wenn ein Eventzeitpunkt am Entscheidungstag bereits
+vergangen ist.
+Damit committen Rundungsentscheidung und lokale Kalenderstornierung gemeinsam;
+es gibt für diesen Pfad keinen nachgelagerten Calendar-Sync-Auftrag.
+
+Im Ziel materialisiert Application im gemeinsamen UoW vor der
+Rundungsentscheidung die vollständige Empfängermenge: alle Planning-
+Zuweisungen, aktive Vorsitz-/Stellvertretungs-Memberships aus Identity und
+alle nicht stornierten künftigen Calendar-Projektionen mit
+`date >= decision_date`. Der Calendar-Anteil umfasst noch aktive Events
+veralteter oder ersetzter Assignees; die übrigen Quellen behalten bisherige
+Empfänger auch ohne Eventprojektion bei. Planning speichert die vereinigten
+Membership-IDs, das Entscheidungsdatum und die Notice-Beschreibung atomar mit
+der Rundungsentscheidung und ihrer unveränderlichen Folgequelle. Nach dem
+Commit storniert Calendar die Events mit demselben inklusiven Datum. Replay
+verwendet die gespeicherten Empfänger-IDs und rekonstruiert sie nicht aus
+inzwischen veränderten Projektionen oder Memberships.
+
+Die Composition Root teilt einen prozessweiten Feed-Lifecycle-Lock mit
+Token-ICS-Reads, Rotation und explizitem `DELETE /api/calendar/feed`.
+Der Lock schützt nur kurze Credential-Prüfungen, Revalidierungen und Commits;
+Sync und ICS-Rendering laufen außerhalb.
+Ein Read prüft vor der Arbeit Credential-Generation und Identity-Scope,
+materialisiert den Read-Snapshot unter kurzer Sperre und revalidiert unmittelbar
+vor Rückgabe Credential-Generation und Identity-Scope erneut.
+Hat `DELETE` vorher widerrufen, wird das gerenderte Ergebnis verworfen.
+Hat sich der Scope seit dem Snapshot geändert, verwirft Calendar das gesamte
+gerenderte ICS-Ergebnis.
+GET-Refreshes, initiale Aktivierung, Rotation und Pending-Retries nutzen je Feed
+denselben Sync-Coordinator: pro Feed läuft höchstens ein Sync-UoW, und Aufträge
+derselben Credential- oder Pending-Generation teilen ihn. `DELETE` setzt zuerst
+unter einem kurzen Commit-Gate den prozesslokalen Revocation-Fence; wartende
+Reads und Sync-Aufträge starten keinen weiteren UoW, ein aktiver Sync rollt
+seinen begrenzten UoW zurück. Nach dessen Ende committet `DELETE` die dauerhafte
+Revocation-Generation. Der Commit-Gate schützt nur letzte Cancellation-Prüfung
+und Sync-Commit, nicht den gesamten Sync.
+Initiale Aktivierung verwendet ebenfalls eine nicht-geheime Pending-Generation,
+die `DELETE` fencen kann, bevor ein Credential angelegt wird.
+Nach dem Ende des aktiven UoW committet `DELETE` Widerruf sowie Löschen oder
+Fencing eines Pending-Standes atomar; ein späterer Rotationsfinalizer kann den
+widerrufenen Feed dadurch nicht reaktivieren.
+
+Bei fehlgeschlagenem Aktivierungs-/Rotations-POST gehören Status-Reload und
+Einmal-URL-Löschung zur UI-Feature-Adapter-/State-Orchestrierung;
+die reine `presentation` rendert nur den resultierenden Zustand.
+Die URL wird vor dem Reload verborgen und nie aus dem status-only GET
+rekonstruiert, auch wenn dieser `active=true` meldet.
+Scheitert der Reload, darf ein zuvor aktiver Status nicht als aktuell gelten.
+Diese Stelle dokumentiert den Vertrag; #1070 ändert keinen
+Frontend-Produktcode.
+Die Calendar-Garantie, dass das alte Token nach dem Widerrufscommit ungültig
+ist, gilt unabhängig vom Frontend-Fehlerpfad.
+
+Heute speichert `activate` beziehungsweise `rotate` das Credential vor dem
+anschließenden Sync.
+Bei Rotation wird das alte Credential dadurch vor dem fehleranfälligen Sync
+ungültig; schlägt der Sync fehl, bleibt jedoch das neue Token-Hash aktiv,
+obwohl dessen einmalige URL nicht zurückgegeben werden konnte.
+Zielvertrag für die initiale Aktivierung bleibt Sync-first:
+erst lokale Projektion im eigenen Calendar-UoW erfolgreich aktualisieren,
+dann das Credential atomar anlegen und dessen URL einmalig zurückgeben.
+Bei Rotation wird das alte Credential zuerst in einem eigenen atomaren
+Calendar-UoW widerrufen und ein nicht-geheimer Pending-Generationsstand
+gespeichert.
+Scheitert dieser erste Commit, bleibt die bisherige Generation aktiv und
+Calendar beginnt keinen Sync.
+Der alte Token ist ab diesem Commit ungültig, auch wenn der folgende Sync
+scheitert; der Pending-Stand bleibt für einen ausdrücklichen Retry erhalten.
+Ein Retry synchronisiert erneut und darf die neue Token-Generation nur per
+CAS auf genau diesen Pending-Stand aktivieren.
+Der bestehende Aktivierungs-POST prüft diesen persistierten Pending-Stand
+unabhängig vom `rotate`-Argument zuerst und setzt ihn fort, ohne ein weiteres
+Pending anzulegen oder erneut zu widerrufen.
+Damit setzt auch `rotate=false` nach Reload den Retry fort; ebenso setzt
+`rotate=true` aus einem noch aktiven, inzwischen veralteten UI-Zustand denselben
+Pending-Stand fort.
+Der Statusvertrag zeigt kein Pending-Feld: nach dem Widerrufscommit meldet er
+`active=false`, sodass die bestehende UI nach Reload den Button
+„Persönlichen Feed aktivieren“ zeigt.
+Ein Syncfehler liefert den stabilen Retry-Fehler im bestehenden HTTP-Format
+ohne Secret; der folgende POST setzt den gespeicherten Pending-Stand fort.
+Nach jedem fehlgeschlagenen Aktivierungs-/Rotations-POST lädt die UI den
+Feedstatus neu und aktualisiert ihr `calendar`-Signal mit der Serverantwort.
+Zugleich löscht oder verbirgt sie sofort die lokal gehaltene einmalige
+`feedUrl`; ein Status-Read enthält kein Secret und darf den Link nie
+wiederherstellen.
+Nach einem Widerrufscommit zeigt dieser Read `active=false` und die vorhandene
+Aktivierungsaktion führt den Pending-Retry aus.
+Meldet der Status-Read `active=true`, bleibt der Link dennoch verborgen; bei
+unbekanntem Secret kann die Person bewusst erneut rotieren.
+Scheitert auch der Status-Read, bleibt die alte URL verborgen und der zuvor
+geladene Status wird als veraltet oder unbekannt behandelt, nicht als aktuell
+aktiv bestätigt.
+Ein pro-Feed Lifecycle-Lock aus der Composition Root schützt kurze
+Credential-Prüfungen und -Commits; Sync, Snapshot und Rendering laufen
+außerhalb. Sein Registry-/Serviceobjekt wird prozessweit geteilt und nicht pro
+`RequestContext` oder `CalendarService` instanziiert.
+ICS prüft Credential-Generation und Identity-Scope vor der Arbeit, prüft den
+Read-Snapshot unter kurzer Sperre und unmittelbar vor Rückgabe Credential-
+Generation und Identity-Scope erneut. Bei einer Scope-Änderung seit dem
+Snapshot verwirft Calendar das gesamte materialisierte ICS-Ergebnis; es muss
+keine gerenderte Antwort nachträglich parsen oder filtern. Alle Sync-Auslöser
+gehen durch den je Feed serialisierten Coordinator; Rotation committet Widerruf und
+Pending-Generation unter dem Lifecycle-Lock, synchronisiert außerhalb und
+finalisiert nach erneuter Pending-Prüfung unter dem Lock. `DELETE` setzt unter
+dem Commit-Gate zuerst ein prozesslokales Abbruchsignal, wartet ohne beide Locks
+auf Rollback oder Abschluss des aktiven UoW und committet danach die dauerhafte
+Revocation-Generation. Wartende Aufträge starten nach dem Fence nicht; ein
+wartender Finalizer mit veraltetem Pending-Stand kann den Feed nicht reaktivieren.
+Konkurrierende und veraltete Requests erhalten stabile
+`FeedAlreadyActive`-, `FeedRotationPending`- oder `FeedConflict`-Fehler ohne
+Secret und können weder die Gewinner-URL ungültig machen noch rohe
+Unique-Constraint-Fehler auslösen.
+Token-ICS-Reads und Rotation nutzen dieselbe Sperre nur für Credential-Prüfungen
+und -Commits. Der Read prüft Token und Identity-Scope vor Sync, revalidiert den
+Snapshot unter kurzer Sperre und liest Credential-Generation sowie Identity-
+Scope unmittelbar vor Rückgabe erneut. Bei einer Scope-Änderung seit dem
+Snapshot verwirft Calendar das gesamte materialisierte ICS-Ergebnis; Sync und
+Rendering liegen außerhalb.
+Rotation hält die Sperre für Widerrufscommit sowie spätere Pending-Revalidierung
+und Finalisierung; ihr Sync läuft außerhalb.
+Die Garantie gilt prozessweit im einzelnen autoritativen Backendprozess;
+mehrere Serverprozesse für dieselbe Datenbank sind nicht unterstützt.
+Erst der erfolgreiche Finalisierungscommit gibt die neue URL einmalig aus.
+Bei Commitfehler wird kein Secret ausgegeben; bleibt der Pending-Stand
+erhalten, kann der Sync mit einer neuen Secret-Erzeugung wiederholt werden.
+Ist die Finalisierung bereits committet und nur die Antwort verloren,
+bleibt das Secret unverfügbar und eine neue ausdrückliche Rotation ist der
+Recovery-Weg.
+
+Im Ziel liefert Identity Calendar eine materialisierte Liste aktiver
+Membership-ID-/Committee-ID-Paare.
+Calendar beschränkt die Projektion auf diese aktiven IDs und Committees und
+prüft den Scope vor Sync sowie erneut vor Event-/ICS-Ausgabe.
+Damit zeigt ein Token nach Teilwiderruf keine Daten des deaktivierten
+Committees, solange andere Mitgliedschaften aktiv sind.
+Ein gültiges Feed-Token allein genügt ohne aktiven Identity-Scope weder für
+Sync noch Ausgabe.
 Zielverantwortung für Feed-Credentials, lokale Projektion und ICS-Ausgabe ist
 ein eigenständiges `calendar`-Modul.
 `integrations` bleibt konkreten externen Adaptern vorbehalten.
