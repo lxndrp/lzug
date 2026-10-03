@@ -6,6 +6,7 @@ export type CommitteeSummary = { id: number; name: string };
 
 export type LocationSnapshot = {
   committees: CommitteeSummary[];
+  committeeLoadError: boolean;
   venues: Venue[];
   canCreateVenue: boolean;
 };

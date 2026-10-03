@@ -901,6 +901,8 @@ Die Ortsroute lädt über `LOCATIONS_READ_PORT` und den
 `HttpLocationsReadAdapter` direkt `/api/exam-venues`.
 `LocationsWorkspaceFacade` hält Lade-, Fehler- und Snapshotzustand
 routegebunden; Ortscommands lösen keinen vollständigen Workspace-Refresh aus.
+Der Ausschussnamen-Read bleibt ergänzend; sein Fehler blockiert keine Ortsdaten
+und wird in der Ansicht eigenständig gemeldet.
 `PlanningWorkflowService` koordiniert Planungsbefehle über `PlanningPort`;
 `HttpPlanningAdapter` übersetzt diese Aufrufe in den vorhandenen API-Client.
 Vorschlagserzeugung und Vorschlagsspeicherung sind dabei persistierende

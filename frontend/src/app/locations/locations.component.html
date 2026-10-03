@@ -633,6 +633,16 @@
           </div>
         }
 
+        @if (snapshot?.committeeLoadError) {
+          <div class="locations-state locations-state-error" role="alert">
+            <strong>Ausschussnamen konnten nicht geladen werden.</strong>
+            <span>Die verfügbaren Prüfungsorte bleiben nutzbar.</span>
+            <button tuiButton type="button" appearance="secondary" (click)="retryLoad.emit()">
+              Erneut versuchen
+            </button>
+          </div>
+        }
+
         @if (loading && !snapshot) {
           <div class="locations-state" role="status" aria-live="polite">
             <strong>Prüfungsorte werden geladen</strong>

@@ -1,7 +1,6 @@
 import { Injectable, inject } from '@angular/core';
-import { forkJoin, map, of } from 'rxjs';
+import { catchError, forkJoin, map, of } from 'rxjs';
 
-import { AuthService } from '../auth/auth.service';
 import { MasterDataApiService } from './master-data-api.service';
 import { VenueApiService } from './venue-api.service';
 import { toVenue } from './http-locations.mapper';
@@ -12,19 +11,20 @@ import { withoutHttpLinks } from '../application/without-http-links';
 /** Loads examination locations through their dedicated public read endpoint. */
 @Injectable({ providedIn: 'root' })
 export class HttpLocationsReadAdapter implements LocationsReadPort {
-  private readonly auth = inject(AuthService);
   private readonly masterData = inject(MasterDataApiService);
   private readonly api = inject(VenueApiService);
 
   load() {
-    const committees = this.auth.session()?.committee_member_id
-      ? this.masterData.getCommittees()
-      : of([]);
+    const committees = this.masterData.getCommittees().pipe(
+      map((items) => ({ items, failed: false as const })),
+      catchError(() => of({ items: [], failed: true as const })),
+    );
     return forkJoin({ collection: this.api.listExamVenues(), committees }).pipe(
       map(
         ({ collection, committees }) =>
           ({
-            committees: committees.map(({ id, name }) => ({ id, name })),
+            committees: committees.items.map(({ id, name }) => ({ id, name })),
+            committeeLoadError: committees.failed,
             venues: collection.items.map((venue) => toVenue(withoutHttpLinks(venue))),
             canCreateVenue: Boolean(collection._links['create']),
           }) satisfies LocationSnapshot,

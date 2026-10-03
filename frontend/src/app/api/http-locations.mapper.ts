@@ -73,6 +73,7 @@ export function toLocationSnapshot(
 ): LocationSnapshot {
   return {
     committees: value.committees.map(({ id, name }) => ({ id, name })),
+    committeeLoadError: false,
     venues: value.examVenues.map(toVenue),
     canCreateVenue: Boolean(value.examVenuesCanCreate),
   };

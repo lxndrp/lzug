@@ -244,6 +244,13 @@ test.describe('master data workflows', () => {
         body: '{"detail":"Forbidden."}',
       }),
     );
+    await page.route('**/api/committees', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ items: masterDataFixture.committees, _links: {} }),
+      }),
+    );
     await page.route('**/api/exam-venues', (route) => {
       if (route.request().method() === 'GET') {
         venueReads.push(route.request().url());
@@ -289,6 +296,9 @@ test.describe('master data workflows', () => {
     await page.goto('/locations');
     const card = page.getByRole('article', { name: venue.name });
     await expect(card).toBeVisible();
+    await expect(card).toContainText(
+      `Ausschuss: ${masterDataFixture.committees.find(({ id }) => id === venue.committee_id)?.name}`,
+    );
     await page.getByRole('button', { name: 'Details ansehen' }).click();
     await expect(page).toHaveURL(/\/locations\/\d+$/);
     await page.getByRole('button', { name: 'Ort bearbeiten' }).click();

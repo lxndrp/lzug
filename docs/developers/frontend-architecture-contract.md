@@ -261,8 +261,9 @@ Rundenauswahl.
 pro Ortsroute; Session- und Ansichtswechsel verwerfen geschützte Ergebnisse.
 Erfolgreiche Ortscommands invalidieren gezielt diesen Read.
 Für Mitglieder mit Ausschusskontext lädt der Adapter zusätzlich die
-Ausschussnamen; ein Operator ohne aktive Mitgliedschaft benötigt diesen
-separaten Read nicht.
+Ausschussnamen unabhängig von einer aktiven Mitgliedschaft.
+Ein Fehler dieses ergänzenden Reads wird separat angezeigt und blockiert
+keine erfolgreich geladenen Ortsdaten.
 Die globalen Workspace-Projektionen und ihre Verbraucher werden in den
 Feature-Slices rückgebaut; die Root-Provider der Ports belegen keine
 Workspace-Zuständigkeit.

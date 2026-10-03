@@ -907,6 +907,11 @@ function flushDashboardRequests(http: HttpTestingController, round = examRoundFi
 }
 
 function flushLocationRead(http: HttpTestingController): void {
+  const committees = http.match('/api/committees');
+  expect(committees).toHaveLength(1);
+  committees.forEach((request) =>
+    request.flush({ items: masterDataFixture.committees, _links: {} }),
+  );
   const requests = http.match('/api/exam-venues');
   expect(requests).toHaveLength(1);
   requests.forEach((request) =>
@@ -918,6 +923,10 @@ function flushLocationRead(http: HttpTestingController): void {
 }
 
 function flushLocationReads(http: HttpTestingController): void {
+  const committees = http.match('/api/committees');
+  committees.forEach((request) =>
+    request.flush({ items: masterDataFixture.committees, _links: {} }),
+  );
   const requests = http.match('/api/exam-venues');
   requests.forEach((request) => request.flush({ items: masterDataFixture.examVenues, _links: {} }));
 }
