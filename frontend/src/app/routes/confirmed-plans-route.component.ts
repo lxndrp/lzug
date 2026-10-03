@@ -25,6 +25,10 @@ export class ConfirmedPlansRouteComponent {
   private readonly auth = inject(AuthService);
   private readonly route = inject(ActivatedRoute);
   protected readonly confirmedPlansBoard = computed<ConfirmedPlansBoard | null>(() => {
+    // The workspace is selected by the round-context resolver and can still
+    // contain the previous round while its replacement is loading. Never
+    // offer those references to an editor opened through a direct URL.
+    if (this.workspace.round()?.id !== this.roundId()) return null;
     const board = this.workspace.board();
     if (!board) return null;
     return {

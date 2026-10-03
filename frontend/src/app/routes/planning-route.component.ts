@@ -70,14 +70,14 @@ export class PlanningRouteComponent implements OnDestroy {
   protected readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
-  private readonly viewId = Symbol('planning-route-view');
+  private viewId = Symbol('planning-route-view');
   protected roundId: number | null = null;
   constructor() {
     this.route.data.pipe(takeUntilDestroyed()).subscribe((data) => {
       const roundId = Number(data['roundId']);
       if (!Number.isInteger(roundId) || roundId <= 0) return;
       this.roundId = roundId;
-      this.workflow.activateView(this.viewId, roundId);
+      this.activate(roundId);
     });
   }
 
@@ -148,6 +148,13 @@ export class PlanningRouteComponent implements OnDestroy {
   }
 
   protected reloadPlanning(): void {
-    if (this.roundId !== null) this.workflow.activateView(this.viewId, this.roundId);
+    if (this.roundId !== null) this.activate(this.roundId);
+  }
+
+  private activate(roundId: number): void {
+    // A new token for every route activation prevents a delayed result from a
+    // previous A -> B -> A visit from being mistaken for the current A view.
+    this.viewId = Symbol('planning-route-activation');
+    this.workflow.activateView(this.viewId, roundId);
   }
 }

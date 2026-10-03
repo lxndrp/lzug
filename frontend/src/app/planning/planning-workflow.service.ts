@@ -598,7 +598,14 @@ export class PlanningWorkflowService {
       .pipe(finalize(() => this.pending.set(false)))
       .subscribe({
         next: (saved) => {
-          if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
+          if (!this.isSelectedRound(roundId)) return;
+          if (!this.isCurrentView(view)) {
+            // The accepted write may have committed after the newly opened
+            // view completed its initial read. Refresh only that active
+            // projection; never apply the old view's draft to it.
+            if (this.activeRoundId === roundId) this.refreshPlanning(roundId);
+            return;
+          }
           this.proposal.set(saved);
           this.editorState.set('ready');
           this.feedback.notify(

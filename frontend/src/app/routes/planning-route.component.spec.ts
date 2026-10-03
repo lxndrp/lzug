@@ -1,0 +1,34 @@
+import { TestBed } from '@angular/core/testing';
+import { ActivatedRoute, Router } from '@angular/router';
+import { Subject } from 'rxjs';
+
+import { AuthService } from '../auth/auth.service';
+import { PlanningWorkflowService } from '../planning/planning-workflow.service';
+import { PlanningRouteComponent } from './planning-route.component';
+
+describe('PlanningRouteComponent', () => {
+  it('creates a distinct view token for each A to B to A activation', () => {
+    const routeData = new Subject<Record<string, unknown>>();
+    const workflow = { activateView: vi.fn(), deactivateView: vi.fn() };
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: ActivatedRoute, useValue: { data: routeData } },
+        { provide: Router, useValue: { navigateByUrl: vi.fn() } },
+        {
+          provide: AuthService,
+          useValue: { session: () => null, hasCapability: () => false },
+        },
+        { provide: PlanningWorkflowService, useValue: workflow },
+      ],
+    });
+
+    TestBed.runInInjectionContext(() => new PlanningRouteComponent());
+    routeData.next({ roundId: 1 });
+    routeData.next({ roundId: 2 });
+    routeData.next({ roundId: 1 });
+
+    const activations = workflow.activateView.mock.calls;
+    expect(activations.map(([, roundId]) => roundId)).toEqual([1, 2, 1]);
+    expect(new Set(activations.map(([view]) => view)).size).toBe(3);
+  });
+});

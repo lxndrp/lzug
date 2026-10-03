@@ -92,6 +92,65 @@ describe('PlanningWorkflowService', () => {
     expect(workflow.proposal()).toBe(viewBProposal);
   });
 
+  it('reloads the active projection when an older view write commits after its read', () => {
+    const saveResponse = new Subject<EditablePlanningProposal>();
+    const snapshots = [
+      emptySnapshot(1),
+      emptySnapshot(1),
+      { ...emptySnapshot(1), round: { ...emptySnapshot(1).round, name: 'Nach Commit' } },
+    ];
+    const { workflow, port } = createHarness({
+      loadPlanning: vi.fn(() => of(snapshots.shift()!)),
+      savePlanningProposal: vi.fn(() => saveResponse),
+    });
+    const oldView = Symbol('planning-route-activation-a1');
+    const reopenedView = Symbol('planning-route-activation-a2');
+    const command: EditablePlanningProposal = { round_id: 1, revision: 4, exam_days: [] };
+
+    workflow.activateView(oldView, 1);
+    workflow.savePlanningProposal(command, 1, oldView);
+    workflow.activateView(reopenedView, 1);
+    expect(workflow.snapshot()?.round.name).toBe('Runde 1');
+
+    saveResponse.next({ ...command, revision: 5 });
+    saveResponse.complete();
+
+    expect(port.loadPlanning).toHaveBeenCalledTimes(3);
+    expect(workflow.snapshot()?.round.name).toBe('Nach Commit');
+    expect(workflow.proposal()).toBeNull();
+  });
+
+  it('ignores a late response from the first A activation after an A to B to A route cycle', () => {
+    const saveResponse = new Subject<EditablePlanningProposal>();
+    const proposal = { round_id: 1, revision: 2, exam_days: [] };
+    const { workflow } = createHarness({
+      loadPlanning: vi.fn((roundId: number) => {
+        const snapshot = emptySnapshot(roundId);
+        return of({
+          ...snapshot,
+          round: { ...snapshot.round, status: 'plan_proposed' as const },
+        });
+      }),
+      getPlanningProposal: vi.fn(() => of(proposal)),
+      savePlanningProposal: vi.fn(() => saveResponse),
+    });
+    const firstA = Symbol('planning-route-activation-a1');
+    const routeB = Symbol('planning-route-activation-b');
+    const secondA = Symbol('planning-route-activation-a2');
+
+    workflow.activateView(firstA, 1);
+    workflow.savePlanningProposal({ ...proposal, revision: 6 }, 1, firstA);
+    workflow.activateView(routeB, 2);
+    workflow.activateView(secondA, 1);
+    const currentProposal = workflow.proposal();
+
+    saveResponse.next({ ...proposal, revision: 7 });
+    saveResponse.complete();
+
+    expect(workflow.proposal()).toBe(currentProposal);
+    expect(workflow.proposal()?.revision).toBe(2);
+  });
+
   it('holds pending through confirmation and the resulting mutation', () => {
     const confirmation = new Subject<boolean>();
     const response = new Subject<unknown>();
