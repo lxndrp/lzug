@@ -1,621 +1,343 @@
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
 import { signal } from '@angular/core';
-import { of, Subject } from 'rxjs';
+import { provideRouter } from '@angular/router';
+import { Observable, Subject, of, throwError } from 'rxjs';
 
-import type { CandidateExamDay, ExamRound } from '../api/api.models';
+import type { EditablePlanningProposal, PlanningSnapshot } from './planning.models';
 import { RoundContextService } from '../api/round-context.service';
 import { AuthService } from '../auth/auth.service';
 import { SessionScopeService } from '../auth/session-scope.service';
-import { ApplicationWorkspaceService } from '../shell/application-workspace.service';
 import { ApplicationShellContextService } from '../shell/application-shell-context.service';
 import { UiFeedbackService } from '../shell/ui-feedback.service';
 import { PLANNING_PORT } from './planning.port';
 import { PlanningWorkflowService } from './planning-workflow.service';
 
 describe('PlanningWorkflowService', () => {
-  it('blocks stale round drafts during refresh and saves only the displayed round values', () => {
-    const displayedRound = signal<ExamRound | null>(null);
-    const loading = signal(true);
-    const workspace = {
-      round: displayedRound,
-      loading,
-      actionBusy: signal(false),
-      refresh: vi.fn(),
-    };
-    const planning = {
-      updateExamRound: vi.fn(() => of({ id: 2, name: 'Runde B aktualisiert' })),
-    };
-    const shellContext = { refresh: vi.fn() };
-    const feedback = { notify: vi.fn(), roleRestriction: vi.fn() };
-
-    TestBed.configureTestingModule({
-      providers: [
-        provideRouter([]),
-        { provide: ApplicationWorkspaceService, useValue: workspace },
-        { provide: ApplicationShellContextService, useValue: shellContext },
-        { provide: PLANNING_PORT, useValue: planning },
-        { provide: AuthService, useValue: { hasCapability: () => true, session: () => null } },
-        { provide: UiFeedbackService, useValue: feedback },
-      ],
-    });
-
-    const context = TestBed.inject(RoundContextService);
-    context.select(2);
-    const workflow = TestBed.inject(PlanningWorkflowService);
-    const roundBValues = {
-      name: 'Runde B aktualisiert',
-      availability_deadline: null,
-      availability_reminder_at: null,
-    };
-
-    workflow.saveExamRound(roundBValues);
-    expect(planning.updateExamRound).not.toHaveBeenCalled();
-
-    displayedRound.set({
-      id: 2,
-      exam_half_year_id: 4,
-      name: 'Runde B',
-      committee_id: 3,
-      status: 'draft',
-      availability_deadline: null,
-      availability_reminder_at: null,
-    });
-    loading.set(false);
-    workflow.saveExamRound(roundBValues);
-
-    expect(planning.updateExamRound).toHaveBeenCalledWith(roundBValues, 2);
-    expect(context.roundId()).toBe(displayedRound()?.id);
-    expect(feedback.notify).toHaveBeenCalledWith(
-      'success',
-      'Prüfungsrunde gespeichert',
-      'Die Änderungen sind übernommen.',
-    );
-    expect(shellContext.refresh).toHaveBeenCalledOnce();
-  });
-
-  it('shows feedback when a same-round save is rejected during refresh', () => {
-    const workspace = {
-      round: signal<ExamRound | null>({
-        id: 2,
-        exam_half_year_id: 4,
-        name: 'Runde B',
-        committee_id: 3,
-        status: 'draft',
-        availability_deadline: null,
-        availability_reminder_at: null,
-      }),
-      loading: signal(true),
-      actionBusy: signal(false),
-      refresh: vi.fn(),
-    };
-    const planning = { updateExamRound: vi.fn(() => of({})) };
-    const feedback = { notify: vi.fn(), roleRestriction: vi.fn() };
-
-    TestBed.configureTestingModule({
-      providers: [
-        provideRouter([]),
-        { provide: ApplicationWorkspaceService, useValue: workspace },
-        { provide: PLANNING_PORT, useValue: planning },
-        { provide: AuthService, useValue: { hasCapability: () => true, session: () => null } },
-        { provide: UiFeedbackService, useValue: feedback },
-      ],
-    });
-
-    TestBed.inject(RoundContextService).select(2);
-    const workflow = TestBed.inject(PlanningWorkflowService);
-    workflow.saveExamRound({
-      name: 'Runde B aktualisiert',
-      availability_deadline: null,
-      availability_reminder_at: null,
-    });
-
-    expect(planning.updateExamRound).not.toHaveBeenCalled();
-    expect(feedback.notify).toHaveBeenCalledWith(
-      'error',
-      'Prüfungsrunde wird aktualisiert',
-      'Die Daten der ausgewählten Prüfungsrunde werden noch aktualisiert. Bitte warten Sie kurz und versuchen Sie es erneut.',
-    );
-  });
-
-  it('rolls back an availability edit rejected while the current round refreshes', () => {
-    const displayedRound = signal<ExamRound | null>({
-      id: 2,
-      exam_half_year_id: 4,
-      name: 'Runde B',
-      committee_id: 3,
-      status: 'availability_requested',
-      availability_deadline: null,
-      availability_reminder_at: null,
-    });
-    const workspace = {
-      round: displayedRound,
-      loading: signal(true),
-      actionBusy: signal(false),
-      refresh: vi.fn(),
-      board: signal(null),
-    };
-    const planning = {
-      saveMemberAvailability: vi.fn(() => of({})),
-    };
-    const feedback = { notify: vi.fn(), roleRestriction: vi.fn() };
-
-    TestBed.configureTestingModule({
-      providers: [
-        provideRouter([]),
-        { provide: ApplicationWorkspaceService, useValue: workspace },
-        { provide: PLANNING_PORT, useValue: planning },
-        { provide: AuthService, useValue: { hasCapability: () => true, session: () => null } },
-        { provide: UiFeedbackService, useValue: feedback },
-      ],
-    });
-
-    const context = TestBed.inject(RoundContextService);
-    context.select(2);
-    const workflow = TestBed.inject(PlanningWorkflowService);
+  it('loads a feature-owned snapshot for the route round', () => {
+    const { workflow, port, roundId } = createHarness();
     const view = Symbol('planning-view');
-    workflow.activateView(view);
-    const payload = {
-      committee_member_id: 1,
-      candidate_exam_day_id: 5,
-      availability: 'morning' as const,
-    };
 
-    workflow.saveAvailability(payload, view);
+    roundId.set(8);
+    workflow.activateView(view, 8);
 
-    expect(planning.saveMemberAvailability).not.toHaveBeenCalled();
-    expect(workflow.viewEffects()).toMatchObject([
-      {
-        type: 'availability-error',
-        payload,
-        usePersistedValue: true,
-      },
-    ]);
+    expect(port.loadPlanning).toHaveBeenCalledWith(8);
+    expect(workflow.snapshot()?.round.id).toBe(8);
+    expect(workflow.snapshot()?.board).toEqual(emptySnapshot(8).board);
   });
 
-  it('does not apply a late availability response to the newly selected round', () => {
-    const availabilityResponse = new Subject<{
-      id: number;
-      committee_member_id: number;
-      candidate_exam_day_id: number;
-      availability: 'morning';
-    }>();
-    const board = signal({ availabilities: [] as Array<{ id: number }> });
-    const workspace = {
-      round: signal<ExamRound | null>({
-        id: 1,
-        exam_half_year_id: 4,
-        name: 'Runde A',
-        committee_id: 3,
-        status: 'draft',
-        availability_deadline: null,
-        availability_reminder_at: null,
-      }),
-      loading: signal(false),
-      actionBusy: signal(false),
-      board,
-      refresh: vi.fn(),
-    };
-    const planning = { saveMemberAvailability: vi.fn(() => availabilityResponse) };
-    const feedback = { notify: vi.fn(), roleRestriction: vi.fn() };
-    TestBed.configureTestingModule({
-      providers: [
-        provideRouter([]),
-        { provide: ApplicationWorkspaceService, useValue: workspace },
-        { provide: PLANNING_PORT, useValue: planning },
-        { provide: AuthService, useValue: { hasCapability: () => true, session: () => null } },
-        { provide: UiFeedbackService, useValue: feedback },
-      ],
+  it('keeps an accepted mutation bound to its captured round after selection changes', () => {
+    const response = new Subject<unknown>();
+    const { workflow, port, roundId } = createHarness({
+      updateExamRound: vi.fn(() => response),
     });
+    const view = Symbol('planning-view');
+    const values = {
+      name: 'Runde aktualisiert',
+      availability_deadline: null,
+      availability_reminder_at: null,
+    };
 
-    const context = TestBed.inject(RoundContextService);
-    context.select(1);
-    const workflow = TestBed.inject(PlanningWorkflowService);
+    workflow.activateView(view, 1);
+    workflow.saveExamRound(values, 1, view);
+    roundId.set(2);
+    workflow.activateView(view, 2);
+    response.next({ id: 1 });
+    response.complete();
+
+    expect(port.updateExamRound).toHaveBeenCalledWith(values, 1);
+    expect(workflow.snapshot()?.round.id).toBe(2);
+  });
+
+  it('passes the proposal source revision and round ID through the port', () => {
+    const response = new Subject<EditablePlanningProposal>();
+    const { workflow, port } = createHarness({ savePlanningProposal: vi.fn(() => response) });
+    const view = Symbol('planning-view');
+    const proposal: EditablePlanningProposal = {
+      round_id: 1,
+      revision: 17,
+      exam_days: [],
+    };
+
+    workflow.activateView(view, 1);
+    workflow.savePlanningProposal(proposal, 1, view);
+
+    expect(port.savePlanningProposal).toHaveBeenCalledWith(1, {
+      ...proposal,
+      revision: 17,
+    });
+    response.next({ ...proposal, revision: 18 });
+    response.complete();
+    expect(workflow.proposal()?.revision).toBe(18);
+  });
+
+  it('does not let a late proposal answer replace a later view draft', () => {
+    const saveResponse = new Subject<EditablePlanningProposal>();
+    const proposal = { round_id: 1, revision: 3, exam_days: [] };
+    const { workflow, port } = createHarness({
+      getPlanningProposal: vi.fn(() => of(proposal)),
+      savePlanningProposal: vi.fn(() => saveResponse),
+    });
     const viewA = Symbol('planning-view-a');
     const viewB = Symbol('planning-view-b');
-    workflow.activateView(viewA);
-    const payload = {
-      committee_member_id: 1,
-      candidate_exam_day_id: 5,
-      availability: 'morning' as const,
-    };
-    workflow.saveAvailability(payload, viewA);
+    const staleCommand = { ...proposal, revision: 7 };
 
-    expect(planning.saveMemberAvailability).toHaveBeenCalledWith(payload, 1);
-    context.select(2);
-    workflow.activateView(viewB);
-    availabilityResponse.next({ id: 7, ...payload });
-    availabilityResponse.complete();
+    workflow.activateView(viewA, 1);
+    workflow.savePlanningProposal(staleCommand, 1, viewA);
+    workflow.activateView(viewB, 1);
+    const viewBProposal = workflow.proposal();
+    saveResponse.next({ ...staleCommand, revision: 8 });
+    saveResponse.complete();
 
-    expect(board()).toEqual({ availabilities: [] });
-    expect(workflow.viewEffects()).toEqual([]);
-    expect(feedback.notify).not.toHaveBeenCalled();
+    expect(port.savePlanningProposal).toHaveBeenCalledWith(1, staleCommand);
+    expect(workflow.proposal()).toBe(viewBProposal);
   });
 
-  it('settles proposal loading when a view is destroyed and reloads on the next route view', () => {
-    const requests: Subject<never>[] = [];
-    const planning = {
-      getPlanningProposal: vi.fn(() => {
-        const response = new Subject<never>();
-        requests.push(response);
-        return response;
-      }),
-    };
-    const workspace = createPlanningWorkspace('plan_proposed');
-    configureWorkflow(workspace, planning);
-    TestBed.inject(RoundContextService).select(1);
-    const workflow = TestBed.inject(PlanningWorkflowService);
-    const viewA = Symbol('planning-route-a');
-    const viewB = Symbol('planning-route-b');
-
-    workflow.activateView(viewA);
-    const staleRequest = requests.at(-1)!;
-    expect(workflow.editorState()).toBe('loading');
-    expect(staleRequest.observed).toBe(true);
-
-    workflow.deactivateView(viewA);
-    expect(workflow.editorState()).toBe('idle');
-    expect(staleRequest.observed).toBe(false);
-
-    workflow.activateView(viewB);
-    const activeRequest = requests.at(-1)!;
-    expect(activeRequest).not.toBe(staleRequest);
-    expect(workflow.editorState()).toBe('loading');
-    staleRequest.next({} as never);
-    expect(workflow.editorState()).toBe('loading');
-    activeRequest.next({} as never);
-    activeRequest.complete();
-
-    expect(workflow.editorState()).toBe('ready');
-  });
-
-  it('restarts proposal loading after a save error arrives from a discarded view', () => {
-    const saveResponse = new Subject<never>();
-    const proposalRequests: Subject<never>[] = [];
-    const planning = {
-      getPlanningProposal: vi.fn(() => {
-        const response = new Subject<never>();
-        proposalRequests.push(response);
-        return response;
-      }),
-      savePlanningProposal: vi.fn(() => saveResponse),
-    };
-    const workspace = createPlanningWorkspace('plan_proposed');
-    configureWorkflow(workspace, planning);
-    TestBed.inject(RoundContextService).select(1);
-    const workflow = TestBed.inject(PlanningWorkflowService);
-    const viewA = Symbol('planning-route-a');
-    const viewB = Symbol('planning-route-b');
-    workflow.activateView(viewA);
-    workflow.savePlanningProposal({} as never, viewA);
-    workflow.activateView(viewB);
-    const proposalLoadsBeforeFailure = proposalRequests.length;
-
-    saveResponse.error({ kind: 'conflict' });
-
-    expect(planning.savePlanningProposal).toHaveBeenCalledOnce();
-    expect(proposalRequests).toHaveLength(proposalLoadsBeforeFailure + 1);
-    expect(workflow.editorState()).toBe('loading');
-    expect(workflow.actionBusy()).toBe(false);
-  });
-
-  it('cancels plan confirmation and clears pending when the planning route is destroyed', () => {
+  it('holds pending through confirmation and the resulting mutation', () => {
     const confirmation = new Subject<boolean>();
-    const planning = {
-      confirmPlan: vi.fn(() => of({ counts: {} })),
-      getPlanningProposal: vi.fn(() => of({})),
-    };
-    const workspace = createPlanningWorkspace('plan_proposed');
+    const response = new Subject<unknown>();
     const feedback = {
       notify: vi.fn(),
       roleRestriction: vi.fn(),
       confirm$: vi.fn(() => confirmation),
     };
-    configureWorkflow(workspace, planning, feedback);
-    TestBed.inject(RoundContextService).select(1);
-    const workflow = TestBed.inject(PlanningWorkflowService);
-    const view = Symbol('planning-route-view');
-    workflow.activateView(view);
+    const { workflow, port } = createHarness({ confirmPlan: vi.fn(() => response) }, feedback);
+    const view = Symbol('planning-view');
 
-    workflow.requestPlanConfirmation(view);
-
+    workflow.activateView(view, 1);
+    workflow.requestPlanConfirmation(1, view);
+    workflow.requestPlanConfirmation(1, view);
     expect(workflow.actionBusy()).toBe(true);
-    expect(confirmation.observed).toBe(true);
-    workflow.deactivateView(view);
 
-    expect(confirmation.observed).toBe(false);
+    confirmation.next(true);
+    confirmation.complete();
+    expect(port.confirmPlan).toHaveBeenCalledWith(1);
+    expect(workflow.actionBusy()).toBe(true);
+
+    response.next({ counts: { confirmed_slots: 4 } });
+    response.complete();
     expect(workflow.actionBusy()).toBe(false);
-    expect(planning.confirmPlan).not.toHaveBeenCalled();
+    expect(feedback.confirm$).toHaveBeenCalledOnce();
   });
 
-  it('delivers parallel availability save effects without overwriting either cell result', () => {
-    const responses = new Map<string, Subject<never>>();
-    const planning = {
-      saveMemberAvailability: vi.fn(
-        (payload: { committee_member_id: number; candidate_exam_day_id: number }) => {
-          const response = new Subject<never>();
-          responses.set(
-            `${payload.committee_member_id}:${payload.candidate_exam_day_id}`,
-            response,
-          );
-          return response;
-        },
-      ),
+  it('keeps a confirmation result in its source view after navigation', () => {
+    const confirmation = new Subject<boolean>();
+    const response = new Subject<{ counts: Record<string, number> }>();
+    const feedback = {
+      notify: vi.fn(),
+      roleRestriction: vi.fn(),
+      confirm$: vi.fn(() => confirmation),
     };
-    const workspace = createPlanningWorkspace('availability_requested');
-    configureWorkflow(workspace, planning);
-    TestBed.inject(RoundContextService).select(1);
-    const workflow = TestBed.inject(PlanningWorkflowService);
-    const view = Symbol('planning-route');
-    workflow.activateView(view);
-    const first = {
+    const { workflow, port } = createHarness({ confirmPlan: vi.fn(() => response) }, feedback);
+    const viewA = Symbol('planning-view-a');
+    const viewB = Symbol('planning-view-b');
+
+    workflow.activateView(viewA, 1);
+    workflow.requestPlanConfirmation(1, viewA);
+    confirmation.next(true);
+    confirmation.complete();
+    expect(port.confirmPlan).toHaveBeenCalledWith(1);
+
+    workflow.activateView(viewB, 1);
+    const viewBSnapshot = workflow.snapshot();
+    response.next({ counts: { confirmed_slots: 4 } });
+    response.complete();
+
+    expect(workflow.snapshot()).toBe(viewBSnapshot);
+    expect(workflow.lastResult()).toBeNull();
+    expect(workflow.actionBusy()).toBe(false);
+  });
+
+  it('updates the planning-owned availability projection from the accepted response', () => {
+    const response = new Subject<{
+      id: number;
+      committee_member_id: number;
+      candidate_exam_day_id: number;
+      availability: string;
+    }>();
+    const { workflow, port } = createHarness({ saveMemberAvailability: vi.fn(() => response) });
+    const view = Symbol('planning-view');
+    const command = {
       committee_member_id: 11,
       candidate_exam_day_id: 21,
       availability: 'morning',
     } as const;
-    const second = {
-      committee_member_id: 12,
-      candidate_exam_day_id: 22,
-      availability: 'afternoon',
-    } as const;
 
-    workflow.saveAvailability(first, view);
-    workflow.saveAvailability(second, view);
-    responses.get('11:21')!.next({ id: 1, ...first } as never);
-    responses.get('12:22')!.next({ id: 2, ...second } as never);
+    workflow.activateView(view, 1);
+    workflow.saveAvailability(command, 1, view);
+    response.next({ id: 4, ...command });
 
-    expect(workflow.viewEffects()).toHaveLength(2);
-    expect(workflow.viewEffects().map((effect) => effect.type)).toEqual([
-      'availability-saved',
-      'availability-saved',
-    ]);
-    const lastVersion = workflow.viewEffects()[1].version;
-    workflow.acknowledgeViewEffects(view, lastVersion);
-    expect(workflow.viewEffects()).toEqual([]);
+    expect(port.saveMemberAvailability).toHaveBeenCalledWith(command, 1);
+    expect(workflow.snapshot()?.board.availabilities).toEqual([{ id: 4, ...command }]);
+    expect(workflow.viewEffects().map((effect) => effect.type)).toEqual(['availability-saved']);
   });
 
-  it('blocks duplicate planning submits and keeps a late success out of a new view', () => {
-    const response = new Subject<CandidateExamDay>();
-    const workspace = {
-      round: signal<ExamRound | null>({
-        id: 1,
-        exam_half_year_id: 4,
-        name: 'Runde A',
-        committee_id: 3,
-        status: 'draft',
-        availability_deadline: null,
-        availability_reminder_at: null,
+  it('cancels route reads when the route is rebound to another round', () => {
+    const requests: Subject<PlanningSnapshot>[] = [];
+    const { workflow, port } = createHarness({
+      loadPlanning: vi.fn(() => {
+        const request = new Subject<PlanningSnapshot>();
+        requests.push(request);
+        return request;
       }),
-      loading: signal(false),
-      actionBusy: signal(false),
-      refresh: vi.fn(),
-    };
-    const planning = { createCandidateExamDay: vi.fn(() => response) };
-    const feedback = { notify: vi.fn(), roleRestriction: vi.fn() };
-    TestBed.configureTestingModule({
-      providers: [
-        provideRouter([]),
-        { provide: ApplicationWorkspaceService, useValue: workspace },
-        { provide: PLANNING_PORT, useValue: planning },
-        { provide: AuthService, useValue: { hasCapability: () => true, session: () => null } },
-        { provide: UiFeedbackService, useValue: feedback },
-      ],
     });
+    const view = Symbol('planning-view');
 
-    const context = TestBed.inject(RoundContextService);
-    context.select(1);
-    const workflow = TestBed.inject(PlanningWorkflowService);
-    const viewA = Symbol('planning-view-a');
-    const viewB = Symbol('planning-view-b');
-    workflow.activateView(viewA);
-    const payload = { date: '2026-11-01' } as never;
+    workflow.activateView(view, 1);
+    const oldRequest = requests[0]!;
+    TestBed.inject(RoundContextService).select(2);
+    workflow.activateView(view, 2);
+    const currentRequest = requests[1]!;
+    expect(oldRequest.observed).toBe(false);
 
-    workflow.createCandidateDay(payload, viewA);
-    workflow.createCandidateDay(payload, viewA);
+    oldRequest.next(emptySnapshot(1));
+    currentRequest.next(emptySnapshot(2));
 
-    expect(planning.createCandidateExamDay).toHaveBeenCalledOnce();
-    expect(workflow.actionBusy()).toBe(true);
-    workflow.activateView(viewB);
-    response.next({ id: 6, date: '2026-11-01' } as CandidateExamDay);
-    response.complete();
-
-    expect(workflow.viewEffects()).toEqual([]);
-    expect(workflow.actionBusy()).toBe(false);
-    expect(workspace.refresh).not.toHaveBeenCalled();
+    expect(port.loadPlanning).toHaveBeenNthCalledWith(1, 1);
+    expect(port.loadPlanning).toHaveBeenNthCalledWith(2, 2);
+    expect(workflow.snapshot()?.round.id).toBe(2);
   });
 
-  it('keeps availability request steps on the validated round if selection changes mid-request', () => {
-    const requestResponse = new Subject<ExamRound>();
-    const planning = { requestAvailabilities: vi.fn(() => requestResponse) };
-    const workspace = {
-      round: signal<ExamRound | null>({
-        id: 1,
-        exam_half_year_id: 4,
-        name: 'Runde A',
-        committee_id: 3,
-        status: 'draft',
-        availability_deadline: null,
-        availability_reminder_at: null,
-      }),
-      loading: signal(false),
-      actionBusy: signal(false),
-      refresh: vi.fn(),
-    };
-    TestBed.configureTestingModule({
-      providers: [
-        provideRouter([]),
-        { provide: ApplicationWorkspaceService, useValue: workspace },
-        { provide: PLANNING_PORT, useValue: planning },
-        { provide: AuthService, useValue: { hasCapability: () => true, session: () => null } },
-        { provide: UiFeedbackService, useValue: { notify: vi.fn(), roleRestriction: vi.fn() } },
-      ],
+  it('shows a load error and retries the active route when activated again', () => {
+    const { workflow, port } = createHarness({
+      loadPlanning: vi
+        .fn()
+        .mockReturnValueOnce(throwError(() => new Error('offline')))
+        .mockReturnValueOnce(of(emptySnapshot(1))),
     });
+    const view = Symbol('planning-view');
 
-    const context = TestBed.inject(RoundContextService);
-    context.select(1);
-    const workflow = TestBed.inject(PlanningWorkflowService);
-    workflow.requestAvailabilities({
-      name: 'Runde A',
-      availability_deadline: null,
-      availability_reminder_at: null,
-    });
+    workflow.activateView(view, 1);
 
-    expect(planning.requestAvailabilities).toHaveBeenCalledWith(
-      { name: 'Runde A', availability_deadline: null, availability_reminder_at: null },
-      1,
-    );
-    context.select(2);
-    requestResponse.next({} as ExamRound);
-    requestResponse.complete();
+    expect(workflow.loadError()).toBe(true);
+    expect(workflow.snapshot()).toBeNull();
+
+    workflow.activateView(view, 1);
+
+    expect(port.loadPlanning).toHaveBeenCalledTimes(2);
+    expect(workflow.loadError()).toBe(false);
+    expect(workflow.snapshot()?.round.id).toBe(1);
   });
 
-  it('keeps candidate-day generation on the validated round if selection changes while saving settings', () => {
-    const settingsResponse = new Subject<unknown>();
-    const planning = {
-      savePlanningSettings: vi.fn(() => settingsResponse),
-      generateCandidateExamDays: vi.fn(() => of({ counts: { created: 1, existing: 0 } })),
-    };
-    const workspace = {
-      round: signal<ExamRound | null>({
-        id: 1,
-        exam_half_year_id: 4,
-        name: 'Runde A',
-        committee_id: 3,
-        status: 'draft',
-        availability_deadline: null,
-        availability_reminder_at: null,
-      }),
-      loading: signal(false),
-      actionBusy: signal(false),
-      refresh: vi.fn(),
-    };
-    const feedback = { notify: vi.fn(), roleRestriction: vi.fn() };
-    TestBed.configureTestingModule({
-      providers: [
-        provideRouter([]),
-        { provide: ApplicationWorkspaceService, useValue: workspace },
-        { provide: PLANNING_PORT, useValue: planning },
-        {
-          provide: AuthService,
-          useValue: {
-            hasCapability: () => true,
-            session: () => null,
-          },
-        },
-        { provide: UiFeedbackService, useValue: feedback },
-      ],
+  it('clears planning state when a session ends and reloads after it is established', () => {
+    const sessionChanges = new Subject<{ previousEstablished: boolean; established: boolean }>();
+    const { workflow, port } = createHarness({
+      sessionScopeChanges: sessionChanges,
     });
+    const view = Symbol('planning-view');
 
-    const context = TestBed.inject(RoundContextService);
-    context.select(1);
-    const workflow = TestBed.inject(PlanningWorkflowService);
-    workflow.generateCandidateDays({} as never);
+    workflow.activateView(view, 1);
+    workflow.generateProposal(1, view);
+    expect(workflow.snapshot()).not.toBeNull();
 
-    expect(planning.savePlanningSettings).toHaveBeenCalledWith({}, 1);
-    context.select(2);
-    settingsResponse.next({});
-    settingsResponse.complete();
+    sessionChanges.next({ previousEstablished: true, established: false });
 
-    expect(planning.generateCandidateExamDays).toHaveBeenCalledWith(1);
-    expect(workflow.candidateDayGeneration()).toBeNull();
-    expect(feedback.notify).not.toHaveBeenCalled();
-    expect(workspace.refresh).not.toHaveBeenCalled();
+    expect(workflow.snapshot()).toBeNull();
+    expect(workflow.lastResult()).toBeNull();
+    expect(port.loadPlanning).toHaveBeenCalledTimes(2);
+
+    sessionChanges.next({ previousEstablished: false, established: true });
+
+    expect(port.loadPlanning).toHaveBeenCalledTimes(3);
+    expect(workflow.snapshot()?.round.id).toBe(1);
   });
 
-  it('ignores candidate-day generation results after the session changes', () => {
-    const settingsResponse = new Subject<unknown>();
-    const generationResponse = new Subject<{ counts: { created: number; existing: number } }>();
-    const planning = {
-      savePlanningSettings: vi.fn(() => settingsResponse),
-      generateCandidateExamDays: vi.fn(() => generationResponse),
-    };
-    const workspace = {
-      round: signal<ExamRound | null>({
-        id: 1,
-        exam_half_year_id: 4,
-        name: 'Runde A',
-        committee_id: 3,
-        status: 'draft',
-        availability_deadline: null,
-        availability_reminder_at: null,
-      }),
-      loading: signal(false),
-      actionBusy: signal(false),
-      refresh: vi.fn(),
-    };
-    const feedback = { notify: vi.fn(), roleRestriction: vi.fn() };
-    TestBed.configureTestingModule({
-      providers: [
-        provideRouter([]),
-        { provide: ApplicationWorkspaceService, useValue: workspace },
-        { provide: PLANNING_PORT, useValue: planning },
-        {
-          provide: AuthService,
-          useValue: {
-            hasCapability: () => true,
-            session: () => null,
-          },
-        },
-        { provide: UiFeedbackService, useValue: feedback },
-      ],
-    });
+  it('cancels feature reads when the planning route is deactivated', () => {
+    const response = new Subject<PlanningSnapshot>();
+    const { workflow } = createHarness({ loadPlanning: vi.fn(() => response) });
+    const view = Symbol('planning-view');
 
-    const context = TestBed.inject(RoundContextService);
-    context.select(1);
-    const scope = TestBed.inject(SessionScopeService);
-    scope.establish({
-      authenticated: true,
-      account_id: 7,
-      person_id: 9,
-      committee_member_id: 12,
-      is_operator: false,
-    });
-    const workflow = TestBed.inject(PlanningWorkflowService);
-    workflow.generateCandidateDays({} as never);
+    workflow.activateView(view, 1);
+    workflow.deactivateView(view);
+    response.next(emptySnapshot(1));
 
-    settingsResponse.next({});
-    settingsResponse.complete();
-    expect(planning.generateCandidateExamDays).toHaveBeenCalledWith(1);
-
-    scope.clear();
-    generationResponse.next({ counts: { created: 1, existing: 0 } });
-    generationResponse.complete();
-
-    expect(workflow.candidateDayGeneration()).toBeNull();
-    expect(feedback.notify).not.toHaveBeenCalled();
-    expect(workspace.refresh).not.toHaveBeenCalled();
+    expect(response.observed).toBe(false);
+    expect(workflow.snapshot()).toBeNull();
   });
 });
 
-function createPlanningWorkspace(status: ExamRound['status']) {
-  return {
-    round: signal<ExamRound | null>({
-      id: 1,
-      exam_half_year_id: 4,
-      name: 'Runde A',
-      committee_id: 3,
-      status,
-      availability_deadline: null,
-      availability_reminder_at: null,
-    }),
-    loading: signal(false),
-    actionBusy: signal(false),
-    board: signal({ availabilities: [] as Array<{ id: number }> }),
-    refresh: vi.fn(),
+function createHarness(
+  overrides: Record<string, unknown> = {},
+  feedbackOverrides: Record<string, unknown> = {},
+) {
+  const roundId = signal(1);
+  const sessionChanges =
+    (overrides['sessionScopeChanges'] as Subject<unknown> | undefined) ?? new Subject<unknown>();
+  const sessionScope = {
+    generation: () => 0,
+    changes$: sessionChanges,
+    forCurrentSession: <T>(operation: Observable<T>) => operation,
   };
-}
+  const roundContext = {
+    roundId,
+    select: (id: number) => roundId.set(id),
+  };
+  const proposal = { round_id: 1, revision: 2, exam_days: [] };
+  const port = {
+    loadPlanning: vi.fn((id: number) => of(emptySnapshot(id))),
+    savePlanningSettings: vi.fn(() => of({})),
+    updateExamRound: vi.fn(() => of({})),
+    requestAvailabilities: vi.fn(() => of({ notification_warning: null })),
+    createCandidateExamDay: vi.fn(() => of({ id: 1, exam_round_id: 1, date: '', is_active: 1 })),
+    generateCandidateExamDays: vi.fn(() => of({ counts: { created: 0, existing: 0 } })),
+    updateCandidateExamDay: vi.fn(() => of({})),
+    saveMemberAvailability: vi.fn(() => of({ id: 1 })),
+    generateProposal: vi.fn(() => of({ counts: {} })),
+    confirmPlan: vi.fn(() => of({ counts: {} })),
+    getPlanningProposal: vi.fn(() => of(proposal)),
+    savePlanningProposal: vi.fn(() => of(proposal)),
+    ...overrides,
+  };
+  const feedback = {
+    notify: vi.fn(),
+    roleRestriction: vi.fn(),
+    confirm$: vi.fn(() => of(true)),
+    ...feedbackOverrides,
+  };
 
-function configureWorkflow(workspace: object, planning: object, feedback?: object): void {
   TestBed.configureTestingModule({
     providers: [
       provideRouter([]),
-      { provide: ApplicationWorkspaceService, useValue: workspace },
-      { provide: PLANNING_PORT, useValue: planning },
+      { provide: RoundContextService, useValue: roundContext },
+      { provide: SessionScopeService, useValue: sessionScope },
+      { provide: ApplicationShellContextService, useValue: { refresh: vi.fn() } },
+      { provide: PLANNING_PORT, useValue: port },
       { provide: AuthService, useValue: { hasCapability: () => true, session: () => null } },
-      {
-        provide: UiFeedbackService,
-        useValue: feedback ?? { notify: vi.fn(), roleRestriction: vi.fn() },
-      },
+      { provide: UiFeedbackService, useValue: feedback },
     ],
   });
+
+  return {
+    workflow: TestBed.inject(PlanningWorkflowService),
+    port,
+    feedback,
+    roundId,
+  };
+}
+
+function emptySnapshot(id: number): PlanningSnapshot {
+  return {
+    round: {
+      id,
+      exam_half_year_id: 4,
+      name: `Runde ${id}`,
+      committee_id: 3,
+      status: 'draft',
+      availability_deadline: null,
+      availability_reminder_at: null,
+    },
+    summary: {
+      round: { id, name: `Runde ${id}`, status: 'draft', committee_name: 'Ausschuss' },
+      counts: { candidates: 0, mep_count: 0, required_exam_slots: 0 },
+      settings: null,
+      availability: [],
+    },
+    board: {
+      days: [],
+      members: [],
+      candidates: [],
+      candidateDays: [],
+      availabilities: [],
+      locations: [],
+    },
+  };
 }

@@ -2,11 +2,11 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideTaiga } from '@taiga-ui/core';
 
 import {
-  CandidateView,
-  CommitteeMember,
   EditablePlanningProposal,
-  Location,
-} from '../api/api.models';
+  PlanningCandidateView as CandidateView,
+  PlanningMember as CommitteeMember,
+  PlanningLocation as Location,
+} from './planning.models';
 import { candidateViewsFixture, locationsFixture, membersFixture } from '../testing/fixtures';
 import { PlanningProposalEditorComponent } from './planning-proposal-editor.component';
 

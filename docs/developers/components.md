@@ -929,8 +929,14 @@ Mitgliedsansichten laden die Liste für den Anlege-Selektor ergänzend und
 veröffentlichen Ortsdaten schon vor deren Abschluss.
 Ein später erfolgreicher Ortscommand aktualisiert die gerade aktive Ortsansicht;
 Draft-Effekte bleiben an ihre ursprüngliche Ansicht gebunden.
-`PlanningWorkflowService` koordiniert Planungsbefehle über `PlanningPort`;
-`HttpPlanningAdapter` übersetzt diese Aufrufe in den vorhandenen API-Client.
+`PlanningWorkflowService` besitzt den Planungs-Snapshot und koordiniert
+Planungsbefehle über das featureeigene `PlanningPort`.
+`HttpPlanningAdapter` übersetzt die Planning-Modelle in Aufrufe der
+vorhandenen API-Clients und bereinigt Transportlinks an der Grenze.
+`PlanningPort` und seine Konsumenten importieren keine API-/HAL-Modelle.
+Planning-Reads starten beim Eintritt mit der Runden-ID aus der URL.
+Jeder Command reicht die beim Start erfasste Runden-ID bis zum Adapter weiter;
+der API-Client liest dafür keinen veränderlichen globalen Rundenauswahlkontext.
 Vorschlagserzeugung und Vorschlagsspeicherung sind dabei persistierende
 Planning-Commands; die Leseoperation für den gespeicherten Vorschlag bleibt
 getrennt.
@@ -938,6 +944,7 @@ Einstellungen, Verfügbarkeiten, Vorschauerzeugung und erstmalige Bestätigung
 nehmen keine Quellrevision entgegen.
 `savePlanningProposal()` erhält dagegen die Revision des geladenen Vorschlags
 und übermittelt sie unverändert für die optimistische Sperre.
+Routenwechsel bricht Planning-Reads und ansichtsgebundene Vorschlagsladung ab.
 Prüfungstag-Anwesenheit übergibt Slot-ID für Prüflinge beziehungsweise
 Assignment-ID für Ausschussmitglieder sowie die vom Befehl akzeptierte
 Tagesrevision.

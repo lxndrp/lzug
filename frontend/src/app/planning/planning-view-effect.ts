@@ -1,9 +1,9 @@
 import type {
   AvailabilityValue,
   CandidateExamDay,
-  MemberAvailability,
   PlanningSettings,
-} from '../api/api.models';
+  PlanningMemberAvailability,
+} from './planning.models';
 
 export type PlanningSettingsPayload = Omit<
   PlanningSettings,
@@ -12,7 +12,7 @@ export type PlanningSettingsPayload = Omit<
 export type CandidateExamDayPayload = Omit<CandidateExamDay, 'id' | 'exam_round_id'>;
 
 export type AvailabilityPayload = Pick<
-  MemberAvailability,
+  PlanningMemberAvailability,
   'committee_member_id' | 'candidate_exam_day_id' | 'availability'
 >;
 

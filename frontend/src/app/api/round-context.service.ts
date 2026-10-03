@@ -7,8 +7,8 @@ export const DEFAULT_ROUND_ID = 1;
 /**
  * Holds the exam round selected by the application shell.
  *
- * API services read this signal at request time, so a changed selection is
- * consistently applied to subsequent round-scoped requests.
+ * APIs that follow the shell selection read this signal at request time.
+ * Features with an explicit source context pass their round ID directly.
  */
 @Injectable({ providedIn: 'root' })
 export class RoundContextService {
