@@ -85,8 +85,12 @@ export class PlanningRouteComponent implements OnDestroy {
   protected roundId: number | null = null;
   constructor() {
     this.route.data.pipe(takeUntilDestroyed()).subscribe((data) => {
-      const roundId = Number(data['roundId']);
-      if (!Number.isInteger(roundId) || roundId <= 0) return;
+      const resolvedRoundId = data['roundId'];
+      const roundId = Number(resolvedRoundId);
+      if (resolvedRoundId === null || !Number.isInteger(roundId) || roundId <= 0) {
+        void this.router.navigateByUrl('/scheduling-overview', { replaceUrl: true });
+        return;
+      }
       this.roundId = roundId;
       this.activate(roundId);
     });

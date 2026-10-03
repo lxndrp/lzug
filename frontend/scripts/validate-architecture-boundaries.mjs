@@ -153,9 +153,9 @@ assert.doesNotMatch(
 );
 assert.doesNotMatch(planningPort, /HttpClient|fetch\s*\(|types\.gen|['"]\/api\//);
 assert.doesNotMatch(
-  importsOf(planningPort + '\n' + planningWorkflow),
+  importsOf(planningPort + '\n' + planningWorkflow + '\n' + planningModels),
   /(?:^|\/)(?:api\.models|planning\.models\.api|api\/planning\.models)|WithoutHttpLinks|without-http-links/,
-  'planning ports and workflows use feature-owned models rather than API/HAL types',
+  'planning models, ports and workflows use feature-owned models rather than API/HAL types',
 );
 assert.match(planningPort, /loadPlanning\(roundId: number\)/);
 assert.match(planningPort, /generateProposal\(roundId: number\)/);
@@ -171,9 +171,9 @@ assert.match(planningModels, /export type PlanningSnapshot/);
 assert.match(planningAdapter, /PlanningApiService/);
 assert.match(planningAdapter, /loadPlanning\(roundId: number\)/);
 assert.doesNotMatch(
-  planningApi,
+  planningApi + '\n' + planningAdapter,
   /RoundContextService|roundContext\.roundId\(\)/,
-  'planning API operations receive their round context explicitly',
+  'planning HTTP operations preserve their explicitly supplied round context',
 );
 assert.match(planningSpec, /PLANNING_PORT/);
 assert.doesNotMatch(

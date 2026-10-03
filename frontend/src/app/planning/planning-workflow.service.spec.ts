@@ -660,6 +660,52 @@ describe('PlanningWorkflowService', () => {
     expect(workflow.viewEffects().map((effect) => effect.type)).toEqual(['availability-saved']);
   });
 
+  it('restarts a pending snapshot read after an accepted availability write', () => {
+    const saveResponse = new Subject<{
+      id: number;
+      committee_member_id: number;
+      candidate_exam_day_id: number;
+      availability: string;
+    }>();
+    const reads: Subject<PlanningSnapshot>[] = [];
+    let readCount = 0;
+    const { workflow, port } = createHarness({
+      loadPlanning: vi.fn((roundId: number) => {
+        if (readCount++ === 0) {
+          return of(emptySnapshot(roundId));
+        }
+        const read = new Subject<PlanningSnapshot>();
+        reads.push(read);
+        return read;
+      }),
+      saveMemberAvailability: vi.fn(() => saveResponse),
+    });
+    const view = Symbol('planning-view');
+    const command = {
+      committee_member_id: 11,
+      candidate_exam_day_id: 21,
+      availability: 'morning',
+    } as const;
+
+    workflow.activateView(view, 1);
+    workflow.saveAvailability(command, 1, view);
+    TestBed.inject(ReferenceDataWriteEventsService).notifyCommitted('locations');
+    const lateRead = reads[0]!;
+    expect(workflow.loading()).toBe(true);
+    saveResponse.next({ id: 4, ...command });
+
+    expect(port.loadPlanning).toHaveBeenCalledTimes(3);
+    const refreshedSnapshot = {
+      ...emptySnapshot(1),
+      board: { ...emptySnapshot(1).board, availabilities: [{ id: 4, ...command }] },
+    };
+    lateRead.next(emptySnapshot(1));
+    reads[1]!.next(refreshedSnapshot);
+    reads[1]!.complete();
+
+    expect(workflow.snapshot()?.board.availabilities).toEqual([{ id: 4, ...command }]);
+  });
+
   it('cancels route reads when the route is rebound to another round', () => {
     const requests: Subject<PlanningSnapshot>[] = [];
     const { workflow, port } = createHarness({

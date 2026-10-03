@@ -537,6 +537,13 @@ export class PlanningWorkflowService {
       .subscribe({
         next: (availability) => {
           if (this.skipStaleWrite(roundId, view, 'related-rounds')) return;
+          const refreshInFlight = this.loading();
+          if (refreshInFlight) {
+            this.planningGeneration += 1;
+            this.planningLoad?.unsubscribe();
+            this.planningLoad = undefined;
+            this.loading.set(false);
+          }
           this.snapshot.update((snapshot) =>
             snapshot
               ? {
@@ -560,6 +567,7 @@ export class PlanningWorkflowService {
             payload,
             availability: availability.availability,
           });
+          if (refreshInFlight) this.refreshPlanning(roundId);
         },
         error: () => {
           if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;

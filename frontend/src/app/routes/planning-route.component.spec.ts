@@ -58,4 +58,29 @@ describe('PlanningRouteComponent', () => {
     expect(workflow.activateView).toHaveBeenLastCalledWith(originalView, 1);
     expect(workflow.activateView).toHaveBeenCalledTimes(2);
   });
+
+  it('redirects when the round resolver returns an invalid route parameter', () => {
+    const routeData = new Subject<Record<string, unknown>>();
+    const workflow = { activateView: vi.fn(), deactivateView: vi.fn() };
+    const router = { navigateByUrl: vi.fn() };
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: ActivatedRoute, useValue: { data: routeData } },
+        { provide: Router, useValue: router },
+        {
+          provide: AuthService,
+          useValue: { session: () => null, hasCapability: () => false },
+        },
+        { provide: PlanningWorkflowService, useValue: workflow },
+      ],
+    });
+
+    TestBed.runInInjectionContext(() => new PlanningRouteComponent());
+    routeData.next({ roundId: null });
+
+    expect(router.navigateByUrl).toHaveBeenCalledWith('/scheduling-overview', {
+      replaceUrl: true,
+    });
+    expect(workflow.activateView).not.toHaveBeenCalled();
+  });
 });
