@@ -214,6 +214,30 @@ class FastAPIApplicationTests(unittest.TestCase):
 
             self.assertIs(local_auth.unit_of_work_factory.authentication, selected)
 
+    def test_custom_authentication_repository_requires_matching_local_auth_factory(self) -> None:
+        with TempDatabase() as db_path:
+            services = replace(ApplicationServices(), authentication_factory=lambda _path: object())
+            app = create_app(self.config(db_path), services)
+
+            with self.assertRaisesRegex(ValueError, "must provide a matching"):
+                app.state.local_auth_service_factory(
+                    db_path, session_ttl=app.state.lzug_config.session_ttl, settings=None
+                )
+
+            local_auth_service = Mock()
+            paired_services = replace(
+                services, local_authentication_factory=lambda _path, **_kwargs: local_auth_service
+            )
+            paired_app = create_app(self.config(db_path), paired_services)
+            self.assertIs(
+                paired_app.state.local_auth_service_factory(
+                    db_path,
+                    session_ttl=paired_app.state.lzug_config.session_ttl,
+                    settings=None,
+                ),
+                local_auth_service,
+            )
+
     def test_health_is_pure_liveness_and_ready_uses_injected_probe(self) -> None:
         readiness_probe = Mock(return_value={"ready": False})
         services = replace(ApplicationServices(), readiness_probe=readiness_probe)

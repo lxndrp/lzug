@@ -53,7 +53,7 @@ def local_auth_service(
     *,
     session_ttl: timedelta,
     settings: RuntimeSettings | None,
-    authentication: AuthenticationRepository | None = None,
+    authentication: SQLiteAuthenticationRepository | None = None,
 ) -> LocalAuthService:
     """Wire local Identity auth ports to SQLite and the instance key store."""
     selected_authentication = authentication or SQLiteAuthenticationRepository(db_path)

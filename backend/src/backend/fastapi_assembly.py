@@ -46,6 +46,7 @@ from .operations.backup_recipients import BackupRecipientRepository
 from .operations.backup_restore import ArtifactService
 from .operations.diagnostics import run_diagnostics
 from .operations.lifecycle import LifecycleService
+from .persistence.auth import SQLiteAuthenticationRepository
 from .persistence.database import PersistencePaths, database_readiness, persistence_paths
 from .persistence.resource_access import SQLiteResourceAccessQueryFactory
 from .planning.candidate_days import CandidateDayService
@@ -176,11 +177,19 @@ def create_app(
     app.state.committee_admin_service_factory = (
         committee_admin_service_factory or compose_committee_admin_service
     )
-    app.state.local_auth_service_factory = lambda db_path, **kwargs: compose_local_auth_service(
-        db_path,
-        authentication=active_authentication_factory(db_path),
-        **kwargs,
-    )
+    local_authentication_factory = application_services.local_authentication_factory
+    if local_authentication_factory is None:
+
+        def local_authentication_factory(db_path, **kwargs):
+            authentication = active_authentication_factory(db_path)
+            if not isinstance(authentication, SQLiteAuthenticationRepository):
+                raise ValueError(
+                    "A custom authentication repository must provide a matching "
+                    "local-authentication factory"
+                )
+            return compose_local_auth_service(db_path, authentication=authentication, **kwargs)
+
+    app.state.local_auth_service_factory = local_authentication_factory
     app.state.auth_rate_limiter = resolved.auth_rate_limiter or RequestRateLimiter(
         resolved.auth_rate_limit, resolved.auth_rate_window
     )

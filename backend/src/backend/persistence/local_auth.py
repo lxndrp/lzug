@@ -49,7 +49,12 @@ def _account(row: UserAccount) -> LocalAuthAccount:
 class SQLiteLocalAuthUnitOfWorkFactory:
     """Create a single transaction spanning factor changes and session replacement."""
 
-    def __init__(self, db_path: Path = DEFAULT_DB_PATH, *, authentication=None):
+    def __init__(
+        self,
+        db_path: Path = DEFAULT_DB_PATH,
+        *,
+        authentication: SQLiteAuthenticationRepository | None = None,
+    ):
         self.db_path = Path(db_path)
         self.authentication = authentication or SQLiteAuthenticationRepository(self.db_path)
 
@@ -60,7 +65,7 @@ class SQLiteLocalAuthUnitOfWorkFactory:
 
 
 class _SQLiteLocalAuthUnitOfWork:
-    def __init__(self, session, authentication):
+    def __init__(self, session, authentication: SQLiteAuthenticationRepository):
         self.session = session
         self.authentication = authentication
 

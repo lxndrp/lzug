@@ -20,6 +20,7 @@ from backend.application import hateoas
 from backend.application.repositories import ResourceRepository
 from backend.identity.auth import AuthenticationRepository
 from backend.identity.authorization import AuthorizationScope, AuthorizationService
+from backend.identity.local_auth import LocalAuthService
 from backend.persistence.database import DEFAULT_DB_PATH, database_readiness
 from backend.persistence.models import EXAM_ROUND
 from backend.runtime import RuntimeCoordinator
@@ -43,11 +44,16 @@ class ApplicationResult:
 
 @dataclass(frozen=True)
 class ApplicationServices:
-    """Injectable database and service factories for one application core."""
+    """Injectable database and service factories for one application core.
+
+    A custom authentication repository must be paired with a local-auth service
+    factory backed by the same authentication implementation.
+    """
 
     readiness_probe: Callable[[Path], dict[str, object]] = database_readiness
     repository_factory: Callable[[Path], ResourceRepository] = ResourceRepository
     authentication_factory: Callable[[Path], AuthenticationRepository] | None = None
+    local_authentication_factory: Callable[..., LocalAuthService] | None = None
     authorization_factory: Callable[[Path], AuthorizationService] | None = None
 
 
