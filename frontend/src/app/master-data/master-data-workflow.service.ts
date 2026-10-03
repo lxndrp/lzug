@@ -14,8 +14,11 @@ import {
 
 import { RoundContextService } from '../api/round-context.service';
 import { SessionScopeService } from '../auth/session-scope.service';
-import { ApplicationWorkspaceService } from '../shell/application-workspace.service';
+import type { CandidateWorkspace, CommitteeWorkspace } from './master-data.models';
+import { AuthService } from '../auth/auth.service';
 import { MASTER_DATA_PORT } from './master-data.port';
+import { ApplicationWorkspaceService } from '../shell/application-workspace.service';
+import { DashboardProjectionService } from '../dashboard/dashboard-projection.service';
 import type {
   Candidate,
   CandidateCommand,
@@ -41,32 +44,153 @@ export class MasterDataWorkflowService {
   private readonly port = inject(MASTER_DATA_PORT);
   private readonly roundContext = inject(RoundContextService);
   private readonly sessionScope = inject(SessionScopeService);
+  private readonly auth = inject(AuthService);
   private readonly workspace = inject(ApplicationWorkspaceService);
+  private readonly dashboard = inject(DashboardProjectionService);
   private readonly requestCounter = signal(0);
   private readonly state = signal<MasterDataRequestState>({ status: 'idle' });
 
   readonly requestState = this.state.asReadonly();
   readonly actionBusy = computed(() => this.state().status === 'pending');
-  readonly candidateWorkspace = computed(() => this.workspace.candidateWorkspace());
-  readonly committeeWorkspace = computed(() => this.workspace.committeeWorkspace());
+  readonly candidateWorkspace = signal<CandidateWorkspace | null>(null);
+  readonly committeeWorkspace = signal<CommitteeWorkspace | null>(null);
+  readonly candidateLoading = signal(false);
+  readonly candidateError = signal(false);
+  readonly committeeLoading = signal(false);
+  readonly committeeError = signal(false);
+  readonly selectedCommitteeId = signal<number | null>(null);
+  private candidateReadGeneration = 0;
+  private committeeReadGeneration = 0;
 
   constructor() {
     this.sessionScope.changes$.subscribe(() => {
       this.requestCounter.update((counter) => counter + 1);
       this.state.set({ status: 'idle' });
+      this.candidateReadGeneration += 1;
+      this.committeeReadGeneration += 1;
+      this.candidateWorkspace.set(null);
+      this.committeeWorkspace.set(null);
+      this.selectedCommitteeId.set(null);
+      this.candidateLoading.set(false);
+      this.committeeLoading.set(false);
+      this.candidateError.set(false);
+      this.committeeError.set(false);
     });
+  }
+
+  loadCandidates(): void {
+    if (this.auth.state() !== 'authenticated') return;
+    const roundId = this.roundContext.roundId();
+    const generation = ++this.candidateReadGeneration;
+    const sessionGeneration = this.sessionScope.generation();
+    this.candidateWorkspace.set(null);
+    this.candidateLoading.set(true);
+    this.candidateError.set(false);
+    this.sessionScope
+      .forCurrentSession(this.port.loadCandidateWorkspace(roundId))
+      .pipe(
+        finalize(() => {
+          if (generation === this.candidateReadGeneration) this.candidateLoading.set(false);
+        }),
+      )
+      .subscribe({
+        next: (workspace) => {
+          if (
+            generation !== this.candidateReadGeneration ||
+            sessionGeneration !== this.sessionScope.generation() ||
+            roundId !== this.roundContext.roundId()
+          )
+            return;
+          this.candidateWorkspace.set(workspace);
+        },
+        error: (error: { kind?: string }) => {
+          if (
+            generation !== this.candidateReadGeneration ||
+            sessionGeneration !== this.sessionScope.generation() ||
+            roundId !== this.roundContext.roundId()
+          )
+            return;
+          this.candidateError.set(true);
+          if (error.kind === 'unauthenticated') this.auth.markAnonymous();
+        },
+      });
+  }
+
+  loadCommittees(): void {
+    if (this.auth.state() !== 'authenticated') return;
+    const generation = ++this.committeeReadGeneration;
+    const sessionGeneration = this.sessionScope.generation();
+    this.committeeWorkspace.set(null);
+    this.committeeLoading.set(true);
+    this.committeeError.set(false);
+    this.sessionScope
+      .forCurrentSession(this.port.loadCommitteeWorkspace())
+      .pipe(
+        finalize(() => {
+          if (generation === this.committeeReadGeneration) this.committeeLoading.set(false);
+        }),
+      )
+      .subscribe({
+        next: (workspace) => {
+          if (
+            generation !== this.committeeReadGeneration ||
+            sessionGeneration !== this.sessionScope.generation()
+          )
+            return;
+          this.committeeWorkspace.set(workspace);
+          if (!workspace.committees.some(({ id }) => id === this.selectedCommitteeId())) {
+            this.selectedCommitteeId.set(workspace.committees[0]?.id ?? null);
+          }
+        },
+        error: (error: { kind?: string }) => {
+          if (
+            generation !== this.committeeReadGeneration ||
+            sessionGeneration !== this.sessionScope.generation()
+          )
+            return;
+          this.committeeError.set(true);
+          if (error.kind === 'unauthenticated') this.auth.markAnonymous();
+        },
+      });
+  }
+
+  selectCommittee(id: number | null): void {
+    this.selectedCommitteeId.set(id);
+  }
+
+  clearCandidates(): void {
+    this.requestCounter.update((counter) => counter + 1);
+    const state = this.state();
+    if (state.status === 'pending' && state.contextKey.startsWith('candidate:'))
+      this.state.set({ status: 'idle' });
+    this.candidateReadGeneration += 1;
+    this.candidateWorkspace.set(null);
+    this.candidateLoading.set(false);
+    this.candidateError.set(false);
+  }
+
+  clearCommittees(): void {
+    this.requestCounter.update((counter) => counter + 1);
+    const state = this.state();
+    if (state.status === 'pending' && state.contextKey.startsWith('committee:'))
+      this.state.set({ status: 'idle' });
+    this.committeeReadGeneration += 1;
+    this.committeeWorkspace.set(null);
+    this.committeeLoading.set(false);
+    this.committeeError.set(false);
+    this.selectedCommitteeId.set(null);
   }
 
   createMember(
     payload: CommitteeMemberCommand,
   ): Observable<MasterDataWorkflowResult<CommitteeMember>> {
-    const selectedCommitteeId = this.workspace.selectedCommitteeId();
+    const selectedCommitteeId = this.selectedCommitteeId();
     return this.run(
       `committee:${payload.committeeId}`,
       () => this.port.createCommitteeMember(payload),
       () =>
         selectedCommitteeId === payload.committeeId &&
-        this.workspace.selectedCommitteeId() === selectedCommitteeId,
+        this.selectedCommitteeId() === selectedCommitteeId,
     );
   }
 
@@ -103,13 +227,13 @@ export class MasterDataWorkflowService {
 
   toggleMember(member: CommitteeMember): Observable<MasterDataWorkflowResult<CommitteeMember>> {
     const update: CommitteeMemberUpdate = { isActive: !member.isActive };
-    const selectedCommitteeId = this.workspace.selectedCommitteeId();
+    const selectedCommitteeId = this.selectedCommitteeId();
     return this.run(
       `committee:${member.committeeId}`,
       () => this.port.updateCommitteeMember(member.id, update),
       () =>
         selectedCommitteeId === member.committeeId &&
-        this.workspace.selectedCommitteeId() === selectedCommitteeId,
+        this.selectedCommitteeId() === selectedCommitteeId,
     );
   }
 
@@ -138,12 +262,24 @@ export class MasterDataWorkflowService {
           current: this.requestCounter() === requestId && isCurrentContext(),
         })),
         tap((result) => {
+          if (contextKey.startsWith('candidate:')) {
+            this.workspace.refreshCandidateReferences();
+            this.dashboard.refreshCandidateReferences();
+          } else if (contextKey.startsWith('committee:')) {
+            this.workspace.refreshCommitteeReferences();
+            this.dashboard.refreshCommitteeMembers();
+          }
           if (this.requestCounter() === requestId) {
             this.state.set(
               result.current ? { status: 'success', requestId, contextKey } : { status: 'idle' },
             );
           }
-          this.workspace.refresh();
+          if (this.requestCounter() !== requestId) return;
+          if (contextKey.startsWith('candidate:')) {
+            if (result.current) this.loadCandidates();
+          } else if (contextKey.startsWith('committee:')) {
+            this.loadCommittees();
+          }
         }),
         catchError((error: unknown) => {
           const current = this.requestCounter() === requestId && isCurrentContext();

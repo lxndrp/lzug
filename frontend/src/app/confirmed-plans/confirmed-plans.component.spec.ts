@@ -59,6 +59,30 @@ describe('ConfirmedPlansComponent', () => {
     expect(element.textContent).not.toContain('Prüfling Plan-Alpha');
   });
 
+  it('reads updated venue labels when the confirmed-plan route is reopened', () => {
+    const updatedPlans = plans().map((plan) => ({
+      ...plan,
+      days: plan.days.map((day) => ({
+        ...day,
+        location: day.location ? { ...day.location, name: 'Prüfungszentrum umbenannt' } : null,
+      })),
+    }));
+    workflow.getConfirmedPlans
+      .mockReturnValueOnce(of(plans()))
+      .mockReturnValueOnce(of(updatedPlans));
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Prüfungszentrum Plan');
+
+    fixture.destroy();
+    fixture = TestBed.createComponent(ConfirmedPlansComponent);
+    fixture.detectChanges();
+
+    expect(workflow.getConfirmedPlans).toHaveBeenCalledTimes(2);
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      'Prüfungszentrum umbenannt',
+    );
+  });
+
   it('links tabs to their panel and supports arrow-key selection', () => {
     fixture.detectChanges();
 

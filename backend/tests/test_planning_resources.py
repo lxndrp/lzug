@@ -6,7 +6,15 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from types import MappingProxyType
 
-from backend.planning.resources import PlanningResourceService, PlanningValue
+from backend.planning.resources import (
+    PlanningAvailabilityReferences,
+    PlanningCandidateAssignmentContext,
+    PlanningRecordValue,
+    PlanningResourceService,
+    PlanningRoomFacts,
+    PlanningSettingsReferences,
+    PlanningValue,
+)
 
 
 class PlanningResourcePortTests(unittest.TestCase):
@@ -163,6 +171,141 @@ class PlanningResourcePortTests(unittest.TestCase):
             ["begin:False", "planning-read", "authorization-queries", "visibility-read", "end"],
             events,
         )
+
+    def test_round_reassignment_policy_runs_before_the_port_write(self) -> None:
+        existing = PlanningRecordValue(
+            {
+                "id": 4,
+                "exam_half_year_id": 2,
+                "committee_id": 3,
+                "name": "Winter",
+                "status": "draft",
+            }
+        )
+        writes: list[dict[str, PlanningValue]] = []
+
+        class FakeUnitOfWork:
+            def get_round(self, round_id):
+                return existing
+
+            def update_round(self, round_id, values):
+                writes.append(dict(values))
+                return existing
+
+        @contextmanager
+        def unit_of_work_factory(*, write=False):
+            yield FakeUnitOfWork()
+
+        service = PlanningResourceService(unit_of_work_factory)
+        with self.assertRaisesRegex(ValueError, "cannot be reassigned"):
+            service.update_round(4, {"committee_id": 5})
+
+        self.assertEqual([], writes)
+
+    def test_settings_domain_validation_runs_with_plain_port(self) -> None:
+        class FakeUnitOfWork:
+            def settings_references(self, round_id, updater_member_id, room_id):
+                raise AssertionError("Pure subdivision validation must run first")
+
+            def save_settings(self, values):
+                raise AssertionError("Invalid settings must not be persisted")
+
+        @contextmanager
+        def unit_of_work_factory(*, write=False):
+            yield FakeUnitOfWork()
+
+        service = PlanningResourceService(unit_of_work_factory)
+        with self.assertRaisesRegex(ValueError, "Unknown German federal state"):
+            service.save_settings(
+                {
+                    "exam_round_id": 1,
+                    "updated_by_member_id": 2,
+                    "exclude_public_holidays": 1,
+                    "holiday_subdivision_code": "DE-XX",
+                }
+            )
+
+    def test_room_suitability_is_decided_by_planning(self) -> None:
+        references = PlanningSettingsReferences(
+            round_committee_id=3,
+            updater_committee_id=3,
+            room=PlanningRoomFacts(
+                room_active=False,
+                venue_active=True,
+                venue_scope="global",
+                venue_committee_id=None,
+                coordinate_status="confirmed",
+                coordinates_required=True,
+            ),
+        )
+
+        class FakeUnitOfWork:
+            def settings_references(self, round_id, updater_member_id, room_id):
+                return references
+
+            def save_settings(self, values):
+                raise AssertionError("An inactive room must not be persisted")
+
+        @contextmanager
+        def unit_of_work_factory(*, write=False):
+            yield FakeUnitOfWork()
+
+        with self.assertRaisesRegex(ValueError, "Default room is not active"):
+            PlanningResourceService(unit_of_work_factory).save_settings(
+                {
+                    "exam_round_id": 1,
+                    "updated_by_member_id": 2,
+                    "default_room_id": 8,
+                }
+            )
+
+    def test_availability_normalization_runs_before_the_port_write(self) -> None:
+        saved: list[dict[str, PlanningValue]] = []
+
+        class FakeUnitOfWork:
+            def availability_references(self, round_id, member_id, day_id):
+                return PlanningAvailabilityReferences(3, 3, True, 1)
+
+            def save_availability(self, values):
+                saved.append(dict(values))
+                return PlanningRecordValue(values)
+
+        @contextmanager
+        def unit_of_work_factory(*, write=False):
+            yield FakeUnitOfWork()
+
+        PlanningResourceService(unit_of_work_factory).save_availability(
+            {
+                "exam_round_id": 1,
+                "committee_member_id": 4,
+                "candidate_exam_day_id": 7,
+                "availability": "pending",
+            }
+        )
+
+        self.assertEqual(None, saved[0]["responded_at"])
+
+    def test_candidate_reassignment_reason_is_enforced_by_planning(self) -> None:
+        writes: list[dict[str, PlanningValue]] = []
+
+        class FakeUnitOfWork:
+            def candidate_assignment_context(self, candidate_id, round_id):
+                return PlanningCandidateAssignmentContext(True, True, 2, False)
+
+            def assign_candidate_to_round(self, values):
+                writes.append(dict(values))
+                return PlanningRecordValue(values)
+
+        @contextmanager
+        def unit_of_work_factory(*, write=False):
+            yield FakeUnitOfWork()
+
+        with self.assertRaisesRegex(ValueError, "reason is required"):
+            PlanningResourceService(unit_of_work_factory).assign_candidate_to_round(
+                {"candidate_id": 1, "exam_round_id": 3}
+            )
+
+        self.assertEqual([], writes)
 
 
 if __name__ == "__main__":

@@ -44,6 +44,8 @@ Fachliche, Nutzungs- und Betreiberanleitungen liegen im
 
 Das [ADR-Register](decisions/index.md) enthält die langfristigen technischen
 Entscheidungen und ihre Ersetzungssemantik.
+Der [Frontend-Architekturvertrag](frontend-architecture-contract.md) beschreibt
+Featurebesitz, Zustandslebensdauern und die geplanten Übergänge.
 Die [Python-Referenz](reference/backend.md),
 [TypeScript-Referenz](reference/frontend.md), die
 [Betreiber-CLI-Referenz](reference/cli.md) und das

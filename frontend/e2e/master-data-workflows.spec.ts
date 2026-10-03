@@ -7,6 +7,7 @@ import {
   viewports,
   useDraftRound,
 } from './quality-support';
+import { masterDataFixture } from '../src/app/testing/fixtures';
 
 test.describe('master data workflows', () => {
   test.describe.configure({ timeout: 60_000 });
@@ -212,6 +213,105 @@ test.describe('master data workflows', () => {
     }));
     expect(layout.cardFits).toBe(true);
     expect(layout.actionsFit).toBe(true);
+  });
+
+  test('keeps operator venue reads and editing available when an unrelated round read is forbidden', async ({
+    page,
+  }) => {
+    const session = {
+      authenticated: true,
+      account_id: 91,
+      person_id: null,
+      committee_member_id: null,
+      is_operator: true,
+      capabilities: [],
+      demo_role: null,
+    };
+    const venueFixture = structuredClone(masterDataFixture.examVenues[0]);
+    let venue = {
+      ...venueFixture,
+      committee_name:
+        masterDataFixture.committees.find(({ id }) => id === venueFixture.committee_id)?.name ??
+        null,
+    };
+    const venueReads: string[] = [];
+
+    await page.route('**/api/session', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(session),
+      }),
+    );
+    await page.route('**/api/round-summary*', (route) =>
+      route.fulfill({
+        status: 403,
+        contentType: 'application/json',
+        body: '{"detail":"Forbidden."}',
+      }),
+    );
+    await page.route('**/api/committees', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ items: masterDataFixture.committees, _links: {} }),
+      }),
+    );
+    await page.route('**/api/exam-venues', (route) => {
+      if (route.request().method() === 'GET') {
+        venueReads.push(route.request().url());
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            items: [venue],
+            _links: { create: { href: '/api/exam-venues' } },
+          }),
+        });
+      }
+      return route.fallback();
+    });
+    await page.route('**/api/exam-venues/duplicate-check', (route) =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: '{"items":[]}' }),
+    );
+    await page.route('**/api/exam-venues/*/change-impact', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          count: 0,
+          date_from: null,
+          date_to: null,
+          requires_confirmation: false,
+          calendar: { event_count: 0, fields: [] },
+          notifications: { recipient_count: 0, fields: [] },
+        }),
+      }),
+    );
+    await page.route('**/api/exam-venues/*', async (route) => {
+      if (route.request().method() !== 'PATCH') return route.fallback();
+      const payload = route.request().postDataJSON() as { name: string };
+      venue = { ...venue, name: payload.name, revision: venue.revision + 1 };
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(venue),
+      });
+    });
+
+    await page.goto('/locations');
+    const card = page.getByRole('article', { name: venue.name });
+    await expect(card).toBeVisible();
+    await expect(card).toContainText(
+      `Ausschuss: ${masterDataFixture.committees.find(({ id }) => id === venue.committee_id)?.name}`,
+    );
+    await page.getByRole('button', { name: 'Details ansehen' }).click();
+    await expect(page).toHaveURL(/\/locations\/\d+$/);
+    await page.getByRole('button', { name: 'Ort bearbeiten' }).click();
+    await page.locator('input[name="editName"]').fill('Prüfungszentrum unabhängig');
+    await page.getByRole('button', { name: 'Speichern' }).click();
+    await expect(page.locator('#locations-title')).toHaveText('Prüfungszentrum unabhängig');
+    expect(venueReads.length).toBeGreaterThanOrEqual(2);
   });
 
   test('searches and filters venues before opening an accessible detail view', async ({ page }) => {

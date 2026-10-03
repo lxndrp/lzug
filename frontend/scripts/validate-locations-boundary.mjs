@@ -26,10 +26,11 @@ assert.doesNotMatch(port, /(?:from|import)\s*['"][^'"]*api\//);
 assert.doesNotMatch(port, /\bMasterData\b|types\.gen/);
 
 assert.match(adapter, /LOCATIONS_READ_PORT|LocationsReadPort/);
-assert.match(adapter, /toLocationSnapshot/);
-assert.match(adapter, /ApplicationWorkspaceService/);
+assert.match(adapter, /listExamVenues/);
+assert.match(adapter, /toVenue/);
+assert.doesNotMatch(adapter, /ApplicationWorkspaceService|loadDashboard/);
 assert.equal(
   /provide:\s*LOCATIONS_READ_PORT,\s*useClass:\s*HttpLocationsReadAdapter/s.test(config),
   true,
-  'composition root binds the feature read port to its HTTP/workspace adapter',
+  'composition root binds the feature read port to its HTTP adapter',
 );

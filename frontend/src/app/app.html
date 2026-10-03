@@ -272,7 +272,7 @@
             }
             <span class="app-spacer"></span>
             <span class="app-header-status">
-              {{ loading() ? 'Daten werden geladen' : message() }}
+              {{ refreshBusy() ? 'Daten werden geladen' : message() }}
             </span>
             <button
               tuiButton
@@ -280,13 +280,13 @@
               class="app-refresh-button"
               type="button"
               (click)="refresh()"
-              [disabled]="loading()"
+              [disabled]="refreshBusy()"
             >
               <svg [cIcon]="icons.reload" class="app-button-icon" aria-hidden="true"></svg>
               Aktualisieren
             </button>
           </div>
-          @if (loading()) {
+          @if (refreshBusy()) {
             <div class="app-progress" role="progressbar" aria-label="Daten werden geladen">
               <span></span>
             </div>
@@ -309,6 +309,23 @@
               }
             </header>
 
+            @if (shellContext.error()) {
+              <section class="app-state app-state-error" role="alert">
+                <span>Der aktuelle Prüfungskontext konnte nicht geladen werden.</span>
+                <button
+                  tuiButton
+                  appearance="secondary"
+                  type="button"
+                  (click)="shellContext.refresh()"
+                >
+                  Erneut versuchen
+                </button>
+              </section>
+            } @else if (shellContext.loading() && !shellContext.context()) {
+              <section class="app-active-context app-active-context-empty" role="status">
+                <p>Prüfungskontext wird geladen…</p>
+              </section>
+            }
             @if (isContextualView()) {
               @if (activeContext(); as context) {
                 <section class="app-active-context" aria-labelledby="activeContextHeading">
@@ -337,7 +354,7 @@
                     >Prüfungskontext wechseln</a
                   >
                 </section>
-              } @else {
+              } @else if (!shellContext.loading() && !shellContext.error()) {
                 <section class="app-active-context app-active-context-empty" role="status">
                   <div>
                     <p class="app-eyebrow">Prüfungskontext erforderlich</p>

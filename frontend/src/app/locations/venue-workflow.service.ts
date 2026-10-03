@@ -31,22 +31,25 @@ import type {
   VenueUpdate,
 } from './locations.models';
 import type { VenueViewEffect, VenueViewEffectCommand } from './venue-view-effect';
-import { ApplicationWorkspaceService } from '../shell/application-workspace.service';
 import { UiFeedbackService } from '../shell/ui-feedback.service';
+import { ApplicationWorkspaceService } from '../shell/application-workspace.service';
+import { DashboardProjectionService } from '../dashboard/dashboard-projection.service';
 
 /** UI-facing venue workflows, including confirmations and post-save feedback. */
 @Injectable({ providedIn: 'root' })
 export class VenueWorkflowService {
   private readonly port = inject(LOCATIONS_PORT);
   private readonly feedback = inject(UiFeedbackService);
-  private readonly workspace = inject(ApplicationWorkspaceService);
   private readonly sessionScope = inject(SessionScopeService);
+  private readonly workspace = inject(ApplicationWorkspaceService);
+  private readonly dashboard = inject(DashboardProjectionService);
   private readonly pending = signal(false);
   private activeView: symbol | null = null;
   private activeViewEnded: Subject<void> | null = null;
   private effectVersion = 0;
+  private refreshCurrentView: (() => void) | null = null;
 
-  readonly actionBusy = computed(() => this.pending() || this.workspace.actionBusy());
+  readonly actionBusy = computed(() => this.pending());
   readonly geocodeCandidate = signal<GeocodeCandidate | null>(null);
   readonly viewEffect = signal<VenueViewEffect | null>(null);
 
@@ -56,10 +59,11 @@ export class VenueWorkflowService {
     });
   }
 
-  activateView(view: symbol): void {
+  activateView(view: symbol, refresh: () => void): void {
     if (this.activeView === view) return;
     this.endActiveView();
     this.activeView = view;
+    this.refreshCurrentView = refresh;
     this.activeViewEnded = new Subject<void>();
     this.viewEffect.set(null);
   }
@@ -67,6 +71,7 @@ export class VenueWorkflowService {
   deactivateView(view: symbol): void {
     if (this.activeView !== view) return;
     this.endActiveView();
+    this.refreshCurrentView = null;
     this.viewEffect.set(null);
     this.geocodeCandidate.set(null);
   }
@@ -83,7 +88,7 @@ export class VenueWorkflowService {
           filter((confirmed) => confirmed && this.isCurrentView(view)),
           switchMap(() => defer(() => this.port.deleteVenue(venue.id, venue.revision))),
         ),
-      () => this.completeVenueAction(undefined, 'Prüfungsort gelöscht', venue.name, view),
+      () => this.completeVenueAction(undefined, 'Prüfungsort gelöscht', venue.name, view, true),
       () =>
         this.feedback.notify(
           'error',
@@ -134,7 +139,8 @@ export class VenueWorkflowService {
       (venue) => {
         this.emitViewEffect(view, { type: 'reset-draft' });
         this.feedback.notify('success', 'Prüfungsort angelegt', venue.name);
-        this.workspace.refresh();
+        this.refreshView();
+        this.refreshLocationProjections();
       },
       () =>
         this.feedback.notify(
@@ -213,7 +219,8 @@ export class VenueWorkflowService {
             : 'Prüfungsort gespeichert',
           venue.consequenceWarning ?? venue.name,
         );
-        this.workspace.refresh();
+        this.refreshView();
+        this.refreshLocationProjections();
       },
       () =>
         this.feedback.notify('error', 'Prüfungsort nicht gespeichert', 'Bitte erneut versuchen.'),
@@ -247,6 +254,7 @@ export class VenueWorkflowService {
       'Prüfungsort gelöscht',
       venue.name,
       view,
+      true,
     );
   }
 
@@ -256,6 +264,7 @@ export class VenueWorkflowService {
       'Raum angelegt',
       command.payload.name,
       view,
+      true,
     );
   }
 
@@ -301,7 +310,7 @@ export class VenueWorkflowService {
             return EMPTY;
           }),
         ),
-      (result) => this.completeVenueAction(result, 'Raum gespeichert', '', view),
+      (result) => this.completeVenueAction(result, 'Raum gespeichert', '', view, true),
       () =>
         this.feedback.notify(
           'error',
@@ -317,6 +326,7 @@ export class VenueWorkflowService {
       'Raum gelöscht',
       room.name,
       view,
+      true,
     );
   }
 
@@ -326,6 +336,7 @@ export class VenueWorkflowService {
       'Folgen erneut verarbeitet',
       'Der aktuelle Status wurde geprüft.',
       view,
+      true,
     );
   }
 
@@ -375,6 +386,7 @@ export class VenueWorkflowService {
       command.decision === 'approve' ? 'Prüfungsort hochgestuft' : 'Hochstufung abgelehnt',
       command.venue.name,
       view,
+      command.decision === 'approve',
     );
   }
 
@@ -383,10 +395,11 @@ export class VenueWorkflowService {
     title: string,
     detail: string,
     view: symbol | null,
+    refreshLocations = false,
   ): void {
     this.runOperation(
       request,
-      (result) => this.completeVenueAction(result, title, detail, view),
+      (result) => this.completeVenueAction(result, title, detail, view, refreshLocations),
       () =>
         this.feedback.notify(
           'error',
@@ -401,6 +414,7 @@ export class VenueWorkflowService {
     title: string,
     detail: string,
     view: symbol | null,
+    refreshLocations = false,
   ): void {
     this.finishEditing(-1, view);
     const warning =
@@ -416,7 +430,13 @@ export class VenueWorkflowService {
       warning ? `${title}, Folgen unvollständig` : title,
       warning ?? detail,
     );
-    this.workspace.refresh();
+    this.refreshView();
+    if (refreshLocations) this.refreshLocationProjections();
+  }
+
+  private refreshLocationProjections(): void {
+    this.dashboard.refreshLocations();
+    this.workspace.refreshLocations();
   }
 
   private runOperation<T>(
@@ -424,7 +444,7 @@ export class VenueWorkflowService {
     onNext: (result: T) => void,
     onError: () => void,
   ): void {
-    if (this.pending() || this.workspace.actionBusy()) return;
+    if (this.pending()) return;
     this.pending.set(true);
     this.sessionScope
       .forCurrentSession(defer(request))
@@ -471,6 +491,10 @@ export class VenueWorkflowService {
     this.activeViewEnded?.next();
     this.activeViewEnded?.complete();
     this.activeViewEnded = null;
+  }
+
+  private refreshView(): void {
+    if (this.activeView !== null) this.refreshCurrentView?.();
   }
 
   private venueImpactMessage(impact: VenueChangeImpact): string {

@@ -174,6 +174,9 @@ Planungseinstellungen und Mitgliederverfügbarkeiten.
 Die Befehle liefern unveränderliche, materialisierte Werte und öffnen pro
 Use Case einen Planning-UoW; Scope, gespeicherter Besitz, Rolle und veränderliche
 Referenzen werden innerhalb derselben Schreibtransaktion erneut geprüft.
+Planning besitzt Normalisierung und reine Fachvalidierung; der SQLite-Adapter
+liefert dafür materialisierte Referenzfakten und setzt die validierten
+Änderungen mit den relationalen Schreibbedingungen atomar um.
 `backend.persistence.planning_resources` implementiert den UoW für SQLite und
 verwendet den bereits eingeführten Candidate-Day-UoW aus #1071 für den
 Planungssnapshot.
@@ -849,6 +852,16 @@ in der Diagnose nur Anbieter und Fehlerklasse.
 
 ## Frontend
 
+### Frontend-Zielvertrag
+
+Datenbesitz, Schreibrechte, Featuregrenzen, Zustandslebensdauern und Übergänge
+sind im [Frontend-Architekturvertrag](frontend-architecture-contract.md)
+verbindlich beschrieben.
+Die langfristige Entscheidung steht in
+[ADR-0042](decisions/0042-frontend-zustandsbesitz-und-feature-lebensdauern.md).
+Die folgenden Abschnitte beschreiben weiterhin die vorhandene Angular- und
+REST-Komponentenstruktur.
+
 Das Angular-Frontend verwendet TypeScript, Angular Router und Taiga UI.
 Es ist ein ruhiges Arbeitswerkzeug für wiederkehrende Ausschussprozesse und
 keine Marketingoberfläche.
@@ -894,14 +907,43 @@ OpenAPI-generierte Typen und Transportdetails bleiben langfristig im jeweiligen
 HTTP-Adapter; die konkrete Bereinigung der vorhandenen API-Modelle und
 HTTP-Fehlergrenzen ist in #908 nachgewiesen.
 
-`ApplicationWorkspaceService` hält ausschließlich den fachübergreifenden
-Lesezustand des gewählten Prüfungskontexts und hängt dafür an
-`WorkspacePort` statt direkt am HTTP-Client.
-`HttpWorkspaceAdapter` übersetzt das Dashboard-Transportmodell in einen
-Snapshot ohne HAL-Links; die anwendungsweite Bindung liegt in
-`app.config.ts`.
+`DashboardProjectionService` besitzt den Dashboard-Read einschließlich seines
+Lade- und Fehlerzustands; `HttpDashboardProjectionAdapter` lädt nur Runde,
+Summary und Board.
+`ApplicationShellContextService` lädt Version sowie kompakte Halbjahr-,
+Runden- und Ausschusslabels separat.
+Kandidaten- und Ausschussansichten laden über eigene Methoden des
+`MasterDataPort`; deren Fehler und Invalidierung bleiben voneinander getrennt.
+`ApplicationWorkspaceService` hält befristet den Planungs-/Halbjahres-
+Kompatibilitätszustand hinter `WorkspacePort`.
+Nach Venue-/Raumänderungen werden die Dashboard- und Legacy-Board-Ortsreferenzen
+mit gezielten `/api/locations`-Reads aktualisiert; die übrigen Workspace- und
+Dashboarddaten bleiben erhalten.
+Bestätigte Pläne und Prüfungstage lesen ihre Ortsangaben über eigene
+API-Projektionen, sobald ihre Route geöffnet wird; sie halten keine globale
+Ortskopie über einen Routenwechsel hinweg.
+Die Ortsroute lädt über `LOCATIONS_READ_PORT` und den
+`HttpLocationsReadAdapter` direkt `/api/exam-venues`.
+`LocationsWorkspaceFacade` hält Lade-, Fehler- und Snapshotzustand
+routegebunden; Ortscommands lösen keinen vollständigen Workspace-Refresh aus.
+Die Ortsantwort enthält den Namen des zuständigen Ausschusses als schmale
+Referenz, damit Operatoren für freigegebene Orte keinen Ausschuss-Read benötigen.
+Mitgliedsansichten laden die Liste für den Anlege-Selektor ergänzend und
+veröffentlichen Ortsdaten schon vor deren Abschluss.
+Ein später erfolgreicher Ortscommand aktualisiert die gerade aktive Ortsansicht;
+Draft-Effekte bleiben an ihre ursprüngliche Ansicht gebunden.
 `PlanningWorkflowService` koordiniert Planungsbefehle über `PlanningPort`;
 `HttpPlanningAdapter` übersetzt diese Aufrufe in den vorhandenen API-Client.
+Vorschlagserzeugung und Vorschlagsspeicherung sind dabei persistierende
+Planning-Commands; die Leseoperation für den gespeicherten Vorschlag bleibt
+getrennt.
+Einstellungen, Verfügbarkeiten, Vorschauerzeugung und erstmalige Bestätigung
+nehmen keine Quellrevision entgegen.
+`savePlanningProposal()` erhält dagegen die Revision des geladenen Vorschlags
+und übermittelt sie unverändert für die optimistische Sperre.
+Prüfungstag-Anwesenheit übergibt Slot-ID für Prüflinge beziehungsweise
+Assignment-ID für Ausschussmitglieder sowie die vom Befehl akzeptierte
+Tagesrevision.
 Bestätigte Pläne verwenden denselben Schnitt: `ConfirmedPlansWorkflowService`
 ruft `ConfirmedPlansPort` auf, dessen HTTP-Adapter Plan- und Revisionsantworten
 von HAL-Links bereinigt.

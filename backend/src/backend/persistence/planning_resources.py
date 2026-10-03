@@ -33,35 +33,16 @@ from backend.persistence.store import Store
 if TYPE_CHECKING:
     from backend.planning.candidate_days import CandidateDayRecord
     from backend.planning.resources import (
+        PlanningAvailabilityReferences,
         PlanningBlocker,
+        PlanningCandidateAssignmentContext,
         PlanningRecord,
         PlanningResourceUnitOfWork,
         PlanningRoundSummary,
+        PlanningSettingsReferences,
         PlanningSnapshot,
         PlanningValue,
     )
-
-_AVAILABILITY_VALUES = {"full_day", "morning", "afternoon", "unavailable", "pending"}
-_GERMAN_SUBDIVISION_CODES = frozenset(
-    {
-        "DE-BB",
-        "DE-BE",
-        "DE-BW",
-        "DE-BY",
-        "DE-HB",
-        "DE-HE",
-        "DE-HH",
-        "DE-MV",
-        "DE-NI",
-        "DE-NW",
-        "DE-RP",
-        "DE-SH",
-        "DE-SL",
-        "DE-SN",
-        "DE-ST",
-        "DE-TH",
-    }
-)
 
 
 class _SQLitePlanningRecord(NamedTuple):
@@ -131,14 +112,33 @@ def _record(values: Mapping[str, object]) -> PlanningRecord:
     return cast("PlanningRecord", _SQLitePlanningRecord(MappingProxyType(typed_values)))
 
 
-def _required_id(values: Mapping[str, PlanningValue], field: str) -> int:
-    value = values.get(field)
-    if value is None:
-        raise ValueError(f"Missing required field: {field}")
-    try:
-        return int(value)
-    except (TypeError, ValueError) as error:
-        raise ValueError(f"Invalid identifier: {field}") from error
+class _SQLitePlanningRoomFacts(NamedTuple):
+    room_active: bool
+    venue_active: bool
+    venue_scope: str
+    venue_committee_id: int | None
+    coordinate_status: str
+    coordinates_required: bool
+
+
+class _SQLitePlanningSettingsReferences(NamedTuple):
+    round_committee_id: int | None
+    updater_committee_id: int | None
+    room: _SQLitePlanningRoomFacts | None
+
+
+class _SQLitePlanningAvailabilityReferences(NamedTuple):
+    round_committee_id: int | None
+    member_committee_id: int | None
+    member_active: bool
+    day_round_id: int | None
+
+
+class _SQLitePlanningCandidateAssignmentContext(NamedTuple):
+    candidate_exists: bool
+    target_round_exists: bool
+    active_round_id: int | None
+    round_candidate_exists: bool
 
 
 class SQLitePlanningResourceUnitOfWorkFactory:
@@ -194,7 +194,6 @@ class SQLitePlanningResourceUnitOfWork:
         normalized = dict(values)
         self._resolve_half_year(normalized)
         self._validate_round_references(normalized)
-        self._validate_round(normalized)
         normalized["revision"] = 1
         normalized["lifecycle_status"] = "open"
         return _record(self._store.create(EXAM_ROUND, normalized))
@@ -206,6 +205,40 @@ class SQLitePlanningResourceUnitOfWork:
         row = self._store.get(EXAM_ROUND, round_id)
         return _record(row) if row is not None else None
 
+    def candidate_assignment_context(
+        self, candidate_id: int, round_id: int
+    ) -> PlanningCandidateAssignmentContext:
+        candidate = self._store.get(CANDIDATE, candidate_id)
+        exam_round = self._store.get(EXAM_ROUND, round_id)
+        if candidate is None or exam_round is None:
+            return cast(
+                "PlanningCandidateAssignmentContext",
+                _SQLitePlanningCandidateAssignmentContext(
+                    candidate_exists=candidate is not None,
+                    target_round_exists=exam_round is not None,
+                    active_round_id=None,
+                    round_candidate_exists=False,
+                ),
+            )
+        active = self._store.first(
+            CANDIDATE_COMMITTEE_ASSIGNMENT,
+            candidate_id=candidate_id,
+            exam_half_year_id=exam_round["exam_half_year_id"],
+            ended_at=None,
+        )
+        round_candidate = self._store.first(
+            ROUND_CANDIDATE, candidate_id=candidate_id, exam_round_id=round_id
+        )
+        return cast(
+            "PlanningCandidateAssignmentContext",
+            _SQLitePlanningCandidateAssignmentContext(
+                candidate_exists=True,
+                target_round_exists=True,
+                active_round_id=(int(active["exam_round_id"]) if active is not None else None),
+                round_candidate_exists=round_candidate is not None,
+            ),
+        )
+
     def delete_round(self, round_id: int) -> bool:
         return self._store.delete(EXAM_ROUND, round_id)
 
@@ -216,28 +249,6 @@ class SQLitePlanningResourceUnitOfWork:
         if existing is None:
             return None
         changes = dict(values)
-        merged = {**existing, **changes}
-        if any(
-            merged[field] != existing[field]
-            for field in ("exam_half_year_id", "committee_id")
-            if field in changes
-        ):
-            raise ValueError("An exam round cannot be reassigned to another half-year or committee")
-        if not str(merged.get("name", "")).strip():
-            raise ValueError("Exam round name is required")
-        if (
-            "status" in changes
-            and merged["status"] != existing["status"]
-            and {
-                merged["status"],
-                existing["status"],
-            }.intersection({"plan_proposed", "plan_confirmed"})
-        ):
-            raise ValueError("Planning proposal statuses require the planning aggregate")
-        deadline = merged.get("availability_deadline")
-        reminder = merged.get("availability_reminder_at")
-        if deadline and reminder and reminder > deadline:
-            raise ValueError("Availability reminder must be before the deadline")
         row = self._store.update(EXAM_ROUND, round_id, changes)
         return _record(row or existing)
 
@@ -268,8 +279,6 @@ class SQLitePlanningResourceUnitOfWork:
         attempt_number = payload.pop("attempt_number", None)
         requires_mep = payload.pop("requires_mep", None)
         change_reason = payload.pop("assignment_change_reason", None)
-        if ("attempt_number" in values or "requires_mep" in values) and exam_round_id is None:
-            raise ValueError("Missing required field: exam_round_id")
         candidate = self._store.update(CANDIDATE, candidate_id, payload)
         if candidate is None:
             return None
@@ -303,8 +312,8 @@ class SQLitePlanningResourceUnitOfWork:
     def assign_candidate_to_round(self, values: Mapping[str, PlanningValue]) -> PlanningRecord:
         payload = dict(values)
         self._assign_candidate(
-            _required_id(payload, "candidate_id"),
-            _required_id(payload, "exam_round_id"),
+            int(payload["candidate_id"]),
+            int(payload["exam_round_id"]),
             payload.get("attempt_number"),
             payload.get("requires_mep"),
             (
@@ -315,8 +324,8 @@ class SQLitePlanningResourceUnitOfWork:
         )
         row = self._store.first(
             ROUND_CANDIDATE,
-            candidate_id=_required_id(payload, "candidate_id"),
-            exam_round_id=_required_id(payload, "exam_round_id"),
+            candidate_id=payload["candidate_id"],
+            exam_round_id=payload["exam_round_id"],
         )
         if row is None:
             raise ValueError("Round candidate assignment could not be created")
@@ -329,9 +338,43 @@ class SQLitePlanningResourceUnitOfWork:
         row = self._store.get(PLANNING_SETTINGS, settings_id)
         return _record(row) if row is not None else None
 
+    def settings_references(
+        self, round_id: int, updater_member_id: int, room_id: int | None
+    ) -> PlanningSettingsReferences:
+        exam_round = self._store.get(EXAM_ROUND, round_id)
+        updater = self._store.get(COMMITTEE_MEMBER, updater_member_id)
+        room_facts = None
+        if room_id is not None:
+            room = self._store.get(EXAM_ROOM, room_id)
+            venue = self._store.get(EXAM_VENUE, room["venue_id"]) if room is not None else None
+            if room is not None and venue is not None:
+                room_facts = _SQLitePlanningRoomFacts(
+                    room_active=bool(room["is_active"]),
+                    venue_active=bool(venue["is_active"]),
+                    venue_scope=str(venue["scope"]),
+                    venue_committee_id=(
+                        int(venue["committee_id"])
+                        if venue.get("committee_id") is not None
+                        else None
+                    ),
+                    coordinate_status=str(venue["coordinate_status"]),
+                    coordinates_required=self._require_confirmed_coordinates,
+                )
+        return cast(
+            "PlanningSettingsReferences",
+            _SQLitePlanningSettingsReferences(
+                round_committee_id=(
+                    int(exam_round["committee_id"]) if exam_round is not None else None
+                ),
+                updater_committee_id=(
+                    int(updater["committee_id"]) if updater is not None else None
+                ),
+                room=room_facts,
+            ),
+        )
+
     def save_settings(self, values: Mapping[str, PlanningValue]) -> PlanningRecord:
         payload = dict(values)
-        self._validate_settings(payload)
         existing = self._store.first(PLANNING_SETTINGS, exam_round_id=payload["exam_round_id"])
         if existing is None:
             return _record(self._store.create(PLANNING_SETTINGS, payload))
@@ -344,7 +387,6 @@ class SQLitePlanningResourceUnitOfWork:
         if existing is None:
             return None
         payload = dict(values)
-        self._validate_settings({**existing, **payload})
         return _record(self._store.update(PLANNING_SETTINGS, settings_id, payload) or existing)
 
     def delete_settings(self, settings_id: int) -> bool:
@@ -359,8 +401,26 @@ class SQLitePlanningResourceUnitOfWork:
         row = self._store.get(MEMBER_AVAILABILITY, availability_id)
         return _record(row) if row is not None else None
 
+    def availability_references(
+        self, round_id: int, committee_member_id: int, candidate_exam_day_id: int
+    ) -> PlanningAvailabilityReferences:
+        exam_round = self._store.get(EXAM_ROUND, round_id)
+        member = self._store.get(COMMITTEE_MEMBER, committee_member_id)
+        day = self._store.get(CANDIDATE_EXAM_DAY, candidate_exam_day_id)
+        return cast(
+            "PlanningAvailabilityReferences",
+            _SQLitePlanningAvailabilityReferences(
+                round_committee_id=(
+                    int(exam_round["committee_id"]) if exam_round is not None else None
+                ),
+                member_committee_id=(int(member["committee_id"]) if member is not None else None),
+                member_active=bool(member["is_active"]) if member is not None else False,
+                day_round_id=int(day["exam_round_id"]) if day is not None else None,
+            ),
+        )
+
     def save_availability(self, values: Mapping[str, PlanningValue]) -> PlanningRecord:
-        payload = self._normalize_availability(dict(values))
+        payload = dict(values)
         existing = self._store.first(
             MEMBER_AVAILABILITY,
             exam_round_id=payload["exam_round_id"],
@@ -381,7 +441,7 @@ class SQLitePlanningResourceUnitOfWork:
         existing = self._store.get(MEMBER_AVAILABILITY, availability_id)
         if existing is None:
             return None
-        payload = self._normalize_availability({**existing, **dict(values)})
+        payload = dict(values)
         saved = self._store.update(MEMBER_AVAILABILITY, availability_id, payload) or existing
         self._propagate_availability(saved)
         return _record(saved)
@@ -494,25 +554,16 @@ class SQLitePlanningResourceUnitOfWork:
             return
         season = values.pop("season", None)
         year = values.pop("year", None)
-        if season not in {"summer", "winter"}:
-            raise ValueError("Season must be summer or winter")
-        try:
-            year_value = int(year)  # type: ignore[arg-type]
-        except (TypeError, ValueError) as error:
-            raise ValueError("Year must be a four-digit number") from error
-        if not 2000 <= year_value <= 2100:
-            raise ValueError("Year must be between 2000 and 2100")
-        half_year = self._store.first(EXAM_HALF_YEAR, season=season, year=year_value)
+        half_year = self._store.first(EXAM_HALF_YEAR, season=season, year=year)
         if half_year is None:
             half_year = self._store.create(
-                EXAM_HALF_YEAR, {"season": season, "year": year_value, "status": "active"}
+                EXAM_HALF_YEAR, {"season": season, "year": year, "status": "active"}
             )
         values["exam_half_year_id"] = half_year["id"]
 
     def _validate_round_references(self, values: Mapping[str, PlanningValue]) -> None:
-        for field in ("exam_half_year_id", "committee_id", "created_by_member_id"):
-            if field not in values:
-                raise ValueError(f"Missing required field: {field}")
+        if "exam_half_year_id" not in values:
+            raise ValueError("Missing required field: exam_half_year_id")
         committee = self._store.get(COMMITTEE, values["committee_id"])
         if committee is None:
             raise ValueError("Committee not found")
@@ -521,13 +572,6 @@ class SQLitePlanningResourceUnitOfWork:
         creator = self._store.get(COMMITTEE_MEMBER, values["created_by_member_id"])
         if creator is None or creator["committee_id"] != values["committee_id"]:
             raise ValueError("Creating member does not belong to the exam round committee")
-
-    @staticmethod
-    def _validate_round(values: Mapping[str, PlanningValue]) -> None:
-        if not str(values.get("name", "")).strip():
-            raise ValueError("Exam round name is required")
-        if values.get("status") in {"plan_proposed", "plan_confirmed"}:
-            raise ValueError("Planning proposal statuses require the planning aggregate")
 
     def _assign_candidate(
         self,
@@ -553,8 +597,6 @@ class SQLitePlanningResourceUnitOfWork:
             ROUND_CANDIDATE, candidate_id=candidate_id, exam_round_id=round_id
         )
         if active and active["exam_round_id"] != round_id:
-            if not str(reason or "").strip():
-                raise ValueError("A reason is required for a committee change")
             ended_at = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S.%f")
             self._store.update(
                 CANDIDATE_COMMITTEE_ASSIGNMENT,
@@ -569,8 +611,8 @@ class SQLitePlanningResourceUnitOfWork:
                 {
                     "exam_round_id": round_id,
                     "candidate_id": candidate_id,
-                    "attempt_number": attempt_number or 1,
-                    "requires_mep": requires_mep or 0,
+                    "attempt_number": attempt_number,
+                    "requires_mep": requires_mep,
                     "is_active": 1,
                 },
             )
@@ -594,69 +636,6 @@ class SQLitePlanningResourceUnitOfWork:
                     "round_candidate_id": round_candidate["id"],
                 },
             )
-
-    def _validate_settings(self, values: Mapping[str, PlanningValue]) -> None:
-        for field in ("exam_round_id", "updated_by_member_id"):
-            if field not in values:
-                raise ValueError(f"Missing required field: {field}")
-        exam_round = self._store.get(EXAM_ROUND, values["exam_round_id"])
-        if exam_round is None:
-            raise ValueError("Exam round not found")
-        updater = self._store.get(COMMITTEE_MEMBER, values["updated_by_member_id"])
-        if updater is None or updater["committee_id"] != exam_round["committee_id"]:
-            raise ValueError("Updating member does not belong to the exam round committee")
-        room_id = values.get("default_room_id")
-        if room_id is not None and not self._room_is_usable(room_id, exam_round["committee_id"]):
-            raise ValueError("Default room is not active for the exam round committee")
-        subdivision = values.get("holiday_subdivision_code")
-        if subdivision is not None and subdivision not in _GERMAN_SUBDIVISION_CODES:
-            raise ValueError("Unknown German federal state")
-        if values.get("exclude_public_holidays") and subdivision is None:
-            raise ValueError("Federal state is required when public holidays are excluded")
-
-    def _room_is_usable(self, room_id: object, committee_id: object) -> bool:
-        room = self._store.session.get(EXAM_ROOM.model, room_id)
-        if room is None or not room.is_active:
-            return False
-        venue = self._store.session.get(EXAM_VENUE.model, room.venue_id)
-        return bool(
-            venue
-            and venue.is_active
-            and (venue.scope == "global" or venue.committee_id == committee_id)
-            and (not self._require_confirmed_coordinates or venue.coordinate_status == "confirmed")
-        )
-
-    def _normalize_availability(self, values: dict[str, PlanningValue]) -> dict[str, PlanningValue]:
-        for field in (
-            "exam_round_id",
-            "committee_member_id",
-            "candidate_exam_day_id",
-            "availability",
-        ):
-            if field not in values:
-                raise ValueError(f"Missing required field: {field}")
-        if values["availability"] not in _AVAILABILITY_VALUES:
-            raise ValueError("Unknown availability value")
-        exam_round = self._store.get(EXAM_ROUND, values["exam_round_id"])
-        if exam_round is None:
-            raise ValueError("Exam round not found")
-        member = self._store.get(COMMITTEE_MEMBER, values["committee_member_id"])
-        if (
-            member is None
-            or not member["is_active"]
-            or member["committee_id"] != exam_round["committee_id"]
-        ):
-            raise ValueError("Member does not belong to the exam round committee")
-        day = self._store.get(CANDIDATE_EXAM_DAY, values["candidate_exam_day_id"])
-        if day is None or day["exam_round_id"] != values["exam_round_id"]:
-            raise ValueError("Candidate exam day does not belong to the exam round")
-        if values["availability"] == "pending":
-            values["responded_at"] = None
-        else:
-            values["responded_at"] = (
-                values.get("responded_at") or datetime.now(UTC).replace(microsecond=0).isoformat()
-            )
-        return values
 
     def _propagate_availability(self, saved: Mapping[str, object]) -> None:
         member = self._store.get(COMMITTEE_MEMBER, saved["committee_member_id"])
