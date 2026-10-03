@@ -431,6 +431,7 @@ describe('LocationsComponent', () => {
       canCreateVenue: true,
       committeeLoadError: true,
     });
+    fixture.componentRef.setInput('canCreateVenue', true);
     fixture.detectChanges();
 
     const root = fixture.nativeElement as HTMLElement;
