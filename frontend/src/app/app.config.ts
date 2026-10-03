@@ -15,6 +15,10 @@ import { SCHEDULING_OVERVIEW_PORT } from './scheduling-overview/application/sche
 import { HttpSchedulingOverviewAdapter } from './scheduling-overview/adapters/http-scheduling-overview.adapter';
 import { WORKSPACE_PORT } from './shell/workspace.port';
 import { HttpWorkspaceAdapter } from './api/http-workspace.adapter';
+import { DASHBOARD_PROJECTION_PORT } from './dashboard/dashboard-projection.port';
+import { HttpDashboardProjectionAdapter } from './api/http-dashboard-projection.adapter';
+import { APPLICATION_SHELL_CONTEXT_PORT } from './shell/application-shell-context.port';
+import { HttpApplicationShellContextAdapter } from './api/http-application-shell-context.adapter';
 import { routes } from './app.routes';
 import { AUTHENTICATION_PORT } from './auth/auth.models';
 import { AuthService } from './auth/auth.service';
@@ -60,6 +64,8 @@ export const appConfig: ApplicationConfig = {
     { provide: MASTER_DATA_PORT, useClass: HttpMasterDataAdapter },
     { provide: EXAM_DAY_PORT, useClass: HttpExamDayAdapter },
     { provide: WORKSPACE_PORT, useClass: HttpWorkspaceAdapter },
+    { provide: DASHBOARD_PROJECTION_PORT, useClass: HttpDashboardProjectionAdapter },
+    { provide: APPLICATION_SHELL_CONTEXT_PORT, useClass: HttpApplicationShellContextAdapter },
     { provide: CONFIRMED_PLANS_PORT, useClass: HttpConfirmedPlansAdapter },
     { provide: DEMO_SCENARIOS_PORT, useClass: HttpDemoScenariosAdapter },
     { provide: AUTHENTICATION_PORT, useExisting: AuthService },

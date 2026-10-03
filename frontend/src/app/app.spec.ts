@@ -9,6 +9,9 @@ import { TuiConfirmService } from '@taiga-ui/kit';
 import { of, throwError } from 'rxjs';
 
 import { App } from './app';
+import { DashboardProjectionService } from './dashboard/dashboard-projection.service';
+import { APPLICATION_SHELL_CONTEXT_PORT } from './shell/application-shell-context.port';
+import { ApplicationShellContextService } from './shell/application-shell-context.service';
 import type {
   VenueContact,
   VenueChangeImpact,
@@ -30,6 +33,7 @@ import { LOCATIONS_PORT, type LocationsPort } from './locations/locations.port';
 import { PLANNING_PORT } from './planning/planning.port';
 import { LocationsRouteComponent } from './routes/locations-route.component';
 import { ApplicationWorkspaceService } from './shell/application-workspace.service';
+import { MasterDataWorkflowService } from './master-data/master-data-workflow.service';
 import { UiFeedbackService } from './shell/ui-feedback.service';
 import { WORKSPACE_PORT } from './shell/workspace.port';
 import { CONFIRMED_PLANS_PORT } from './confirmed-plans/confirmed-plans.port';
@@ -62,6 +66,22 @@ import {
 } from './testing/fixtures';
 describe('App', () => {
   let locationsPort: ReturnType<typeof createLocationsPortDouble>;
+  let dashboard: {
+    projection: ReturnType<typeof signal>;
+    loading: ReturnType<typeof signal<boolean>>;
+    error: ReturnType<typeof signal<boolean>>;
+    locationRefreshError: ReturnType<typeof signal<boolean>>;
+    candidateRefreshLoading: ReturnType<typeof signal<boolean>>;
+    candidateRefreshError: ReturnType<typeof signal<boolean>>;
+    committeeRefreshLoading: ReturnType<typeof signal<boolean>>;
+    committeeRefreshError: ReturnType<typeof signal<boolean>>;
+    refresh: ReturnType<typeof vi.fn>;
+    activate: ReturnType<typeof vi.fn>;
+    deactivate: ReturnType<typeof vi.fn>;
+    refreshLocations: ReturnType<typeof vi.fn>;
+    refreshCandidateReferences: ReturnType<typeof vi.fn>;
+    refreshCommitteeMembers: ReturnType<typeof vi.fn>;
+  };
   beforeAll(() => {
     Object.defineProperty(HTMLSelectElement.prototype, 'readOnly', {
       configurable: true,
@@ -72,6 +92,34 @@ describe('App', () => {
 
   beforeEach(async () => {
     locationsPort = createLocationsPortDouble();
+    dashboard = {
+      projection: signal({
+        applicationVersion: 'test',
+        round: examRoundFixture,
+        summary: summaryFixture,
+        board: {
+          members: [],
+          locations: locationsFixture,
+          candidates: [],
+          candidateDays: [],
+          availabilities: [],
+          days: [],
+        },
+      }),
+      loading: signal(false),
+      error: signal(false),
+      locationRefreshError: signal(false),
+      candidateRefreshLoading: signal(false),
+      candidateRefreshError: signal(false),
+      committeeRefreshLoading: signal(false),
+      committeeRefreshError: signal(false),
+      refresh: vi.fn(),
+      activate: vi.fn(),
+      deactivate: vi.fn(),
+      refreshLocations: vi.fn(),
+      refreshCandidateReferences: vi.fn(),
+      refreshCommitteeMembers: vi.fn(),
+    };
     const session = signal<ReturnType<AuthService['session']>>(null);
     await TestBed.configureTestingModule({
       imports: [App],
@@ -87,11 +135,48 @@ describe('App', () => {
         {
           provide: MASTER_DATA_PORT,
           useValue: {
+            loadCandidateWorkspace: vi.fn(() =>
+              of({
+                candidates: [
+                  {
+                    candidate: {
+                      id: 4,
+                      firstName: 'Ada',
+                      lastName: 'Lovelace',
+                      examNumber: 'EX-4',
+                      specialization: 'IT',
+                      trainingCompany: 'Company',
+                    },
+                  },
+                ],
+                assignments: [],
+                examRounds: [],
+                committees: [],
+                activeRound: null,
+              }),
+            ),
+            loadCommitteeWorkspace: vi.fn(() => of({ committees: [], members: [], persons: [] })),
             createCandidate: vi.fn(() => of({})),
             updateCandidate: vi.fn(() => of({})),
             deleteCandidate: vi.fn(() => of(undefined)),
             createCommitteeMember: vi.fn(() => of({})),
             updateCommitteeMember: vi.fn(() => of({})),
+          },
+        },
+        { provide: DashboardProjectionService, useValue: dashboard },
+        {
+          provide: APPLICATION_SHELL_CONTEXT_PORT,
+          useValue: {
+            load: vi.fn((roundId: number) =>
+              of({
+                applicationVersion: '0.1.0',
+                roundId,
+                halfYear: 'Winter 2026',
+                round: `Runde ${roundId}`,
+                committee: roundId === 2 ? 'Fremdausschuss Feenwald' : 'Prüfungsausschuss',
+                status: 'planning',
+              }),
+            ),
           },
         },
         provideTaiga({ scrollbars: 'native' }),
@@ -102,6 +187,7 @@ describe('App', () => {
           useValue: {
             state: signal('authenticated'),
             session,
+            sessionRevocationPending: signal(false),
             hasCapability: (capability: string) => {
               const capabilities = session()?.capabilities;
               return capabilities == null || capabilities.includes(capability);
@@ -116,7 +202,9 @@ describe('App', () => {
   });
 
   afterEach(() => {
-    TestBed.inject(HttpTestingController).verify();
+    const http = TestBed.inject(HttpTestingController);
+    http.match('/api/locations').forEach((request) => request.flush(locationsFixture));
+    http.verify();
   });
 
   it('should render the exam round dashboard', async () => {
@@ -152,6 +240,46 @@ describe('App', () => {
     fixture.detectChanges();
 
     flushDashboardRequests(http);
+  });
+
+  it('loads the active master-data view after authentication completes on a deep link', async () => {
+    const fixture = TestBed.createComponent(App);
+    const http = TestBed.inject(HttpTestingController);
+    flushDashboardRequests(http);
+    const auth = TestBed.inject(AuthService) as unknown as {
+      state: { set(value: 'checking' | 'authenticated'): void };
+    };
+    auth.state.set('checking');
+    fixture.detectChanges();
+    const workflow = TestBed.inject(MasterDataWorkflowService);
+    const loadCandidates = vi.spyOn(workflow, 'loadCandidates');
+
+    await TestBed.inject(Router).navigateByUrl('/candidates');
+    fixture.detectChanges();
+    expect(loadCandidates).not.toHaveBeenCalled();
+
+    auth.state.set('authenticated');
+    fixture.detectChanges();
+
+    expect(loadCandidates).toHaveBeenCalledOnce();
+  });
+
+  it('shows shell-context retry progress and disables global refresh while it loads', () => {
+    const fixture = TestBed.createComponent(App);
+    const http = TestBed.inject(HttpTestingController);
+    flushDashboardRequests(http);
+    const shellContext = TestBed.inject(ApplicationShellContextService);
+    shellContext.context.set(null);
+    shellContext.loading.set(true);
+    fixture.detectChanges();
+
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      'Prüfungskontext wird geladen',
+    );
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('.app-refresh-button')
+        ?.disabled,
+    ).toBe(true);
   });
 
   it('reloads the workspace after an authenticated demo role changes', () => {
@@ -248,10 +376,10 @@ describe('App', () => {
     const http = TestBed.inject(HttpTestingController);
     flushDashboardRequests(http);
 
-    const workspace = TestBed.inject(ApplicationWorkspaceService);
-    workspace.selectCommittee(2);
+    const workflow = TestBed.inject(MasterDataWorkflowService);
+    workflow.selectedCommitteeId.set(2);
 
-    expect(workspace.selectedCommitteeId()).toBe(2);
+    expect(workflow.selectedCommitteeId()).toBe(2);
   });
 
   it('should refresh the visible context after selecting another exam round', () => {
@@ -283,8 +411,8 @@ describe('App', () => {
     expect(confirmSpy).toHaveBeenCalled();
     expect(vi.mocked(confirmSpy).mock.lastCall?.[0]).toEqual(
       expect.objectContaining({
-        label: 'Hermia von Athen löschen?',
-        data: expect.objectContaining({ yes: 'Hermia von Athen löschen' }),
+        label: 'Ada Lovelace löschen?',
+        data: expect.objectContaining({ yes: 'Ada Lovelace löschen' }),
       }),
     );
     expect(http.match((request) => request.method === 'DELETE').length).toBe(0);

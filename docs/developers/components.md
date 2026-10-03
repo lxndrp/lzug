@@ -891,12 +891,21 @@ OpenAPI-generierte Typen und Transportdetails bleiben langfristig im jeweiligen
 HTTP-Adapter; die konkrete Bereinigung der vorhandenen API-Modelle und
 HTTP-Fehlergrenzen ist in #908 nachgewiesen.
 
-`ApplicationWorkspaceService` hält ausschließlich den fachübergreifenden
-Lesezustand des gewählten Prüfungskontexts und hängt dafür an
-`WorkspacePort` statt direkt am HTTP-Client.
-`HttpWorkspaceAdapter` übersetzt das Dashboard-Transportmodell in einen
-Snapshot ohne HAL-Links; die anwendungsweite Bindung liegt in
-`app.config.ts`.
+`DashboardProjectionService` besitzt den Dashboard-Read einschließlich seines
+Lade- und Fehlerzustands; `HttpDashboardProjectionAdapter` lädt nur Runde,
+Summary und Board.
+`ApplicationShellContextService` lädt Version sowie kompakte Halbjahr-,
+Runden- und Ausschusslabels separat.
+Kandidaten- und Ausschussansichten laden über eigene Methoden des
+`MasterDataPort`; deren Fehler und Invalidierung bleiben voneinander getrennt.
+`ApplicationWorkspaceService` hält befristet den Planungs-/Halbjahres-
+Kompatibilitätszustand hinter `WorkspacePort`.
+Nach Venue-/Raumänderungen werden die Dashboard- und Legacy-Board-Ortsreferenzen
+mit gezielten `/api/locations`-Reads aktualisiert; die übrigen Workspace- und
+Dashboarddaten bleiben erhalten.
+Bestätigte Pläne und Prüfungstage lesen ihre Ortsangaben über eigene
+API-Projektionen, sobald ihre Route geöffnet wird; sie halten keine globale
+Ortskopie über einen Routenwechsel hinweg.
 Die Ortsroute lädt über `LOCATIONS_READ_PORT` und den
 `HttpLocationsReadAdapter` direkt `/api/exam-venues`.
 `LocationsWorkspaceFacade` hält Lade-, Fehler- und Snapshotzustand
