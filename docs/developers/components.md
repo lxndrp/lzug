@@ -245,11 +245,18 @@ Wenn der Tag beim Mutation-Commit den Status `reopening` hat, entstehen aus
 `select_replacement` weder Before-Image noch Calendar-Quelle.
 So bleiben Abwesenheitsmutation und Wiederherstellung der alten
 Kalenderprojektion/Eventzeile nach Prozessabbruch wiederholbar.
+Die unveränderliche `replacement_selected`-Notification-Quelle friert im
+gleichen Cross-Domain-UoW den bisherigen Assignee, das Ersatzmitglied und alle
+übrigen aktiven Ausschussmitglieder als ursprüngliche Empfänger-IDs ein.
 Calendar serialisiert die Generationreservierung je Assignment in seinem
 eigenen Repository-UoW und speichert die idempotente Zuordnung von stabilem
 Quellursprung zu Generation.
-Sowohl `sync_person` beziehungsweise ICS-read-triggered Sync als auch
-Before-Image-Replay reservieren ausschließlich über diesen Allocator.
+`sync_round`, `sync_assignment` und `sync_person` kombinieren vor jeder
+Assignment-Reconciliation den Planning-Snapshot mit der neuesten Execution-
+Folgeversion samt Cancellation-Tombstone. Ein verzögerter Planning-Auftrag
+reaktiviert keine stornierte Zuweisung; nur eine höhere Execution-Folgeversion
+kann sie wieder aktivieren. ICS-read-triggered Sync und Before-Image-Replay
+reservieren ausschließlich über denselben Calendar-Allocator.
 Damit kann ein Read-Sync die Ersatzprojektion bereits anlegen, ohne dass ein
 späteres Replay der alten Empfängerzeile eine UID-Kollision oder zweite
 aktive Generation erzeugt; Wiederholungen behalten dieselben
