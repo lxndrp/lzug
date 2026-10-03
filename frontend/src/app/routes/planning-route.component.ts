@@ -22,6 +22,15 @@ import { PlanningWorkflowService } from '../planning/planning-workflow.service';
   imports: [PlanningComponent],
   template: `
     @if (workflow.snapshot(); as snapshot) {
+      @if (workflow.loadError()) {
+        <section role="alert">
+          <p>
+            Die Planungsdaten konnten nicht aktualisiert werden. Der angezeigte Stand kann veraltet
+            sein.
+          </p>
+          <button type="button" (click)="reloadPlanning()">Erneut versuchen</button>
+        </section>
+      }
       <app-planning
         [round]="snapshot.round"
         [summary]="snapshot.summary"

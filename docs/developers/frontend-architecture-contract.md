@@ -286,6 +286,9 @@ Der HTTP-API-Client liest für diese Calls keine veränderliche globale Rundenau
 Routenwechsel bricht Reads ab und verwirft Planning-Drafts; angenommene Writes
 bleiben an ihrer Ursprungsrunde und aktualisieren keine spätere Ansicht.
 Verfügbarkeitsantworten aktualisieren den Planning-Snapshot direkt.
+`ConfirmedPlansComponent` lädt die auswählbaren Editor-Referenzen für die
+aufgerufene Runden-ID über `ConfirmedPlansPort`; es liest sie nicht aus dem
+Planning-Workspace.
 Die globalen Workspace-Projektionen und ihre Verbraucher werden in den
 Feature-Slices rückgebaut; die Root-Provider der Ports belegen keine
 Workspace-Zuständigkeit.
@@ -452,7 +455,7 @@ Command im Ursprungsworkflow noch abgeschlossen wird.
 
 | Bestehender Pfad | Befristeter Besitzer | Ziel und zuständiger Rückbau |
 | --- | --- | --- |
-| `ApplicationWorkspaceService` bündelt Runde, Summary, Board und einen Übergangsbestand an Stammdaten für bestehende Workspace-Konsumenten. | Planung besitzt ihren Runden-Snapshot getrennt über `PlanningPort`; der Workspace bleibt für Prüfungshalbjahre und bestätigte-Plan-Referenzen ein Übergangspfad. Orts-/Raumwrites aktualisieren dort gezielt nur `/api/locations`. | Die verbleibenden Prüfungshalbjahres-/Workspace-Abhängigkeiten abbauen: #1097. |
+| `ApplicationWorkspaceService` bündelt Runde, Summary, Board und einen Übergangsbestand an Stammdaten für bestehende Workspace-Konsumenten. | Planung besitzt ihren Runden-Snapshot getrennt über `PlanningPort`; der Workspace bleibt für Prüfungshalbjahre ein Übergangspfad. Orts-/Raumwrites aktualisieren dort gezielt nur `/api/locations`. | Die verbleibenden Prüfungshalbjahres-/Workspace-Abhängigkeiten abbauen: #1097. |
 | Planung las Runde, Summary, Board und Stammdaten aus dem Workspace. | `PlanningWorkflowService` besitzt Snapshot, Vorschlag, Drafts und Commands; `PlanningPort` verwendet featureeigene Verträge. Route und Adapter reichen die beim Start erfasste Runden-ID durch; beim gespeicherten Vorschlag bleibt dessen Revision erhalten. | Abgeschlossen in #1093: unabhängiger Planning-Read, keine fremden Workspace-Board-Schreibzugriffe und gezielte Feature-Aktualisierung. |
 | Prüfungstag, Protokoll und Ergebnis verwenden eigene Featureports, aber Teile des Shell-/Workspacekontexts und bestehende mehrstufige Ketten. | Jeweilige Featurekomponente und vorhandene Application/Facade/Port; IDs/Revisionen bleiben explizit. | Prüfungstagszustand verantworten: #1094; Protokoll-/Ergebniszustand und Grenzen bereinigen: #1095. |
 | Persönliche Ansichten und Ansichten für Halbjahre, bestätigte Pläne, Produktinformation konsumieren teils geteilte Workspacewerte oder breite Einstiege. | Das jeweilige Feature bleibt fachlicher Besitzer; Workspace ist Kompatibilität. Produktinformation erhält vor dem Abbau der Workspace-Abhängigkeit einen eigenen Build-Info-Port, der `applicationVersion` aus der API-Root-Version lädt. | Personal lokal und mit gezielten Fähigkeiten: #1096; Produkt-Build-Info-Port sowie tabübergreifende Auth-Response-Fencing-, Recovery- und sensible Draft-Lebensdauer, verbleibende Einstiege und Workspace-/Session-Übergänge: #1097. |

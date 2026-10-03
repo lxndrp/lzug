@@ -1,6 +1,7 @@
 import {
   Component,
   Input,
+  OnDestroy,
   OnChanges,
   OnInit,
   SimpleChanges,
@@ -15,6 +16,7 @@ import { TuiBadge } from '@taiga-ui/kit';
 import { ConfirmedPlansWorkflowService } from './confirmed-plans-workflow.service';
 import type { ConfirmedPlan, ConfirmedPlansBoard } from './confirmed-plans.models';
 import { ConfirmedPlanEditorComponent } from './confirmed-plan-editor.component';
+import { Subscription } from 'rxjs';
 
 export type ViewState = 'loading' | 'ready' | 'error';
 
@@ -24,19 +26,22 @@ export type ViewState = 'loading' | 'ready' | 'error';
   templateUrl: './confirmed-plans.component.html',
   styleUrl: './confirmed-plans.component.css',
 })
-export class ConfirmedPlansComponent implements OnInit, OnChanges {
+export class ConfirmedPlansComponent implements OnInit, OnChanges, OnDestroy {
   private readonly confirmedPlans = inject(ConfirmedPlansWorkflowService);
   private readonly router = inject(Router);
 
   @Input() roundId: number | null = null;
   @Input() editRoundId: number | null = null;
-  @Input() board: ConfirmedPlansBoard | null = null;
   @Input() canEdit = false;
+  protected readonly board = signal<ConfirmedPlansBoard | null>(null);
+  protected readonly editorReferencesState = signal<ViewState | 'idle'>('idle');
   protected readonly state = signal<ViewState>('loading');
   protected readonly plans = signal<ConfirmedPlan[]>([]);
   private readonly requestedRoundId = signal<number | null>(null);
   private readonly editRequested = signal<number | null>(null);
   private readonly canEditRequested = signal(false);
+  private editorReferencesLoad?: Subscription;
+  private editorReferencesGeneration = 0;
   protected readonly selectedCommitteeId = signal<number | null>(null);
   protected readonly visiblePlans = computed(() => {
     const roundId = this.requestedRoundId();
@@ -59,6 +64,9 @@ export class ConfirmedPlansComponent implements OnInit, OnChanges {
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['editRoundId']) this.editRequested.set(this.editRoundId);
     if (changes['canEdit']) this.canEditRequested.set(this.canEdit);
+    if (changes['editRoundId'] || changes['canEdit']) {
+      this.loadEditorReferences(this.canEditRequested() ? this.editRequested() : null);
+    }
     if (!changes['roundId']) return;
 
     this.requestedRoundId.set(this.roundId);
@@ -67,6 +75,14 @@ export class ConfirmedPlansComponent implements OnInit, OnChanges {
 
   ngOnInit(): void {
     this.load();
+  }
+
+  ngOnDestroy(): void {
+    this.editorReferencesLoad?.unsubscribe();
+  }
+
+  protected retryEditorReferences(): void {
+    this.loadEditorReferences(this.editRequested());
   }
 
   protected load(): void {
@@ -83,6 +99,34 @@ export class ConfirmedPlansComponent implements OnInit, OnChanges {
 
   private selectFirstVisibleCommittee(): void {
     this.selectedCommitteeId.set(this.visiblePlans()[0]?.committee.id ?? null);
+  }
+
+  private loadEditorReferences(roundId: number | null): void {
+    const generation = ++this.editorReferencesGeneration;
+    this.editorReferencesLoad?.unsubscribe();
+    this.editorReferencesLoad = undefined;
+    this.board.set(null);
+    if (roundId === null || !this.canEditRequested()) {
+      this.editorReferencesState.set('idle');
+      return;
+    }
+
+    this.editorReferencesState.set('loading');
+    this.editorReferencesLoad = this.confirmedPlans.getEditorReferences(roundId).subscribe({
+      next: (board) => {
+        if (generation !== this.editorReferencesGeneration || this.editRequested() !== roundId) {
+          return;
+        }
+        this.board.set(board);
+        this.editorReferencesState.set('ready');
+      },
+      error: () => {
+        if (generation !== this.editorReferencesGeneration || this.editRequested() !== roundId) {
+          return;
+        }
+        this.editorReferencesState.set('error');
+      },
+    });
   }
 
   protected selectCommittee(id: number): void {

@@ -59,7 +59,7 @@ export class PlanningWorkflowService {
   private effectVersion = 0;
   private readonly pendingAvailability = new Set<string>();
 
-  readonly actionBusy = computed(() => this.pending());
+  readonly actionBusy = computed(() => this.pending() || this.loading() || this.loadError());
   readonly snapshot = signal<PlanningSnapshot | null>(null);
   readonly loading = signal(false);
   readonly loadError = signal(false);
@@ -711,6 +711,7 @@ export class PlanningWorkflowService {
   private ensurePlanningRound(roundId: number): boolean {
     if (
       !this.loading() &&
+      !this.loadError() &&
       this.activeRoundId === roundId &&
       this.snapshot()?.round.id === roundId &&
       this.roundContext.roundId() === roundId
@@ -719,8 +720,10 @@ export class PlanningWorkflowService {
     }
     this.feedback.notify(
       'error',
-      'Prüfungsrunde wird aktualisiert',
-      'Die Daten der ausgewählten Prüfungsrunde werden noch aktualisiert. Bitte warten Sie kurz und versuchen Sie es erneut.',
+      this.loadError() ? 'Prüfungsdaten nicht aktualisiert' : 'Prüfungsrunde wird aktualisiert',
+      this.loadError()
+        ? 'Bitte laden Sie die Planungsdaten erneut, bevor Sie weitere Änderungen vornehmen.'
+        : 'Die Daten der ausgewählten Prüfungsrunde werden noch aktualisiert. Bitte warten Sie kurz und versuchen Sie es erneut.',
     );
     return false;
   }

@@ -3,7 +3,11 @@ import { signal } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { Observable, Subject, of, throwError } from 'rxjs';
 
-import type { EditablePlanningProposal, PlanningSnapshot } from './planning.models';
+import type {
+  CandidateExamDay,
+  EditablePlanningProposal,
+  PlanningSnapshot,
+} from './planning.models';
 import { RoundContextService } from '../api/round-context.service';
 import { AuthService } from '../auth/auth.service';
 import { SessionScopeService } from '../auth/session-scope.service';
@@ -216,6 +220,37 @@ describe('PlanningWorkflowService', () => {
     expect(port.loadPlanning).toHaveBeenCalledTimes(2);
     expect(workflow.loadError()).toBe(false);
     expect(workflow.snapshot()?.round.id).toBe(1);
+  });
+
+  it('disables commands when a mutation refresh fails and keeps the stale snapshot visible', () => {
+    const feedback = { notify: vi.fn(), roleRestriction: vi.fn(), confirm$: vi.fn(() => of(true)) };
+    const { workflow, port } = createHarness(
+      {
+        loadPlanning: vi
+          .fn()
+          .mockReturnValueOnce(of(emptySnapshot(1)))
+          .mockReturnValueOnce(throwError(() => new Error('offline'))),
+      },
+      feedback,
+    );
+    const view = Symbol('planning-view');
+    const day: CandidateExamDay = { id: 31, exam_round_id: 1, date: '2027-01-11', is_active: 0 };
+
+    workflow.activateView(view, 1);
+    workflow.toggleCandidateDay(day, 1, view);
+    expect(port.updateCandidateExamDay).toHaveBeenCalledTimes(1);
+    expect(workflow.snapshot()?.round.id).toBe(1);
+    expect(workflow.loadError()).toBe(true);
+    expect(workflow.actionBusy()).toBe(true);
+
+    workflow.toggleCandidateDay(day, 1, view);
+
+    expect(port.updateCandidateExamDay).toHaveBeenCalledTimes(1);
+    expect(feedback.notify).toHaveBeenCalledWith(
+      'error',
+      'Prüfungsdaten nicht aktualisiert',
+      expect.any(String),
+    );
   });
 
   it('clears planning state when a session ends and reloads after it is established', () => {
