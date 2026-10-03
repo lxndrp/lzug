@@ -136,6 +136,21 @@ Die Ausführung eines Fachbefehls bleibt eine eigene Servicetransaktion.
 Session, CSRF, Actor, Ausschuss-Scope und Fehlerübersetzung liegen am
 HTTP-Rand, während der synchrone Anwendungskern frameworkunabhängig bleibt.
 
+Die Kandidatentage sind der erste Planning-Port-Pilot:
+`backend.planning.candidate_days` enthält den typisierten Generierungsbefehl,
+das Ergebnis, die Providerabstraktion und den Unit-of-Work-Vertrag ohne
+Persistenz-, FastAPI- oder Feiertagsbibliotheksimport.
+`backend.persistence.candidate_days` setzt den Planning-UoW mit einer
+SQLite-Session um; `backend.integrations.holiday_provider` implementiert den
+Planning-owned Feiertagsvertrag.
+`backend.composition.candidate_day_service` wählt beide konkreten Adapter.
+Der `RequestContext` übergibt der Factory den pro Sitzung durch die
+Runtime-Policy ausgewählten Datenbankpfad. Dadurch bleiben Produkt- und
+Demo-Datenbanken getrennt und jede Generierung erhält ihren eigenen UoW.
+Das Lebensdauerdiagramm und ein konkreter Ablauf stehen im
+[Backend-Vertrag](backend-architecture-contract.md#vertikaler-pilot-kandidatentage).
+Andere Planning-Services verwenden weiterhin ihre dokumentierten Übergangspfade.
+
 In `execution.absence` und `execution.exam_protocols` bleiben die öffentlichen
 Servicebefehle die autoritative Grenze für Zustandsübergänge.
 Der Runden-Lifecycle ist im Ist-Zustand noch nicht in diese Modulgrenzen
@@ -694,7 +709,7 @@ Zyklen zwischen den acht Kernpaketen.
 | Paket | Verantwortung | Darf abhängen von |
 | --- | --- | --- |
 | `application/` | frameworkneutrale Use-Case-Orchestrierung, Ressourcenfassade, Transportobjekte und HATEOAS | `assessment`, `execution`, `identity`, `integrations`, `operations`, `persistence`, `planning` |
-| `planning/` | Planaggregate, mögliche Prüfungstage, Prüfungsorte und Folgen bestätigter Änderungen | `integrations`, `persistence` |
+| `planning/` | Planaggregate, mögliche Prüfungstage, Prüfungsorte und Folgen bestätigter Änderungen; Kandidatentage beginnen mit einem adapterfreien Port-Pilot | `integrations`, `persistence` (Legacy-Aufrufe) |
 | `execution/` | Ausfall und Ersatz, Protokolle, Tagesabschluss und Rundenlebenszyklus | `identity`, `integrations`, `persistence` |
 | `assessment/` | individuelle Bewertungen und festgestellte Ergebnisse | `execution`, `identity`, `persistence` |
 | `identity/` | Authentisierung, Autorisierung, Mitgliedschaften und lokale Betreiberidentität | `persistence` |

@@ -158,7 +158,7 @@ keinen Adapter.
 | --- | --- | --- | --- | --- |
 | `planning` | Planungsdaten lesen und ändern | Availability, Proposal, ConfirmedPlan; `PlanValidationError`, Revision-/Konfliktfehler; Reads liefern materialisierte Snapshots | Planbestätigung umfasst CAS, Planaggregate, Revision und Audit atomar; UoW pro Use Case | `PlanningService` und `ResourceRepository` über `Store`; Persistence-Port wird in Planning-Phase 2 eingeführt |
 | `planning` | Verfügbarkeit anfragen und Planning-Folgequelle festschreiben | Idempotenter Command wechselt `draft` zu `availability_requested` und liefert stabile Origin-ID, typisierte Notice-Beschreibung, die beim Übergang geltende Deadline und die damals ausgewählten aktiven Membership-IDs; fehlende Runde, ungültiger Status, fehlende Frist, fehlende Planning-Einstellungen oder kein aktiver Kandidatentag bleiben fachliche Fehler. Planning fragt den Membership-Snapshot über einen Planning-eigenen Identity-Port ab | Statuswechsel, Audit/Übergangsquelle, Deadline, Notice-Beschreibung und ursprünglicher Empfängersnapshot committen atomar im selben Planning-UoW. Application speichert danach den Auftrag und replayt exakt diesen Inhalt und diese Empfänger-IDs; es rekonstruiert Empfänger nicht aus späteren Memberships. Ob die IDs beim Zustellversuch aktuell versandberechtigt sind, bleibt #1079 überlassen, ohne hier eine Suppressionspolicy festzulegen | `PlanningService.request_availabilities` speichert heute nur den Status; `fastapi_planning_router` versucht die Benachrichtigung danach direkt und best-effort. Nach Handoff ersetzt Application den direkten Aufruf und restauriert fehlende Ursprünge aus Planning-Übergangsquellen |
-| `planning` | Kandidatentage und Feiertage | Generierungsbefehl liefert Kandidatentage und Validierungsbefunde; Providerfehler sind als nicht verfügbare Feiertagsquelle erkennbar | Reiner Berechnungsteil ist ohne DB; Konfiguration/Verfügbarkeit wird beim Aufruf gelesen | `CandidateDayService` plus `HolidayProvider` aus ADR-0008; Provideradapter verbleibt unter `integrations` |
+| `planning` | Kandidatentage und Feiertage (Pilot #1071) | `GenerateCandidateDays` liefert materialisierte Kandidatentage, übersprungene Daten und ausgeschlossene Feiertage; bestehende Validierungsfehler bleiben erhalten | Planning liest Settings und Tage und legt alle fehlenden Tage atomar im Candidate-Day-UoW an; UoW und Provider werden pro Servicekomposition injiziert | `planning.candidate_days` definiert Command, Ergebnis und Ports; `persistence.candidate_days` und `integrations.holiday_provider` implementieren die SQLite- und Feiertagsadapter, die nur im Composition Root gewählt werden. Andere Planning-Aufrufe bleiben Legacy-Pfade |
 | `planning` | Prüfungsrunden, Kandidaten und Prüfungszeiträume | Queries liefern materialisierte Runden-, Kandidaten- und Halbjahres-Snapshots; ein Round-Create-Command legt ein benötigtes Halbjahr nur als Teil der Rundenerstellung an. Es gibt keinen eigenständigen Halbjahres-Update-/Delete-Befehl; Scope, Referenzkonflikt und Validierung der Rundenerstellung sind explizit | Rundenrevision, Entscheidung, Kandidatenstatus, Audit und Halbjahresanlage atomar in einem Planning-UoW | `ResourceRepository`, `_resolve_exam_round_half_year`; allgemeine CRUD-Routen sind Übergang. Direkte Halbjahres-Schreibzugriffe sind derzeit durch `ResourceAuthorizer` verboten und werden nach Übernahme der unterstützten Planning-Commands entfernt |
 | `planning` | Prüfungsorte, Geokodierung und Planfolgen | Venue-Commands liefern Venue-/Room-/Contact-Snapshot oder Fachfehler; Geokodierung nimmt Venue-ID und erwartete Revision und liefert Koordinatenkandidaten samt Quelle oder unterscheidet fehlenden Ort, Revisionskonflikt, deaktivierten Provider, `timeout`, `quota`, `provider_error`, `not_found` und `invalid_response`; sie persistiert keine Koordinaten | Venueänderung und Audit gemeinsam; Geokodierung autorisiert und prüft Revision vor Provider-I/O, sendet nur die Adressdarstellung, und läuft außerhalb eines Schreib-UoW. Folgen werden mit stabilen Aufträgen abgeleitet, externe Arbeit danach | `ExamVenueService`, `ExamVenueApi`, `NominatimGeocoder`, `VenueConsequenceService`; Planning-Port ersetzt Route-Service-Kopplung, Provideradapter verbleibt unter `integrations` |
 | `planning` | Plan-/Ortsfolgen ableiten und erneut bereitstellen | Planning liefert aus einer bestätigten Planrevision oder unveränderlichen Venue-Audit-ID deterministisch typisierte Folgeauftragsbeschreibungen mit stabiler Ursprungsidentität; Ableitungsfehler bleiben von Fehlern einzelner Folgemodule unterscheidbar | Ableitung bleibt nach dem Domain-Commit wiederholbar; dauerhafter Folgeauftragszustand und Claim/Retry liegen beim konsumierenden Application-Modul. Unveränderliche Revisions-/Auditdaten bleiben die Quelle zum Wiederaufbau fehlender Application-Aufträge | `PlanConsequenceService`, `VenueConsequenceService`; heutige Planning-eigene Batch-/Taskpersistenz und direkte Kalenderaufrufe werden nach Handoff entfernt |
@@ -585,6 +585,48 @@ UoW, Session, Provider-Claim und Dateihandle sind kurzlebig und durch ihren
 äußersten Context Manager abgeschlossen.
 Fachlogik liest keine Prozessstreams, Konfiguration oder aktuelle
 DB-Auswahl aus versteckten Globals.
+
+### Vertikaler Pilot: Kandidatentage
+
+`planning.candidate_days` besitzt den Command `GenerateCandidateDays`, die
+materialisierten Planungswerte sowie `CandidateDayUnitOfWorkFactory` und
+`HolidayProvider`. Das Modul importiert weder SQLAlchemy, FastAPI, Dateisystem-
+oder Provideradapter noch globale Datenbankpfade.
+Die SQLite-Implementierung liegt in `persistence.candidate_days`; der
+Feiertagsadapter liegt in `integrations.holiday_provider`.
+Beide Adapter verwenden die Porttypen nur für statische Typprüfung.
+
+```mermaid
+sequenceDiagram
+  participant HTTP as FastAPI RequestContext
+  participant Runtime as RuntimePolicy
+  participant Root as Composition Root
+  participant Service as CandidateDayService
+  participant UoW as SQLite CandidateDay UoW
+  participant DB as ausgewählte SQLite-Datenbank
+  participant Holiday as PythonHolidaysProvider
+  HTTP->>Runtime: Datenbank für diese Sitzung auswählen
+  Runtime-->>HTTP: db_path
+  HTTP->>Root: Factory(db_path)
+  Root-->>HTTP: Service(UoW-Factory, HolidayProvider)
+  HTTP->>Service: GenerateCandidateDays(round_id)
+  Service->>UoW: UoW für diesen Befehl öffnen
+  UoW->>DB: Einstellungen und vorhandene Tage lesen
+  Service->>Holiday: Feiertage im konfigurierten Bereich lesen
+  Service->>UoW: fehlende Tage anlegen
+  UoW->>DB: gemeinsam committen oder zurückrollen
+  Service-->>HTTP: typisiertes Ergebnis
+```
+
+Das Serviceobjekt wird für den Request mit dessen ausgewähltem Datenbankpfad
+komponiert; es hält weder Session noch Datenbankzustand. Der UoW umfasst
+Einstellungen, bestehende Tage und sämtliche neuen Tage eines Befehls.
+Provider- und Persistenzfehler verlassen ihre jeweiligen Adapter und werden
+durch den bestehenden HTTP-Fehlervertrag abgebildet. Der Adapter bildet das
+typisierte Ergebnis auf das unveränderte JSON-Antwortformat ab.
+`PlanningService` und andere noch nicht migrierte Planning-Aufrufe bleiben
+explizite Legacy-Pfade; dieser Pilot behauptet keine Migration des gesamten
+Planning-Moduls.
 
 ## Übergang und erlaubte Migration
 

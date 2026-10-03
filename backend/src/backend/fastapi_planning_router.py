@@ -16,6 +16,7 @@ from backend.application.transport import (
     planning_proposal_from_payload,
 )
 from backend.persistence.models import EXAM_ROUND
+from backend.planning.candidate_days import GenerateCandidateDays
 
 from .api_contracts import (
     ConfirmedPlanChangeRequest,
@@ -303,7 +304,11 @@ def _register_availability_routes(
         return finish(
             context,
             context.respond(
-                hateoas.candidate_day_generation(context.candidate_day_service.generate(round_id)),
+                hateoas.candidate_day_generation(
+                    context.candidate_day_service.generate(
+                        GenerateCandidateDays(round_id)
+                    ).as_payload()
+                ),
                 HTTPStatus.OK,
             ),
         )

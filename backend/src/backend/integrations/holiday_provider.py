@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from datetime import date
-from typing import Protocol
+from typing import TYPE_CHECKING
 
 from holidays import country_holidays
 from holidays.constants import PUBLIC
+
+if TYPE_CHECKING:
+    from backend.planning.candidate_days import PublicHoliday
 
 GERMAN_SUBDIVISION_CODES = frozenset(
     {
@@ -29,25 +31,6 @@ GERMAN_SUBDIVISION_CODES = frozenset(
         "DE-TH",
     }
 )
-
-
-@dataclass(frozen=True)
-class PublicHoliday:
-    """A holiday within the planning range, preserving the German display name."""
-
-    date: date
-    name: str
-
-
-class HolidayProvider(Protocol):
-    """Provide state-specific public holidays without exposing a library choice."""
-
-    def public_holidays(
-        self,
-        start_date: date,
-        end_date: date,
-        subdivision_code: str,
-    ) -> list[PublicHoliday]: ...
 
 
 class PythonHolidaysProvider:
@@ -80,8 +63,8 @@ class PythonHolidaysProvider:
             language="de",
             categories=PUBLIC,
         )
-        return [
-            PublicHoliday(date=holiday_date, name=name)
-            for holiday_date, name in sorted(calendar.items())
-            if start_date <= holiday_date <= end_date
-        ]
+        holidays: list[PublicHoliday] = []
+        for holiday_date, name in sorted(calendar.items()):
+            if start_date <= holiday_date <= end_date:
+                holidays.append({"date": holiday_date, "name": name})
+        return holidays
