@@ -57,10 +57,12 @@ export class PlanningApiService {
 
   requestAvailabilities(payload: AvailabilityRequest, roundId: number) {
     return this.updateExamRound(payload, roundId).pipe(
-      switchMap(() =>
-        this.client.post<ExamRound>(`/api/exam-rounds/${roundId}/request-availabilities`, {}),
-      ),
+      switchMap(() => this.sendAvailabilityRequests(roundId)),
     );
+  }
+
+  sendAvailabilityRequests(roundId: number) {
+    return this.client.post<ExamRound>(`/api/exam-rounds/${roundId}/request-availabilities`, {});
   }
 
   getSchedulingOverview() {

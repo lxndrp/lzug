@@ -1,10 +1,11 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Observable, of, throwError } from 'rxjs';
+import { Observable, Subject, of, throwError } from 'rxjs';
 import { provideTaiga } from '@taiga-ui/core';
 
 import { SCHEDULING_OVERVIEW_PORT } from './application/scheduling-overview.port';
 import { SchedulingOverviewComponent } from './scheduling-overview.component';
 import { SchedulingOverviewItem } from './scheduling-overview.models';
+import { PlanningWriteEventsService } from '../application/planning-write-events.service';
 
 describe('SchedulingOverviewComponent', () => {
   let fixture: ComponentFixture<SchedulingOverviewComponent>;
@@ -60,6 +61,29 @@ describe('SchedulingOverviewComponent', () => {
     fixture.detectChanges();
     expect(getOverview).toHaveBeenCalledTimes(2);
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('Entwurf');
+  });
+
+  it('reloads after a planning commit and ignores an older overview response', () => {
+    const beforeCommit = new Subject<readonly SchedulingOverviewItem[]>();
+    const afterCommit = new Subject<readonly SchedulingOverviewItem[]>();
+    getOverview.mockReset().mockReturnValueOnce(beforeCommit).mockReturnValueOnce(afterCommit);
+    fixture.detectChanges();
+    expect(getOverview).toHaveBeenCalledOnce();
+
+    TestBed.inject(PlanningWriteEventsService).notifyCommitted(1);
+
+    expect(getOverview).toHaveBeenCalledTimes(2);
+    beforeCommit.next(overviewItems());
+    beforeCommit.complete();
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      'Terminorganisationen werden geladen',
+    );
+
+    const committedItems = overviewItems().map((item) => ({ ...item, name: 'Nach Commit' }));
+    afterCommit.next(committedItems);
+    afterCommit.complete();
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Nach Commit');
   });
 });
 

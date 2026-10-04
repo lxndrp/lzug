@@ -6,6 +6,7 @@ import { toLocationSnapshot } from '../api/http-locations.mapper';
 import { UiFeedbackService } from '../shell/ui-feedback.service';
 import { ApplicationWorkspaceService } from '../shell/application-workspace.service';
 import { DashboardProjectionService } from '../dashboard/dashboard-projection.service';
+import { ReferenceDataWriteEventsService } from '../application/reference-data-write-events.service';
 import { LOCATIONS_PORT, type LocationsPort } from './locations.port';
 import { VenueWorkflowService } from './venue-workflow.service';
 
@@ -16,6 +17,8 @@ describe('VenueWorkflowService', () => {
     const duplicates = [{ id: 10, name: 'Ähnlich', scope: 'global', address: 'Musterweg 1' }];
     const port = createPort({ checkDuplicates: vi.fn(() => of(duplicates)) });
     const { workflow, feedback, refresh } = configure(port);
+    const referenceWrites = vi.fn();
+    TestBed.inject(ReferenceDataWriteEventsService).committed$.subscribe(referenceWrites);
     workflow.activateView(Symbol('locations-route'), refresh);
     const command = {
       scope: 'committee' as const,
@@ -41,6 +44,7 @@ describe('VenueWorkflowService', () => {
     expect(port.createVenue).toHaveBeenCalledOnce();
     expect(port.createVenue).toHaveBeenCalledWith({ ...command, duplicatesReviewed: true });
     expect(feedback.notify).toHaveBeenCalledWith('success', 'Prüfungsort angelegt', venue.name);
+    expect(referenceWrites).toHaveBeenCalledWith('locations');
     expect(refresh).toHaveBeenCalledOnce();
     expect(workflow.actionBusy()).toBe(false);
   });
@@ -180,6 +184,8 @@ describe('VenueWorkflowService', () => {
       ),
     });
     const { workflow, feedback } = configure(port);
+    const referenceWrites = vi.fn();
+    TestBed.inject(ReferenceDataWriteEventsService).committed$.subscribe(referenceWrites);
     const update = {
       id: venue.id,
       payload: { expectedRevision: venue.revision, name: 'Neuer Ort' },
@@ -202,6 +208,7 @@ describe('VenueWorkflowService', () => {
       'Prüfungsort gespeichert, Folgen unvollständig',
       'Calendar failed',
     );
+    expect(referenceWrites).toHaveBeenCalledWith('locations');
   });
 
   it('retains the existing candidate when geocoding fails and reports the failure', () => {
@@ -229,6 +236,8 @@ describe('VenueWorkflowService', () => {
     });
     const { workflow, feedback, workspaceRefreshLocations, dashboardRefreshLocations } =
       configure(port);
+    const referenceWrites = vi.fn();
+    TestBed.inject(ReferenceDataWriteEventsService).committed$.subscribe(referenceWrites);
 
     workflow.createRoom({
       venueId: venue.id,
@@ -244,6 +253,9 @@ describe('VenueWorkflowService', () => {
       venue.name,
     );
     expect(workspaceRefreshLocations).toHaveBeenCalledTimes(2);
+    expect(referenceWrites).toHaveBeenCalledTimes(2);
+    expect(referenceWrites).toHaveBeenNthCalledWith(1, 'locations');
+    expect(referenceWrites).toHaveBeenNthCalledWith(2, 'locations');
     expect(dashboardRefreshLocations).toHaveBeenCalledTimes(2);
   });
 

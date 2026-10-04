@@ -44,7 +44,7 @@ describe('HttpPlanningAdapter', () => {
   });
 
   it('keeps round identity explicit and removes HAL links from results', async () => {
-    const requestAvailabilities = vi.fn(() =>
+    const sendAvailabilityRequests = vi.fn(() =>
       of({
         id: 8,
         name: 'Sommer 2027',
@@ -55,29 +55,15 @@ describe('HttpPlanningAdapter', () => {
     TestBed.configureTestingModule({
       providers: [
         HttpPlanningAdapter,
-        { provide: PlanningApiService, useValue: { requestAvailabilities } },
+        { provide: PlanningApiService, useValue: { sendAvailabilityRequests } },
       ],
     });
 
     const result = await firstValueFrom(
-      TestBed.inject(HttpPlanningAdapter).requestAvailabilities(
-        {
-          name: 'Sommer 2027',
-          availability_deadline: null,
-          availability_reminder_at: null,
-        },
-        8,
-      ),
+      TestBed.inject(HttpPlanningAdapter).sendAvailabilityRequests(8),
     );
 
-    expect(requestAvailabilities).toHaveBeenCalledWith(
-      {
-        name: 'Sommer 2027',
-        availability_deadline: null,
-        availability_reminder_at: null,
-      },
-      8,
-    );
+    expect(sendAvailabilityRequests).toHaveBeenCalledWith(8);
     expect(result).toEqual({
       id: 8,
       name: 'Sommer 2027',

@@ -34,6 +34,7 @@ import type { VenueViewEffect, VenueViewEffectCommand } from './venue-view-effec
 import { UiFeedbackService } from '../shell/ui-feedback.service';
 import { ApplicationWorkspaceService } from '../shell/application-workspace.service';
 import { DashboardProjectionService } from '../dashboard/dashboard-projection.service';
+import { ReferenceDataWriteEventsService } from '../application/reference-data-write-events.service';
 
 /** UI-facing venue workflows, including confirmations and post-save feedback. */
 @Injectable({ providedIn: 'root' })
@@ -43,6 +44,7 @@ export class VenueWorkflowService {
   private readonly sessionScope = inject(SessionScopeService);
   private readonly workspace = inject(ApplicationWorkspaceService);
   private readonly dashboard = inject(DashboardProjectionService);
+  private readonly referenceDataWrites = inject(ReferenceDataWriteEventsService);
   private readonly pending = signal(false);
   private activeView: symbol | null = null;
   private activeViewEnded: Subject<void> | null = null;
@@ -437,6 +439,7 @@ export class VenueWorkflowService {
   private refreshLocationProjections(): void {
     this.dashboard.refreshLocations();
     this.workspace.refreshLocations();
+    this.referenceDataWrites.notifyCommitted('locations');
   }
 
   private runOperation<T>(

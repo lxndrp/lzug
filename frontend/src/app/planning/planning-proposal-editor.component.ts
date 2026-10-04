@@ -34,6 +34,8 @@ export type ProposalEditorState = 'idle' | 'loading' | 'ready' | 'saving' | 'err
 })
 export class PlanningProposalEditorComponent implements OnChanges {
   @Input() proposal: EditablePlanningProposal | null = null;
+  @Input() saveAcknowledgement = 0;
+  @Input() reloadAcknowledgement = 0;
   @Input() state: ProposalEditorState = 'idle';
   @Input() errorMessage: string | null = null;
   @Input() violations: PlanningValidationViolation[] = [];
@@ -51,11 +53,27 @@ export class PlanningProposalEditorComponent implements OnChanges {
 
   protected readonly draft = signal<EditablePlanningProposal | null>(null);
   protected readonly dirty = signal(false);
+  private proposalBaseline: EditablePlanningProposal | null = null;
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['proposal'] && this.proposal) {
-      this.draft.set(this.cloneProposal(this.proposal));
-      this.dirty.set(false);
+    const saveAcknowledged =
+      changes['saveAcknowledgement'] && !changes['saveAcknowledgement'].firstChange;
+    const reloadAcknowledged =
+      changes['reloadAcknowledgement'] && !changes['reloadAcknowledgement'].firstChange;
+    if ((changes['proposal'] || saveAcknowledged || reloadAcknowledged) && this.proposal) {
+      const currentDraft = this.draft();
+      if (
+        saveAcknowledged ||
+        reloadAcknowledged ||
+        !currentDraft ||
+        !this.proposalBaseline ||
+        this.sameProposal(currentDraft, this.proposalBaseline) ||
+        this.sameProposalContent(currentDraft, this.proposal)
+      ) {
+        this.draft.set(this.cloneProposal(this.proposal));
+        this.proposalBaseline = this.cloneProposal(this.proposal);
+        this.dirty.set(false);
+      }
     }
   }
 
@@ -362,6 +380,20 @@ export class PlanningProposalEditorComponent implements OnChanges {
 
   private cloneProposal(proposal: EditablePlanningProposal): EditablePlanningProposal {
     return JSON.parse(JSON.stringify(proposal)) as EditablePlanningProposal;
+  }
+
+  private sameProposal(left: EditablePlanningProposal, right: EditablePlanningProposal): boolean {
+    return JSON.stringify(left) === JSON.stringify(right);
+  }
+
+  private sameProposalContent(
+    left: EditablePlanningProposal,
+    right: EditablePlanningProposal,
+  ): boolean {
+    const leftContent = this.cloneProposal(left);
+    const rightContent = this.cloneProposal(right);
+    leftContent.revision = rightContent.revision;
+    return this.sameProposal(leftContent, rightContent);
   }
 
   private slotKey(slot: PlanningProposalSlot): string {

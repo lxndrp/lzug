@@ -87,6 +87,29 @@ describe('PlanningComponent', () => {
     expect(consumed).toHaveBeenCalledWith(32);
   });
 
+  it('preserves unsaved planning and round drafts across same-round refreshes', () => {
+    const component = fixture.componentInstance as unknown as {
+      draft: { exams_per_day: number };
+      roundDraft: { name: string };
+    };
+    component.draft.exams_per_day = 4;
+    component.roundDraft.name = 'Noch nicht gespeichert';
+
+    fixture.componentRef.setInput('summary', {
+      ...summaryFixture,
+      settings: { ...summaryFixture.settings!, exams_per_day: 8 },
+    });
+    fixture.componentRef.setInput('round', {
+      ...examRoundFixture,
+      name: 'Serverseitig aktualisiert',
+      status: 'availability_requested',
+    });
+    fixture.detectChanges();
+
+    expect(component.draft.exams_per_day).toBe(4);
+    expect(component.roundDraft.name).toBe('Noch nicht gespeichert');
+  });
+
   it('separates generation, manual creation, and activation capabilities', () => {
     fixture.componentRef.setInput('allowCandidateDayGeneration', true);
     fixture.componentRef.setInput('canCreateCandidateDay', false);

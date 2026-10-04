@@ -52,7 +52,6 @@ describe('ApplicationWorkspaceService', () => {
 
     workspace.refresh();
     context.select(2);
-    workspace.refresh();
     requests[1].next(dashboard(2, 'Runde B'));
     requests[1].complete();
     requests[0].next(dashboard(1, 'Runde A'));
@@ -72,7 +71,6 @@ describe('ApplicationWorkspaceService', () => {
 
     workspace.refresh();
     context.select(2);
-    workspace.refresh();
     requests[1].next(dashboard(2, 'Runde B'));
     requests[1].complete();
     requests[0].error({ status: 500 });
@@ -89,13 +87,29 @@ describe('ApplicationWorkspaceService', () => {
 
     workspace.refresh();
     context.select(2);
-    workspace.refresh();
     requests[0].complete();
 
     expect(workspace.loading()).toBe(true);
     requests[1].next(dashboard(2, 'Runde B'));
     requests[1].complete();
     expect(workspace.loading()).toBe(false);
+  });
+
+  it('replaces the shared workspace projection when a route resolver selects another round', () => {
+    const workspace = TestBed.inject(ApplicationWorkspaceService);
+    const context = TestBed.inject(RoundContextService);
+    workspace.refresh();
+    requests[0].next(dashboard(1, 'Runde A'));
+    requests[0].complete();
+
+    context.select(2);
+
+    expect(workspace.round()).toBeNull();
+    expect(workspace.board()).toBeNull();
+    expect(loadDashboard).toHaveBeenLastCalledWith(2);
+    requests[1].next(dashboard(2, 'Runde B'));
+    requests[1].complete();
+    expect(workspace.round()?.id).toBe(2);
   });
 
   it('updates cached location projections with a targeted read only', () => {
@@ -171,7 +185,8 @@ describe('ApplicationWorkspaceService', () => {
       candidateAssignments,
     });
     expect(workspace.masterData()).toBeNull();
-    expect(loadDashboard).not.toHaveBeenCalled();
+    expect(loadDashboard).toHaveBeenCalledOnce();
+    expect(loadDashboard).toHaveBeenCalledWith(2);
   });
 
   it('keeps targeted references out of a workspace snapshot for another round', () => {
@@ -205,9 +220,9 @@ describe('ApplicationWorkspaceService', () => {
       candidates: roundTwoCandidates,
       candidateAssignments: roundTwoAssignments,
     });
-    expect(workspace.board()?.candidates).toEqual(roundOneCandidates);
-    expect(workspace.masterData()?.candidates).toEqual(roundOneCandidates);
-    expect(workspace.masterData()?.candidateAssignments).toEqual(roundOneAssignments);
+    expect(workspace.board()).toBeNull();
+    expect(workspace.masterData()).toBeNull();
+    expect(loadDashboard).toHaveBeenLastCalledWith(2);
   });
 
   it('updates only committee members in the transitional planning workspace', () => {
