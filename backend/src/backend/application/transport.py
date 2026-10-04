@@ -16,6 +16,7 @@ from typing import Any
 
 from backend.application import (
     ApplicationResult,
+    ApplicationServices,
     AuthenticationRequiredError,
     ForbiddenRequestError,
     ReadApplication,
@@ -36,9 +37,11 @@ from backend.execution.exam_protocols import ExamProtocolService
 from backend.execution.exam_round_lifecycle import ExamRoundLifecycleService
 from backend.identity.auth import AuthContext, AuthenticationRepository, SessionCredentials
 from backend.identity.authorization import AuthorizationScope, AuthorizationService
+from backend.identity.committee_admin import CommitteeAdminService
 from backend.identity.local_auth import LocalAuthService
+from backend.identity.people import IdentityService
 from backend.integrations.calendar import CalendarService
-from backend.integrations.notifications import NotificationService
+from backend.notifications.service import NotificationService
 from backend.observability import emit_event
 from backend.persistence.models import Resource
 from backend.planning import PlanningService
@@ -71,6 +74,12 @@ class RequestContext:
     runtime_policy: RuntimePolicy
     candidate_day_service_factory: Callable[[Path], CandidateDayService]
     resource_access_query_factory: Callable[[Path], ResourceAccessQueryFactory]
+    identity_service_factory: Callable[[Path], IdentityService]
+    authorization_service_factory: Callable[[Path], AuthorizationService]
+    committee_admin_service_factory: Callable[[Path], CommitteeAdminService]
+    authentication_repository_factory: Callable[[Path], AuthenticationRepository]
+    local_auth_service_factory: Callable[..., LocalAuthService]
+    notification_service_factory: Callable[[Path], NotificationService]
     auth_rate_limiter: RequestRateLimiter
     observability_rate_limiter: RequestRateLimiter
     observability_global_rate_limiter: RequestRateLimiter
@@ -87,7 +96,19 @@ class RequestContext:
 
     @property
     def repository(self) -> ResourceRepository:
-        return ResourceRepository(self.db_path, self.resource_access_query_factory(self.db_path))
+        queries = self.resource_access_query_factory(self.db_path)
+        return ResourceRepository(
+            self.db_path,
+            queries,
+        )
+
+    @property
+    def identity_service(self) -> IdentityService:
+        return self.identity_service_factory(self.db_path)
+
+    @property
+    def committee_admin_service(self) -> CommitteeAdminService:
+        return self.committee_admin_service_factory(self.db_path)
 
     @property
     def resource_access_queries(self) -> ResourceAccessQueryFactory:
@@ -103,15 +124,15 @@ class RequestContext:
 
     @property
     def authentication_repository(self) -> AuthenticationRepository:
-        return AuthenticationRepository(self.db_path)
+        return self.authentication_repository_factory(self.db_path)
 
     @property
     def authorization_service(self) -> AuthorizationService:
-        return AuthorizationService(self.db_path)
+        return self.authorization_service_factory(self.db_path)
 
     @property
     def local_auth_service(self) -> LocalAuthService:
-        return LocalAuthService(
+        return self.local_auth_service_factory(
             self.db_path,
             session_ttl=self.session_ttl,
             settings=self.runtime_settings,
@@ -119,11 +140,7 @@ class RequestContext:
 
     @property
     def notification_service(self) -> NotificationService:
-        return NotificationService(
-            self.db_path,
-            external_delivery_enabled=self.runtime_policy.external_notifications_enabled(),
-            settings=self.runtime_settings,
-        )
+        return self.notification_service_factory(self.db_path)
 
     @property
     def calendar_service(self) -> CalendarService:
@@ -133,13 +150,13 @@ class RequestContext:
     def plan_consequence_service(self) -> PlanConsequenceService:
         return PlanConsequenceService(
             self.db_path,
-            self.notification_service,
-            self.calendar_service,
+            notification_service=self.notification_service,
+            calendar_service=self.calendar_service,
         )
 
     @property
     def absence_service(self) -> AbsenceService:
-        return AbsenceService(self.db_path, self.notification_service)
+        return AbsenceService(self.db_path, notification_service=self.notification_service)
 
     @property
     def exam_protocol_service(self) -> ExamProtocolService:
@@ -151,15 +168,23 @@ class RequestContext:
 
     @property
     def exam_day_closure_service(self) -> ExamDayClosureService:
-        return ExamDayClosureService(self.db_path, self.notification_service)
+        return ExamDayClosureService(self.db_path, notification_service=self.notification_service)
 
     @property
     def exam_round_lifecycle_service(self) -> ExamRoundLifecycleService:
-        return ExamRoundLifecycleService(self.db_path, self.notification_service)
+        return ExamRoundLifecycleService(
+            self.db_path, notification_service=self.notification_service
+        )
 
     @property
     def read_application(self) -> ReadApplication:
-        return ReadApplication(self.db_path)
+        return ReadApplication(
+            self.db_path,
+            ApplicationServices(
+                authentication_factory=self.authentication_repository_factory,
+                authorization_factory=self.authorization_service_factory,
+            ),
+        )
 
     @property
     def session_token(self) -> str | None:

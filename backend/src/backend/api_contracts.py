@@ -923,6 +923,7 @@ class ExamVenueResponse(BaseModel):
     id: int
     scope: str
     committee_id: int | None
+    committee_name: str | None = None
     name: str
     street: str
     postal_code: str

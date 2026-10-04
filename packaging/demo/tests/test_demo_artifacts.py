@@ -10,8 +10,9 @@ from pathlib import Path
 
 from backend.application.exam_venue_api import ExamVenueApi
 from backend.application.repositories import ResourceRepository
-from backend.identity.auth import AuthenticationRepository
+from backend.composition import notification_service as compose_notification_service
 from backend.identity.authorization import AuthorizationScope
+from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.persistence.models import CANDIDATE
 from demo.artifacts import (
     RUNTIME_CONTRACT,
@@ -54,7 +55,12 @@ class DemoArtifactTests(unittest.TestCase):
                 product_tag=self.product_tag,
                 product_commit=self.product_commit,
             )
-            api = ExamVenueApi(database)
+            api = ExamVenueApi(
+                database,
+                notification_service_factory=lambda db_path: compose_notification_service(
+                    db_path, external_delivery_enabled=False
+                ),
+            )
             athens = api.list_venues(self._scope(1))
             feenwald = api.list_venues(self._scope(2))
 
@@ -244,7 +250,7 @@ class DemoArtifactTests(unittest.TestCase):
             data_dir = root / "data"
             initialize_workdir(seed_db, seed_manifest, data_dir)
             database = data_dir / "lzug.sqlite"
-            credentials = AuthenticationRepository(database).create_session(1)
+            credentials = SQLiteAuthenticationRepository(database).create_session(1)
             ResourceRepository(database).update(
                 CANDIDATE, candidate["id"], {"last_name": "Geändert"}
             )
@@ -267,7 +273,9 @@ class DemoArtifactTests(unittest.TestCase):
                 "Prüfungszentrum am Zappeion (Demo)",
                 self._scalar(database, "SELECT name FROM exam_venue WHERE id = 1"),
             )
-            self.assertIsNone(AuthenticationRepository(database).authenticate(credentials.token))
+            self.assertIsNone(
+                SQLiteAuthenticationRepository(database).authenticate(credentials.token)
+            )
             self.assertEqual(sha256_file(seed_db), sha256_file(database))
 
     def test_runtime_validation_fails_closed_for_mismatched_product(self) -> None:

@@ -6,9 +6,9 @@ from unittest.mock import patch
 from icalendar import Calendar
 from sqlalchemy import select, text
 
-from backend.identity.auth import AuthenticationRepository
-from backend.identity.authorization import AuthorizationService
+from backend.composition import authorization_service
 from backend.integrations.calendar import CalendarService
+from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.persistence.database import connect, session_scope
 from backend.persistence.models import (
     CalendarEvent,
@@ -23,11 +23,11 @@ from backend.tests.helpers import ApiServer, TempDatabase, assert_status
 
 class CalendarServiceTests(unittest.TestCase):
     def _scope(self, db_path):
-        authentication = AuthenticationRepository(db_path)
+        authentication = SQLiteAuthenticationRepository(db_path)
         credentials = authentication.create_session(1)
         context = authentication.authenticate(credentials.token)
         assert context is not None
-        return AuthorizationService(db_path).scope(context)
+        return authorization_service(db_path).scope(context)
 
     def _confirmed_database(self):
         database = TempDatabase()
@@ -349,7 +349,7 @@ class CalendarApiTests(unittest.TestCase):
             status, events = api.request("GET", "/api/calendar/events")
             assert_status(status, 200)
             event_id = events["items"][0]["id"]
-            other_credentials = AuthenticationRepository(db_path).create_session(2)
+            other_credentials = SQLiteAuthenticationRepository(db_path).create_session(2)
             status, _headers, _body = api.request_raw(
                 "GET",
                 f"/api/calendar/events/{event_id}.ics",

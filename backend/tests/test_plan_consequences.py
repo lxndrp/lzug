@@ -9,8 +9,8 @@ from unittest.mock import patch
 
 from sqlalchemy import select
 
-from backend.identity.auth import AuthenticationRepository
 from backend.integrations.calendar import CalendarService
+from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.persistence.database import session_scope
 from backend.persistence.models import (
     CalendarEvent,
@@ -25,7 +25,18 @@ from backend.persistence.models import (
 )
 from backend.planning import ConfirmedPlanChange, PlanningService
 from backend.planning.plan_consequences import PlanConsequenceService
-from backend.tests.helpers import ApiServer, TempDatabase, assert_status
+from backend.tests.helpers import (
+    ApiServer,
+    TempDatabase,
+    assert_status,
+    notification_service_for_test,
+)
+
+
+def plan_consequence_service_for_test(db_path):
+    return PlanConsequenceService(
+        db_path, notification_service=notification_service_for_test(db_path)
+    )
 
 
 class PlanConsequenceServiceTests(unittest.TestCase):
@@ -91,7 +102,7 @@ class PlanConsequenceServiceTests(unittest.TestCase):
         original_inputs = deepcopy((before, after))
         revision = ConfirmedPlanRevision(exam_round_id=1, actor_member_id=1)
         with TempDatabase() as db_path, session_scope(db_path) as session:
-            service = PlanConsequenceService(db_path)
+            service = plan_consequence_service_for_test(db_path)
             tasks, scope = service._derive_tasks(session, revision, before, after)
             reversed_before, reversed_after = deepcopy((before, after))
             reversed_before["exam_days"][0]["assignments"].reverse()
@@ -132,7 +143,7 @@ class PlanConsequenceServiceTests(unittest.TestCase):
                 session.add(revision)
                 session.flush()
                 revision_id = revision.id
-            service = PlanConsequenceService(db_path)
+            service = plan_consequence_service_for_test(db_path)
             first = service.process_revision(revision_id)
             second = service.process_revision(revision_id)
             self.assertEqual("permanently_failed", first["derivation_status"])
@@ -175,7 +186,7 @@ class PlanConsequenceServiceTests(unittest.TestCase):
                 actor_member_id=1,
             )
 
-            service = PlanConsequenceService(db_path)
+            service = plan_consequence_service_for_test(db_path)
             first = service.process_revision(revision["id"])
             second = service.process_revision(revision["id"])
 
@@ -229,7 +240,7 @@ class PlanConsequenceServiceTests(unittest.TestCase):
                 actor_member_id=1,
             )
 
-            result = PlanConsequenceService(db_path).process_revision(revision["id"])
+            result = plan_consequence_service_for_test(db_path).process_revision(revision["id"])
 
         self.assertEqual(0, result["processed"])
         self.assertEqual(0, result["problems"])
@@ -288,7 +299,7 @@ class PlanConsequenceServiceTests(unittest.TestCase):
                 actor_member_id=1,
             )
 
-            PlanConsequenceService(db_path).process_revision(revision["id"])
+            plan_consequence_service_for_test(db_path).process_revision(revision["id"])
             with session_scope(db_path) as session:
                 old = session.get(CalendarEvent, old_event_id)
                 new = session.scalars(
@@ -328,7 +339,7 @@ class PlanConsequenceServiceTests(unittest.TestCase):
                 ConfirmedPlanChange(changed, "Unabhängige Fehlergrenze prüfen"),
                 actor_member_id=1,
             )
-            service = PlanConsequenceService(db_path)
+            service = plan_consequence_service_for_test(db_path)
 
             with patch.object(service.calendar, "sync_round", side_effect=OSError("offline")):
                 failed = service.process_revision(revision["id"])
@@ -364,7 +375,7 @@ class PlanConsequenceServiceTests(unittest.TestCase):
                 ConfirmedPlanChange(first_change, "Erste schnelle Änderung"),
                 actor_member_id=1,
             )
-            service = PlanConsequenceService(db_path)
+            service = plan_consequence_service_for_test(db_path)
             service_now = datetime.now(UTC)
             first = service.process_revision(first_revision["id"], now=service_now)
             current = planning.get_confirmed_plan(1)
@@ -408,7 +419,7 @@ class PlanConsequenceServiceTests(unittest.TestCase):
                 ConfirmedPlanChange(changed, "Kalenderfolge zunächst verzögern"),
                 actor_member_id=1,
             )
-            service = PlanConsequenceService(db_path)
+            service = plan_consequence_service_for_test(db_path)
             with patch.object(service.calendar, "sync_round", side_effect=OSError("offline")):
                 first = service.process_revision(first_revision["id"])
 
@@ -455,7 +466,7 @@ class PlanConsequenceServiceTests(unittest.TestCase):
                 ConfirmedPlanChange(changed, "Dauerfehler nachvollziehen"),
                 actor_member_id=1,
             )
-            service = PlanConsequenceService(db_path)
+            service = plan_consequence_service_for_test(db_path)
             started = datetime.now(UTC)
             with patch.object(service.calendar, "sync_round", side_effect=OSError("offline")):
                 service.process_revision(revision["id"], now=started)
@@ -485,8 +496,8 @@ class PlanConsequenceApiTests(unittest.TestCase):
                 ConfirmedPlanChange(original, "Technischen Wiederanlauf prüfen"),
                 actor_member_id=1,
             )
-            PlanConsequenceService(db_path).process_revision(revision["id"])
-            authentication = AuthenticationRepository(db_path)
+            plan_consequence_service_for_test(db_path).process_revision(revision["id"])
+            authentication = SQLiteAuthenticationRepository(db_path)
             examiner = authentication.create_session(2)
             deputy = authentication.create_session(3)
 

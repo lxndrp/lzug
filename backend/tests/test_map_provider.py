@@ -14,8 +14,13 @@ from backend.integrations.map_provider import (
     NominatimGeocoder,
 )
 from backend.persistence.database import session_scope
-from backend.planning.exam_venues import ExamVenueService, room_is_usable_for_committee
-from backend.tests.helpers import ApiServer, TempDatabase, TestLzugHandler
+from backend.planning.exam_venues import room_is_usable_for_committee
+from backend.tests.helpers import (
+    ApiServer,
+    TempDatabase,
+    TestLzugHandler,
+    exam_venue_service_for_test,
+)
 
 
 class _Response:
@@ -143,7 +148,7 @@ class MapProviderTests(unittest.TestCase):
 
     def test_address_change_marks_existing_coordinates_for_review(self) -> None:
         with TempDatabase() as db_path:
-            service = ExamVenueService(db_path)
+            service = exam_venue_service_for_test(db_path)
             venue = service.create_venue(
                 {
                     "scope": "committee",
@@ -176,7 +181,7 @@ class MapProviderTests(unittest.TestCase):
 
     def test_active_mode_blocks_unconfirmed_rooms_from_planning(self) -> None:
         with TempDatabase() as db_path:
-            service = ExamVenueService(db_path)
+            service = exam_venue_service_for_test(db_path)
             venue = service.create_venue(
                 {
                     "scope": "committee",
@@ -245,7 +250,7 @@ class MapProviderTests(unittest.TestCase):
                     f"/api/exam-venues/{venue['id']}/geocode",
                     {"expected_revision": venue["revision"]},
                 )
-            unchanged = ExamVenueService(db_path).get_venue(venue["id"])
+            unchanged = exam_venue_service_for_test(db_path).get_venue(venue["id"])
 
         self.assertEqual(200, status)
         self.assertEqual({"latitude": 53.55, "longitude": 9.99, "source": "nominatim"}, candidate)
@@ -268,7 +273,7 @@ class MapProviderTests(unittest.TestCase):
             )
 
         with TempDatabase() as db_path:
-            venue = ExamVenueService(db_path).create_venue(
+            venue = exam_venue_service_for_test(db_path).create_venue(
                 {
                     "scope": "committee",
                     "committee_id": 1,
@@ -348,7 +353,7 @@ class MapProviderTests(unittest.TestCase):
                     f"/api/exam-venues/{venue['id']}/geocode",
                     {"expected_revision": venue["revision"]},
                 )
-            unchanged = ExamVenueService(db_path).get_venue(venue["id"])
+            unchanged = exam_venue_service_for_test(db_path).get_venue(venue["id"])
 
         self.assertEqual(503, status)
         self.assertEqual("map_provider_unavailable", error["error"]["code"])
@@ -385,7 +390,7 @@ class MapProviderTests(unittest.TestCase):
                     f"/api/exam-venues/{venue['id']}/geocode",
                     {"expected_revision": venue["revision"]},
                 )
-            unchanged = ExamVenueService(db_path).get_venue(venue["id"])
+            unchanged = exam_venue_service_for_test(db_path).get_venue(venue["id"])
 
         self.assertEqual(409, status)
         self.assertEqual("map_provider_disabled", error["error"]["code"])

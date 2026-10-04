@@ -16,17 +16,19 @@ from unittest.mock import patch
 import pyotp
 from cryptography.fernet import Fernet
 
-from backend.identity.auth import AuthenticationRepository
-from backend.identity.local_auth import PASSWORD_HASHER, LocalAuthService, authentication_key
+from backend.composition import local_auth_service
+from backend.identity.auth import SESSION_TTL
+from backend.identity.local_auth import PASSWORD_HASHER
 from backend.integrations.document_storage import FilesystemDocumentStorage
 from backend.integrations.documents import DocumentService
 from backend.operations.artifact_packages import ClearArtifactService
 from backend.operations.backup_restore import FULL_EXPORT_SCHEMA, ArtifactError
+from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.persistence.database import PersistencePaths, database_readiness, initialize
-from backend.planning.exam_venues import ExamVenueService
+from backend.persistence.local_auth import SQLiteLocalAuthenticationKey
 from backend.runtime import Operation, RuntimeConflictError, RuntimeCoordinator
 from backend.tests.fixture_data import DEMO_ROLES
-from backend.tests.helpers import development_seed_sql
+from backend.tests.helpers import development_seed_sql, exam_venue_service_for_test
 
 PASSWORD = "correct horse battery staple"
 TOTP_SECRET = "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP"
@@ -72,7 +74,7 @@ class BackupRestoreTests(unittest.TestCase):
 
     def prepare_source(self) -> tuple[PersistencePaths, ClearArtifactService, str]:
         paths, service = self.runtime("source", seed=True)
-        key = authentication_key(paths.database)
+        key = SQLiteLocalAuthenticationKey(paths.database).get_key()
         encrypted = Fernet(key).encrypt(TOTP_SECRET.encode("ascii")).decode("ascii")
         with closing(sqlite3.connect(paths.database)) as connection:
             connection.execute(
@@ -89,7 +91,7 @@ class BackupRestoreTests(unittest.TestCase):
                 ),
             )
             connection.commit()
-        credentials = AuthenticationRepository(paths.database).create_session(1)
+        credentials = SQLiteAuthenticationRepository(paths.database).create_session(1)
         DocumentService(FilesystemDocumentStorage(paths.documents), paths.database).create(
             b"document-content",
             original_filename="evidence.txt",
@@ -157,7 +159,7 @@ class BackupRestoreTests(unittest.TestCase):
 
     def test_exam_venue_data_preserves_identity_in_export_backup_and_restore(self) -> None:
         source_paths, source = self.runtime("venue-source", seed=True)
-        venues = ExamVenueService(source_paths.database)
+        venues = exam_venue_service_for_test(source_paths.database)
         venue = venues.create_venue(
             {
                 "scope": "committee",
@@ -254,12 +256,14 @@ class BackupRestoreTests(unittest.TestCase):
         self.assertTrue(coordinator.snapshot()["ready"])
         self.assertEqual("succeeded", coordinator.snapshot()["job"]["status"])
         self.assertGreaterEqual(report["reset_security_state"]["sessions"], 1)
-        self.assertIsNone(AuthenticationRepository(target_paths.database).authenticate(old_session))
+        self.assertIsNone(
+            SQLiteAuthenticationRepository(target_paths.database).authenticate(old_session)
+        )
         now = datetime.now(UTC)
         code = pyotp.TOTP(TOTP_SECRET).at(int(now.timestamp()))
-        login = LocalAuthService(target_paths.database).login(
-            DEMO_ROLES["chair"]["account_email"], PASSWORD, code, now=now
-        )
+        login = local_auth_service(
+            target_paths.database, session_ttl=SESSION_TTL, settings=None
+        ).login(DEMO_ROLES["chair"]["account_email"], PASSWORD, code, now=now)
         self.assertEqual(1, login.account_id)
 
     def test_replacement_requires_external_safety_artifact_evidence(self) -> None:

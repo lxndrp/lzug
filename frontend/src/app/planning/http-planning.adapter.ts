@@ -10,6 +10,16 @@ import type { PlanningPort } from './planning.port';
 export class HttpPlanningAdapter implements PlanningPort {
   private readonly api = inject(PlanningApiService);
 
+  loadPlanning(roundId: number) {
+    return this.api.loadPlanningFeature(roundId).pipe(
+      map(({ round, summary, board }) => ({
+        round: withoutHttpLinks(round),
+        summary: withoutHttpLinks(summary),
+        board: withoutHttpLinks(board),
+      })),
+    );
+  }
+
   savePlanningSettings(...args: Parameters<PlanningPort['savePlanningSettings']>) {
     return this.api.savePlanningSettings(...args).pipe(map(withoutHttpLinks));
   }
@@ -30,27 +40,33 @@ export class HttpPlanningAdapter implements PlanningPort {
     return this.api.generateCandidateExamDays(...args).pipe(map(withoutHttpLinks));
   }
 
-  updateCandidateExamDay(...args: Parameters<PlanningPort['updateCandidateExamDay']>) {
-    return this.api.updateCandidateExamDay(...args).pipe(map(withoutHttpLinks));
+  updateCandidateExamDay(
+    id: number,
+    payload: Parameters<PlanningPort['updateCandidateExamDay']>[1],
+  ) {
+    return this.api.updateCandidateExamDay(id, payload).pipe(map(withoutHttpLinks));
   }
 
   saveMemberAvailability(...args: Parameters<PlanningPort['saveMemberAvailability']>) {
     return this.api.saveMemberAvailability(...args).pipe(map(withoutHttpLinks));
   }
 
-  generateProposal() {
-    return this.api.generateProposal().pipe(map(withoutHttpLinks));
+  generateProposal(roundId: number) {
+    return this.api.generateProposal(roundId).pipe(map(withoutHttpLinks));
   }
 
-  confirmPlan() {
-    return this.api.confirmPlan().pipe(map(withoutHttpLinks));
+  confirmPlan(roundId: number) {
+    return this.api.confirmPlan(roundId).pipe(map(withoutHttpLinks));
   }
 
-  getPlanningProposal() {
-    return this.api.getPlanningProposal().pipe(map(withoutHttpLinks));
+  getPlanningProposal(roundId: number) {
+    return this.api.getPlanningProposal(roundId).pipe(map(withoutHttpLinks));
   }
 
-  savePlanningProposal(proposal: Parameters<PlanningPort['savePlanningProposal']>[0]) {
-    return this.api.savePlanningProposal(proposal).pipe(map(withoutHttpLinks));
+  savePlanningProposal(
+    roundId: number,
+    proposal: Parameters<PlanningPort['savePlanningProposal']>[1],
+  ) {
+    return this.api.savePlanningProposal(roundId, proposal).pipe(map(withoutHttpLinks));
   }
 }

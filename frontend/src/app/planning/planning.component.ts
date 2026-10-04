@@ -19,17 +19,16 @@ import {
   AvailabilityValue,
   CandidateDayGenerationResult,
   CandidateExamDay,
-  CommitteeMember,
   EditablePlanningProposal,
-  ExamRound,
-  ExamRoundUpdate,
-  Location,
-  MasterData,
+  PlanningMember as CommitteeMember,
+  PlanningRound as ExamRound,
+  PlanningRoundUpdate,
+  PlanningLocation as Location,
   PlanningBoard,
   PlanningResult,
   PlanningValidationViolation,
-  RoundSummary,
-} from '../api/api.models';
+  PlanningSummary as RoundSummary,
+} from './planning.models';
 import { appIcons } from '../app-icons';
 import { AppIconDirective } from '../app-icon.directive';
 import { type SelectOption, selectStringify, selectValues } from '../select-options';
@@ -49,7 +48,7 @@ export type {
   PlanningSettingsPayload,
 } from './planning-view-effect';
 
-export type RoundUpdatePayload = ExamRoundUpdate;
+export type RoundUpdatePayload = PlanningRoundUpdate;
 /** Transient UI state for one optimistic availability update. */
 export type AvailabilityCellState = {
   status: 'saving' | 'saved' | 'error';
@@ -95,7 +94,7 @@ export class PlanningComponent implements OnChanges, OnDestroy {
   @Input() round: ExamRound | null = null;
   @Input() summary: RoundSummary | null = null;
   @Input() board: PlanningBoard | null = null;
-  @Input() masterData: MasterData | null = null;
+  @Input() masterData: PlanningBoard | null = null;
   @Input() actionBusy = false;
   @Input() candidateDayGenerationResult: CandidateDayGenerationResult | null = null;
   @Input() planningResult: PlanningResult | null = null;

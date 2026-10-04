@@ -130,12 +130,20 @@ assert.match(componentSpec, /SCHEDULING_OVERVIEW_PORT/);
 const planningWorkflowPath = path.join(root, 'planning', 'planning-workflow.service.ts');
 const planningPortPath = path.join(root, 'planning', 'planning.port.ts');
 const planningAdapterPath = path.join(root, 'planning', 'http-planning.adapter.ts');
+const planningModelsPath = path.join(root, 'planning', 'planning.models.ts');
+const planningApiPath = path.join(root, 'api', 'planning-api.service.ts');
 const planningSpecPath = path.join(root, 'planning', 'planning-workflow.service.spec.ts');
-const [planningWorkflow, planningPort, planningAdapter, planningSpec] = await Promise.all(
-  [planningWorkflowPath, planningPortPath, planningAdapterPath, planningSpecPath].map((file) =>
-    readFile(file, 'utf8'),
-  ),
-);
+const [planningWorkflow, planningPort, planningAdapter, planningModels, planningApi, planningSpec] =
+  await Promise.all(
+    [
+      planningWorkflowPath,
+      planningPortPath,
+      planningAdapterPath,
+      planningModelsPath,
+      planningApiPath,
+      planningSpecPath,
+    ].map((file) => readFile(file, 'utf8')),
+  );
 
 assert.match(planningWorkflow, /PLANNING_PORT/);
 assert.doesNotMatch(
@@ -144,7 +152,29 @@ assert.doesNotMatch(
   'planning workflows must not depend directly on transport services',
 );
 assert.doesNotMatch(planningPort, /HttpClient|fetch\s*\(|types\.gen|['"]\/api\//);
+assert.doesNotMatch(
+  importsOf(planningPort + '\n' + planningWorkflow),
+  /(?:^|\/)(?:api\.models|planning\.models\.api)|WithoutHttpLinks|without-http-links/,
+  'planning ports and workflows use feature-owned models rather than API/HAL types',
+);
+assert.match(planningPort, /loadPlanning\(roundId: number\)/);
+assert.match(planningPort, /generateProposal\(roundId: number\)/);
+assert.match(planningPort, /confirmPlan\(roundId: number\)/);
+assert.match(planningPort, /savePlanningProposal\(\s*roundId: number,\s*proposal:/);
+assert.match(planningWorkflow, /savePlanningProposal\(roundId, command\)/);
+assert.doesNotMatch(
+  planningWorkflow,
+  /ApplicationWorkspaceService|workspace\.board\.update|workspace\.refresh\(/,
+  'planning state does not write through or broadly refresh the application workspace',
+);
+assert.match(planningModels, /export type PlanningSnapshot/);
 assert.match(planningAdapter, /PlanningApiService/);
+assert.match(planningAdapter, /loadPlanning\(roundId: number\)/);
+assert.doesNotMatch(
+  planningApi,
+  /RoundContextService|roundContext\.roundId\(\)/,
+  'planning API operations receive their round context explicitly',
+);
 assert.match(planningSpec, /PLANNING_PORT/);
 assert.doesNotMatch(
   planningSpec,
@@ -409,7 +439,6 @@ assert.equal(
 
 const examDayFeaturePath = path.join(root, 'exam-day', 'exam-day.component.ts');
 const examDayFacadePath = path.join(root, 'exam-day', 'exam-day.facade.ts');
-const examDayApplicationPath = path.join(root, 'exam-day', 'exam-day.application.ts');
 const examDayPortPath = path.join(root, 'exam-day', 'exam-day.port.ts');
 const examDayModelsPath = path.join(root, 'exam-day', 'exam-day.models.ts');
 const examDaySpecPath = path.join(root, 'exam-day', 'exam-day.component.spec.ts');
@@ -418,7 +447,6 @@ const examDayAdapterSpecPath = path.join(root, 'api', 'http-exam-day.adapter.spe
 const [
   examDayFeature,
   examDayFacade,
-  examDayApplication,
   examDayPort,
   examDayModels,
   examDaySpec,
@@ -428,7 +456,6 @@ const [
   [
     examDayFeaturePath,
     examDayFacadePath,
-    examDayApplicationPath,
     examDayPortPath,
     examDayModelsPath,
     examDaySpecPath,
@@ -438,6 +465,7 @@ const [
 );
 assert.match(importsOf(examDayFeature), /exam-day\.facade/);
 assert.match(importsOf(examDayFeature), /exam-day\.models/);
+assert.match(examDayFeature, /providers:\s*\[\s*ExamDayFacade\s*\]/);
 assert.doesNotMatch(
   importsOf(examDayFeature),
   /ExamDayApiService|exam-day-api\.service|ApiClient|api-client\.service|api\.models/,
@@ -448,8 +476,7 @@ assert.doesNotMatch(
   /\bHttpClient\b|\bfetch\s*\(/,
   'exam-day feature performs no HTTP directly',
 );
-assert.match(examDayFacade, /ExamDayApplication/);
-assert.deepEqual(relativeImportsOf(examDayApplication), ['./exam-day.port']);
+assert.doesNotMatch(examDayFacade, /ExamDayApplication/);
 assert.deepEqual(relativeImportsOf(examDayPort), ['./exam-day.models']);
 assert.doesNotMatch(
   importsOf(examDayPort),
@@ -608,6 +635,7 @@ assert.deepEqual(
   [
     '../application/application-error',
     '../auth/auth.service',
+    '../auth/session-scope.service',
     './exam-result.facade',
     './exam-result.models',
     './exam-result.voting',
@@ -754,8 +782,16 @@ assert.match(importsOf(committeeComponent), /master-data\.models/);
 assert.match(importsOf(candidatesRoute), /master-data\.models/);
 assert.match(importsOf(committeeRoute), /master-data\.models/);
 assert.match(masterDataWorkflow, /MASTER_DATA_PORT/);
-assert.match(masterDataWorkflow, /this\.workspace\.candidateWorkspace\(\)/);
-assert.match(masterDataWorkflow, /this\.workspace\.committeeWorkspace\(\)/);
+assert.match(
+  masterDataWorkflow,
+  /readonly candidateWorkspace = signal<CandidateWorkspace \| null>/,
+);
+assert.match(
+  masterDataWorkflow,
+  /readonly committeeWorkspace = signal<CommitteeWorkspace \| null>/,
+);
+assert.match(masterDataWorkflow, /loadCandidateWorkspace\(roundId\)/);
+assert.match(masterDataWorkflow, /loadCommitteeWorkspace\(\)/);
 assert.doesNotMatch(
   importsOf(masterDataWorkflow),
   /MasterDataApiService|master-data-api\.service|ApiClient|api-client\.service/,
@@ -766,12 +802,10 @@ assert.doesNotMatch(
   /first_name|last_name|committee_id|candidate_id|exam_round_id|roundCandidate\.requires_mep/,
   'master-data workflow consumes feature-owned workspace models, not API-shaped records',
 );
-assert.match(workspaceAdapter, /candidateWorkspace:\s*toCandidateWorkspace/);
-assert.match(workspaceAdapter, /committeeWorkspace:\s*toCommitteeWorkspace/);
-assert.match(workspaceAdapter, /function toCandidateWorkspace\(/);
-assert.match(workspaceAdapter, /function toCommitteeWorkspace\(/);
-assert.match(workspaceAdapterSpec, /candidateWorkspace:/);
-assert.match(workspaceAdapterSpec, /committeeWorkspace:/);
+assert.doesNotMatch(workspaceAdapter, /candidateWorkspace|committeeWorkspace/);
+assert.doesNotMatch(workspacePort, /CandidateWorkspace|CommitteeWorkspace/);
+assert.match(masterDataAdapter, /loadCandidateWorkspace\(/);
+assert.match(masterDataAdapter, /loadCommitteeWorkspace\(/);
 assert.deepEqual(relativeImportsOf(masterDataPort), ['./master-data.models']);
 assert.doesNotMatch(
   importsOf(masterDataPort),

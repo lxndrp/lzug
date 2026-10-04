@@ -11,10 +11,14 @@ import unittest
 from contextlib import closing, redirect_stdout
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
 from backend.application.admin import EXIT_OK, EXIT_TOKEN_INVALID, AdminServices, _run_command
 from backend.identity.admin_service import AdminOperationError, IssuedAuthToken, OperatorAuthService
-from backend.identity.auth import AuthenticationRepository
+from backend.persistence.auth import (
+    SQLiteAuthenticationRepository,
+    SQLiteOperatorAuthUnitOfWorkFactory,
+)
 from backend.persistence.database import PersistencePaths
 from backend.tests.helpers import TempDatabase, run_admin
 
@@ -49,6 +53,16 @@ class _RecordingDependency:
 
 
 class AdminAuthenticationTests(unittest.TestCase):
+    def test_bootstrap_maps_unexpected_storage_failures_to_persistence_error(self) -> None:
+        uow = MagicMock()
+        uow.__enter__.return_value.account_exists.side_effect = RuntimeError("storage failed")
+        service = OperatorAuthService(SimpleNamespace(unit_of_work=lambda: uow))
+
+        with self.assertRaises(AdminOperationError) as raised:
+            service.bootstrap("operator@example.invalid")
+
+        self.assertEqual("persistence_error", raised.exception.code)
+
     def test_removed_legacy_module_entrypoints_cannot_access_data(self) -> None:
         with TempDatabase(with_seed=False) as db_path:
             environment = os.environ.copy()
@@ -70,7 +84,7 @@ class AdminAuthenticationTests(unittest.TestCase):
 
     def test_bootstrap_is_once_only_and_token_is_hashed_and_single_use(self) -> None:
         with TempDatabase(with_seed=False) as db_path:
-            service = OperatorAuthService(db_path)
+            service = OperatorAuthService(SQLiteOperatorAuthUnitOfWorkFactory(db_path))
             created_at = datetime(2026, 8, 10, 10, 0, tzinfo=UTC)
             issued = service.bootstrap("Operator@Example.Invalid", now=created_at)
 
@@ -93,9 +107,45 @@ class AdminAuthenticationTests(unittest.TestCase):
             with self.assertRaisesRegex(AdminOperationError, "without accounts"):
                 service.bootstrap("second@example.invalid", now=created_at)
 
+    def test_account_creation_rolls_back_when_token_issuance_fails(self) -> None:
+        with TempDatabase(with_seed=False) as db_path:
+            service = OperatorAuthService(SQLiteOperatorAuthUnitOfWorkFactory(db_path))
+            with patch(
+                "backend.identity.admin_service.secrets.token_urlsafe",
+                side_effect=RuntimeError("token generation failed"),
+            ):
+                with self.assertRaisesRegex(AdminOperationError, "bootstrap failed"):
+                    service.bootstrap("operator@example.invalid")
+
+            with closing(sqlite3.connect(db_path)) as connection:
+                self.assertEqual(
+                    0,
+                    connection.execute(
+                        "SELECT count(*) FROM user_account WHERE email = ?",
+                        ("operator@example.invalid",),
+                    ).fetchone()[0],
+                )
+
+            service.bootstrap("operator@example.invalid")
+            with patch(
+                "backend.identity.admin_service.secrets.token_urlsafe",
+                side_effect=RuntimeError("token generation failed"),
+            ):
+                with self.assertRaisesRegex(AdminOperationError, "Invitation could not be created"):
+                    service.invite("member@example.invalid")
+
+            with closing(sqlite3.connect(db_path)) as connection:
+                self.assertEqual(
+                    0,
+                    connection.execute(
+                        "SELECT count(*) FROM user_account WHERE email = ?",
+                        ("member@example.invalid",),
+                    ).fetchone()[0],
+                )
+
     def test_concurrent_bootstrap_can_create_only_one_operator(self) -> None:
         with TempDatabase(with_seed=False) as db_path:
-            service = OperatorAuthService(db_path)
+            service = OperatorAuthService(SQLiteOperatorAuthUnitOfWorkFactory(db_path))
             outcomes: list[object] = []
 
             def bootstrap() -> None:
@@ -118,7 +168,7 @@ class AdminAuthenticationTests(unittest.TestCase):
 
     def test_invitation_and_recovery_have_distinct_expiry_and_one_use_contracts(self) -> None:
         with TempDatabase(with_seed=False) as db_path:
-            service = OperatorAuthService(db_path)
+            service = OperatorAuthService(SQLiteOperatorAuthUnitOfWorkFactory(db_path))
             created_at = datetime(2026, 8, 10, 10, 0, tzinfo=UTC)
             bootstrap = service.bootstrap("operator@example.invalid", now=created_at)
             invitation = service.invite("member@example.invalid", now=created_at)
@@ -142,21 +192,25 @@ class AdminAuthenticationTests(unittest.TestCase):
 
     def test_disable_revokes_sessions_and_operator_has_no_domain_actor(self) -> None:
         with TempDatabase(with_seed=False) as db_path:
-            service = OperatorAuthService(db_path)
+            service = OperatorAuthService(SQLiteOperatorAuthUnitOfWorkFactory(db_path))
             issued = service.bootstrap("operator@example.invalid")
-            credentials = AuthenticationRepository(db_path).create_session(issued.account["id"])
+            credentials = SQLiteAuthenticationRepository(db_path).create_session(
+                issued.account["id"]
+            )
 
             account, revoked = service.disable(issued.account["id"])
 
             self.assertFalse(account["is_active"])
             self.assertEqual(1, revoked)
-            self.assertIsNone(AuthenticationRepository(db_path).authenticate(credentials.token))
+            self.assertIsNone(
+                SQLiteAuthenticationRepository(db_path).authenticate(credentials.token)
+            )
             self.assertIsNone(account["person_id"])
             self.assertTrue(account["is_operator"])
 
     def test_protocol_is_versioned_and_never_reflects_invalid_secret_input(self) -> None:
         with TempDatabase(with_seed=False) as db_path:
-            service = OperatorAuthService(db_path)
+            service = OperatorAuthService(SQLiteOperatorAuthUnitOfWorkFactory(db_path))
             secret = "not-a-real-token"
             output = io.BytesIO()
             stdout = io.TextIOWrapper(output, encoding="utf-8")
@@ -180,7 +234,7 @@ class AdminAuthenticationTests(unittest.TestCase):
 
     def test_protocol_success_exposes_a_token_only_for_an_issue_response(self) -> None:
         with TempDatabase(with_seed=False) as db_path:
-            service = OperatorAuthService(db_path)
+            service = OperatorAuthService(SQLiteOperatorAuthUnitOfWorkFactory(db_path))
             output = io.BytesIO()
             stdout = io.TextIOWrapper(output, encoding="utf-8")
             with redirect_stdout(stdout):
@@ -219,7 +273,7 @@ class AdminAuthenticationTests(unittest.TestCase):
 
     def test_committee_protocol_issues_invitation_once_and_replay_is_secret_free(self) -> None:
         with TempDatabase(with_seed=False) as db_path:
-            service = OperatorAuthService(db_path)
+            service = OperatorAuthService(SQLiteOperatorAuthUnitOfWorkFactory(db_path))
             request = {
                 "version": 1,
                 "command": "committee-bootstrap",
@@ -244,7 +298,11 @@ class AdminAuthenticationTests(unittest.TestCase):
             first_output = io.BytesIO()
             first_stdout = io.TextIOWrapper(first_output, encoding="utf-8")
             with redirect_stdout(first_stdout):
-                first_code = run(json.dumps(request).encode(), service=service)
+                first_code = run(
+                    json.dumps(request).encode(),
+                    service=service,
+                    paths=PersistencePaths(database=db_path),
+                )
             first_stdout.flush()
             first = json.loads(first_output.getvalue())
             token = first["result"]["invitations"][0]["token"]
@@ -252,7 +310,11 @@ class AdminAuthenticationTests(unittest.TestCase):
             replay_output = io.BytesIO()
             replay_stdout = io.TextIOWrapper(replay_output, encoding="utf-8")
             with redirect_stdout(replay_stdout):
-                replay_code = run(json.dumps(request).encode(), service=service)
+                replay_code = run(
+                    json.dumps(request).encode(),
+                    service=service,
+                    paths=PersistencePaths(database=db_path),
+                )
             replay_stdout.flush()
             replay = json.loads(replay_output.getvalue())
 
@@ -279,7 +341,7 @@ class AdminAuthenticationTests(unittest.TestCase):
                 }
 
         with TempDatabase(with_seed=False) as db_path:
-            service = OperatorAuthService(db_path)
+            service = OperatorAuthService(SQLiteOperatorAuthUnitOfWorkFactory(db_path))
             notifications = Notifications()
             output = io.BytesIO()
             stdout = io.TextIOWrapper(output, encoding="utf-8")
@@ -332,7 +394,7 @@ class AdminAuthenticationTests(unittest.TestCase):
                 }
 
         with TempDatabase(with_seed=False) as db_path:
-            service = OperatorAuthService(db_path)
+            service = OperatorAuthService(SQLiteOperatorAuthUnitOfWorkFactory(db_path))
             consequences = Consequences()
             output = io.BytesIO()
             stdout = io.TextIOWrapper(output, encoding="utf-8")

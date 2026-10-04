@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 from backend.identity.auth import AuthContext
 from backend.identity.authorization import AuthorizationScope
 from backend.integrations.map_provider import MapProviderConfig, NominatimGeocoder
+from backend.notifications.service import NotificationService
 from backend.persistence.database import DEFAULT_DB_PATH
 from backend.planning.exam_venues import ExamVenueService
 from backend.planning.venue_consequences import VenueConsequenceService
@@ -16,10 +18,18 @@ class ExamVenueApi:
     """Apply member, management, operator, and promotion visibility rules."""
 
     def __init__(
-        self, db_path: Path = DEFAULT_DB_PATH, map_provider: MapProviderConfig | None = None
+        self,
+        db_path: Path = DEFAULT_DB_PATH,
+        map_provider: MapProviderConfig | None = None,
+        *,
+        notification_service_factory: Callable[[Path], NotificationService],
     ):
-        self.service = ExamVenueService(db_path)
-        self.consequences = VenueConsequenceService(db_path)
+        self.service = ExamVenueService(
+            db_path, notification_service_factory=notification_service_factory
+        )
+        self.consequences = VenueConsequenceService(
+            db_path, notification_service=notification_service_factory(db_path)
+        )
         self.map_provider = map_provider or MapProviderConfig()
 
     def list_venues(self, scope: AuthorizationScope, auth: AuthContext | None = None):

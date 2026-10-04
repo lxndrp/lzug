@@ -18,7 +18,6 @@ import type {
 } from '../locations/locations.models';
 import { VenueWorkflowService } from '../locations/venue-workflow.service';
 import { LocationsWorkspaceFacade } from '../locations/locations-workspace.facade';
-import { ApplicationWorkspaceService } from '../shell/application-workspace.service';
 
 /** Route entry and aggregate command boundary for examination venues. */
 @Component({
@@ -29,8 +28,8 @@ import { ApplicationWorkspaceService } from '../shell/application-workspace.serv
       [actionBusy]="workflow.actionBusy()"
       [isOperator]="auth.session()?.is_operator ?? false"
       [readOnly]="demoSession() !== null"
-      [loading]="workspace.loading()"
-      [loadError]="workspace.masterDataError()"
+      [loading]="locations.loading()"
+      [loadError]="locations.loadError()"
       [detailVenueId]="detailVenueId()"
       [canCreateVenue]="canCreateVenue()"
       [geocodeCandidate]="workflow.geocodeCandidate()"
@@ -41,6 +40,7 @@ import { ApplicationWorkspaceService } from '../shell/application-workspace.serv
       (updateVenue)="updateVenue($event)"
       (geocodeVenue)="geocodeVenue($event)"
       (retryConsequences)="retryConsequences($event)"
+      (retryLoad)="locations.load()"
       (deleteVenue)="requestVenueDeletion($event)"
       (createRoom)="createRoom($event)"
       (updateRoom)="updateRoom($event)"
@@ -54,7 +54,6 @@ import { ApplicationWorkspaceService } from '../shell/application-workspace.serv
   `,
 })
 export class LocationsRouteComponent implements OnDestroy {
-  protected readonly workspace = inject(ApplicationWorkspaceService);
   protected readonly locations = inject(LocationsWorkspaceFacade);
   protected readonly workflow = inject(VenueWorkflowService);
   protected readonly auth = inject(AuthService);
@@ -70,18 +69,20 @@ export class LocationsRouteComponent implements OnDestroy {
     return session?.demo_role ? session : null;
   });
   constructor() {
-    this.workflow.activateView(this.viewId);
+    this.workflow.activateView(this.viewId, () => this.locations.load());
+    this.locations.activateView(this.viewId);
   }
 
   ngOnDestroy(): void {
     this.workflow.deactivateView(this.viewId);
+    this.locations.deactivateView(this.viewId);
   }
 
   protected readonly canCreateVenue = computed(
     () =>
       !this.demoSession() &&
       (this.auth.session()?.is_operator === true ||
-        this.workspace.masterData()?.examVenuesCanCreate === true),
+        this.locations.snapshot()?.canCreateVenue === true),
   );
 
   protected openVenue(id: number): void {

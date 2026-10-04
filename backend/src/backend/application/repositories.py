@@ -189,9 +189,8 @@ class ResourceRepository:
     ) -> dict[str, Any]:
         """Create a resource after applying its domain-specific write rules.
 
-        Person payloads are normalized, memberships are created through their
-        dedicated invariant-preserving path, and assignment conflicts are
-        rejected before a row is written.
+        Identity resources are intentionally excluded from this generic write
+        boundary. Assignment conflicts are rejected before a row is written.
 
         Raises:
             ValueError: If the payload violates a resource invariant or names
@@ -199,13 +198,11 @@ class ResourceRepository:
         """
         with self._authorization_session_scope(authorization_scope) as session:
             store = Store(session)
+            if resource in {COMMITTEE, PERSON, COMMITTEE_MEMBER}:
+                raise ValueError("Identity resources must be changed through Identity services")
             payload = self._authorize_mutation(store, resource, None, payload, authorization_scope)
             if resource in PLAN_AGGREGATE_RESOURCES:
                 raise ValueError(PLAN_AGGREGATE_WRITE_ERROR)
-            if resource == PERSON:
-                return store.create(PERSON, self._person_payload(payload))
-            if resource == COMMITTEE_MEMBER:
-                return self._create_membership(store, payload)
             if resource == EXAM_HALF_YEAR:
                 return store.create(EXAM_HALF_YEAR, self._exam_half_year_payload(payload))
             if resource == EXAM_ROUND:
@@ -226,21 +223,19 @@ class ResourceRepository:
     ) -> dict[str, Any] | None:
         """Update a resource and return ``None`` only when it does not exist.
 
-        Membership and assignment writes reuse the same validation as creation.
-        In particular, an assignment update cannot bypass person-wide conflict
-        checks by changing only one of its fields.
+        Assignment writes reuse the same validation as creation. In particular,
+        an assignment update cannot bypass person-wide conflict checks by
+        changing only one of its fields.
         """
         with self._authorization_session_scope(authorization_scope) as session:
             store = Store(session)
+            if resource in {COMMITTEE, PERSON, COMMITTEE_MEMBER}:
+                raise ValueError("Identity resources must be changed through Identity services")
             payload = self._authorize_mutation(
                 store, resource, resource_id, payload, authorization_scope
             )
             if resource in PLAN_AGGREGATE_RESOURCES:
                 raise ValueError(PLAN_AGGREGATE_WRITE_ERROR)
-            if resource == PERSON:
-                return store.update(PERSON, resource_id, self._person_payload(payload))
-            if resource == COMMITTEE_MEMBER:
-                return self._update_membership(store, resource_id, payload)
             if resource == EXAM_HALF_YEAR:
                 return store.update(
                     EXAM_HALF_YEAR, resource_id, self._exam_half_year_payload(payload)
@@ -255,57 +250,6 @@ class ResourceRepository:
                     "Round candidate assignments must be changed through the candidate endpoint"
                 )
             return store.update(resource, resource_id, payload)
-
-    def member_list(
-        self,
-        filters: dict[str, Any] | None = None,
-        scope: AuthorizationScope | None = None,
-    ) -> list[dict[str, Any]]:
-        with self.access_queries.snapshot() as queries:
-            return [dict(row) for row in queries.list_members(filters or {}, scope)]
-
-    def member_get(
-        self, member_id: int, scope: AuthorizationScope | None = None
-    ) -> dict[str, Any] | None:
-        with self.access_queries.snapshot() as queries:
-            row = queries.get_member(member_id, scope)
-            return dict(row) if row is not None else None
-
-    def create_membership(
-        self,
-        payload: dict[str, Any],
-        *,
-        authorization_scope: AuthorizationScope | None = None,
-    ) -> dict[str, Any]:
-        with self._authorization_session_scope(authorization_scope) as session:
-            store = Store(session)
-            payload = self._authorize_mutation(
-                store, COMMITTEE_MEMBER, None, payload, authorization_scope
-            )
-            return self._create_membership(store, payload)
-
-    def update_membership(
-        self,
-        member_id: int,
-        payload: dict[str, Any],
-        *,
-        authorization_scope: AuthorizationScope | None = None,
-    ) -> dict[str, Any] | None:
-        with self._authorization_session_scope(authorization_scope) as session:
-            store = Store(session)
-            payload = self._authorize_mutation(
-                store, COMMITTEE_MEMBER, member_id, payload, authorization_scope
-            )
-            return self._update_membership(store, member_id, payload)
-
-    def _person_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
-        normalized = dict(payload)
-        if "email" in normalized:
-            email = str(normalized["email"]).strip().lower()
-            if not email:
-                raise ValueError("Primary email is required")
-            normalized["email"] = email
-        return normalized
 
     def _exam_half_year_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
         normalized = dict(payload)
@@ -407,66 +351,6 @@ class ResourceRepository:
             raise ValueError("Round candidate assignment could not be created")
         return round_candidate
 
-    def _create_membership(self, store: Store, payload: dict[str, Any]) -> dict[str, Any]:
-        membership = dict(payload)
-        person_id = membership.get("person_id")
-        person_fields = {
-            key: membership.pop(key)
-            for key in ("first_name", "last_name", "email", "mobile")
-            if key in membership
-        }
-        if person_id is None:
-            required = {"first_name", "last_name", "email"}
-            if not required.issubset(person_fields):
-                raise ValueError(
-                    "Select an existing person or provide first name, last name and email"
-                )
-            person = store.create(PERSON, self._person_payload(person_fields))
-            person_id = person["id"]
-        elif store.get(PERSON, int(person_id)) is None:
-            raise ValueError("Person not found")
-        elif person_fields:
-            raise ValueError(
-                "Existing person contact data must be changed through the person endpoint"
-            )
-        membership["person_id"] = person_id
-        return self._member_view(store, store.create(COMMITTEE_MEMBER, membership))
-
-    def _update_membership(
-        self, store: Store, member_id: int, payload: dict[str, Any]
-    ) -> dict[str, Any] | None:
-        existing = store.get(COMMITTEE_MEMBER, member_id)
-        if existing is None:
-            return None
-        if {"first_name", "last_name", "email", "mobile"}.intersection(payload):
-            person_values = {
-                key: payload[key]
-                for key in ("first_name", "last_name", "email", "mobile")
-                if key in payload
-            }
-            store.update(PERSON, existing["person_id"], self._person_payload(person_values))
-        member_values = {
-            key: value
-            for key, value in payload.items()
-            if key not in {"first_name", "last_name", "email", "mobile"}
-        }
-        row = (
-            store.update(COMMITTEE_MEMBER, member_id, member_values) if member_values else existing
-        )
-        return self._member_view(store, row)
-
-    def _member_view(self, store: Store, member: dict[str, Any]) -> dict[str, Any]:
-        person = store.get(PERSON, member["person_id"])
-        return self._member_with_person(member, person)
-
-    @staticmethod
-    def _member_with_person(member: dict[str, Any], person: dict[str, Any]) -> dict[str, Any]:
-        return {
-            **member,
-            **{key: person[key] for key in ("first_name", "last_name", "email", "mobile")},
-            "email_verified_at": None,
-        }
-
     def _validate_assignment_conflict(
         self,
         store: Store,
@@ -524,6 +408,8 @@ class ResourceRepository:
     ) -> bool:
         with self._authorization_session_scope(authorization_scope) as session:
             store = Store(session)
+            if resource in {COMMITTEE, PERSON, COMMITTEE_MEMBER}:
+                raise ValueError("Identity resources must be changed through Identity services")
             self._authorize_mutation(store, resource, resource_id, {}, authorization_scope)
             if resource in PLAN_AGGREGATE_RESOURCES:
                 raise ValueError(PLAN_AGGREGATE_WRITE_ERROR)
@@ -952,8 +838,20 @@ class ResourceRepository:
             "candidates": {row["id"]: row for row in store.all(CANDIDATE)},
             "round_candidates": {row["id"]: row for row in store.all(ROUND_CANDIDATE)},
             "members": {
-                row["id"]: self._member_view(store, row) for row in store.all(COMMITTEE_MEMBER)
+                row["id"]: self._member_projection(store, row)
+                for row in store.all(COMMITTEE_MEMBER)
             },
+        }
+
+    @staticmethod
+    def _member_projection(store: Store, membership: dict[str, Any]) -> dict[str, Any]:
+        person = store.get(PERSON, membership["person_id"])
+        if person is None:
+            raise ValueError("Membership person not found")
+        return {
+            **membership,
+            **{key: person[key] for key in ("first_name", "last_name", "email", "mobile")},
+            "email_verified_at": None,
         }
 
     def _confirmed_plan_view(

@@ -23,7 +23,6 @@ import type { ExamRoundUpdate } from './generated/types.gen';
 import { Injectable, inject } from '@angular/core';
 
 import { ApiClient } from './api-client.service';
-import { RoundContextService } from './round-context.service';
 
 import { MasterDataApiService } from './master-data-api.service';
 
@@ -37,11 +36,6 @@ import { MasterDataApiService } from './master-data-api.service';
 @Injectable({ providedIn: 'root' })
 export class PlanningApiService {
   private readonly client = inject(ApiClient);
-  private readonly roundContext = inject(RoundContextService);
-
-  private get roundId(): number {
-    return this.roundContext.roundId();
-  }
 
   private readonly masterData = inject(MasterDataApiService);
 
@@ -49,19 +43,19 @@ export class PlanningApiService {
     return this.client.get<ApiRoot>('/api');
   }
 
-  getRoundSummary(roundId = this.roundId) {
+  getRoundSummary(roundId: number) {
     return this.client.get<RoundSummary>(`/api/round-summary?round_id=${roundId}`);
   }
 
-  getExamRound(roundId = this.roundId) {
+  getExamRound(roundId: number) {
     return this.client.get<ExamRound>(`/api/exam-rounds/${roundId}`);
   }
 
-  updateExamRound(payload: ExamRoundUpdate, roundId = this.roundId) {
+  updateExamRound(payload: ExamRoundUpdate, roundId: number) {
     return this.client.patch<ExamRound>(`/api/exam-rounds/${roundId}`, payload);
   }
 
-  requestAvailabilities(payload: AvailabilityRequest, roundId = this.roundId) {
+  requestAvailabilities(payload: AvailabilityRequest, roundId: number) {
     return this.updateExamRound(payload, roundId).pipe(
       switchMap(() =>
         this.client.post<ExamRound>(`/api/exam-rounds/${roundId}/request-availabilities`, {}),
@@ -73,7 +67,11 @@ export class PlanningApiService {
     return this.client.list<SchedulingOverviewItem>('/api/scheduling-overview');
   }
 
-  getPlanningBoard(roundId = this.roundId) {
+  getLocations() {
+    return this.client.list<Location>('/api/locations');
+  }
+
+  getPlanningBoard(roundId: number) {
     return forkJoin({
       days: this.client.list<ExamDay>(`/api/exam-days?round_id=${roundId}`),
       slots: this.client.list<ExamSlot>('/api/exam-slots'),
@@ -121,7 +119,41 @@ export class PlanningApiService {
     );
   }
 
-  refreshDashboard(roundId = this.roundId) {
+  /** Load only the dashboard projection, independently from master-data administration. */
+  loadDashboardProjection(roundId: number) {
+    return this.getRoot().pipe(
+      switchMap((root) =>
+        forkJoin({
+          round: this.getExamRound(roundId),
+          summary: this.getRoundSummary(roundId),
+          board: this.getPlanningBoard(roundId),
+        }).pipe(map((projection) => ({ root, ...projection }))),
+      ),
+    );
+  }
+
+  /** Load only the small context labels and application version required by the shell. */
+  loadShellContext(roundId: number) {
+    return this.getRoot().pipe(
+      switchMap((root) =>
+        forkJoin({
+          round: this.getExamRound(roundId),
+          summary: this.getRoundSummary(roundId),
+          halfYears: this.masterData.getExamHalfYears(),
+        }).pipe(
+          map(({ round, summary, halfYears }) => ({
+            root,
+            round,
+            summary,
+            halfYear: halfYears.find((item) => item.id === round.exam_half_year_id)!,
+          })),
+        ),
+      ),
+    );
+  }
+
+  /** Transitional aggregate retained for planning consumers not yet migrated. */
+  refreshDashboard(roundId: number) {
     return this.getRoot().pipe(
       switchMap((root) =>
         forkJoin({
@@ -142,9 +174,18 @@ export class PlanningApiService {
     );
   }
 
+  /** Load only the projection owned by the planning feature. */
+  loadPlanningFeature(roundId: number) {
+    return forkJoin({
+      round: this.getExamRound(roundId),
+      summary: this.getRoundSummary(roundId),
+      board: this.getPlanningBoard(roundId),
+    });
+  }
+
   savePlanningSettings(
     payload: Omit<PlanningSettings, 'id' | 'exam_round_id' | 'updated_by_member_id'>,
-    roundId = this.roundId,
+    roundId: number,
   ) {
     return this.client.post<PlanningSettings>('/api/planning-settings', {
       ...payload,
@@ -152,17 +193,14 @@ export class PlanningApiService {
     });
   }
 
-  createCandidateExamDay(
-    payload: Omit<CandidateExamDay, 'id' | 'exam_round_id'>,
-    roundId = this.roundId,
-  ) {
+  createCandidateExamDay(payload: Omit<CandidateExamDay, 'id' | 'exam_round_id'>, roundId: number) {
     return this.client.post<CandidateExamDay>('/api/candidate-exam-days', {
       ...payload,
       exam_round_id: roundId,
     });
   }
 
-  generateCandidateExamDays(roundId = this.roundId) {
+  generateCandidateExamDays(roundId: number) {
     return this.client.post<CandidateDayGenerationResult>('/api/candidate-exam-days/generate', {
       round_id: roundId,
     } satisfies PlanningRoundRequest);
@@ -179,7 +217,7 @@ export class PlanningApiService {
       MemberAvailability,
       'committee_member_id' | 'candidate_exam_day_id' | 'availability'
     >,
-    roundId = this.roundId,
+    roundId: number,
   ) {
     return this.client.post<MemberAvailability>('/api/member-availabilities', {
       ...payload,
@@ -187,27 +225,27 @@ export class PlanningApiService {
     });
   }
 
-  generateProposal() {
+  generateProposal(roundId: number) {
     return this.client.post<PlanningResult>('/api/planning-proposals', {
-      round_id: this.roundId,
+      round_id: roundId,
     } satisfies PlanningRoundRequest);
   }
 
-  getPlanningProposal() {
+  getPlanningProposal(roundId: number) {
     return this.client.get<EditablePlanningProposal>(
-      `/api/exam-rounds/${this.roundId}/planning-proposal`,
+      `/api/exam-rounds/${roundId}/planning-proposal`,
     );
   }
 
-  savePlanningProposal(proposal: EditablePlanningProposal) {
+  savePlanningProposal(roundId: number, proposal: EditablePlanningProposal) {
     const request: PlanningProposalWriteRequest = proposal;
     return this.client.put<EditablePlanningProposal>(
-      `/api/exam-rounds/${this.roundId}/planning-proposal`,
+      `/api/exam-rounds/${roundId}/planning-proposal`,
       request,
     );
   }
 
-  confirmPlan() {
-    return this.client.post<PlanningResult>(`/api/exam-rounds/${this.roundId}/confirm-plan`, {});
+  confirmPlan(roundId: number) {
+    return this.client.post<PlanningResult>(`/api/exam-rounds/${roundId}/confirm-plan`, {});
   }
 }

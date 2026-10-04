@@ -16,15 +16,21 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from pywebpush import WebPushException
 from requests.exceptions import Timeout
 
-from backend.identity.auth import AuthenticationRepository
-from backend.identity.authorization import AuthorizationService
+from backend.composition import authorization_service
+from backend.integrations.notification_delivery import NotificationDeliveryGateway
 from backend.integrations.notifications import (
     DELIVERY_CLAIM_TTL,
     ClaimedDelivery,
     NotificationService,
 )
+from backend.notifications.delivery import ProviderOutcome, ProviderOutcomeKind
+from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.persistence.database import session_scope
 from backend.persistence.models import ExamDay, ExamDayAssignment, NotificationDelivery
+from backend.persistence.notifications import (
+    SQLiteNotificationDeliveryUnitOfWorkFactory,
+    SQLiteNotificationUnitOfWorkFactory,
+)
 from backend.tests.fixture_data import DEMO_ROLES, DISPLAY_NAMES, FIXTURE_ROOT
 from backend.tests.helpers import ApiServer, TempDatabase, assert_status
 
@@ -45,8 +51,12 @@ class NotificationServiceTests(unittest.TestCase):
     def setUp(self) -> None:
         self.database = TempDatabase()
         self.db_path = self.database.__enter__()
-        self.service = NotificationService(self.db_path)
-        self.authentication = AuthenticationRepository(self.db_path)
+        self.service = NotificationService(
+            delivery_gateway=NotificationDeliveryGateway(),
+            delivery_unit_of_work_factory=SQLiteNotificationDeliveryUnitOfWorkFactory(self.db_path),
+            notification_unit_of_work_factory=SQLiteNotificationUnitOfWorkFactory(self.db_path),
+        )
+        self.authentication = SQLiteAuthenticationRepository(self.db_path)
 
     def tearDown(self) -> None:
         self.database.__exit__(None, None, None)
@@ -55,7 +65,7 @@ class NotificationServiceTests(unittest.TestCase):
         credentials = self.authentication.create_session(account_id)
         context = self.authentication.authenticate(credentials.token)
         assert context is not None
-        return AuthorizationService(self.db_path).scope(context)
+        return authorization_service(self.db_path).scope(context)
 
     def create_pending_sink(self) -> int:
         with closing(sqlite3.connect(self.db_path)) as connection, connection:
@@ -105,6 +115,23 @@ class NotificationServiceTests(unittest.TestCase):
         overview = self.service.management_overview(self.scope(1))
         self.assertEqual(8, len(overview))
         self.assertNotIn("message", overview[0])
+
+    def test_disabled_external_delivery_does_not_create_delivery_problems(self) -> None:
+        service = NotificationService(
+            external_delivery_enabled=False,
+            delivery_gateway=NotificationDeliveryGateway(),
+            delivery_unit_of_work_factory=SQLiteNotificationDeliveryUnitOfWorkFactory(self.db_path),
+            notification_unit_of_work_factory=SQLiteNotificationUnitOfWorkFactory(self.db_path),
+        )
+
+        result = service.create_for_event("availability_requested", 1)
+
+        self.assertEqual({"created": 8, "dispatched": 0, "problems": 0}, result)
+        with closing(sqlite3.connect(self.db_path)) as connection:
+            delivery_count = connection.execute(
+                "SELECT COUNT(*) FROM notification_delivery"
+            ).fetchone()[0]
+        self.assertEqual(0, delivery_count)
 
     def test_reminder_and_deadline_target_only_open_members_plus_management(self) -> None:
         reminder = self.service.create_for_event("availability_reminder", 1)
@@ -173,7 +200,7 @@ class NotificationServiceTests(unittest.TestCase):
             registration = self.service.register_push(
                 self.scope(1), "https://push.example.invalid/subscription"
             )
-            with patch.object(self.service, "_send_web_push") as send:
+            with patch.object(self.service.delivery_gateway, "_send_web_push") as send:
                 result = self.service.create_for_event("availability_requested", 1)
 
             self.assertEqual(8, result["created"])
@@ -235,9 +262,11 @@ class NotificationServiceTests(unittest.TestCase):
                 self.scope(1), "https://push.example.invalid/expired"
             )
             rejected = WebPushException("Gone", MagicMock(status_code=410))
-            with patch.object(self.service, "_send_web_push", side_effect=rejected):
+            with patch.object(
+                self.service.delivery_gateway, "_send_web_push", side_effect=rejected
+            ):
                 self.service.create_for_event("availability_requested", 1)
-            with patch("smtplib.SMTP", smtp):
+            with patch("backend.integrations.notification_delivery.smtplib.SMTP", smtp):
                 self.service.process_deliveries()
 
         smtp.assert_called_once_with("smtp.example.invalid", 25, timeout=10)
@@ -271,7 +300,9 @@ class NotificationServiceTests(unittest.TestCase):
             clear=False,
         ):
             self.service.register_push(self.scope(1), "https://push.example.invalid/temporary")
-            with patch.object(self.service, "_send_web_push", side_effect=Timeout("offline")):
+            with patch.object(
+                self.service.delivery_gateway, "_send_web_push", side_effect=Timeout("offline")
+            ):
                 first = self.service.create_for_event("availability_requested", 1)
                 for days in (1, 2, 3):
                     self.service.process_deliveries(now=datetime.now(UTC) + timedelta(days=days))
@@ -300,7 +331,11 @@ class NotificationServiceTests(unittest.TestCase):
         ):
             self.service.register_push(self.scope(1), "https://push.example.invalid/rate-limited")
             limited = WebPushException("Too Many Requests", MagicMock(status_code=429))
-            with patch.object(self.service, "_send_web_push", side_effect=limited):
+            with patch.object(
+                self.service.delivery_gateway,
+                "_send_web_push",
+                side_effect=limited,
+            ):
                 self.service.create_for_event("availability_requested", 1)
 
         with closing(sqlite3.connect(self.db_path)) as connection:
@@ -335,7 +370,7 @@ class NotificationServiceTests(unittest.TestCase):
             with (
                 self.subTest(status_code=status_code),
                 patch.object(
-                    self.service,
+                    self.service.delivery_gateway,
                     "_send_web_push",
                     side_effect=WebPushException(
                         "provider response", MagicMock(status_code=status_code)
@@ -362,7 +397,7 @@ class NotificationServiceTests(unittest.TestCase):
             message="Ignored",
             action_path="/notifications",
         )
-        with patch.object(self.service, "_send_web_push") as send:
+        with patch.object(self.service.delivery_gateway, "_send_web_push") as send:
             timeout = self.service._dispatch_claimed(delivery, current)
             missing = self.service._dispatch_claimed(replace(delivery, attempt_count=0), current)
         send.assert_not_called()
@@ -380,10 +415,14 @@ class NotificationServiceTests(unittest.TestCase):
     def test_failed_dispatch_releases_claim_and_retry_sends_once(self) -> None:
         notification_id = self.create_pending_sink()
         current = datetime.now(UTC)
-        with patch.object(self.service, "_send_sink", side_effect=OSError("offline")) as send:
+        with patch.object(
+            self.service.delivery_gateway,
+            "deliver",
+            return_value=ProviderOutcome(ProviderOutcomeKind.TEMPORARY_FAILURE, "sink_unavailable"),
+        ) as send:
             self.assertEqual(1, self.service.process_deliveries(now=current))
             self.assertEqual(0, self.service.process_deliveries(now=current))
-            send.assert_called_once_with(notification_id)
+            send.assert_called_once()
         with closing(sqlite3.connect(self.db_path)) as connection:
             row = connection.execute(
                 "SELECT status, attempt_count, claim_token, next_attempt_at, error_code "
@@ -393,10 +432,14 @@ class NotificationServiceTests(unittest.TestCase):
         self.assertEqual(("temporarily_failed", 1, None), row[:3])
         self.assertEqual((current + timedelta(minutes=1)).isoformat(timespec="seconds"), row[3])
         self.assertEqual("sink_unavailable", row[4])
-        with patch.object(self.service, "_send_sink") as send:
+        with patch.object(
+            self.service.delivery_gateway,
+            "deliver",
+            return_value=ProviderOutcome(ProviderOutcomeKind.SENT),
+        ) as send:
             self.assertEqual(1, self.service.process_deliveries(now=current + timedelta(minutes=1)))
             self.assertEqual(0, self.service.process_deliveries(now=current + timedelta(minutes=2)))
-            send.assert_called_once_with(notification_id)
+            send.assert_called_once()
         with closing(sqlite3.connect(self.db_path)) as connection:
             row = connection.execute(
                 "SELECT status, attempt_count, claim_token, next_attempt_at, error_code "
@@ -421,7 +464,7 @@ class NotificationServiceTests(unittest.TestCase):
             with patch.object(self.service, "process_deliveries", return_value=0):
                 web_push = self.service.synthetic_test(1, "web_push")
             with patch.object(
-                self.service,
+                self.service.delivery_gateway,
                 "_send_web_push",
                 side_effect=lambda _endpoint, notification_id: (
                     self.assert_claim_is_committed_without_open_write_transaction(notification_id)
@@ -433,23 +476,27 @@ class NotificationServiceTests(unittest.TestCase):
             with patch.object(self.service, "process_deliveries", return_value=0):
                 email = self.service.synthetic_test(1, "email")
             with patch.object(
-                self.service,
-                "_send_email",
-                side_effect=lambda delivery: (
+                self.service.delivery_gateway,
+                "deliver",
+                side_effect=lambda envelope: (
                     self.assert_claim_is_committed_without_open_write_transaction(
-                        delivery.notification_id
-                    )
-                ),
+                        envelope.notification_id
+                    ),
+                    ProviderOutcome(ProviderOutcomeKind.SENT),
+                )[1],
             ):
                 self.assertEqual(1, self.service.process_deliveries())
 
         sink_id = self.create_pending_sink()
         with patch.object(
-            self.service,
-            "_send_sink",
-            side_effect=lambda notification_id: (
-                self.assert_claim_is_committed_without_open_write_transaction(notification_id)
-            ),
+            self.service.delivery_gateway,
+            "deliver",
+            side_effect=lambda envelope: (
+                self.assert_claim_is_committed_without_open_write_transaction(
+                    envelope.notification_id
+                ),
+                ProviderOutcome(ProviderOutcomeKind.SENT),
+            )[1],
         ):
             self.assertEqual(1, self.service.process_deliveries())
 
@@ -465,16 +512,27 @@ class NotificationServiceTests(unittest.TestCase):
         results: list[int] = []
         errors: list[BaseException] = []
 
-        def send_sink(active_notification_id: int) -> None:
+        def send_sink(active_notification_id: int) -> ProviderOutcome:
             calls.append(active_notification_id)
             self.assert_claim_is_committed_without_open_write_transaction(active_notification_id)
             if len(calls) == 1:
                 started.set()
                 release.wait(timeout=2)
+            return ProviderOutcome(ProviderOutcomeKind.SENT)
 
         def process_first_worker() -> None:
             try:
-                results.append(NotificationService(self.db_path).process_deliveries())
+                results.append(
+                    NotificationService(
+                        delivery_gateway=NotificationDeliveryGateway(),
+                        delivery_unit_of_work_factory=SQLiteNotificationDeliveryUnitOfWorkFactory(
+                            self.db_path
+                        ),
+                        notification_unit_of_work_factory=SQLiteNotificationUnitOfWorkFactory(
+                            self.db_path
+                        ),
+                    ).process_deliveries()
+                )
             except BaseException as error:  # pragma: no cover - asserted below
                 errors.append(error)
 
@@ -482,7 +540,13 @@ class NotificationServiceTests(unittest.TestCase):
             worker = Thread(target=process_first_worker)
             worker.start()
             self.assertTrue(started.wait(timeout=2))
-            second_result = NotificationService(self.db_path).process_deliveries()
+            second_result = NotificationService(
+                delivery_gateway=NotificationDeliveryGateway(),
+                delivery_unit_of_work_factory=SQLiteNotificationDeliveryUnitOfWorkFactory(
+                    self.db_path
+                ),
+                notification_unit_of_work_factory=SQLiteNotificationUnitOfWorkFactory(self.db_path),
+            ).process_deliveries()
             release.set()
             worker.join(timeout=2)
 
@@ -503,7 +567,11 @@ class NotificationServiceTests(unittest.TestCase):
         active = next(row for row in overview if row["notification_id"] == notification_id)
         self.assertEqual("active", active["claim_state"])
 
-        with patch.object(self.service, "_send_sink", side_effect=OSError("worker abort")):
+        with patch.object(
+            self.service,
+            "_send_sink",
+            return_value=ProviderOutcome(ProviderOutcomeKind.TEMPORARY_FAILURE, "sink_unavailable"),
+        ):
             first_result = self.service._dispatch_claimed(first[0], first_started)
         self.assertEqual("temporarily_failed", first_result.status)
         foreign = replace(first[0], claim_token="foreign-worker")
@@ -522,7 +590,11 @@ class NotificationServiceTests(unittest.TestCase):
         )
 
         second_started = first_started + DELIVERY_CLAIM_TTL + timedelta(seconds=1)
-        restarted_service = NotificationService(self.db_path)
+        restarted_service = NotificationService(
+            delivery_gateway=NotificationDeliveryGateway(),
+            delivery_unit_of_work_factory=SQLiteNotificationDeliveryUnitOfWorkFactory(self.db_path),
+            notification_unit_of_work_factory=SQLiteNotificationUnitOfWorkFactory(self.db_path),
+        )
         second = restarted_service._claim_due_deliveries(
             second_started, "second-worker", batch_size=1
         )
@@ -558,7 +630,11 @@ class NotificationServiceTests(unittest.TestCase):
             )
             connection.commit()
 
-        with patch.object(self.service, "_send_sink") as send:
+        with patch.object(
+            self.service,
+            "_send_sink",
+            return_value=ProviderOutcome(ProviderOutcomeKind.SENT),
+        ) as send:
             self.assertEqual(20, self.service.process_deliveries())
             self.assertEqual(20, send.call_count)
             self.assertEqual(1, self.service.process_deliveries())
@@ -641,9 +717,13 @@ class NotificationApiTests(unittest.TestCase):
 
     def test_members_only_read_own_content_and_management_gets_metadata(self) -> None:
         with TempDatabase() as db_path:
-            service = NotificationService(db_path)
+            service = NotificationService(
+                delivery_gateway=NotificationDeliveryGateway(),
+                delivery_unit_of_work_factory=SQLiteNotificationDeliveryUnitOfWorkFactory(db_path),
+                notification_unit_of_work_factory=SQLiteNotificationUnitOfWorkFactory(db_path),
+            )
             service.create_for_event("availability_requested", 1)
-            authentication = AuthenticationRepository(db_path)
+            authentication = SQLiteAuthenticationRepository(db_path)
             chair = authentication.create_session(1)
             member = authentication.create_session(2)
 

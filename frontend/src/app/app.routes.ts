@@ -1,18 +1,17 @@
 import { inject } from '@angular/core';
-import { Router } from '@angular/router';
+import { RedirectCommand, Router } from '@angular/router';
 import type {
   ActivatedRouteSnapshot,
   CanActivateFn,
-  ResolveFn,
   Route,
   Routes,
+  ResolveFn,
 } from '@angular/router';
 
 import { RoundContextService } from './api/round-context.service';
 import type { AppView } from './app-view';
 import { AuthService } from './auth/auth.service';
-import { PlanningWorkflowService } from './planning/planning-workflow.service';
-import { ApplicationWorkspaceService } from './shell/application-workspace.service';
+import { LocationsWorkspaceFacade } from './locations/locations-workspace.facade';
 
 export type AppRouteData = {
   view: AppView;
@@ -29,19 +28,23 @@ const routeData = (
   contextual = true,
 ): AppRouteData => ({ view, title, breadcrumb, contextual });
 
-export const roundContextResolver: ResolveFn<number | null> = (route: ActivatedRouteSnapshot) => {
+export const roundContextResolver: ResolveFn<number | RedirectCommand> = (
+  route: ActivatedRouteSnapshot,
+) => {
   const value = Number(route.paramMap.get('roundId'));
   const roundId = Number.isInteger(value) && value > 0 ? value : null;
-  if (roundId === null) return null;
+  if (roundId === null) {
+    const router = inject(Router);
+    const fallback = route.routeConfig?.path?.startsWith('confirmed-plans')
+      ? '/confirmed-plans'
+      : '/scheduling-overview';
+    return new RedirectCommand(router.parseUrl(fallback), { replaceUrl: true });
+  }
 
   const context = inject(RoundContextService);
   if (context.roundId() === roundId) return roundId;
 
   context.select(roundId);
-  inject(PlanningWorkflowService).resetForRoundChange();
-  if (inject(AuthService).state() === 'authenticated') {
-    inject(ApplicationWorkspaceService).refresh();
-  }
   return roundId;
 };
 
@@ -149,12 +152,14 @@ const routeDefinitions: Routes = [
   { path: 'planning', pathMatch: 'full', redirectTo: 'scheduling-overview' },
   {
     path: 'locations',
+    providers: [LocationsWorkspaceFacade],
     loadComponent: () =>
       import('./routes/locations-route.component').then((module) => module.LocationsRouteComponent),
     data: routeData('locations', 'Prüfungsorte', 'Globale Bereiche', false),
   },
   {
     path: 'locations/:id',
+    providers: [LocationsWorkspaceFacade],
     loadComponent: () =>
       import('./routes/locations-route.component').then((module) => module.LocationsRouteComponent),
     data: routeData('locations', 'Prüfungsorte', 'Globale Bereiche', false),

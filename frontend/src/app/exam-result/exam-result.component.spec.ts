@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Observable, of, throwError } from 'rxjs';
+import { Observable, Subject, of, throwError } from 'rxjs';
 import { provideTaiga } from '@taiga-ui/core';
 
 import { ApplicationError } from '../application/application-error';
@@ -32,6 +32,7 @@ describe('ExamResultComponent', () => {
       providers: [provideTaiga({}), { provide: EXAM_RESULT_PORT, useValue: port }],
     }).compileComponents();
     fixture = TestBed.createComponent(ExamResultComponent);
+    fixture.componentRef.setInput('roundId', 1);
     fixture.componentRef.setInput('dayId', 7);
     fixture.componentRef.setInput('dayRevision', 4);
     fixture.componentRef.setInput('slotId', 11);
@@ -98,6 +99,165 @@ describe('ExamResultComponent', () => {
       changeReason: '',
       dayRevisions: { '7': 4 },
     });
+  });
+
+  it('returns accepted day revisions to the examination-day owner', () => {
+    const changes: Array<Record<string, number>> = [];
+    fixture.componentInstance.dayRevisionsChanged.subscribe((revisions) => changes.push(revisions));
+    vi.mocked(port.saveIndividualAssessment).mockReturnValueOnce(
+      of(resultFixture({ dayRevisions: { '7': 5 } })),
+    );
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance as unknown as {
+      drafts: Map<string, { rawPoints: string; rationale: string; changeReason: string }>;
+      saveAssessment(
+        model: ExamResult['modelVersion']['rules']['components'][number],
+        criterion: ExamResult['modelVersion']['rules']['components'][number]['criteria'][number],
+        submitted: boolean,
+      ): void;
+    };
+    component.drafts.set('documentation:clarity', {
+      rawPoints: '82',
+      rationale: 'Beobachtung',
+      changeReason: '',
+    });
+    component.saveAssessment(
+      resultFixture().modelVersion.rules.components[0],
+      criterionFixture(),
+      true,
+    );
+
+    expect(changes).toEqual([{ '7': 5 }]);
+  });
+
+  it('keeps a pending command and vote drafts across a day-only revision refresh', () => {
+    const pending = new Subject<ExamResult>();
+    vi.mocked(port.saveIndividualAssessment).mockReturnValueOnce(pending.asObservable());
+    fixture.detectChanges();
+    fixture.detectChanges();
+    const component = fixture.componentInstance as unknown as {
+      busy: () => boolean;
+      error: () => string | null;
+      componentVotes: Map<string, Map<number, 'yes' | 'no' | 'abstain'>>;
+      componentVoters: Map<string, Set<number>>;
+      examResultVotes: Map<number, 'yes' | 'no' | 'abstain'>;
+      examResultVoters: Set<number>;
+      saveAssessment(
+        model: ExamResult['modelVersion']['rules']['components'][number],
+        criterion: ExamResult['modelVersion']['rules']['components'][number]['criteria'][number],
+        submitted: boolean,
+      ): void;
+    };
+    component.componentVotes.set('documentation', new Map([[1, 'yes']]));
+    component.componentVoters.set('documentation', new Set([1]));
+    component.examResultVotes.set(1, 'no');
+    component.examResultVoters.add(1);
+    component.saveAssessment(
+      resultFixture().modelVersion.rules.components[0],
+      criterionFixture(),
+      true,
+    );
+    expect(component.busy()).toBe(true);
+
+    fixture.componentRef.setInput('dayRevision', 5);
+    fixture.detectChanges();
+    expect(component.busy()).toBe(true);
+    expect(component.componentVotes.get('documentation')?.get(1)).toBe('yes');
+    expect(component.componentVoters.get('documentation')?.has(1)).toBe(true);
+    expect(component.examResultVotes.get(1)).toBe('no');
+    expect(component.examResultVoters.has(1)).toBe(true);
+
+    pending.error(new ApplicationError('conflict', 'Die Tagesrevision wurde geändert.'));
+    fixture.detectChanges();
+
+    expect(component.busy()).toBe(false);
+    expect(component.error()).toBe('Die Tagesrevision wurde geändert.');
+    expect(component.componentVotes.get('documentation')?.get(1)).toBe('yes');
+    expect(component.examResultVotes.get(1)).toBe('no');
+    expect(port.get).toHaveBeenCalledTimes(2);
+  });
+
+  it('preserves a dirty component-points draft across a day revision reload', () => {
+    const initial = resultFixture({
+      committeeAssessments: [committeeAssessment('78')],
+    });
+    const refreshed = resultFixture({
+      dayRevisions: { '7': 5 },
+      committeeAssessments: [committeeAssessment('82')],
+    });
+    vi.mocked(port.get).mockReturnValueOnce(of(initial)).mockReturnValueOnce(of(refreshed));
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance as unknown as {
+      componentPoints: Map<string, string>;
+    };
+    component.componentPoints.set('documentation', '74');
+    fixture.componentRef.setInput('dayRevision', 5);
+    fixture.detectChanges();
+
+    expect(component.componentPoints.get('documentation')).toBe('74');
+  });
+
+  it('preserves dirty retention drafts across a day revision reload', () => {
+    const initial = resultFixture({
+      committeeAssessments: [committeeAssessment('78')],
+      retention: {
+        ruleReference: 'Prüfungsordnung',
+        periodStart: '2026-01-01',
+        retainUntil: '2036-01-01',
+        legalHold: false,
+        holdReason: null,
+      },
+    });
+    const refreshed = resultFixture({
+      dayRevisions: { '7': 5 },
+      committeeAssessments: [committeeAssessment('82')],
+      retention: {
+        ruleReference: 'Prüfungsordnung',
+        periodStart: '2026-02-01',
+        retainUntil: '2037-01-01',
+        legalHold: true,
+        holdReason: 'Neuer Rechtsbehelf',
+      },
+    });
+    vi.mocked(port.get)
+      .mockReturnValueOnce(of(initial))
+      .mockReturnValueOnce(
+        throwError(() => new ApplicationError('unavailable', 'Reload fehlgeschlagen.')),
+      )
+      .mockReturnValueOnce(of(refreshed));
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance as unknown as {
+      retentionPeriodStart: string;
+      retentionUntil: string;
+      retentionLegalHold: boolean;
+      retentionHoldReason: string;
+      componentPoints: Map<string, string>;
+      state: () => string;
+    };
+    component.componentPoints.set('documentation', '74');
+    component.retentionPeriodStart = '2026-03-15';
+    component.retentionUntil = '2038-03-15';
+    component.retentionLegalHold = true;
+    component.retentionHoldReason = 'Manuelle Notiz';
+    fixture.componentRef.setInput('dayRevision', 5);
+    fixture.detectChanges();
+    expect(component.state()).toBe('error');
+
+    (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('button')!.click();
+    fixture.detectChanges();
+
+    expect(component.retentionPeriodStart).toBe('2026-03-15');
+    expect(component.retentionUntil).toBe('2038-03-15');
+    expect(component.retentionLegalHold).toBe(true);
+    expect(component.retentionHoldReason).toBe('Manuelle Notiz');
+    expect(component.componentPoints.get('documentation')).toBe('74');
+    expect(component.state()).toBe('ready');
   });
 
   it('hides mutation and export controls without the matching capability', () => {
@@ -801,5 +961,20 @@ function resultFixture(overrides: Partial<ExamResult> = {}): ExamResult {
       human: '/api/exam-results/41/export.txt',
     },
     ...overrides,
+  };
+}
+
+function committeeAssessment(points: string): ExamResult['committeeAssessments'][number] {
+  return {
+    id: 71,
+    componentKey: 'documentation',
+    revision: 1,
+    points,
+    rationale: 'Beschluss',
+    participantMemberIds: [1, 2],
+    vote: { yes: [1, 2], no: [], abstain: [] },
+    dissent: [],
+    status: 'current',
+    determinedAt: '2026-09-30T12:00:00Z',
   };
 }

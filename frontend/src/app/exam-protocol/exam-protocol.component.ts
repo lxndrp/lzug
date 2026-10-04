@@ -1,4 +1,14 @@
-import { Component, Input, OnChanges, SimpleChanges, inject, signal } from '@angular/core';
+import {
+  Component,
+  DestroyRef,
+  Input,
+  OnChanges,
+  SimpleChanges,
+  inject,
+  output,
+  signal,
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { TuiButton } from '@taiga-ui/core';
 import { TuiBadge } from '@taiga-ui/kit';
@@ -6,6 +16,7 @@ import { Observable } from 'rxjs';
 
 import { ApplicationError } from '../application/application-error';
 import { AuthService } from '../auth/auth.service';
+import { SessionScopeService } from '../auth/session-scope.service';
 import { ExamProtocolFacade } from './exam-protocol.facade';
 import type {
   ExamProtocol,
@@ -32,11 +43,17 @@ export type EntryDraft = {
 export class ExamProtocolComponent implements OnChanges {
   private readonly facade = inject(ExamProtocolFacade);
   private readonly auth = inject(AuthService);
+  private readonly sessionScope = inject(SessionScopeService);
+  private readonly destroyRef = inject(DestroyRef);
 
+  @Input({ required: true }) roundId!: number;
   @Input({ required: true }) dayId!: number;
   @Input() dayRevision: number | null = null;
+  @Input() dayRefreshing = false;
   @Input({ required: true }) slotId!: number;
   @Input() ownMemberId: number | null = null;
+  readonly dayRevisionChanged = output<{ roundId: number; dayId: number; revision: number }>();
+  readonly actionErrorOccurred = output<string>();
 
   protected readonly state = signal<ProtocolState>('loading');
   protected readonly protocol = signal<ExamProtocol | null>(null);
@@ -50,6 +67,9 @@ export class ExamProtocolComponent implements OnChanges {
   protected correctionReason = '';
   protected reopeningReference = '';
   private requestSequence = 0;
+  private contextSequence = 0;
+  private exportSequence = 0;
+  private loadedContextSequence: number | null = null;
 
   protected readonly categories: Array<{ value: ProtocolEntryCategory; label: string }> = [
     { value: 'late_start', label: 'Verspäteter Beginn' },
@@ -62,23 +82,43 @@ export class ExamProtocolComponent implements OnChanges {
   ];
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['dayId'] || changes['slotId']) this.load();
+    const identityChanged = changes['roundId'] || changes['dayId'] || changes['slotId'];
+    if (identityChanged) {
+      this.contextSequence += 1;
+      this.exportSequence += 1;
+      this.protocol.set(null);
+      this.busy.set(false);
+      this.exportBusy.set(false);
+    }
+    if (identityChanged || changes['dayRevision']) this.load(!identityChanged);
   }
 
-  protected load(): void {
+  protected load(preserveDrafts = false, preserveFeedback = preserveDrafts): void {
     const sequence = ++this.requestSequence;
+    const contextSequence = this.contextSequence;
+    const keepDrafts = preserveDrafts && this.loadedContextSequence === contextSequence;
+    const sessionGeneration = this.sessionScope.generation();
+    const roundId = this.roundId;
+    const dayId = this.dayId;
+    const slotId = this.slotId;
     this.state.set('loading');
-    this.message.set(null);
-    this.error.set(null);
-    this.facade.get(this.dayId, this.slotId).subscribe({
+    if (!preserveFeedback) {
+      this.message.set(null);
+      this.error.set(null);
+    }
+    this.sessionScope.forCurrentSession(this.facade.get(dayId, slotId)).subscribe({
       next: (protocol) => {
-        if (sequence !== this.requestSequence) return;
-        this.accept(protocol);
+        if (!this.isCurrent(sequence, contextSequence, sessionGeneration, roundId, dayId, slotId)) {
+          return;
+        }
+        this.accept(protocol, keepDrafts);
+        this.loadedContextSequence = contextSequence;
         this.state.set('ready');
       },
       error: (error: ApplicationError) => {
-        if (sequence !== this.requestSequence) return;
-        this.protocol.set(null);
+        if (!this.isCurrent(sequence, contextSequence, sessionGeneration, roundId, dayId, slotId)) {
+          return;
+        }
         this.state.set(error.kind === 'not-found' ? 'not-found' : 'error');
       },
     });
@@ -188,24 +228,50 @@ export class ExamProtocolComponent implements OnChanges {
 
   protected downloadExport(format: ProtocolExportFormat): void {
     const protocol = this.protocol();
-    if (!protocol || this.exportBusy()) return;
+    if (!protocol || this.exportBusy() || this.dayRefreshing) return;
+    const exportSequence = ++this.exportSequence;
+    const contextSequence = this.contextSequence;
+    const sessionGeneration = this.sessionScope.generation();
+    const roundId = this.roundId;
+    const dayId = this.dayId;
+    const slotId = this.slotId;
     this.exportBusy.set(true);
     this.error.set(null);
-    this.facade.export(protocol.id, format).subscribe({
-      next: ({ content, mediaType, fileName }) => {
-        const url = URL.createObjectURL(new Blob([content], { type: mediaType }));
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = fileName;
-        link.click();
-        window.setTimeout(() => URL.revokeObjectURL(url), 0);
-        this.exportBusy.set(false);
-      },
-      error: () => {
-        this.error.set('Der Protokollexport konnte nicht geladen werden.');
-        this.exportBusy.set(false);
-      },
-    });
+    this.sessionScope
+      .forCurrentSession(this.facade.export(protocol.id, format))
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ({ content, mediaType, fileName }) => {
+          if (
+            exportSequence !== this.exportSequence ||
+            !this.isActionCurrent(contextSequence, sessionGeneration, roundId, dayId, slotId)
+          ) {
+            return;
+          }
+          const url = URL.createObjectURL(new Blob([content], { type: mediaType }));
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = fileName;
+          link.click();
+          window.setTimeout(() => URL.revokeObjectURL(url), 0);
+          this.exportBusy.set(false);
+        },
+        error: () => {
+          if (
+            exportSequence !== this.exportSequence ||
+            !this.isActionCurrent(contextSequence, sessionGeneration, roundId, dayId, slotId)
+          ) {
+            return;
+          }
+          const message = 'Der Protokollexport konnte nicht geladen werden.';
+          this.error.set(message);
+          this.actionErrorOccurred.emit(message);
+          this.exportBusy.set(false);
+        },
+        complete: () => {
+          if (exportSequence === this.exportSequence) this.exportBusy.set(false);
+        },
+      });
   }
 
   protected hasResponded(protocol: ExamProtocol): boolean {
@@ -249,33 +315,113 @@ export class ExamProtocolComponent implements OnChanges {
   }
 
   private run(request: Observable<ExamProtocol>, successMessage: string): void {
-    if (this.busy()) return;
+    if (this.busy() || this.dayRefreshing) return;
+    const contextSequence = this.contextSequence;
+    const sessionGeneration = this.sessionScope.generation();
+    const roundId = this.roundId;
+    const dayId = this.dayId;
+    const slotId = this.slotId;
     this.busy.set(true);
     this.message.set(null);
     this.error.set(null);
     request.subscribe({
       next: (protocol) => {
+        if (!this.isActionCurrent(contextSequence, sessionGeneration, roundId, dayId, slotId)) {
+          return;
+        }
+        this.requestSequence += 1;
         this.accept(protocol);
         this.busy.set(false);
         this.message.set(successMessage);
+        if (protocol.dayRevision !== undefined && protocol.dayRevision > (this.dayRevision ?? 0)) {
+          this.dayRevisionChanged.emit({ roundId, dayId, revision: protocol.dayRevision });
+        }
       },
       error: (error: ApplicationError) => {
+        if (!this.isActionCurrent(contextSequence, sessionGeneration, roundId, dayId, slotId)) {
+          return;
+        }
         this.busy.set(false);
-        this.error.set(error.message || 'Die Protokollaktion konnte nicht gespeichert werden.');
+        const message = error.message || 'Die Protokollaktion konnte nicht gespeichert werden.';
+        this.error.set(message);
+        this.actionErrorOccurred.emit(message);
       },
     });
   }
 
-  private accept(protocol: ExamProtocol): void {
+  private isCurrent(
+    requestSequence: number,
+    contextSequence: number,
+    sessionGeneration: number,
+    roundId: number | null,
+    dayId: number,
+    slotId: number,
+  ): boolean {
+    return (
+      requestSequence === this.requestSequence &&
+      this.isActionCurrent(contextSequence, sessionGeneration, roundId, dayId, slotId)
+    );
+  }
+
+  private isActionCurrent(
+    contextSequence: number,
+    sessionGeneration: number,
+    roundId: number | null,
+    dayId: number,
+    slotId: number,
+  ): boolean {
+    return (
+      contextSequence === this.contextSequence &&
+      sessionGeneration === this.sessionScope.generation() &&
+      roundId === this.roundId &&
+      dayId === this.dayId &&
+      slotId === this.slotId
+    );
+  }
+
+  private accept(protocol: ExamProtocol, preserveDrafts = false): void {
+    const previous = this.protocol();
+    const incomingDeclaration = protocol.currentRevision.declaration ?? '';
+    const incomingEntries = this.entryDrafts(protocol);
+    const preserveDeclaration =
+      preserveDrafts &&
+      previous !== null &&
+      this.declaration !== (previous.currentRevision.declaration ?? '') &&
+      this.declaration !== incomingDeclaration;
+    const preserveEntries =
+      preserveDrafts &&
+      previous !== null &&
+      !this.sameEntries(this.entries, this.entryDrafts(previous)) &&
+      !this.sameEntries(this.entries, incomingEntries);
     this.protocol.set(protocol);
-    this.declaration = protocol.currentRevision.declaration ?? '';
-    this.entries = protocol.currentRevision.entries.map((entry) => ({
+    if (!preserveDeclaration) this.declaration = incomingDeclaration;
+    if (!preserveEntries) this.entries = incomingEntries;
+    if (!preserveDrafts) this.reservationText = '';
+  }
+
+  private entryDrafts(protocol: ExamProtocol): EntryDraft[] {
+    return protocol.currentRevision.entries.map((entry) => ({
       category: entry.category,
       statement: entry.statement,
       occurredFrom: this.localDateTimeValue(entry.occurredFrom),
       occurredTo: entry.occurredTo ? this.localDateTimeValue(entry.occurredTo) : '',
     }));
-    this.reservationText = '';
+  }
+
+  private sameEntries(left: EntryDraft[], right: EntryDraft[]): boolean {
+    return (
+      left.length === right.length &&
+      left.every((entry, index) => {
+        const other = right[index];
+        return (
+          other !== undefined &&
+          entry.category === other.category &&
+          entry.statement === other.statement &&
+          entry.occurredFrom === other.occurredFrom &&
+          entry.occurredTo === other.occurredTo
+        );
+      })
+    );
   }
 
   private apiDateTimeValue(value: string): string {
