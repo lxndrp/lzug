@@ -13,7 +13,15 @@ from unittest.mock import patch
 from sqlalchemy.exc import SAWarning, SQLAlchemyError
 
 from backend.persistence.database import session_scope
-from backend.persistence.models import COMMITTEE, COMMITTEE_MEMBER, PERSON
+from backend.persistence.models import (
+    CANDIDATE,
+    CANDIDATE_COMMITTEE_ASSIGNMENT,
+    COMMITTEE,
+    COMMITTEE_MEMBER,
+    PERSON,
+    ROUND_CANDIDATE,
+    ExamResult,
+)
 from backend.persistence.store import Store
 from backend.tests.fixture_data import DISPLAY_NAMES, FIXTURE_IDS, FIXTURE_ROOT
 from backend.tests.helpers import (
@@ -30,6 +38,108 @@ class StaticTestHandler(TestLzugHandler):
 
 
 class ApiTests(unittest.TestCase):
+    def test_round_candidate_delete_uses_the_planning_command(self) -> None:
+        with TempDatabase() as db_path:
+            with session_scope(db_path, begin_immediate=True) as session:
+                candidate = Store(session).create(
+                    CANDIDATE,
+                    {
+                        "first_name": "Round",
+                        "last_name": "Candidate",
+                        "ihk_exam_number": "API-DELETE-ROUND-CANDIDATE",
+                        "specialization": "system_integration",
+                        "training_company": "API-Test",
+                    },
+                )
+                round_candidate = Store(session).create(
+                    ROUND_CANDIDATE,
+                    {
+                        "exam_round_id": 1,
+                        "candidate_id": candidate["id"],
+                        "attempt_number": 1,
+                    },
+                )
+
+            with ApiServer(db_path) as api:
+                status, body = api.request(
+                    "DELETE", f"/api/round-candidates/{round_candidate['id']}"
+                )
+
+            assert_status(status, HTTPStatus.NO_CONTENT)
+            self.assertIsNone(body)
+
+    def test_round_candidate_delete_with_assignment_history_returns_conflict(self) -> None:
+        with TempDatabase() as db_path:
+            with session_scope(db_path, begin_immediate=True) as session:
+                store = Store(session)
+                candidate = store.create(
+                    CANDIDATE,
+                    {
+                        "first_name": "Assigned",
+                        "last_name": "Candidate",
+                        "ihk_exam_number": "API-DELETE-ASSIGNED-CANDIDATE",
+                        "specialization": "system_integration",
+                        "training_company": "API-Test",
+                    },
+                )
+                round_candidate = store.create(
+                    ROUND_CANDIDATE,
+                    {
+                        "exam_round_id": 1,
+                        "candidate_id": candidate["id"],
+                        "attempt_number": 1,
+                    },
+                )
+                store.create(
+                    CANDIDATE_COMMITTEE_ASSIGNMENT,
+                    {
+                        "candidate_id": candidate["id"],
+                        "exam_half_year_id": 1,
+                        "exam_round_id": 1,
+                        "round_candidate_id": round_candidate["id"],
+                    },
+                )
+
+            with ApiServer(db_path) as api:
+                status, body = api.request(
+                    "DELETE", f"/api/round-candidates/{round_candidate['id']}"
+                )
+
+            self.assertEqual(HTTPStatus.CONFLICT, status)
+            self.assertEqual("round_candidate_in_use", body["error"]["code"])
+
+    def test_round_candidate_delete_with_exam_result_returns_conflict(self) -> None:
+        with TempDatabase() as db_path:
+            with session_scope(db_path, begin_immediate=True) as session:
+                store = Store(session)
+                candidate = store.create(
+                    CANDIDATE,
+                    {
+                        "first_name": "Result",
+                        "last_name": "Candidate",
+                        "ihk_exam_number": "API-DELETE-RESULT-CANDIDATE",
+                        "specialization": "system_integration",
+                        "training_company": "API-Test",
+                    },
+                )
+                round_candidate = store.create(
+                    ROUND_CANDIDATE,
+                    {
+                        "exam_round_id": 1,
+                        "candidate_id": candidate["id"],
+                        "attempt_number": 1,
+                    },
+                )
+                session.add(ExamResult(round_candidate_id=round_candidate["id"]))
+
+            with ApiServer(db_path) as api:
+                status, body = api.request(
+                    "DELETE", f"/api/round-candidates/{round_candidate['id']}"
+                )
+
+            self.assertEqual(HTTPStatus.CONFLICT, status)
+            self.assertEqual("round_candidate_in_use", body["error"]["code"])
+
     def test_foreign_membership_cannot_be_moved_by_payload_scope(self) -> None:
         with TempDatabase() as db_path:
             with session_scope(db_path) as session:
@@ -164,7 +274,7 @@ class ApiTests(unittest.TestCase):
     def test_database_errors_use_public_messages(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:
             with patch(
-                "backend.application.repositories.ResourceRepository.candidate_list",
+                "backend.application.transport.RequestContext.visible_planning_records",
                 side_effect=SQLAlchemyError("private database details"),
             ):
                 status, body = api.request("GET", "/api/candidates")
@@ -800,6 +910,28 @@ class ApiTests(unittest.TestCase):
             )
             assert_status(status, HTTPStatus.OK)
             self.assertEqual(("summer", 2027), (half_year["season"], half_year["year"]))
+
+            status, error = api.request(
+                "POST",
+                "/api/exam-half-years",
+                {"season": "winter", "year": 2027, "status": "active"},
+            )
+            assert_status(status, HTTPStatus.FORBIDDEN)
+            self.assertEqual(
+                "Prüfungshalbjahre entstehen ausschließlich gemeinsam mit einer Ausschussrunde.",
+                error["error"],
+            )
+
+            status, error = api.request(
+                "PATCH",
+                f"/api/exam-half-years/{half_year['id']}",
+                {"status": "archived"},
+            )
+            assert_status(status, HTTPStatus.FORBIDDEN)
+            self.assertEqual(
+                "Prüfungshalbjahre entstehen ausschließlich gemeinsam mit einer Ausschussrunde.",
+                error["error"],
+            )
 
             status, error = api.request(
                 "POST",

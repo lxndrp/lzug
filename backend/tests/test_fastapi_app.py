@@ -61,6 +61,7 @@ from backend.composition import notification_service as compose_notification_ser
 from backend.fastapi_app import MIGRATED_DOMAIN_RESOURCES
 from backend.fastapi_assembly import FastAPIConfig, create_app
 from backend.fastapi_planning_router import MIGRATED_PLANNING_RESOURCES
+from backend.integrations.map_provider import MapProviderConfig
 from backend.persistence.auth import (
     SessionCredentials,
     SQLiteAuthenticationRepository,
@@ -80,6 +81,21 @@ def api_routes(routes):
 
 
 class FastAPIApplicationTests(unittest.TestCase):
+    def test_planning_factory_uses_the_resolved_map_provider_config(self) -> None:
+        with TempDatabase() as db_path:
+            credentials = SQLiteAuthenticationRepository(db_path).create_session(1)
+            config = replace(
+                self.config(db_path),
+                map_provider=MapProviderConfig(mode="osm", nominatim_user_agent="lzug-test"),
+            )
+            app = create_app(config)
+            with patch.dict(os.environ, {"LZUG_MAP_PROVIDER": "invalid"}, clear=True):
+                with TestClient(app) as client:
+                    status, body = self.fastapi_get(client, "/api/candidates", credentials)
+
+        self.assertEqual(HTTPStatus.OK, status, body)
+        self.assertEqual(12, len(body["items"]))
+
     def test_invalid_vapid_key_is_a_safe_provider_error_not_bad_request(self) -> None:
         secret_marker = "PRIVATE-VAPID-KEY-MUST-NOT-LEAK"
         with TempDatabase() as db_path:
