@@ -1,4 +1,5 @@
-import { computed, effect, Injectable, inject, signal } from '@angular/core';
+import { computed, Injectable, inject, signal } from '@angular/core';
+import { toObservable } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 import {
   EMPTY,
@@ -10,6 +11,7 @@ import {
   finalize,
   of,
   switchMap,
+  take,
   takeUntil,
 } from 'rxjs';
 
@@ -18,10 +20,11 @@ import type {
   CandidateDayGenerationResult,
   CandidateExamDay,
   EditablePlanningProposal,
-  ExamRoundUpdate,
   PlanningResult,
   PlanningValidationViolation,
-} from '../api/api.models';
+  PlanningRoundUpdate,
+  PlanningSnapshot,
+} from './planning.models';
 import { ApplicationError } from '../application/application-error';
 import { RoundContextService } from '../api/round-context.service';
 import { AuthService } from '../auth/auth.service';
@@ -34,7 +37,6 @@ import type {
   PlanningViewEffectCommand,
 } from './planning-view-effect';
 import type { ProposalEditorState } from './planning-proposal-editor.component';
-import { ApplicationWorkspaceService } from '../shell/application-workspace.service';
 import { ApplicationShellContextService } from '../shell/application-shell-context.service';
 import { UiFeedbackService } from '../shell/ui-feedback.service';
 import { PLANNING_PORT } from './planning.port';
@@ -44,20 +46,28 @@ import { PLANNING_PORT } from './planning.port';
 export class PlanningWorkflowService {
   private readonly planning = inject(PLANNING_PORT);
   private readonly auth = inject(AuthService);
+  private readonly authenticated$ = toObservable(this.auth.state).pipe(
+    filter((state) => state === 'authenticated'),
+  );
   private readonly sessionScope = inject(SessionScopeService);
   private readonly feedback = inject(UiFeedbackService);
   private readonly roundContext = inject(RoundContextService);
   private readonly router = inject(Router);
-  private readonly workspace = inject(ApplicationWorkspaceService);
   private readonly shellContext = inject(ApplicationShellContextService, { optional: true });
   private readonly pending = signal(false);
   private activeView: symbol | null = null;
+  private activeRoundId: number | null = null;
   private activeViewEnded: Subject<void> | null = null;
   private proposalLoad?: Subscription;
+  private planningLoad?: Subscription;
+  private planningGeneration = 0;
   private effectVersion = 0;
   private readonly pendingAvailability = new Set<string>();
 
-  readonly actionBusy = computed(() => this.pending() || this.workspace.actionBusy());
+  readonly actionBusy = computed(() => this.pending() || this.loading() || this.loadError());
+  readonly snapshot = signal<PlanningSnapshot | null>(null);
+  readonly loading = signal(false);
+  readonly loadError = signal(false);
   readonly viewEffects = signal<PlanningViewEffect[]>([]);
   readonly lastResult = signal<PlanningResult | null>(null);
   readonly proposal = signal<EditablePlanningProposal | null>(null);
@@ -74,42 +84,66 @@ export class PlanningWorkflowService {
   readonly canToggleCandidateDay = computed(() => this.auth.hasCapability('candidate-days:toggle'));
 
   constructor() {
-    effect(() => {
-      const round = this.workspace.round();
-      if (round?.status === 'plan_proposed') {
-        this.loadPlanningProposal(this.activeView);
-      } else {
-        this.resetPlanningProposal();
+    this.sessionScope.changes$.subscribe((change) => {
+      this.resetForSessionChange();
+      if (change.established && this.activeView && this.activeRoundId !== null) {
+        this.loadPlanning(this.activeRoundId, this.activeView);
       }
     });
-    this.sessionScope.changes$.subscribe(() => this.resetForSessionChange());
   }
 
-  activateView(view: symbol): void {
-    if (this.activeView === view) return;
+  activateView(view: symbol, roundId: number): void {
+    if (this.activeView === view && this.activeRoundId === roundId) {
+      this.loadPlanning(roundId, view);
+      return;
+    }
     this.endActiveView();
     this.activeView = view;
+    this.activeRoundId = roundId;
     this.activeViewEnded = new Subject<void>();
     this.viewEffects.set([]);
-    if (this.workspace.round()?.status === 'plan_proposed') this.loadPlanningProposal(view);
+    this.snapshot.set(null);
+    this.resetPlanningState();
+    this.loadPlanning(roundId, view);
+  }
+
+  refreshActiveView(): void {
+    const view = this.activeView;
+    const roundId = this.activeRoundId;
+    if (view !== null && roundId !== null) this.loadPlanning(roundId, view);
   }
 
   deactivateView(view: symbol): void {
     if (this.activeView !== view) return;
     this.endActiveView();
     this.viewEffects.set([]);
+    this.snapshot.set(null);
+    this.activeRoundId = null;
+    this.planningGeneration += 1;
+    this.planningLoad?.unsubscribe();
+    this.planningLoad = undefined;
+    this.proposalLoad?.unsubscribe();
+    this.proposalLoad = undefined;
+    this.resetPlanningState();
     if (this.editorState() === 'loading' || this.editorState() === 'saving') {
       this.editorState.set('idle');
     }
   }
 
-  resetForRoundChange(): void {
+  private resetForSessionChange(): void {
+    this.snapshot.set(null);
     this.lastResult.set(null);
     this.candidateDayGeneration.set(null);
     this.resetPlanningProposal();
+    this.editorError.set(null);
+    this.editorViolations.set([]);
+    this.planningGeneration += 1;
+    this.planningLoad?.unsubscribe();
+    this.planningLoad = undefined;
+    this.loading.set(false);
   }
 
-  private resetForSessionChange(): void {
+  private resetPlanningState(): void {
     this.lastResult.set(null);
     this.candidateDayGeneration.set(null);
     this.resetPlanningProposal();
@@ -117,14 +151,60 @@ export class PlanningWorkflowService {
     this.editorViolations.set([]);
   }
 
-  requestPlanConfirmation(view = this.activeView): void {
-    if (!this.ensureWorkspaceMatchesSelectedRound()) return;
+  private loadPlanning(roundId: number, view: symbol): void {
+    const generation = ++this.planningGeneration;
+    let sessionGeneration: number | null = null;
+    this.planningLoad?.unsubscribe();
+    this.loading.set(true);
+    this.loadError.set(false);
+    this.planningLoad = this.authenticated$
+      .pipe(
+        take(1),
+        switchMap(() => {
+          sessionGeneration = this.sessionScope.generation();
+          return this.sessionScope.forCurrentSession(this.planning.loadPlanning(roundId));
+        }),
+      )
+      .pipe(
+        takeUntil(this.viewEnded(view)),
+        finalize(() => {
+          if (generation === this.planningGeneration) this.loading.set(false);
+        }),
+      )
+      .subscribe({
+        next: (snapshot) => {
+          if (
+            generation !== this.planningGeneration ||
+            sessionGeneration === null ||
+            sessionGeneration !== this.sessionScope.generation() ||
+            !this.isCurrentView(view) ||
+            this.activeRoundId !== roundId ||
+            this.roundContext.roundId() !== roundId
+          )
+            return;
+          if (snapshot.round.status === 'plan_confirmed') {
+            void this.router.navigateByUrl(`/confirmed-plans/${roundId}`, { replaceUrl: true });
+            return;
+          }
+          this.snapshot.set(snapshot);
+          this.loadError.set(false);
+          if (snapshot.round.status === 'plan_proposed') this.loadPlanningProposal(roundId, view);
+          else this.resetPlanningProposal();
+        },
+        error: () => {
+          if (generation !== this.planningGeneration || !this.isCurrentView(view)) return;
+          this.loadError.set(true);
+        },
+      });
+  }
+
+  requestPlanConfirmation(roundId = this.captureRoundId(), view = this.activeView): void {
     if (!this.auth.hasCapability('planning-proposal:confirm')) {
       this.feedback.roleRestriction();
       return;
     }
+    if (!this.ensurePlanningRound(roundId)) return;
     if (!this.beginOperation()) return;
-    const roundId = this.roundContext.roundId();
     this.sessionScope
       .forCurrentSession(
         this.confirmForView(
@@ -136,7 +216,7 @@ export class PlanningWorkflowService {
       )
       .pipe(
         filter((confirmed) => confirmed && this.isCurrentView(view)),
-        switchMap(() => defer(() => this.planning.confirmPlan())),
+        switchMap(() => defer(() => this.planning.confirmPlan(roundId))),
         finalize(() => this.pending.set(false)),
       )
       .subscribe({
@@ -145,26 +225,29 @@ export class PlanningWorkflowService {
       });
   }
 
-  savePlanningSettings(payload: PlanningSettingsPayload, view = this.activeView): void {
-    if (!this.ensureWorkspaceMatchesSelectedRound()) return;
+  savePlanningSettings(
+    payload: PlanningSettingsPayload,
+    roundId = this.captureRoundId(),
+    view = this.activeView,
+  ): void {
     if (!this.auth.hasCapability('planning-settings:write')) {
       this.feedback.roleRestriction();
       return;
     }
-    const roundId = this.roundContext.roundId();
+    if (!this.ensurePlanningRound(roundId)) return;
     if (!this.beginOperation()) return;
     this.sessionScope
       .forCurrentSession(this.planning.savePlanningSettings(payload, roundId))
       .pipe(finalize(() => this.pending.set(false)))
       .subscribe({
         next: () => {
-          if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
+          if (!this.acceptMutationForCurrentView(roundId, view)) return;
           this.feedback.notify(
             'success',
             'Planungsrahmen gespeichert',
             'Die Änderungen sind übernommen.',
           );
-          this.workspace.refresh();
+          this.refreshPlanning(roundId);
         },
         error: () => {
           if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
@@ -177,26 +260,29 @@ export class PlanningWorkflowService {
       });
   }
 
-  saveExamRound(payload: ExamRoundUpdate, view = this.activeView): void {
-    if (!this.ensureWorkspaceMatchesSelectedRound()) return;
+  saveExamRound(
+    payload: PlanningRoundUpdate,
+    roundId = this.captureRoundId(),
+    view = this.activeView,
+  ): void {
     if (!this.auth.hasCapability('round:write')) {
       this.feedback.roleRestriction();
       return;
     }
-    const roundId = this.roundContext.roundId();
+    if (!this.ensurePlanningRound(roundId)) return;
     if (!this.beginOperation()) return;
     this.sessionScope
       .forCurrentSession(this.planning.updateExamRound(payload, roundId))
       .pipe(finalize(() => this.pending.set(false)))
       .subscribe({
         next: () => {
-          if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
+          if (!this.acceptMutationForCurrentView(roundId, view)) return;
           this.feedback.notify(
             'success',
             'Prüfungsrunde gespeichert',
             'Die Änderungen sind übernommen.',
           );
-          this.workspace.refresh();
+          this.refreshPlanning(roundId);
           this.shellContext?.refresh();
         },
         error: () => {
@@ -210,20 +296,23 @@ export class PlanningWorkflowService {
       });
   }
 
-  requestAvailabilities(payload: AvailabilityRequest, view = this.activeView): void {
-    if (!this.ensureWorkspaceMatchesSelectedRound()) return;
+  requestAvailabilities(
+    payload: AvailabilityRequest,
+    roundId = this.captureRoundId(),
+    view = this.activeView,
+  ): void {
     if (!this.auth.hasCapability('availability:coordinate')) {
       this.feedback.roleRestriction();
       return;
     }
-    const roundId = this.roundContext.roundId();
+    if (!this.ensurePlanningRound(roundId)) return;
     if (!this.beginOperation()) return;
     this.sessionScope
       .forCurrentSession(this.planning.requestAvailabilities(payload, roundId))
       .pipe(finalize(() => this.pending.set(false)))
       .subscribe({
         next: (result) => {
-          if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
+          if (!this.acceptMutationForCurrentView(roundId, view)) return;
           this.feedback.notify(
             result.notification_warning ? 'error' : 'success',
             result.notification_warning
@@ -231,7 +320,7 @@ export class PlanningWorkflowService {
               : 'Verfügbarkeiten angefragt',
             result.notification_warning ?? 'Die Terminorganisation ist jetzt in Abstimmung.',
           );
-          this.workspace.refresh();
+          this.refreshPlanning(roundId);
           this.shellContext?.refresh();
         },
         error: () => {
@@ -245,23 +334,26 @@ export class PlanningWorkflowService {
       });
   }
 
-  createCandidateDay(payload: CandidateExamDayPayload, view = this.activeView): void {
-    if (!this.ensureWorkspaceMatchesSelectedRound()) return;
+  createCandidateDay(
+    payload: CandidateExamDayPayload,
+    roundId = this.captureRoundId(),
+    view = this.activeView,
+  ): void {
     if (!this.auth.hasCapability('candidate-days:create')) {
       this.feedback.roleRestriction();
       return;
     }
-    const roundId = this.roundContext.roundId();
+    if (!this.ensurePlanningRound(roundId)) return;
     if (!this.beginOperation()) return;
     this.sessionScope
       .forCurrentSession(this.planning.createCandidateExamDay(payload, roundId))
       .pipe(finalize(() => this.pending.set(false)))
       .subscribe({
         next: (day) => {
-          if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
+          if (!this.acceptMutationForCurrentView(roundId, view)) return;
           this.emitViewEffect(view, { type: 'reset-candidate-day-draft' });
           this.feedback.notify('success', 'Prüfungstag angelegt', day.date);
-          this.workspace.refresh();
+          this.refreshPlanning(roundId);
         },
         error: () => {
           if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
@@ -274,13 +366,16 @@ export class PlanningWorkflowService {
       });
   }
 
-  generateCandidateDays(payload: PlanningSettingsPayload, view = this.activeView): void {
-    if (!this.ensureWorkspaceMatchesSelectedRound()) return;
+  generateCandidateDays(
+    payload: PlanningSettingsPayload,
+    roundId = this.captureRoundId(),
+    view = this.activeView,
+  ): void {
     if (!this.canGenerateCandidateDays()) {
       this.feedback.roleRestriction();
       return;
     }
-    const roundId = this.roundContext.roundId();
+    if (!this.ensurePlanningRound(roundId)) return;
     if (!this.beginOperation()) return;
     this.sessionScope
       .forCurrentSession(
@@ -291,14 +386,14 @@ export class PlanningWorkflowService {
       .pipe(finalize(() => this.pending.set(false)))
       .subscribe({
         next: (result) => {
-          if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
+          if (!this.acceptMutationForCurrentView(roundId, view)) return;
           this.candidateDayGeneration.set(result);
           this.feedback.notify(
             'success',
             'Mögliche Prüfungstage berechnet',
             `${result.counts.created} angelegt, ${result.counts.existing} bereits vorhanden.`,
           );
-          this.workspace.refresh();
+          this.refreshPlanning(roundId);
         },
         error: () => {
           if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
@@ -311,27 +406,32 @@ export class PlanningWorkflowService {
       });
   }
 
-  toggleCandidateDay(day: CandidateExamDay, view = this.activeView): void {
-    if (!this.ensureWorkspaceMatchesSelectedRound()) return;
+  toggleCandidateDay(
+    day: CandidateExamDay,
+    roundId = this.captureRoundId(),
+    view = this.activeView,
+  ): void {
     if (!this.auth.hasCapability('candidate-days:toggle')) {
       this.feedback.roleRestriction();
       return;
     }
-    const roundId = this.roundContext.roundId();
+    if (!this.ensurePlanningRound(roundId)) return;
     const nextActive = day.is_active ? 0 : 1;
     if (!this.beginOperation()) return;
     this.sessionScope
-      .forCurrentSession(this.planning.updateCandidateExamDay(day.id, { is_active: nextActive }))
+      .forCurrentSession(
+        this.planning.updateCandidateExamDay(day.id, { is_active: nextActive }, roundId),
+      )
       .pipe(finalize(() => this.pending.set(false)))
       .subscribe({
         next: () => {
-          if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
+          if (!this.acceptMutationForCurrentView(roundId, view)) return;
           this.feedback.notify(
             'success',
             `Prüfungstag ${nextActive ? 'aktiviert' : 'deaktiviert'}`,
             day.date,
           );
-          this.workspace.refresh();
+          this.refreshPlanning(roundId);
         },
         error: () => {
           if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
@@ -340,12 +440,11 @@ export class PlanningWorkflowService {
       });
   }
 
-  saveAvailability(payload: AvailabilityPayload, view = this.activeView): void {
-    if (!this.ensureWorkspaceMatchesSelectedRound()) {
-      this.emitViewEffect(view, { type: 'availability-error', payload, usePersistedValue: true });
-      return;
-    }
-    const roundId = this.roundContext.roundId();
+  saveAvailability(
+    payload: AvailabilityPayload,
+    roundId = this.captureRoundId(),
+    view = this.activeView,
+  ): void {
     const authSession = this.auth.session();
     const session = authSession?.demo_role ? authSession : null;
     const canSave =
@@ -360,6 +459,10 @@ export class PlanningWorkflowService {
       this.emitViewEffect(view, { type: 'availability-error', payload });
       return;
     }
+    if (!this.ensurePlanningRound(roundId)) {
+      this.emitViewEffect(view, { type: 'availability-error', payload, usePersistedValue: true });
+      return;
+    }
     const availabilityKey = `${payload.committee_member_id}:${payload.candidate_exam_day_id}`;
     if (this.pendingAvailability.has(availabilityKey)) return;
     this.pendingAvailability.add(availabilityKey);
@@ -368,21 +471,24 @@ export class PlanningWorkflowService {
       .pipe(finalize(() => this.pendingAvailability.delete(availabilityKey)))
       .subscribe({
         next: (availability) => {
-          if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
-          this.workspace.board.update((board) =>
-            board
+          if (!this.acceptMutationForCurrentView(roundId, view)) return;
+          this.snapshot.update((snapshot) =>
+            snapshot
               ? {
-                  ...board,
-                  availabilities: [
-                    ...board.availabilities.filter(
-                      (item) =>
-                        item.committee_member_id !== availability.committee_member_id ||
-                        item.candidate_exam_day_id !== availability.candidate_exam_day_id,
-                    ),
-                    availability,
-                  ],
+                  ...snapshot,
+                  board: {
+                    ...snapshot.board,
+                    availabilities: [
+                      ...snapshot.board.availabilities.filter(
+                        (item) =>
+                          item.committee_member_id !== availability.committee_member_id ||
+                          item.candidate_exam_day_id !== availability.candidate_exam_day_id,
+                      ),
+                      availability,
+                    ],
+                  },
                 }
-              : board,
+              : snapshot,
           );
           this.emitViewEffect(view, {
             type: 'availability-saved',
@@ -409,20 +515,19 @@ export class PlanningWorkflowService {
     );
   }
 
-  generateProposal(view = this.activeView): void {
-    if (!this.ensureWorkspaceMatchesSelectedRound()) return;
+  generateProposal(roundId = this.captureRoundId(), view = this.activeView): void {
     if (!this.auth.hasCapability('planning-proposal:generate')) {
       this.feedback.roleRestriction();
       return;
     }
-    const roundId = this.roundContext.roundId();
+    if (!this.ensurePlanningRound(roundId)) return;
     if (!this.beginOperation()) return;
     this.sessionScope
-      .forCurrentSession(this.planning.generateProposal())
+      .forCurrentSession(this.planning.generateProposal(roundId))
       .pipe(finalize(() => this.pending.set(false)))
       .subscribe({
         next: (result) => {
-          if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
+          if (!this.acceptMutationForCurrentView(roundId, view)) return;
           this.lastResult.set(result);
           const planned = result.counts['planned_slots'] ?? 0;
           const suffix = result.validation?.passed === false ? ' mit Hinweisen' : '';
@@ -431,7 +536,7 @@ export class PlanningWorkflowService {
             'Planungsvorschlag erzeugt',
             `${planned} Termine${suffix}`,
           );
-          this.workspace.refresh();
+          this.refreshPlanning(roundId);
           this.shellContext?.refresh();
         },
         error: () => {
@@ -441,31 +546,32 @@ export class PlanningWorkflowService {
       });
   }
 
-  confirmPlan(view = this.activeView): void {
-    if (!this.ensureWorkspaceMatchesSelectedRound()) return;
+  confirmPlan(roundId = this.captureRoundId(), view = this.activeView): void {
     if (!this.auth.hasCapability('planning-proposal:confirm')) {
       this.feedback.roleRestriction();
       return;
     }
-    const roundId = this.roundContext.roundId();
+    if (!this.ensurePlanningRound(roundId)) return;
     if (!this.beginOperation()) return;
     this.submitPlanConfirmation(roundId, view);
   }
 
-  loadPlanningProposal(view = this.activeView): void {
+  loadPlanningProposal(roundId: number, view = this.activeView): void {
     if (!this.isCurrentView(view)) return;
     this.proposalLoad?.unsubscribe();
     this.proposalLoad = undefined;
-    if (this.workspace.round()?.status !== 'plan_proposed') {
+    if (
+      this.snapshot()?.round.id !== roundId ||
+      this.snapshot()?.round.status !== 'plan_proposed'
+    ) {
       this.editorState.set('idle');
       return;
     }
-    const roundId = this.roundContext.roundId();
     this.editorState.set('loading');
     this.editorError.set(null);
     this.editorViolations.set([]);
     const subscription = this.sessionScope
-      .forCurrentSession(this.planning.getPlanningProposal())
+      .forCurrentSession(this.planning.getPlanningProposal(roundId))
       .pipe(
         takeUntil(this.viewEnded(view)),
         finalize(() => {
@@ -489,28 +595,36 @@ export class PlanningWorkflowService {
     this.proposalLoad = subscription;
   }
 
-  reloadPlanningProposal(view = this.activeView): void {
-    this.loadPlanningProposal(view);
+  reloadPlanningProposal(roundId: number, view = this.activeView): void {
+    if (this.activeRoundId === roundId) this.loadPlanningProposal(roundId, view);
   }
 
-  savePlanningProposal(proposal: EditablePlanningProposal, view = this.activeView): void {
-    if (!this.ensureWorkspaceMatchesSelectedRound()) return;
+  savePlanningProposal(
+    proposal: EditablePlanningProposal,
+    roundId = this.captureRoundId(),
+    view = this.activeView,
+  ): void {
     if (!this.auth.hasCapability('planning-proposal:replace')) {
       this.feedback.roleRestriction();
       return;
     }
-    const roundId = this.roundContext.roundId();
+    if (!this.ensurePlanningRound(roundId) || proposal.round_id !== roundId) return;
     if (!this.beginOperation()) return;
     this.editorState.set('saving');
     this.editorError.set(null);
     this.editorViolations.set([]);
+    const sourceRevision = proposal.revision;
+    const command = { ...proposal, revision: sourceRevision };
     this.sessionScope
-      .forCurrentSession(this.planning.savePlanningProposal(proposal))
+      .forCurrentSession(this.planning.savePlanningProposal(roundId, command))
       .pipe(finalize(() => this.pending.set(false)))
       .subscribe({
         next: (saved) => {
-          if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) {
-            if (this.isSelectedRound(roundId)) this.recoverProposalForActiveView(roundId, true);
+          if (!this.isSelectedRound(roundId)) return;
+          if (!this.isCurrentView(view)) {
+            if (this.activeRoundId === roundId && this.activeView) {
+              this.loadPlanningProposal(roundId, this.activeView);
+            }
             return;
           }
           this.proposal.set(saved);
@@ -522,11 +636,7 @@ export class PlanningWorkflowService {
           );
         },
         error: (error: ApplicationError) => {
-          if (!this.isSelectedRound(roundId)) return;
-          if (!this.isCurrentView(view)) {
-            this.recoverProposalForActiveView(roundId, false);
-            return;
-          }
+          if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
           this.editorState.set('error');
           const detail =
             typeof error.details === 'object' && error.details !== null
@@ -543,7 +653,7 @@ export class PlanningWorkflowService {
   }
 
   private beginOperation(): boolean {
-    if (this.pending() || this.workspace.actionBusy()) return false;
+    if (this.pending()) return false;
     this.pending.set(true);
     return true;
   }
@@ -577,15 +687,6 @@ export class PlanningWorkflowService {
     this.activeViewEnded = null;
   }
 
-  private recoverProposalForActiveView(roundId: number, refreshWorkspace: boolean): void {
-    if (!this.isSelectedRound(roundId)) return;
-    if (refreshWorkspace) this.workspace.refresh();
-    const view = this.activeView;
-    if (view && this.workspace.round()?.status === 'plan_proposed') {
-      this.loadPlanningProposal(view);
-    }
-  }
-
   private emitViewEffect(view: symbol | null, effect: PlanningViewEffectCommand): void {
     if (!this.isCurrentView(view)) return;
     this.viewEffects.update((effects) => [
@@ -596,7 +697,7 @@ export class PlanningWorkflowService {
 
   private submitPlanConfirmation(roundId: number, view: symbol | null): void {
     this.sessionScope
-      .forCurrentSession(defer(() => this.planning.confirmPlan()))
+      .forCurrentSession(defer(() => this.planning.confirmPlan(roundId)))
       .pipe(finalize(() => this.pending.set(false)))
       .subscribe({
         next: (result) => this.handlePlanConfirmation(result, roundId, view),
@@ -609,7 +710,7 @@ export class PlanningWorkflowService {
     roundId: number,
     view: symbol | null,
   ): void {
-    if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
+    if (!this.acceptMutationForCurrentView(roundId, view)) return;
     this.lastResult.set(result);
     const confirmed = result.counts['confirmed_slots'] ?? 0;
     const warning = result.notification_warning ?? result.calendar_warning;
@@ -618,7 +719,7 @@ export class PlanningWorkflowService {
       warning ? 'Plan bestätigt, Zusatzinformationen unvollständig' : 'Plan bestätigt',
       warning ?? `${confirmed} Termine sind verbindlich.`,
     );
-    this.workspace.refresh();
+    this.refreshPlanning(roundId);
     this.shellContext?.refresh();
     void this.router.navigateByUrl(`/confirmed-plans/${roundId}`);
   }
@@ -635,20 +736,44 @@ export class PlanningWorkflowService {
     this.editorViolations.set([]);
   }
 
-  private ensureWorkspaceMatchesSelectedRound(): boolean {
-    if (!this.workspace.loading() && this.workspace.round()?.id === this.roundContext.roundId()) {
+  private ensurePlanningRound(roundId: number): boolean {
+    if (
+      !this.loading() &&
+      !this.loadError() &&
+      this.activeRoundId === roundId &&
+      this.snapshot()?.round.id === roundId &&
+      this.roundContext.roundId() === roundId
+    ) {
       return true;
     }
     this.feedback.notify(
       'error',
-      'Prüfungsrunde wird aktualisiert',
-      'Die Daten der ausgewählten Prüfungsrunde werden noch aktualisiert. Bitte warten Sie kurz und versuchen Sie es erneut.',
+      this.loadError() ? 'Prüfungsdaten nicht aktualisiert' : 'Prüfungsrunde wird aktualisiert',
+      this.loadError()
+        ? 'Bitte laden Sie die Planungsdaten erneut, bevor Sie weitere Änderungen vornehmen.'
+        : 'Die Daten der ausgewählten Prüfungsrunde werden noch aktualisiert. Bitte warten Sie kurz und versuchen Sie es erneut.',
     );
+    return false;
+  }
+
+  private refreshPlanning(roundId: number): void {
+    const view = this.activeView;
+    if (view && this.activeRoundId === roundId) this.loadPlanning(roundId, view);
+  }
+
+  private acceptMutationForCurrentView(roundId: number, view: symbol | null): boolean {
+    if (!this.isSelectedRound(roundId)) return false;
+    if (this.isCurrentView(view)) return true;
+    this.refreshPlanning(roundId);
     return false;
   }
 
   private isSelectedRound(roundId: number): boolean {
     return this.roundContext.roundId() === roundId;
+  }
+
+  private captureRoundId(): number {
+    return this.activeRoundId ?? this.roundContext.roundId();
   }
 
   private proposalErrorMessage(error: ApplicationError): string {

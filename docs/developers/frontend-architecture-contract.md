@@ -132,7 +132,7 @@ Diese Einträge laden keine eigene Route-Komponente.
 | `AuthFlowComponent` (gemeinsamer Einstieg für drei Auth-Aktionen) | `/login`, `/activate`, `/recover` | Auth-Feature: `AuthFlowComponent`; Authentisierung und Session liegen in `AuthService`. |
 | `DashboardRouteComponent` | `/dashboard` | Dashboard: `DashboardComponent`; öffnet andere Features per Navigation. |
 | `SchedulingOverviewRouteComponent` | `/scheduling-overview` | Terminübersicht: `SchedulingOverviewComponent`; Rundenwahl/Öffnen ist keine Planungsmutation. |
-| `PlanningRouteComponent` | `/scheduling-overview/:roundId` | Planung: `PlanningComponent`; Route bindet die Runde und Befehle an `PlanningWorkflowService`. |
+| `PlanningRouteComponent` | `/scheduling-overview/:roundId` | Planung: `PlanningComponent`; Route bindet die aufgelöste Runden-ID und Befehle an `PlanningWorkflowService`. |
 | `ConfirmedPlansRouteComponent` (gleicher Einstieg für Liste, Bearbeitung und Details) | `/confirmed-plans`, `/confirmed-plans/:roundId`, `/confirmed-plans/:roundId/edit` | Bestätigte Pläne: `ConfirmedPlansComponent`; die Gruppen teilen View, nicht einen neuen Featurebesitzer. |
 | `ExamDayRouteComponent` | `/confirmed-plans/:roundId/days/:dayId` | Prüfungstag: `ExamDayComponent`; URL liefert Runde und Tag. |
 | `CandidatesRouteComponent` | `/candidates` | Stammdaten Prüflinge: `CandidatesComponent`; Mutationen über `MasterDataWorkflowService`. |
@@ -258,6 +258,8 @@ flowchart LR
   CandidateRoute[CandidatesRouteComponent] --> MasterDataWorkflow[MasterDataWorkflowService]
   CommitteeRoute[CommitteeRouteComponent] --> MasterDataWorkflow
   MasterDataWorkflow --> MasterPort
+  PlanningRoute[PlanningRouteComponent] --> PlanningWorkflow[PlanningWorkflowService]
+  PlanningWorkflow --> PlanningPort
   Adapters[Weitere API-Clients und HttpClient]
   Http --> Adapters
   PlanningAdapter --> Adapters
@@ -275,6 +277,18 @@ Für Mitglieder mit Ausschusskontext lädt der Adapter zusätzlich die
 Ausschussnamen unabhängig von einer aktiven Mitgliedschaft.
 Ein Fehler dieses ergänzenden Reads wird separat angezeigt und blockiert
 keine erfolgreich geladenen Ortsdaten.
+`PlanningWorkflowService` lädt seinen eigenen Runden-Snapshot über
+`PLANNING_PORT`; `HttpPlanningAdapter` übersetzt ihn aus den vorhandenen
+API-Clients in featureeigene `planning.models`.
+Der Route-Einstieg übergibt die aufgelöste Runden-ID an jeden Read und Command.
+Vorschlagswrites behalten zusätzlich die beim Laden erhaltene Vorschlagsrevision.
+Der HTTP-API-Client liest für diese Calls keine veränderliche globale Rundenauswahl.
+Routenwechsel bricht Reads ab und verwirft Planning-Drafts; angenommene Writes
+bleiben an ihrer Ursprungsrunde und aktualisieren keine spätere Ansicht.
+Verfügbarkeitsantworten aktualisieren den Planning-Snapshot direkt.
+`ConfirmedPlansComponent` lädt die auswählbaren Editor-Referenzen für die
+aufgerufene Runden-ID über `ConfirmedPlansPort`; es liest sie nicht aus dem
+Planning-Workspace.
 Die globalen Workspace-Projektionen und ihre Verbraucher werden in den
 Feature-Slices rückgebaut; die Root-Provider der Ports belegen keine
 Workspace-Zuständigkeit.
@@ -441,8 +455,8 @@ Command im Ursprungsworkflow noch abgeschlossen wird.
 
 | Bestehender Pfad | Befristeter Besitzer | Ziel und zuständiger Rückbau |
 | --- | --- | --- |
-| `ApplicationWorkspaceService` bündelt Runde, Summary, Board und einen Übergangsbestand an Stammdaten; Planung und Prüfungshalbjahre lesen daraus. | Das Dashboard, der Shell-Kontext und Kandidaten-/Ausschussansichten besitzen eigene Reads und Fehlerzustände. Der Workspace bleibt befristeter Planungskompatibilitätszustand; Prüfungsorte gehören nicht dazu. Orts-/Raumwrites aktualisieren dort gezielt nur `/api/locations`. | Planung-Reads aus dem Workspace lösen: #1093; verbleibende Prüfungshalbjahr-/Workspace-Abhängigkeiten abbauen: #1097. |
-| Planung liest Runde, Summary, Board und Stammdaten aus dem Workspace. | `PlanningWorkflowService` besitzt bereits Planungscommands und lokale Proposal-/Editorzustände; Workspace bleibt nur Kompatibilitätsleser. | Eigenständige Planung-Reads und Ursprungskontext; Workspace-Abhängigkeit entfernen: #1093. |
+| `ApplicationWorkspaceService` bündelt Runde, Summary, Board und einen Übergangsbestand an Stammdaten für bestehende Workspace-Konsumenten. | Planung besitzt ihren Runden-Snapshot getrennt über `PlanningPort`; der Workspace bleibt für Prüfungshalbjahre ein Übergangspfad. Die Prüfungshalbjahresroute verwendet die Auswahl aus `RoundContextService` und lädt bei abweichender Workspace-Runde nur ihre rundenabhängigen Prüflingsreferenzen. Orts-/Raumwrites aktualisieren dort gezielt nur `/api/locations`. | Die verbleibenden Prüfungshalbjahres-/Workspace-Abhängigkeiten abbauen: #1097. |
+| Planung las Runde, Summary, Board und Stammdaten aus dem Workspace. | `PlanningWorkflowService` besitzt Snapshot, Vorschlag, Drafts und Commands; `PlanningPort` verwendet featureeigene Verträge. Route und Adapter reichen die beim Start erfasste Runden-ID durch; beim gespeicherten Vorschlag bleibt dessen Revision erhalten. | Abgeschlossen in #1093: unabhängiger Planning-Read, keine fremden Workspace-Board-Schreibzugriffe und gezielte Feature-Aktualisierung. |
 | Prüfungstag, Protokoll und Ergebnis verwenden eigene Featureports, aber Teile des Shell-/Workspacekontexts und bestehende mehrstufige Ketten. | Jeweilige Featurekomponente und vorhandene Application/Facade/Port; IDs/Revisionen bleiben explizit. | Prüfungstagszustand verantworten: #1094; Protokoll-/Ergebniszustand und Grenzen bereinigen: #1095. |
 | Persönliche Ansichten und Ansichten für Halbjahre, bestätigte Pläne, Produktinformation konsumieren teils geteilte Workspacewerte oder breite Einstiege. | Das jeweilige Feature bleibt fachlicher Besitzer; Workspace ist Kompatibilität. Produktinformation erhält vor dem Abbau der Workspace-Abhängigkeit einen eigenen Build-Info-Port, der `applicationVersion` aus der API-Root-Version lädt. | Personal lokal und mit gezielten Fähigkeiten: #1096; Produkt-Build-Info-Port sowie tabübergreifende Auth-Response-Fencing-, Recovery- und sensible Draft-Lebensdauer, verbleibende Einstiege und Workspace-/Session-Übergänge: #1097. |
 | Route-Einstiege und fachliche Services existieren parallel. | Route besitzt URL-Bindung/Command-Origin, Feature besitzt Fachzustand. | Beibehalten, solange beide eine dieser Aufgaben tragen; #1097 entfernt nur reine Durchreichung. |
