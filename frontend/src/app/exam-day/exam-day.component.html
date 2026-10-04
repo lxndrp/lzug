@@ -1,6 +1,9 @@
 @if (state() === 'loading') {
   <section class="app-panel" aria-busy="true" aria-live="polite">
     <div class="app-panel-body app-exam-day-message">Tagesansicht wird geladen …</div>
+    @if (actionError(); as message) {
+      <p class="app-exam-day-feedback app-exam-day-feedback-error" role="alert">{{ message }}</p>
+    }
   </section>
 } @else if (state() === 'not-found') {
   <section class="app-panel" role="alert">

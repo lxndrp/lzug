@@ -2,7 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { provideRouter, Router } from '@angular/router';
 import { provideTaiga } from '@taiga-ui/core';
-import { of, Subject, throwError } from 'rxjs';
+import { Observable, of, Subject, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { ApplicationError } from '../application/application-error';
@@ -96,7 +96,12 @@ describe('ExamDayComponent', () => {
         throwError(() => new ApplicationError('unavailable', 'Kindreload fehlgeschlagen.')),
       );
     const pendingUpdate = new Subject<ExamProtocol>();
-    vi.mocked(protocolPort.update).mockReturnValueOnce(pendingUpdate.asObservable());
+    let updateSubscriptions = 0;
+    const pendingUpdateRequest = new Observable<ExamProtocol>((subscriber) => {
+      updateSubscriptions += 1;
+      return pendingUpdate.subscribe(subscriber);
+    });
+    vi.mocked(protocolPort.update).mockReturnValueOnce(pendingUpdateRequest);
     fixture.detectChanges();
     fixture.detectChanges();
 
@@ -110,7 +115,7 @@ describe('ExamDayComponent', () => {
     };
     childState.declaration = 'without_special_occurrences';
     childState.save();
-    expect(protocolPort.update).toHaveBeenCalledTimes(1);
+    expect(updateSubscriptions).toBe(1);
 
     (
       fixture.componentInstance as unknown as {
@@ -141,7 +146,7 @@ describe('ExamDayComponent', () => {
       child,
     );
     childState.save();
-    expect(protocolPort.update).toHaveBeenCalledTimes(1);
+    expect(updateSubscriptions).toBe(1);
 
     const refreshedDay = dayView();
     refreshedDay.day.slots[0].actualStartedAt = '2026-11-16T08:30:00+01:00';

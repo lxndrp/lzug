@@ -152,7 +152,7 @@ describe('ExamDayFacade', () => {
 
     expect(facade.state()).toBe('error');
     expect(facade.view()?.day.revision).toBe(1);
-    expect(facade.actionError()).toContain('aktuelle Tagesansicht');
+    expect(facade.actionError()).toContain('Änderung wurde gespeichert');
 
     vi.mocked(port.getConfirmedPlanDay).mockReturnValueOnce(of(dayView(7, 1, 2)));
     facade.load();
@@ -167,23 +167,33 @@ describe('ExamDayFacade', () => {
       .mockReturnValueOnce(
         throwError(() => new ApplicationError('unavailable', 'Refresh fehlgeschlagen.')),
       )
+      .mockReturnValueOnce(
+        throwError(() => new ApplicationError('unavailable', 'Retry fehlgeschlagen.')),
+      )
       .mockReturnValueOnce(of(dayView(7, 1, 1)))
       .mockReturnValueOnce(of(dayView(7, 1, 2)));
 
     facade.refreshAfterEmbeddedMutation(7, 2);
     expect(facade.state()).toBe('error');
-    expect(facade.actionError()).toContain('akzeptierten Revision');
+    expect(facade.actionError()).toContain('Änderung wurde gespeichert');
+
+    facade.load();
+
+    expect(facade.state()).toBe('error');
+    expect(facade.actionError()).toContain('Änderung wurde gespeichert');
 
     facade.load();
 
     expect(facade.state()).toBe('error');
     expect(facade.view()?.day.revision).toBe(1);
+    expect(facade.actionError()).toContain('Änderung wurde gespeichert');
     expect(facade.actionError()).toContain('akzeptierten Revision');
 
     facade.load();
 
     expect(facade.state()).toBe('ready');
     expect(facade.view()?.day.revision).toBe(2);
+    expect(facade.actionError()).toBeNull();
   });
 });
 

@@ -53,6 +53,7 @@ export class ExamDayFacade {
   private contextSequence = 0;
   private previewSequence = 0;
   private minimumDayRevision: number | null = null;
+  private embeddedWriteRefreshPending = false;
 
   constructor() {
     this.sessionScope.changes$.pipe(takeUntilDestroyed()).subscribe(() => this.onSessionChange());
@@ -67,6 +68,7 @@ export class ExamDayFacade {
     this.roundId = roundId;
     this.dayId = dayId;
     this.minimumDayRevision = null;
+    this.embeddedWriteRefreshPending = false;
     this.contextSequence += 1;
     this.contextGeneration.update((generation) => generation + 1);
     this.embeddedActionError.set(null);
@@ -80,7 +82,7 @@ export class ExamDayFacade {
     const contextSequence = this.contextSequence;
     const sessionGeneration = this.sessionScope.generation();
     this.actionMessage.set(null);
-    this.actionError.set(null);
+    if (!this.embeddedWriteRefreshPending) this.actionError.set(null);
     this.previewSequence += 1;
     this.reopeningImpact.set(null);
     if (contextChanged) {
@@ -121,13 +123,13 @@ export class ExamDayFacade {
         }
         if (this.minimumDayRevision !== null && view.day.revision < this.minimumDayRevision) {
           this.state.set('error');
-          this.actionError.set(
-            'Die aktualisierten Tagesdaten entsprechen nicht der akzeptierten Revision.',
-          );
+          this.actionError.set(this.embeddedRevisionError());
           return;
         }
         this.view.set(view);
         this.embeddedActionError.set(null);
+        this.embeddedWriteRefreshPending = false;
+        this.actionError.set(null);
         this.state.set('ready');
       },
       error: (error: ApplicationError) => {
@@ -144,6 +146,9 @@ export class ExamDayFacade {
         }
         if (contextChanged) this.view.set(null);
         this.state.set(error.kind === 'not-found' ? 'not-found' : 'error');
+        if (this.embeddedWriteRefreshPending) {
+          this.actionError.set(this.embeddedWriteUnavailableError());
+        }
       },
     });
   }
@@ -334,6 +339,7 @@ export class ExamDayFacade {
 
   refreshAfterEmbeddedMutation(dayId: number, minimumRevision?: number): void {
     if (this.dayId !== dayId || this.roundId === null) return;
+    this.embeddedWriteRefreshPending = true;
     if (minimumRevision !== undefined) {
       this.minimumDayRevision = Math.max(this.minimumDayRevision ?? 0, minimumRevision);
     }
@@ -361,13 +367,13 @@ export class ExamDayFacade {
         }
         if (this.minimumDayRevision !== null && view.day.revision < this.minimumDayRevision) {
           this.state.set('error');
-          this.actionError.set(
-            'Die aktualisierten Tagesdaten entsprechen nicht der akzeptierten Revision.',
-          );
+          this.actionError.set(this.embeddedRevisionError());
           return;
         }
         this.view.set(view);
         this.embeddedActionError.set(null);
+        this.embeddedWriteRefreshPending = false;
+        this.actionError.set(null);
         this.state.set('ready');
       },
       error: () => {
@@ -375,12 +381,23 @@ export class ExamDayFacade {
           return;
         }
         this.state.set('error');
-        this.actionError.set(
-          'Die Änderung wurde gespeichert, aber die aktuelle Tagesansicht konnte ' +
-            'nicht geladen werden.',
-        );
+        this.actionError.set(this.embeddedWriteUnavailableError());
       },
     });
+  }
+
+  private embeddedWriteUnavailableError(): string {
+    return (
+      'Die Änderung wurde gespeichert, aber die aktuelle Tagesansicht konnte ' +
+      'nicht geladen werden.'
+    );
+  }
+
+  private embeddedRevisionError(): string {
+    return (
+      this.embeddedWriteUnavailableError() +
+      ' Die Tagesdaten entsprechen noch nicht der akzeptierten Revision.'
+    );
   }
 
   hasSavingAction(): boolean {
