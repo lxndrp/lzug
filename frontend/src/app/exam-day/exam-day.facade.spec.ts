@@ -10,7 +10,11 @@ import { SessionScopeService } from '../auth/session-scope.service';
 import { PersonalFacade } from '../personal/personal.facade';
 import { EXAM_DAY_PORT, type ExamDayPort } from './exam-day.port';
 import { ExamDayFacade } from './exam-day.facade';
-import type { ConfirmedPlanDayView } from './exam-day.models';
+import type {
+  ConfirmedPlanDayView,
+  ExamDayClosure,
+  ExamDayReopeningImpact,
+} from './exam-day.models';
 
 describe('ExamDayFacade', () => {
   let facade: ExamDayFacade;
@@ -89,6 +93,24 @@ describe('ExamDayFacade', () => {
     expect(facade.actionMessage()).toBeNull();
     expect(facade.savingKeys()).toEqual(new Set());
   });
+
+  it('invalidates a reopening preview when an embedded capability changes the day', () => {
+    const pendingPreview = new Subject<ExamDayReopeningImpact>();
+    vi.mocked(port.previewExamDayReopening).mockReturnValueOnce(pendingPreview.asObservable());
+    vi.mocked(port.getConfirmedPlanDay)
+      .mockReturnValueOnce(of(dayView(7, 1)))
+      .mockReturnValueOnce(of(dayView(7, 1, 2)));
+
+    facade.bindContext(1, 7);
+    facade.previewReopening(7, []);
+    facade.refreshAfterEmbeddedMutation(7, 2);
+
+    expect(facade.view()?.day.revision).toBe(2);
+    expect(facade.reopeningImpact()).toBeNull();
+    pendingPreview.next({ ...reopeningImpact(), revision: 1 });
+    expect(facade.reopeningImpact()).toBeNull();
+    expect(facade.savingKeys()).toEqual(new Set());
+  });
 });
 
 function createPort(): ExamDayPort {
@@ -98,16 +120,49 @@ function createPort(): ExamDayPort {
     saveMemberAttendance: vi.fn(() => of(dayView(7, 1))),
     startExamSlot: vi.fn(() => of(dayView(7, 1))),
     updateExamSlotStatus: vi.fn(() => of(dayView(7, 1))),
-    closeExamDay: vi.fn(() => of({ dayId: 7, revision: 2 } as never)),
-    previewExamDayReopening: vi.fn(() => of({ dayId: 7, revision: 1 } as never)),
-    reopenExamDay: vi.fn(() => of({ dayId: 7, revision: 2 } as never)),
+    closeExamDay: vi.fn(() => of(closure())),
+    previewExamDayReopening: vi.fn(() => of(reopeningImpact())),
+    reopenExamDay: vi.fn(() => of(closure())),
   };
 }
 
-function dayView(dayId: number, roundId: number): ConfirmedPlanDayView {
+function closure(): ExamDayClosure {
+  return {
+    dayId: 7,
+    revision: 2,
+    status: 'open',
+    legacyStatus: null,
+    evaluation: {
+      items: [],
+      warnings: [],
+      regularCloseReady: true,
+      exceptionCloseReady: false,
+      exceptionCandidate: null,
+      protocolReferences: [],
+      resultReferences: [],
+    },
+    activeReopening: null,
+    history: [],
+    tasks: [],
+    permissions: { close: true, reopen: false, export: false },
+    exportLinks: { machine: '', human: '' },
+  };
+}
+
+function reopeningImpact(): ExamDayReopeningImpact {
+  return {
+    dayId: 7,
+    revision: 1,
+    requestedScope: [],
+    expandedScope: [],
+    impacts: {},
+  };
+}
+
+function dayView(dayId: number, roundId: number, dayRevision = 1): ConfirmedPlanDayView {
   return {
     plan: { id: roundId },
-    day: { id: dayId, revision: 1 },
+    day: { id: dayId, revision: dayRevision },
   } as unknown as ConfirmedPlanDayView;
 }
 

@@ -276,6 +276,12 @@ export class ExamDayFacade {
           this.actionError.set('Die Auswirkungsprüfung gehört nicht mehr zum geöffneten Tag.');
           return;
         }
+        if (impact.revision !== this.view()?.day.revision) {
+          this.savingKeys.set(new Set());
+          this.reopeningImpact.set(null);
+          this.actionError.set('Die Auswirkungsprüfung gehört nicht mehr zum aktuellen Stand.');
+          return;
+        }
         this.savingKeys.set(new Set());
         this.reopeningImpact.set(impact);
       },
@@ -324,6 +330,13 @@ export class ExamDayFacade {
 
   refreshAfterEmbeddedMutation(dayId: number, minimumRevision?: number): void {
     if (this.dayId !== dayId || this.roundId === null) return;
+    this.previewSequence += 1;
+    this.reopeningImpact.set(null);
+    this.savingKeys.update((keys) => {
+      const current = new Set(keys);
+      current.delete('day-reopening-impact');
+      return current;
+    });
     const requestSequence = ++this.requestSequence;
     const contextSequence = this.contextSequence;
     const sessionGeneration = this.sessionScope.generation();
