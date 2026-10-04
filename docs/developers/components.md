@@ -177,6 +177,10 @@ Referenzen werden innerhalb derselben Schreibtransaktion erneut geprüft.
 Planning besitzt Normalisierung und reine Fachvalidierung; der SQLite-Adapter
 liefert dafür materialisierte Referenzfakten und setzt die validierten
 Änderungen mit den relationalen Schreibbedingungen atomar um.
+Die Auswahl der über dieselbe Person und Prüfungstagsdatum zu propagierenden
+Verfügbarkeiten sowie deren Zielwerte ist eine Planning-Policy; der Adapter
+liefert dafür detached Kandidaten-Fakten und schreibt den validierten Plan
+atomar mit der Quellverfügbarkeit.
 `backend.persistence.planning_resources` implementiert den UoW für SQLite und
 verwendet den bereits eingeführten Candidate-Day-UoW aus #1071 für den
 Planungssnapshot.

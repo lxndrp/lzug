@@ -33,11 +33,17 @@ from backend.persistence.store import Store
 if TYPE_CHECKING:
     from backend.planning.candidate_days import CandidateDayRecord
     from backend.planning.resources import (
+        PlanningAvailabilityPropagationContext,
+        PlanningAvailabilityPropagationFact,
+        PlanningAvailabilityPropagationWrite,
         PlanningAvailabilityReferences,
         PlanningBlocker,
         PlanningCandidateAssignmentContext,
+        PlanningCandidateAssignmentPlan,
         PlanningRecord,
         PlanningResourceUnitOfWork,
+        PlanningRoundCreationContext,
+        PlanningRoundCreationPlan,
         PlanningRoundSummary,
         PlanningSettingsReferences,
         PlanningSnapshot,
@@ -134,11 +140,44 @@ class _SQLitePlanningAvailabilityReferences(NamedTuple):
     day_round_id: int | None
 
 
+class _SQLitePlanningAvailabilityPropagationFact(NamedTuple):
+    member_id: int
+    person_id: int
+    committee_id: int
+    day_id: int
+    day_date: str
+    round_id: int
+    round_committee_id: int | None
+    round_half_year_id: int | None
+    existing_availability_id: int | None
+
+
+class _SQLitePlanningAvailabilityPropagationContext(NamedTuple):
+    source_member_id: int
+    source_person_id: int
+    source_date: str
+    source_half_year_id: int
+    candidates: tuple[PlanningAvailabilityPropagationFact, ...]
+
+
 class _SQLitePlanningCandidateAssignmentContext(NamedTuple):
     candidate_exists: bool
     target_round_exists: bool
     active_round_id: int | None
     round_candidate_exists: bool
+    exam_half_year_id: int | None
+    active_assignment_id: int | None
+    active_round_candidate_id: int | None
+    target_round_candidate_id: int | None
+
+
+class _SQLitePlanningRoundCreationContext(NamedTuple):
+    exam_half_year_id: int | None
+    half_year_exists: bool
+    committee_exists: bool
+    committee_active: bool
+    committee_ready: bool
+    creator_committee_id: int | None
 
 
 class SQLitePlanningResourceUnitOfWorkFactory:
@@ -190,13 +229,54 @@ class SQLitePlanningResourceUnitOfWork:
         row = self._store.get(EXAM_HALF_YEAR, half_year_id)
         return _record(row) if row is not None else None
 
-    def create_round(self, values: Mapping[str, PlanningValue]) -> PlanningRecord:
-        normalized = dict(values)
-        self._resolve_half_year(normalized)
-        self._validate_round_references(normalized)
+    def create_round(self, plan: PlanningRoundCreationPlan) -> PlanningRecord:
+        normalized = dict(plan.values)
+        if plan.create_half_year:
+            if plan.season is None or plan.year is None:
+                raise ValueError("Half-year creation plan is incomplete")
+            half_year = self._store.create(
+                EXAM_HALF_YEAR,
+                {"season": plan.season, "year": plan.year, "status": "active"},
+            )
+            half_year_id = int(half_year["id"])
+        elif plan.exam_half_year_id is not None:
+            half_year_id = plan.exam_half_year_id
+        else:
+            raise ValueError("Round creation plan has no exam half-year")
+        normalized["exam_half_year_id"] = half_year_id
         normalized["revision"] = 1
         normalized["lifecycle_status"] = "open"
         return _record(self._store.create(EXAM_ROUND, normalized))
+
+    def prepare_round_creation(
+        self, values: Mapping[str, PlanningValue]
+    ) -> PlanningRoundCreationContext:
+        explicit_half_year_id = values.get("exam_half_year_id")
+        if explicit_half_year_id is not None:
+            half_year_id = int(explicit_half_year_id)
+            half_year = self._store.get(EXAM_HALF_YEAR, half_year_id)
+        else:
+            half_year = self._store.first(
+                EXAM_HALF_YEAR, season=values["season"], year=values["year"]
+            )
+            half_year_id = int(half_year["id"]) if half_year is not None else None
+        committee = self._store.get(COMMITTEE, values["committee_id"])
+        creator = self._store.get(COMMITTEE_MEMBER, values["created_by_member_id"])
+        return cast(
+            "PlanningRoundCreationContext",
+            _SQLitePlanningRoundCreationContext(
+                exam_half_year_id=half_year_id,
+                half_year_exists=half_year is not None,
+                committee_exists=committee is not None,
+                committee_active=bool(committee["is_active"]) if committee is not None else False,
+                committee_ready=(
+                    committee["bootstrap_state"] == "ready" if committee is not None else False
+                ),
+                creator_committee_id=(
+                    int(creator["committee_id"]) if creator is not None else None
+                ),
+            ),
+        )
 
     def list_rounds(self, filters: Mapping[str, PlanningValue]) -> tuple[PlanningRecord, ...]:
         return tuple(map(_record, self._store.where(EXAM_ROUND, **dict(filters))))
@@ -218,6 +298,10 @@ class SQLitePlanningResourceUnitOfWork:
                     target_round_exists=exam_round is not None,
                     active_round_id=None,
                     round_candidate_exists=False,
+                    exam_half_year_id=None,
+                    active_assignment_id=None,
+                    active_round_candidate_id=None,
+                    target_round_candidate_id=None,
                 ),
             )
         active = self._store.first(
@@ -236,6 +320,14 @@ class SQLitePlanningResourceUnitOfWork:
                 target_round_exists=True,
                 active_round_id=(int(active["exam_round_id"]) if active is not None else None),
                 round_candidate_exists=round_candidate is not None,
+                exam_half_year_id=int(exam_round["exam_half_year_id"]),
+                active_assignment_id=int(active["id"]) if active is not None else None,
+                active_round_candidate_id=(
+                    int(active["round_candidate_id"]) if active is not None else None
+                ),
+                target_round_candidate_id=(
+                    int(round_candidate["id"]) if round_candidate is not None else None
+                ),
             ),
         )
 
@@ -260,37 +352,13 @@ class SQLitePlanningResourceUnitOfWork:
         return _record(row) if row is not None else None
 
     def create_candidate(self, values: Mapping[str, PlanningValue]) -> PlanningRecord:
-        payload = dict(values)
-        exam_round_id = payload.pop("exam_round_id", None)
-        attempt_number = payload.pop("attempt_number", None)
-        requires_mep = payload.pop("requires_mep", None)
-        candidate = self._store.create(CANDIDATE, payload)
-        if exam_round_id is not None:
-            self._assign_candidate(
-                candidate["id"], int(exam_round_id), attempt_number, requires_mep, None
-            )
-        return _record(candidate)
+        return _record(self._store.create(CANDIDATE, dict(values)))
 
     def update_candidate(
         self, candidate_id: int, values: Mapping[str, PlanningValue]
     ) -> PlanningRecord | None:
-        payload = dict(values)
-        exam_round_id = payload.pop("exam_round_id", None)
-        attempt_number = payload.pop("attempt_number", None)
-        requires_mep = payload.pop("requires_mep", None)
-        change_reason = payload.pop("assignment_change_reason", None)
-        candidate = self._store.update(CANDIDATE, candidate_id, payload)
-        if candidate is None:
-            return None
-        if exam_round_id is not None:
-            self._assign_candidate(
-                candidate_id,
-                int(exam_round_id),
-                attempt_number,
-                requires_mep,
-                str(change_reason) if change_reason is not None else None,
-            )
-        return _record(candidate)
+        row = self._store.update(CANDIDATE, candidate_id, dict(values))
+        return _record(row) if row is not None else None
 
     def delete_candidate(self, candidate_id: int) -> bool:
         self._store.delete_where(CANDIDATE_COMMITTEE_ASSIGNMENT, candidate_id=candidate_id)
@@ -309,19 +377,58 @@ class SQLitePlanningResourceUnitOfWork:
     ) -> tuple[PlanningRecord, ...]:
         return tuple(map(_record, self._store.where(ROUND_CANDIDATE, **dict(filters))))
 
-    def assign_candidate_to_round(self, values: Mapping[str, PlanningValue]) -> PlanningRecord:
+    def assign_candidate_to_round(
+        self,
+        values: Mapping[str, PlanningValue],
+        plan: PlanningCandidateAssignmentPlan,
+    ) -> PlanningRecord:
         payload = dict(values)
-        self._assign_candidate(
-            int(payload["candidate_id"]),
-            int(payload["exam_round_id"]),
-            payload.get("attempt_number"),
-            payload.get("requires_mep"),
-            (
-                str(payload["assignment_change_reason"])
-                if payload.get("assignment_change_reason") is not None
-                else None
-            ),
-        )
+        if plan.end_assignment_id is not None:
+            ended_at = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S.%f")
+            self._store.update(
+                CANDIDATE_COMMITTEE_ASSIGNMENT,
+                plan.end_assignment_id,
+                {"ended_at": ended_at, "change_reason": plan.change_reason},
+            )
+        if plan.deactivate_round_candidate_id is not None:
+            self._store.update(
+                ROUND_CANDIDATE,
+                plan.deactivate_round_candidate_id,
+                {"is_active": 0},
+            )
+        if plan.create_round_candidate:
+            round_candidate = self._store.create(
+                ROUND_CANDIDATE,
+                {
+                    "exam_round_id": plan.exam_round_id,
+                    "candidate_id": plan.candidate_id,
+                    "attempt_number": plan.attempt_number,
+                    "requires_mep": plan.requires_mep,
+                    "is_active": 1,
+                },
+            )
+        else:
+            assert plan.target_round_candidate_id is not None
+            changed: dict[str, object] = {"is_active": 1}
+            if plan.attempt_number is not None:
+                changed["attempt_number"] = plan.attempt_number
+            if plan.requires_mep is not None:
+                changed["requires_mep"] = plan.requires_mep
+            round_candidate = self._store.update(
+                ROUND_CANDIDATE, plan.target_round_candidate_id, changed
+            )
+            if round_candidate is None:
+                raise ValueError("Round candidate assignment not found")
+        if plan.create_active_assignment:
+            self._store.create(
+                CANDIDATE_COMMITTEE_ASSIGNMENT,
+                {
+                    "candidate_id": plan.candidate_id,
+                    "exam_half_year_id": plan.exam_half_year_id,
+                    "exam_round_id": plan.exam_round_id,
+                    "round_candidate_id": round_candidate["id"],
+                },
+            )
         row = self._store.first(
             ROUND_CANDIDATE,
             candidate_id=payload["candidate_id"],
@@ -419,7 +526,69 @@ class SQLitePlanningResourceUnitOfWork:
             ),
         )
 
-    def save_availability(self, values: Mapping[str, PlanningValue]) -> PlanningRecord:
+    def availability_propagation_context(
+        self, round_id: int, committee_member_id: int, candidate_exam_day_id: int
+    ) -> PlanningAvailabilityPropagationContext:
+        member = self._store.get(COMMITTEE_MEMBER, committee_member_id)
+        day = self._store.get(CANDIDATE_EXAM_DAY, candidate_exam_day_id)
+        source_round = self._store.get(EXAM_ROUND, round_id)
+        if member is None or day is None or source_round is None:
+            raise RuntimeError("Validated availability references changed inside the write UoW")
+
+        members = self._store.where(COMMITTEE_MEMBER, person_id=member["person_id"])
+        days = self._store.where(CANDIDATE_EXAM_DAY, date=day["date"])
+        candidates: list[PlanningAvailabilityPropagationFact] = []
+        for other_member in members:
+            for other_day in days:
+                other_round = self._store.get(EXAM_ROUND, other_day["exam_round_id"])
+                existing = self._store.first(
+                    MEMBER_AVAILABILITY,
+                    exam_round_id=other_day["exam_round_id"],
+                    committee_member_id=other_member["id"],
+                    candidate_exam_day_id=other_day["id"],
+                )
+                candidates.append(
+                    cast(
+                        "PlanningAvailabilityPropagationFact",
+                        _SQLitePlanningAvailabilityPropagationFact(
+                            member_id=int(other_member["id"]),
+                            person_id=int(other_member["person_id"]),
+                            committee_id=int(other_member["committee_id"]),
+                            day_id=int(other_day["id"]),
+                            day_date=str(other_day["date"]),
+                            round_id=int(other_day["exam_round_id"]),
+                            round_committee_id=(
+                                int(other_round["committee_id"])
+                                if other_round is not None
+                                else None
+                            ),
+                            round_half_year_id=(
+                                int(other_round["exam_half_year_id"])
+                                if other_round is not None
+                                else None
+                            ),
+                            existing_availability_id=(
+                                int(existing["id"]) if existing is not None else None
+                            ),
+                        ),
+                    )
+                )
+        return cast(
+            "PlanningAvailabilityPropagationContext",
+            _SQLitePlanningAvailabilityPropagationContext(
+                source_member_id=int(member["id"]),
+                source_person_id=int(member["person_id"]),
+                source_date=str(day["date"]),
+                source_half_year_id=int(source_round["exam_half_year_id"]),
+                candidates=tuple(candidates),
+            ),
+        )
+
+    def save_availability(
+        self,
+        values: Mapping[str, PlanningValue],
+        propagation: tuple[PlanningAvailabilityPropagationWrite, ...],
+    ) -> PlanningRecord:
         payload = dict(values)
         existing = self._store.first(
             MEMBER_AVAILABILITY,
@@ -432,18 +601,21 @@ class SQLitePlanningResourceUnitOfWork:
             if existing is None
             else self._store.update(MEMBER_AVAILABILITY, existing["id"], payload) or existing
         )
-        self._propagate_availability(saved)
+        self._apply_availability_propagation(propagation)
         return _record(saved)
 
     def update_availability(
-        self, availability_id: int, values: Mapping[str, PlanningValue]
+        self,
+        availability_id: int,
+        values: Mapping[str, PlanningValue],
+        propagation: tuple[PlanningAvailabilityPropagationWrite, ...],
     ) -> PlanningRecord | None:
         existing = self._store.get(MEMBER_AVAILABILITY, availability_id)
         if existing is None:
             return None
         payload = dict(values)
         saved = self._store.update(MEMBER_AVAILABILITY, availability_id, payload) or existing
-        self._propagate_availability(saved)
+        self._apply_availability_propagation(propagation)
         return _record(saved)
 
     def delete_availability(self, availability_id: int) -> bool:
@@ -545,134 +717,18 @@ class SQLitePlanningResourceUnitOfWork:
             )
         return tuple(blockers)
 
-    def _resolve_half_year(self, values: dict[str, PlanningValue]) -> None:
-        if values.get("exam_half_year_id") is not None:
-            values.pop("season", None)
-            values.pop("year", None)
-            if self._store.get(EXAM_HALF_YEAR, values["exam_half_year_id"]) is None:
-                raise ValueError("Exam half-year not found")
-            return
-        season = values.pop("season", None)
-        year = values.pop("year", None)
-        half_year = self._store.first(EXAM_HALF_YEAR, season=season, year=year)
-        if half_year is None:
-            half_year = self._store.create(
-                EXAM_HALF_YEAR, {"season": season, "year": year, "status": "active"}
-            )
-        values["exam_half_year_id"] = half_year["id"]
-
-    def _validate_round_references(self, values: Mapping[str, PlanningValue]) -> None:
-        if "exam_half_year_id" not in values:
-            raise ValueError("Missing required field: exam_half_year_id")
-        committee = self._store.get(COMMITTEE, values["committee_id"])
-        if committee is None:
-            raise ValueError("Committee not found")
-        if not committee["is_active"] or committee["bootstrap_state"] != "ready":
-            raise ValueError("Committee is not ready for an exam round")
-        creator = self._store.get(COMMITTEE_MEMBER, values["created_by_member_id"])
-        if creator is None or creator["committee_id"] != values["committee_id"]:
-            raise ValueError("Creating member does not belong to the exam round committee")
-
-    def _assign_candidate(
-        self,
-        candidate_id: int,
-        round_id: int,
-        attempt_number: PlanningValue,
-        requires_mep: PlanningValue,
-        reason: str | None,
+    def _apply_availability_propagation(
+        self, propagation: tuple[PlanningAvailabilityPropagationWrite, ...]
     ) -> None:
-        if self._store.get(CANDIDATE, candidate_id) is None:
-            raise ValueError("Candidate not found")
-        exam_round = self._store.get(EXAM_ROUND, round_id)
-        if exam_round is None:
-            raise ValueError("Exam round not found")
-        half_year_id = exam_round["exam_half_year_id"]
-        active = self._store.first(
-            CANDIDATE_COMMITTEE_ASSIGNMENT,
-            candidate_id=candidate_id,
-            exam_half_year_id=half_year_id,
-            ended_at=None,
-        )
-        round_candidate = self._store.first(
-            ROUND_CANDIDATE, candidate_id=candidate_id, exam_round_id=round_id
-        )
-        if active and active["exam_round_id"] != round_id:
-            ended_at = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S.%f")
-            self._store.update(
-                CANDIDATE_COMMITTEE_ASSIGNMENT,
-                active["id"],
-                {"ended_at": ended_at, "change_reason": reason},
-            )
-            self._store.update(ROUND_CANDIDATE, active["round_candidate_id"], {"is_active": 0})
-            active = None
-        if round_candidate is None:
-            round_candidate = self._store.create(
-                ROUND_CANDIDATE,
-                {
-                    "exam_round_id": round_id,
-                    "candidate_id": candidate_id,
-                    "attempt_number": attempt_number,
-                    "requires_mep": requires_mep,
-                    "is_active": 1,
-                },
-            )
-        else:
-            changed: dict[str, object] = {"is_active": 1}
-            if attempt_number is not None:
-                changed["attempt_number"] = attempt_number
-            if requires_mep is not None:
-                changed["requires_mep"] = requires_mep
-            round_candidate = (
-                self._store.update(ROUND_CANDIDATE, round_candidate["id"], changed)
-                or round_candidate
-            )
-        if active is None:
-            self._store.create(
-                CANDIDATE_COMMITTEE_ASSIGNMENT,
-                {
-                    "candidate_id": candidate_id,
-                    "exam_half_year_id": half_year_id,
-                    "exam_round_id": round_id,
-                    "round_candidate_id": round_candidate["id"],
-                },
-            )
-
-    def _propagate_availability(self, saved: Mapping[str, object]) -> None:
-        member = self._store.get(COMMITTEE_MEMBER, saved["committee_member_id"])
-        day = self._store.get(CANDIDATE_EXAM_DAY, saved["candidate_exam_day_id"])
-        source_round = self._store.get(EXAM_ROUND, saved["exam_round_id"])
-        if member is None or day is None or source_round is None:
-            return
-        for other_member in self._store.all(COMMITTEE_MEMBER):
-            if (
-                other_member["id"] == member["id"]
-                or other_member["person_id"] != member["person_id"]
-            ):
-                continue
-            for other_day in self._store.all(CANDIDATE_EXAM_DAY):
-                if other_day["date"] != day["date"]:
-                    continue
-                other_round = self._store.get(EXAM_ROUND, other_day["exam_round_id"])
-                if (
-                    other_round is None
-                    or other_round["committee_id"] != other_member["committee_id"]
-                    or other_round["exam_half_year_id"] != source_round["exam_half_year_id"]
-                ):
-                    continue
-                existing = self._store.first(
-                    MEMBER_AVAILABILITY,
-                    exam_round_id=other_day["exam_round_id"],
-                    committee_member_id=other_member["id"],
-                    candidate_exam_day_id=other_day["id"],
-                )
-                values = {
-                    "exam_round_id": other_day["exam_round_id"],
-                    "committee_member_id": other_member["id"],
-                    "candidate_exam_day_id": other_day["id"],
-                    "availability": saved["availability"],
-                    "responded_at": saved["responded_at"],
-                }
-                if existing is None:
-                    self._store.create(MEMBER_AVAILABILITY, values)
-                else:
-                    self._store.update(MEMBER_AVAILABILITY, existing["id"], values)
+        for command in propagation:
+            values: dict[str, object] = {
+                "exam_round_id": command.exam_round_id,
+                "committee_member_id": command.committee_member_id,
+                "candidate_exam_day_id": command.candidate_exam_day_id,
+                "availability": command.availability,
+                "responded_at": command.responded_at,
+            }
+            if command.existing_availability_id is None:
+                self._store.create(MEMBER_AVAILABILITY, values)
+            else:
+                self._store.update(MEMBER_AVAILABILITY, command.existing_availability_id, values)

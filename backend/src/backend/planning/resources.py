@@ -155,6 +155,67 @@ class PlanningAvailabilityReferences:
 
 
 @dataclass(frozen=True)
+class PlanningAvailabilityPropagationFact:
+    """Detached candidate target fact for availability propagation."""
+
+    member_id: int
+    person_id: int
+    committee_id: int
+    day_id: int
+    day_date: str
+    round_id: int
+    round_committee_id: int | None
+    round_half_year_id: int | None
+    existing_availability_id: int | None
+
+
+@dataclass(frozen=True)
+class PlanningAvailabilityPropagationContext:
+    """Facts Planning uses to select availability propagation targets."""
+
+    source_member_id: int
+    source_person_id: int
+    source_date: str
+    source_half_year_id: int
+    candidates: tuple[PlanningAvailabilityPropagationFact, ...]
+
+
+@dataclass(frozen=True)
+class PlanningAvailabilityPropagationWrite:
+    """One persistence operation selected by Planning's propagation policy."""
+
+    existing_availability_id: int | None
+    exam_round_id: int
+    committee_member_id: int
+    candidate_exam_day_id: int
+    availability: str
+    responded_at: str | None
+
+
+@dataclass(frozen=True)
+class PlanningRoundCreationContext:
+    """Detached references Planning validates before a round is created."""
+
+    exam_half_year_id: int | None
+    half_year_exists: bool
+    committee_exists: bool
+    committee_active: bool
+    committee_ready: bool
+    creator_committee_id: int | None
+
+
+@dataclass(frozen=True)
+class PlanningRoundCreationPlan:
+    """Planning's decision to reuse or create the round's half-year."""
+
+    values: Mapping[str, PlanningValue]
+    exam_half_year_id: int | None
+    create_half_year: bool
+    season: str | None
+    year: int | None
+
+
+@dataclass(frozen=True)
 class PlanningCandidateAssignmentContext:
     """Persisted assignment facts for a Planning reassignment decision."""
 
@@ -162,6 +223,27 @@ class PlanningCandidateAssignmentContext:
     target_round_exists: bool
     active_round_id: int | None
     round_candidate_exists: bool
+    exam_half_year_id: int | None = None
+    active_assignment_id: int | None = None
+    active_round_candidate_id: int | None = None
+    target_round_candidate_id: int | None = None
+
+
+@dataclass(frozen=True)
+class PlanningCandidateAssignmentPlan:
+    """Policy decision for one atomic candidate-to-round assignment command."""
+
+    candidate_id: int
+    exam_round_id: int
+    exam_half_year_id: int
+    end_assignment_id: int | None
+    deactivate_round_candidate_id: int | None
+    target_round_candidate_id: int | None
+    create_round_candidate: bool
+    create_active_assignment: bool
+    attempt_number: PlanningValue
+    requires_mep: PlanningValue
+    change_reason: str | None
 
 
 class PlanningResourceUnitOfWork(Protocol):
@@ -179,7 +261,11 @@ class PlanningResourceUnitOfWork(Protocol):
 
     def get_half_year(self, half_year_id: int) -> PlanningRecord | None: ...
 
-    def create_round(self, values: Mapping[str, PlanningValue]) -> PlanningRecord: ...
+    def create_round(self, plan: PlanningRoundCreationPlan) -> PlanningRecord: ...
+
+    def prepare_round_creation(
+        self, values: Mapping[str, PlanningValue]
+    ) -> PlanningRoundCreationContext: ...
 
     def list_rounds(self, filters: Mapping[str, PlanningValue]) -> tuple[PlanningRecord, ...]: ...
 
@@ -217,7 +303,11 @@ class PlanningResourceUnitOfWork(Protocol):
         self, filters: Mapping[str, PlanningValue]
     ) -> tuple[PlanningRecord, ...]: ...
 
-    def assign_candidate_to_round(self, values: Mapping[str, PlanningValue]) -> PlanningRecord: ...
+    def assign_candidate_to_round(
+        self,
+        values: Mapping[str, PlanningValue],
+        plan: PlanningCandidateAssignmentPlan,
+    ) -> PlanningRecord: ...
 
     def list_settings(self, filters: Mapping[str, PlanningValue]) -> tuple[PlanningRecord, ...]: ...
 
@@ -245,10 +335,21 @@ class PlanningResourceUnitOfWork(Protocol):
         self, round_id: int, committee_member_id: int, candidate_exam_day_id: int
     ) -> PlanningAvailabilityReferences: ...
 
-    def save_availability(self, values: Mapping[str, PlanningValue]) -> PlanningRecord: ...
+    def availability_propagation_context(
+        self, round_id: int, committee_member_id: int, candidate_exam_day_id: int
+    ) -> PlanningAvailabilityPropagationContext: ...
+
+    def save_availability(
+        self,
+        values: Mapping[str, PlanningValue],
+        propagation: tuple[PlanningAvailabilityPropagationWrite, ...],
+    ) -> PlanningRecord: ...
 
     def update_availability(
-        self, availability_id: int, values: Mapping[str, PlanningValue]
+        self,
+        availability_id: int,
+        values: Mapping[str, PlanningValue],
+        propagation: tuple[PlanningAvailabilityPropagationWrite, ...],
     ) -> PlanningRecord | None: ...
 
     def delete_availability(self, availability_id: int) -> bool: ...
@@ -390,6 +491,101 @@ class PlanningResourceService:
         return payload
 
     @staticmethod
+    def _plan_round_creation(
+        values: Mapping[str, PlanningValue], context: PlanningRoundCreationContext
+    ) -> PlanningRoundCreationPlan:
+        payload = dict(values)
+        if not context.committee_exists:
+            raise ValueError("Committee not found")
+        if not context.committee_active or not context.committee_ready:
+            raise ValueError("Committee is not ready for an exam round")
+        committee_id = PlanningResourceService._required_id(payload, "committee_id")
+        creator_id = PlanningResourceService._required_id(payload, "created_by_member_id")
+        if context.creator_committee_id != committee_id:
+            raise ValueError("Creating member does not belong to the exam round committee")
+        payload["committee_id"] = committee_id
+        payload["created_by_member_id"] = creator_id
+
+        requested_half_year_id = payload.get("exam_half_year_id")
+        if requested_half_year_id is not None:
+            half_year_id = PlanningResourceService._required_id(payload, "exam_half_year_id")
+            if not context.half_year_exists:
+                raise ValueError("Exam half-year not found")
+            payload.pop("season", None)
+            payload.pop("year", None)
+            return PlanningRoundCreationPlan(
+                values=MappingProxyType(payload),
+                exam_half_year_id=half_year_id,
+                create_half_year=False,
+                season=None,
+                year=None,
+            )
+
+        if context.exam_half_year_id is not None:
+            payload["exam_half_year_id"] = context.exam_half_year_id
+            return PlanningRoundCreationPlan(
+                values=MappingProxyType(payload),
+                exam_half_year_id=context.exam_half_year_id,
+                create_half_year=False,
+                season=None,
+                year=None,
+            )
+
+        season = payload.get("season")
+        year = payload.get("year")
+        if not isinstance(season, str) or not isinstance(year, int):
+            raise ValueError("Season and year are required to create an exam half-year")
+        return PlanningRoundCreationPlan(
+            values=MappingProxyType(payload),
+            exam_half_year_id=None,
+            create_half_year=True,
+            season=season,
+            year=year,
+        )
+
+    @staticmethod
+    def _plan_candidate_assignment(
+        context: PlanningCandidateAssignmentContext,
+        values: Mapping[str, PlanningValue],
+    ) -> PlanningCandidateAssignmentPlan:
+        payload = PlanningResourceService._validate_assignment(
+            context, values, require_candidate=True
+        )
+        round_id = PlanningResourceService._required_id(payload, "exam_round_id")
+        candidate_id = PlanningResourceService._required_id(payload, "candidate_id")
+        half_year_id = context.exam_half_year_id
+        if half_year_id is None:
+            raise ValueError("Exam round not found")
+        reassignment = context.active_round_id is not None and context.active_round_id != round_id
+        return PlanningCandidateAssignmentPlan(
+            candidate_id=candidate_id,
+            exam_round_id=round_id,
+            exam_half_year_id=half_year_id,
+            end_assignment_id=context.active_assignment_id if reassignment else None,
+            deactivate_round_candidate_id=(
+                context.active_round_candidate_id if reassignment else None
+            ),
+            target_round_candidate_id=context.target_round_candidate_id,
+            create_round_candidate=not context.round_candidate_exists,
+            create_active_assignment=context.active_assignment_id is None or reassignment,
+            attempt_number=(
+                (payload.get("attempt_number") or 1)
+                if not context.round_candidate_exists
+                else payload.get("attempt_number")
+            ),
+            requires_mep=(
+                (payload.get("requires_mep") or 0)
+                if not context.round_candidate_exists
+                else payload.get("requires_mep")
+            ),
+            change_reason=(
+                str(payload["assignment_change_reason"])
+                if payload.get("assignment_change_reason") is not None
+                else None
+            ),
+        )
+
+    @staticmethod
     def _normalize_settings(values: Mapping[str, PlanningValue]) -> dict[str, PlanningValue]:
         payload = dict(values)
         for field in ("exam_round_id", "updated_by_member_id"):
@@ -464,6 +660,38 @@ class PlanningResourceService:
         if references.day_round_id != round_id:
             raise ValueError("Candidate exam day does not belong to the exam round")
 
+    @staticmethod
+    def _plan_availability_propagation(
+        values: Mapping[str, PlanningValue],
+        context: PlanningAvailabilityPropagationContext,
+    ) -> tuple[PlanningAvailabilityPropagationWrite, ...]:
+        source_member_id = context.source_member_id
+        source_date = context.source_date
+        availability = str(values["availability"])
+        responded_at_value = values.get("responded_at")
+        responded_at = str(responded_at_value) if responded_at_value is not None else None
+        writes: list[PlanningAvailabilityPropagationWrite] = []
+        for fact in context.candidates:
+            if (
+                fact.member_id == source_member_id
+                or fact.person_id != context.source_person_id
+                or fact.day_date != source_date
+                or fact.round_committee_id != fact.committee_id
+                or fact.round_half_year_id != context.source_half_year_id
+            ):
+                continue
+            writes.append(
+                PlanningAvailabilityPropagationWrite(
+                    existing_availability_id=fact.existing_availability_id,
+                    exam_round_id=fact.round_id,
+                    committee_member_id=fact.member_id,
+                    candidate_exam_day_id=fact.day_id,
+                    availability=availability,
+                    responded_at=responded_at,
+                )
+            )
+        return tuple(writes)
+
     def list_half_years(self) -> tuple[PlanningRecord, ...]:
         with self._unit_of_work_factory() as unit_of_work:
             return unit_of_work.list_half_years()
@@ -476,7 +704,9 @@ class PlanningResourceService:
         with self._write_unit_of_work() as unit_of_work:
             payload = self._authorized(unit_of_work, "exam_round", None, values)
             payload = self._normalize_round_create(payload)
-            return unit_of_work.create_round(payload)
+            context = unit_of_work.prepare_round_creation(payload)
+            plan = self._plan_round_creation(payload, context)
+            return unit_of_work.create_round(plan)
 
     def list_rounds(
         self, filters: Mapping[str, PlanningValue] | None = None
@@ -530,10 +760,27 @@ class PlanningResourceService:
     def create_candidate(self, values: Mapping[str, PlanningValue]) -> PlanningRecord:
         with self._write_unit_of_work() as unit_of_work:
             payload = self._authorized(unit_of_work, "candidate", None, values)
-            if payload.get("exam_round_id") is not None:
-                payload["attempt_number"] = payload.get("attempt_number") or 1
-                payload["requires_mep"] = payload.get("requires_mep") or 0
-            return unit_of_work.create_candidate(payload)
+            round_id = payload.pop("exam_round_id", None)
+            attempt_number = payload.pop("attempt_number", None)
+            requires_mep = payload.pop("requires_mep", None)
+            if round_id is not None:
+                assignment_values = {
+                    "candidate_id": -1,
+                    "exam_round_id": round_id,
+                    "attempt_number": attempt_number,
+                    "requires_mep": requires_mep,
+                }
+            else:
+                assignment_values = None
+            candidate = unit_of_work.create_candidate(payload)
+            if assignment_values is not None:
+                candidate_id = self._required_id(candidate.values, "id")
+                assignment_values["candidate_id"] = candidate_id
+                target_round_id = self._required_id(assignment_values, "exam_round_id")
+                context = unit_of_work.candidate_assignment_context(candidate_id, target_round_id)
+                plan = self._plan_candidate_assignment(context, assignment_values)
+                unit_of_work.assign_candidate_to_round(assignment_values, plan)
+            return candidate
 
     def get_candidate(self, candidate_id: int) -> PlanningRecord | None:
         with self._unit_of_work_factory() as unit_of_work:
@@ -549,19 +796,24 @@ class PlanningResourceService:
                 "exam_round_id"
             ) is None:
                 raise ValueError("Missing required field: exam_round_id")
+            if payload.get("exam_round_id") is None:
+                payload.pop("assignment_change_reason", None)
             if payload.get("exam_round_id") is not None:
                 candidate = unit_of_work.get_candidate(candidate_id)
                 if candidate is None:
                     return None
                 round_id = self._required_id(payload, "exam_round_id")
                 context = unit_of_work.candidate_assignment_context(candidate_id, round_id)
-                assignment = self._validate_assignment(
-                    context,
-                    {**payload, "candidate_id": candidate_id},
-                    require_candidate=True,
-                )
-                assignment.pop("candidate_id")
-                payload.update(assignment)
+                assignment_values = {**payload, "candidate_id": candidate_id}
+                plan = self._plan_candidate_assignment(context, assignment_values)
+                payload.pop("exam_round_id", None)
+                payload.pop("attempt_number", None)
+                payload.pop("requires_mep", None)
+                payload.pop("assignment_change_reason", None)
+                updated = unit_of_work.update_candidate(candidate_id, payload)
+                if updated is not None:
+                    unit_of_work.assign_candidate_to_round(assignment_values, plan)
+                return updated
             return unit_of_work.update_candidate(candidate_id, payload)
 
     def delete_candidate(self, candidate_id: int) -> bool:
@@ -587,8 +839,8 @@ class PlanningResourceService:
             candidate_id = self._required_id(payload, "candidate_id")
             round_id = self._required_id(payload, "exam_round_id")
             context = unit_of_work.candidate_assignment_context(candidate_id, round_id)
-            payload = self._validate_assignment(context, payload, require_candidate=True)
-            return unit_of_work.assign_candidate_to_round(payload)
+            plan = self._plan_candidate_assignment(context, payload)
+            return unit_of_work.assign_candidate_to_round(payload, plan)
 
     def list_settings(
         self, filters: Mapping[str, PlanningValue] | None = None
@@ -662,7 +914,13 @@ class PlanningResourceService:
                 self._required_id(payload, "candidate_exam_day_id"),
             )
             self._validate_availability_references(payload, references)
-            return unit_of_work.save_availability(payload)
+            propagation_context = unit_of_work.availability_propagation_context(
+                self._required_id(payload, "exam_round_id"),
+                self._required_id(payload, "committee_member_id"),
+                self._required_id(payload, "candidate_exam_day_id"),
+            )
+            propagation = self._plan_availability_propagation(payload, propagation_context)
+            return unit_of_work.save_availability(payload, propagation)
 
     def update_availability(
         self, availability_id: int, values: Mapping[str, PlanningValue]
@@ -679,7 +937,13 @@ class PlanningResourceService:
                 self._required_id(normalized, "candidate_exam_day_id"),
             )
             self._validate_availability_references(normalized, references)
-            return unit_of_work.update_availability(availability_id, normalized)
+            propagation_context = unit_of_work.availability_propagation_context(
+                self._required_id(normalized, "exam_round_id"),
+                self._required_id(normalized, "committee_member_id"),
+                self._required_id(normalized, "candidate_exam_day_id"),
+            )
+            propagation = self._plan_availability_propagation(normalized, propagation_context)
+            return unit_of_work.update_availability(availability_id, normalized, propagation)
 
     def delete_availability(self, availability_id: int) -> bool:
         with self._write_unit_of_work() as unit_of_work:

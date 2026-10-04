@@ -9,8 +9,13 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
 from backend.persistence.database import session_scope
+from backend.persistence.models import CANDIDATE_EXAM_DAY
 from backend.persistence.planning_resources import SQLitePlanningResourceUnitOfWorkFactory
-from backend.planning.resources import PlanningResourceService
+from backend.persistence.store import Store
+from backend.planning.resources import (
+    PlanningAvailabilityPropagationWrite,
+    PlanningResourceService,
+)
 from backend.tests.helpers import TempDatabase
 
 
@@ -115,21 +120,68 @@ class PlanningResourceAdapterTests(unittest.TestCase):
             before = PlanningResourceService(factory).list_candidates()
 
             with self.assertRaisesRegex(ValueError, "Exam round not found"):
-                with factory(write=True) as unit_of_work:
-                    unit_of_work.create_candidate(
-                        {
-                            "first_name": "Rollback",
-                            "last_name": "Candidate",
-                            "ihk_exam_number": "PORT-ROLLBACK-1",
-                            "specialization": "system_integration",
-                            "training_company": "Port-Test",
-                            "exam_round_id": 999999,
-                        }
-                    )
+                PlanningResourceService(factory).create_candidate(
+                    {
+                        "first_name": "Rollback",
+                        "last_name": "Candidate",
+                        "ihk_exam_number": "PORT-ROLLBACK-1",
+                        "specialization": "system_integration",
+                        "training_company": "Port-Test",
+                        "exam_round_id": 999999,
+                    }
+                )
 
             after = PlanningResourceService(factory).list_candidates()
 
         self.assertEqual(before, after)
+
+    def test_sqlite_availability_source_rolls_back_when_propagation_write_fails(self) -> None:
+        with TempDatabase() as db_path:
+            factory = SQLitePlanningResourceUnitOfWorkFactory(db_path)
+            planning = PlanningResourceService(factory)
+            exam_round = planning.create_round(
+                {
+                    "season": "winter",
+                    "year": 2035,
+                    "committee_id": 1,
+                    "name": "Winter 2035",
+                    "created_by_member_id": 1,
+                }
+            )
+            with session_scope(db_path) as session:
+                day = Store(session).create(
+                    CANDIDATE_EXAM_DAY,
+                    {
+                        "exam_round_id": exam_round.values["id"],
+                        "date": "2035-01-10",
+                        "is_active": 1,
+                    },
+                )
+
+            source = {
+                "exam_round_id": exam_round.values["id"],
+                "committee_member_id": 1,
+                "candidate_exam_day_id": day["id"],
+                "availability": "pending",
+                "responded_at": None,
+            }
+            invalid_target = PlanningAvailabilityPropagationWrite(
+                existing_availability_id=None,
+                exam_round_id=999999,
+                committee_member_id=1,
+                candidate_exam_day_id=day["id"],
+                availability="pending",
+                responded_at=None,
+            )
+
+            with self.assertRaises(IntegrityError):
+                with factory(write=True) as unit_of_work:
+                    unit_of_work.save_availability(source, (invalid_target,))
+
+            self.assertEqual(
+                (),
+                planning.list_availabilities({"exam_round_id": exam_round.values["id"]}),
+            )
 
     def test_sqlite_snapshot_is_detached_and_has_typed_sections(self) -> None:
         with TempDatabase() as db_path:

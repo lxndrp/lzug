@@ -7,11 +7,14 @@ from dataclasses import dataclass
 from types import MappingProxyType
 
 from backend.planning.resources import (
+    PlanningAvailabilityPropagationContext,
+    PlanningAvailabilityPropagationFact,
     PlanningAvailabilityReferences,
     PlanningCandidateAssignmentContext,
     PlanningRecordValue,
     PlanningResourceService,
     PlanningRoomFacts,
+    PlanningRoundCreationContext,
     PlanningSettingsReferences,
     PlanningValue,
 )
@@ -202,6 +205,124 @@ class PlanningResourcePortTests(unittest.TestCase):
 
         self.assertEqual([], writes)
 
+    def test_round_reference_policy_runs_with_detached_facts_before_write(self) -> None:
+        writes: list[dict[str, PlanningValue]] = []
+
+        class FakeUnitOfWork:
+            def prepare_round_creation(self, values):
+                return PlanningRoundCreationContext(9, True, True, True, True, 2)
+
+            def create_round(self, plan):
+                writes.append(plan)
+                return PlanningRecordValue(
+                    {**plan.values, "exam_half_year_id": plan.exam_half_year_id}
+                )
+
+        @contextmanager
+        def unit_of_work_factory(*, write=False):
+            yield FakeUnitOfWork()
+
+        with self.assertRaisesRegex(ValueError, "does not belong"):
+            PlanningResourceService(unit_of_work_factory).create_round(
+                {
+                    "season": "winter",
+                    "year": 2034,
+                    "committee_id": 3,
+                    "created_by_member_id": 4,
+                    "name": "Winter 2034",
+                }
+            )
+
+        self.assertEqual([], writes)
+
+    def test_round_committee_admission_policy_runs_before_the_port_write(self) -> None:
+        cases = (
+            (
+                PlanningRoundCreationContext(None, False, False, False, False, None),
+                "Committee not found",
+            ),
+            (PlanningRoundCreationContext(None, False, True, False, True, 3), "not ready"),
+            (PlanningRoundCreationContext(None, False, True, True, False, 3), "not ready"),
+        )
+
+        class FakeUnitOfWork:
+            def __init__(self, round_context, created_rounds):
+                self.round_context = round_context
+                self.created_rounds = created_rounds
+
+            def prepare_round_creation(self, values):
+                return self.round_context
+
+            def create_round(self, plan):
+                self.created_rounds.append(plan)
+                return PlanningRecordValue(
+                    {**plan.values, "exam_half_year_id": plan.exam_half_year_id}
+                )
+
+        class FakeUnitOfWorkFactory:
+            def __init__(self, round_context, created_rounds):
+                self.round_context = round_context
+                self.created_rounds = created_rounds
+
+            @contextmanager
+            def __call__(self, *, write=False):
+                yield FakeUnitOfWork(self.round_context, self.created_rounds)
+
+        for context, message in cases:
+            with self.subTest(message=message):
+                writes: list[object] = []
+                unit_of_work_factory = FakeUnitOfWorkFactory(context, writes)
+
+                with self.assertRaisesRegex(ValueError, message):
+                    PlanningResourceService(unit_of_work_factory).create_round(
+                        {
+                            "season": "winter",
+                            "year": 2034,
+                            "committee_id": 3,
+                            "created_by_member_id": 4,
+                            "name": "Winter 2034",
+                        }
+                    )
+
+                self.assertEqual([], writes)
+
+    def test_round_creation_half_year_decision_runs_with_plain_port(self) -> None:
+        plans = []
+        contexts = [
+            PlanningRoundCreationContext(None, False, True, True, True, 3),
+            PlanningRoundCreationContext(12, True, True, True, True, 3),
+        ]
+
+        class FakeUnitOfWork:
+            def prepare_round_creation(self, values):
+                return contexts.pop(0)
+
+            def create_round(self, plan):
+                plans.append(plan)
+                return PlanningRecordValue({**plan.values, "exam_half_year_id": 11})
+
+        @contextmanager
+        def unit_of_work_factory(*, write=False):
+            yield FakeUnitOfWork()
+
+        service = PlanningResourceService(unit_of_work_factory)
+        values = {
+            "season": "winter",
+            "year": 2036,
+            "committee_id": 3,
+            "created_by_member_id": 4,
+            "name": "Winter 2036",
+        }
+        service.create_round(values)
+        service.create_round(values)
+
+        self.assertEqual(2, len(plans))
+        self.assertTrue(plans[0].create_half_year)
+        self.assertIsNone(plans[0].exam_half_year_id)
+        self.assertEqual(("winter", 2036), (plans[0].season, plans[0].year))
+        self.assertFalse(plans[1].create_half_year)
+        self.assertEqual(12, plans[1].exam_half_year_id)
+
     def test_settings_domain_validation_runs_with_plain_port(self) -> None:
         class FakeUnitOfWork:
             def settings_references(self, round_id, updater_member_id, room_id):
@@ -266,7 +387,10 @@ class PlanningResourcePortTests(unittest.TestCase):
             def availability_references(self, round_id, member_id, day_id):
                 return PlanningAvailabilityReferences(3, 3, True, 1)
 
-            def save_availability(self, values):
+            def availability_propagation_context(self, round_id, member_id, day_id):
+                return PlanningAvailabilityPropagationContext(4, 40, "2034-01-01", 8, ())
+
+            def save_availability(self, values, propagation):
                 saved.append(dict(values))
                 return PlanningRecordValue(values)
 
@@ -285,6 +409,64 @@ class PlanningResourcePortTests(unittest.TestCase):
 
         self.assertEqual(None, saved[0]["responded_at"])
 
+    def test_availability_propagation_policy_selects_targets_in_the_service(self) -> None:
+        captured: list[tuple[dict[str, PlanningValue], tuple[object, ...]]] = []
+        context = PlanningAvailabilityPropagationContext(
+            source_member_id=1,
+            source_person_id=10,
+            source_date="2034-01-01",
+            source_half_year_id=7,
+            candidates=(
+                PlanningAvailabilityPropagationFact(2, 10, 20, 102, "2034-01-01", 202, 20, 7, 55),
+                PlanningAvailabilityPropagationFact(3, 10, 30, 103, "2034-01-01", 203, 99, 7, None),
+                PlanningAvailabilityPropagationFact(4, 10, 40, 104, "2034-01-01", 204, 40, 8, None),
+                PlanningAvailabilityPropagationFact(5, 11, 50, 105, "2034-01-01", 205, 50, 7, None),
+                PlanningAvailabilityPropagationFact(1, 10, 10, 106, "2034-01-01", 206, 10, 7, None),
+                PlanningAvailabilityPropagationFact(6, 10, 60, 107, "2034-01-02", 207, 60, 7, None),
+            ),
+        )
+
+        class FakeUnitOfWork:
+            def availability_references(self, round_id, member_id, day_id):
+                return PlanningAvailabilityReferences(10, 10, True, round_id)
+
+            def availability_propagation_context(self, round_id, member_id, day_id):
+                self.assert_source((round_id, member_id, day_id))
+                return context
+
+            @staticmethod
+            def assert_source(actual):
+                if actual != (4, 1, 8):
+                    raise AssertionError(f"unexpected source lookup: {actual}")
+
+            def save_availability(self, values, propagation):
+                captured.append((dict(values), propagation))
+                return PlanningRecordValue(values)
+
+        @contextmanager
+        def unit_of_work_factory(*, write=False):
+            yield FakeUnitOfWork()
+
+        PlanningResourceService(unit_of_work_factory).save_availability(
+            {
+                "exam_round_id": 4,
+                "committee_member_id": 1,
+                "candidate_exam_day_id": 8,
+                "availability": "pending",
+            }
+        )
+
+        values, propagation = captured[0]
+        self.assertEqual(None, values["responded_at"])
+        self.assertEqual(1, len(propagation))
+        write = propagation[0]
+        self.assertEqual(55, write.existing_availability_id)
+        self.assertEqual(202, write.exam_round_id)
+        self.assertEqual(2, write.committee_member_id)
+        self.assertEqual(102, write.candidate_exam_day_id)
+        self.assertEqual("pending", write.availability)
+        self.assertIsNone(write.responded_at)
+
     def test_candidate_reassignment_reason_is_enforced_by_planning(self) -> None:
         writes: list[dict[str, PlanningValue]] = []
 
@@ -292,7 +474,7 @@ class PlanningResourcePortTests(unittest.TestCase):
             def candidate_assignment_context(self, candidate_id, round_id):
                 return PlanningCandidateAssignmentContext(True, True, 2, False)
 
-            def assign_candidate_to_round(self, values):
+            def assign_candidate_to_round(self, values, plan):
                 writes.append(dict(values))
                 return PlanningRecordValue(values)
 
@@ -306,6 +488,46 @@ class PlanningResourcePortTests(unittest.TestCase):
             )
 
         self.assertEqual([], writes)
+
+    def test_candidate_assignment_policy_passes_an_explicit_persistence_plan(self) -> None:
+        captured: list[object] = []
+
+        class FakeUnitOfWork:
+            def candidate_assignment_context(self, candidate_id, round_id):
+                return PlanningCandidateAssignmentContext(
+                    True,
+                    True,
+                    2,
+                    True,
+                    exam_half_year_id=8,
+                    active_assignment_id=11,
+                    active_round_candidate_id=12,
+                    target_round_candidate_id=13,
+                )
+
+            def assign_candidate_to_round(self, values, plan):
+                captured.append(plan)
+                return PlanningRecordValue(values)
+
+        @contextmanager
+        def unit_of_work_factory(*, write=False):
+            yield FakeUnitOfWork()
+
+        PlanningResourceService(unit_of_work_factory).assign_candidate_to_round(
+            {
+                "candidate_id": 5,
+                "exam_round_id": 3,
+                "assignment_change_reason": "committee transfer",
+            }
+        )
+
+        plan = captured[0]
+        self.assertEqual(11, plan.end_assignment_id)
+        self.assertEqual(12, plan.deactivate_round_candidate_id)
+        self.assertEqual(13, plan.target_round_candidate_id)
+        self.assertFalse(plan.create_round_candidate)
+        self.assertTrue(plan.create_active_assignment)
+        self.assertEqual("committee transfer", plan.change_reason)
 
 
 if __name__ == "__main__":
