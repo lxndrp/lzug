@@ -9,15 +9,17 @@ import {
   inject,
   signal,
 } from '@angular/core';
+import { toObservable } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 import { TuiButton } from '@taiga-ui/core';
 import { TuiBadge } from '@taiga-ui/kit';
+import { AuthService } from '../auth/auth.service';
 import { SessionScopeService } from '../auth/session-scope.service';
 
 import { ConfirmedPlansWorkflowService } from './confirmed-plans-workflow.service';
 import type { ConfirmedPlan, ConfirmedPlansBoard } from './confirmed-plans.models';
 import { ConfirmedPlanEditorComponent } from './confirmed-plan-editor.component';
-import { Subscription } from 'rxjs';
+import { Subscription, filter, switchMap, take } from 'rxjs';
 
 export type ViewState = 'loading' | 'ready' | 'error';
 
@@ -30,6 +32,10 @@ export type ViewState = 'loading' | 'ready' | 'error';
 export class ConfirmedPlansComponent implements OnInit, OnChanges, OnDestroy {
   private readonly confirmedPlans = inject(ConfirmedPlansWorkflowService);
   private readonly router = inject(Router);
+  private readonly auth = inject(AuthService);
+  private readonly authenticated$ = toObservable(this.auth.state).pipe(
+    filter((state) => state === 'authenticated'),
+  );
   private readonly sessionScope = inject(SessionScopeService);
   private readonly sessionChanges = this.sessionScope.changes$.subscribe(({ established }) => {
     this.editorReferencesGeneration += 1;
@@ -154,13 +160,22 @@ export class ConfirmedPlansComponent implements OnInit, OnChanges, OnDestroy {
     }
 
     this.editorReferencesState.set('loading');
-    const sessionGeneration = this.sessionScope.generation();
-    this.editorReferencesLoad = this.sessionScope
-      .forCurrentSession(this.confirmedPlans.getEditorReferences(roundId))
+    let sessionGeneration: number | null = null;
+    this.editorReferencesLoad = this.authenticated$
+      .pipe(
+        take(1),
+        switchMap(() => {
+          sessionGeneration = this.sessionScope.generation();
+          return this.sessionScope.forCurrentSession(
+            this.confirmedPlans.getEditorReferences(roundId),
+          );
+        }),
+      )
       .subscribe({
         next: (board) => {
           if (
             generation !== this.editorReferencesGeneration ||
+            sessionGeneration === null ||
             sessionGeneration !== this.sessionScope.generation() ||
             this.editRequested() !== roundId
           ) {
@@ -172,6 +187,7 @@ export class ConfirmedPlansComponent implements OnInit, OnChanges, OnDestroy {
         error: () => {
           if (
             generation !== this.editorReferencesGeneration ||
+            sessionGeneration === null ||
             sessionGeneration !== this.sessionScope.generation() ||
             this.editRequested() !== roundId
           ) {

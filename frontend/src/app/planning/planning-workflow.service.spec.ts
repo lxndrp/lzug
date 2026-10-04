@@ -193,7 +193,7 @@ describe('PlanningWorkflowService', () => {
     expect(feedback.confirm$).toHaveBeenCalledOnce();
   });
 
-  it('keeps a confirmation result in its source view after navigation', () => {
+  it('refreshes the selected round without applying a stale confirmation effect', () => {
     const confirmation = new Subject<boolean>();
     const response = new Subject<{ counts: Record<string, number> }>();
     const feedback = {
@@ -216,8 +216,10 @@ describe('PlanningWorkflowService', () => {
     response.next({ counts: { confirmed_slots: 4 } });
     response.complete();
 
-    expect(workflow.snapshot()).toBe(viewBSnapshot);
+    expect(workflow.snapshot()).not.toBe(viewBSnapshot);
+    expect(workflow.snapshot()?.round.id).toBe(1);
     expect(workflow.lastResult()).toBeNull();
+    expect(workflow.viewEffects()).toEqual([]);
     expect(workflow.actionBusy()).toBe(false);
   });
 
@@ -243,6 +245,41 @@ describe('PlanningWorkflowService', () => {
     expect(port.saveMemberAvailability).toHaveBeenCalledWith(command, 1);
     expect(workflow.snapshot()?.board.availabilities).toEqual([{ id: 4, ...command }]);
     expect(workflow.viewEffects().map((effect) => effect.type)).toEqual(['availability-saved']);
+  });
+
+  it('reloads the re-entered round after a stale accepted availability write', () => {
+    const response = new Subject<{
+      id: number;
+      committee_member_id: number;
+      candidate_exam_day_id: number;
+      availability: string;
+    }>();
+    const { workflow, port, roundId } = createHarness({
+      saveMemberAvailability: vi.fn(() => response),
+    });
+    const firstA = Symbol('planning-view-a-first');
+    const viewB = Symbol('planning-view-b');
+    const secondA = Symbol('planning-view-a-second');
+    const command = {
+      committee_member_id: 7,
+      candidate_exam_day_id: 11,
+      availability: 'morning' as const,
+    };
+
+    roundId.set(1);
+    workflow.activateView(firstA, 1);
+    workflow.saveAvailability(command, 1, firstA);
+    roundId.set(2);
+    workflow.activateView(viewB, 2);
+    roundId.set(1);
+    workflow.activateView(secondA, 1);
+
+    response.next({ id: 31, ...command });
+    response.complete();
+
+    expect(port.loadPlanning).toHaveBeenNthCalledWith(4, 1);
+    expect(workflow.snapshot()?.round.id).toBe(1);
+    expect(workflow.viewEffects()).toEqual([]);
   });
 
   it('cancels route reads when the route is rebound to another round', () => {

@@ -13,6 +13,7 @@ import { ConfirmedPlansComponent } from './confirmed-plans.component';
 
 describe('ConfirmedPlansComponent', () => {
   let fixture: ComponentFixture<ConfirmedPlansComponent>;
+  let authState: ReturnType<typeof signal<'checking' | 'authenticated' | 'anonymous'>>;
   let workflow: {
     getConfirmedPlans: ReturnType<typeof vi.fn>;
     getEditorReferences: ReturnType<typeof vi.fn>;
@@ -22,6 +23,7 @@ describe('ConfirmedPlansComponent', () => {
   };
 
   beforeEach(async () => {
+    authState = signal<'checking' | 'authenticated' | 'anonymous'>('authenticated');
     workflow = {
       getConfirmedPlans: vi.fn(() => of(plans())),
       getEditorReferences: vi.fn(() => of(editorBoard(1))),
@@ -34,7 +36,7 @@ describe('ConfirmedPlansComponent', () => {
       providers: [
         provideRouter([]),
         { provide: ConfirmedPlansWorkflowService, useValue: workflow },
-        { provide: AuthService, useValue: { session: signal(null) } },
+        { provide: AuthService, useValue: { state: authState, session: signal(null) } },
         {
           provide: RuntimeExperienceService,
           useValue: { getDemoScenarios: vi.fn(() => of({ prepared_plan_change: null })) },
@@ -145,6 +147,30 @@ describe('ConfirmedPlansComponent', () => {
     const element = fixture.nativeElement as HTMLElement;
     expect(element.querySelector('app-confirmed-plan-editor')).toBeNull();
     expect(element.textContent).toContain('Prüfling Plan-Alpha');
+  });
+
+  it('waits for authentication before loading editor references on a cold deep link', () => {
+    const sessionScope = TestBed.inject(SessionScopeService);
+    authState.set('checking');
+    fixture.componentRef.setInput('editRoundId', 1);
+    fixture.componentRef.setInput('canEdit', true);
+    fixture.detectChanges();
+
+    expect(workflow.getEditorReferences).not.toHaveBeenCalled();
+
+    sessionScope.establish({
+      account_id: 7,
+      authenticated: true,
+      capabilities: ['confirmed-plan:edit'],
+      committee_member_id: null,
+      is_operator: false,
+      person_id: 7,
+    });
+    authState.set('authenticated');
+    TestBed.flushEffects();
+
+    expect(workflow.getEditorReferences).toHaveBeenCalledTimes(1);
+    expect(workflow.getEditorReferences).toHaveBeenCalledWith(1);
   });
 
   it('loads editor references for the route round', () => {
