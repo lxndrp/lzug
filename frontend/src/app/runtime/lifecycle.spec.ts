@@ -18,6 +18,7 @@ import { WORKSPACE_PORT } from '../shell/workspace.port';
 import { DashboardProjectionService } from '../dashboard/dashboard-projection.service';
 import { ApplicationShellContextService } from '../shell/application-shell-context.service';
 import { MasterDataWorkflowService } from '../master-data/master-data-workflow.service';
+import { PLANNING_PORT } from '../planning/planning.port';
 
 describe('public lifecycle', () => {
   let http: HttpTestingController;
@@ -32,6 +33,7 @@ describe('public lifecycle', () => {
         provideHttpClient(withInterceptors([lifecycleInterceptor])),
         provideHttpClientTesting(),
         { provide: WORKSPACE_PORT, useClass: HttpWorkspaceAdapter },
+        { provide: PLANNING_PORT, useValue: {} },
         {
           provide: MasterDataWorkflowService,
           useValue: { loadCandidates: vi.fn(), loadCommittees: vi.fn() },

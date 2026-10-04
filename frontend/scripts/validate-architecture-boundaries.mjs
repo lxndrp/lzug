@@ -439,7 +439,6 @@ assert.equal(
 
 const examDayFeaturePath = path.join(root, 'exam-day', 'exam-day.component.ts');
 const examDayFacadePath = path.join(root, 'exam-day', 'exam-day.facade.ts');
-const examDayApplicationPath = path.join(root, 'exam-day', 'exam-day.application.ts');
 const examDayPortPath = path.join(root, 'exam-day', 'exam-day.port.ts');
 const examDayModelsPath = path.join(root, 'exam-day', 'exam-day.models.ts');
 const examDaySpecPath = path.join(root, 'exam-day', 'exam-day.component.spec.ts');
@@ -448,7 +447,6 @@ const examDayAdapterSpecPath = path.join(root, 'api', 'http-exam-day.adapter.spe
 const [
   examDayFeature,
   examDayFacade,
-  examDayApplication,
   examDayPort,
   examDayModels,
   examDaySpec,
@@ -458,7 +456,6 @@ const [
   [
     examDayFeaturePath,
     examDayFacadePath,
-    examDayApplicationPath,
     examDayPortPath,
     examDayModelsPath,
     examDaySpecPath,
@@ -468,6 +465,7 @@ const [
 );
 assert.match(importsOf(examDayFeature), /exam-day\.facade/);
 assert.match(importsOf(examDayFeature), /exam-day\.models/);
+assert.match(examDayFeature, /providers:\s*\[\s*ExamDayFacade\s*\]/);
 assert.doesNotMatch(
   importsOf(examDayFeature),
   /ExamDayApiService|exam-day-api\.service|ApiClient|api-client\.service|api\.models/,
@@ -478,8 +476,7 @@ assert.doesNotMatch(
   /\bHttpClient\b|\bfetch\s*\(/,
   'exam-day feature performs no HTTP directly',
 );
-assert.match(examDayFacade, /ExamDayApplication/);
-assert.deepEqual(relativeImportsOf(examDayApplication), ['./exam-day.port']);
+assert.doesNotMatch(examDayFacade, /ExamDayApplication/);
 assert.deepEqual(relativeImportsOf(examDayPort), ['./exam-day.models']);
 assert.doesNotMatch(
   importsOf(examDayPort),
@@ -638,6 +635,7 @@ assert.deepEqual(
   [
     '../application/application-error',
     '../auth/auth.service',
+    '../auth/session-scope.service',
     './exam-result.facade',
     './exam-result.models',
     './exam-result.voting',

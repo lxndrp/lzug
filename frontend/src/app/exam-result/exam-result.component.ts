@@ -1,4 +1,4 @@
-import { Component, Input, OnChanges, SimpleChanges, inject, signal } from '@angular/core';
+import { Component, Input, OnChanges, SimpleChanges, inject, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { TuiButton } from '@taiga-ui/core';
 import { TuiBadge } from '@taiga-ui/kit';
@@ -13,6 +13,7 @@ import type {
 import { collectCommitteeVote } from './exam-result.voting';
 import { ApplicationError } from '../application/application-error';
 import { AuthService } from '../auth/auth.service';
+import { SessionScopeService } from '../auth/session-scope.service';
 import { ExamResultFacade } from './exam-result.facade';
 
 export type ResultViewState = 'loading' | 'ready' | 'error' | 'not-found';
@@ -32,11 +33,16 @@ export type CriterionDraft = {
 export class ExamResultComponent implements OnChanges {
   private readonly facade = inject(ExamResultFacade);
   private readonly auth = inject(AuthService);
+  private readonly sessionScope = inject(SessionScopeService);
 
+  @Input({ required: true }) roundId!: number;
   @Input({ required: true }) dayId!: number;
   @Input() dayRevision: number | null = null;
+  @Input() dayRefreshing = false;
   @Input({ required: true }) slotId!: number;
   @Input() ownMemberId: number | null = null;
+  readonly dayRevisionsChanged = output<Record<string, number>>();
+  readonly actionErrorOccurred = output<string>();
 
   protected readonly state = signal<ResultViewState>('loading');
   protected readonly result = signal<ExamResult | null>(null);
@@ -70,31 +76,49 @@ export class ExamResultComponent implements OnChanges {
   protected retentionHoldReason = '';
   protected retentionReleaseReason = '';
   private requestSequence = 0;
+  private contextSequence = 0;
+  private loadedContextSequence: number | null = null;
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['dayId'] || changes['slotId']) {
+    const identityChanged = changes['roundId'] || changes['dayId'] || changes['slotId'];
+    if (identityChanged) {
+      this.contextSequence += 1;
+      this.result.set(null);
+      this.busy.set(false);
       this.componentVotes.clear();
       this.componentVoters.clear();
       this.examResultVotes.clear();
       this.examResultVoters.clear();
-      this.load();
     }
+    if (identityChanged || changes['dayRevision']) this.load(!identityChanged);
   }
 
-  protected load(): void {
+  protected load(preserveDrafts = false, preserveFeedback = preserveDrafts): void {
     const sequence = ++this.requestSequence;
+    const contextSequence = this.contextSequence;
+    const keepDrafts = preserveDrafts && this.loadedContextSequence === contextSequence;
+    const sessionGeneration = this.sessionScope.generation();
+    const roundId = this.roundId;
+    const dayId = this.dayId;
+    const slotId = this.slotId;
     this.state.set('loading');
-    this.message.set(null);
-    this.error.set(null);
-    this.facade.get(this.dayId, this.slotId).subscribe({
+    if (!preserveFeedback) {
+      this.message.set(null);
+      this.error.set(null);
+    }
+    this.sessionScope.forCurrentSession(this.facade.get(dayId, slotId)).subscribe({
       next: (result) => {
-        if (sequence !== this.requestSequence) return;
-        this.accept(result);
+        if (!this.isCurrent(sequence, contextSequence, sessionGeneration, roundId, dayId, slotId)) {
+          return;
+        }
+        this.accept(result, keepDrafts);
+        this.loadedContextSequence = contextSequence;
         this.state.set('ready');
       },
       error: (error: ApplicationError) => {
-        if (sequence !== this.requestSequence) return;
-        this.result.set(null);
+        if (!this.isCurrent(sequence, contextSequence, sessionGeneration, roundId, dayId, slotId)) {
+          return;
+        }
         this.state.set(error.kind === 'not-found' ? 'not-found' : 'error');
       },
     });
@@ -509,40 +533,155 @@ export class ExamResultComponent implements OnChanges {
     successMessage: string,
     afterSuccess?: () => void,
   ): void {
-    if (this.busy()) return;
+    if (this.busy() || this.dayRefreshing) return;
+    const contextSequence = this.contextSequence;
+    const sessionGeneration = this.sessionScope.generation();
+    const roundId = this.roundId;
+    const dayId = this.dayId;
+    const slotId = this.slotId;
     this.busy.set(true);
     this.message.set(null);
     this.error.set(null);
     request.subscribe({
       next: (result) => {
+        if (!this.isActionCurrent(contextSequence, sessionGeneration, roundId, dayId, slotId)) {
+          return;
+        }
+        this.requestSequence += 1;
         this.accept(result);
         afterSuccess?.();
         this.busy.set(false);
         this.message.set(successMessage);
+        if (result.dayRevisions) this.dayRevisionsChanged.emit(result.dayRevisions);
       },
       error: (error: ApplicationError) => {
+        if (!this.isActionCurrent(contextSequence, sessionGeneration, roundId, dayId, slotId)) {
+          return;
+        }
         this.busy.set(false);
-        this.error.set(error.message || 'Die Ergebnisaktion konnte nicht gespeichert werden.');
+        const message = error.message || 'Die Ergebnisaktion konnte nicht gespeichert werden.';
+        this.error.set(message);
+        this.actionErrorOccurred.emit(message);
       },
     });
   }
 
-  private accept(result: ExamResult): void {
+  private isCurrent(
+    requestSequence: number,
+    contextSequence: number,
+    sessionGeneration: number,
+    roundId: number | null,
+    dayId: number,
+    slotId: number,
+  ): boolean {
+    return (
+      requestSequence === this.requestSequence &&
+      this.isActionCurrent(contextSequence, sessionGeneration, roundId, dayId, slotId)
+    );
+  }
+
+  private isActionCurrent(
+    contextSequence: number,
+    sessionGeneration: number,
+    roundId: number | null,
+    dayId: number,
+    slotId: number,
+  ): boolean {
+    return (
+      contextSequence === this.contextSequence &&
+      sessionGeneration === this.sessionScope.generation() &&
+      roundId === this.roundId &&
+      dayId === this.dayId &&
+      slotId === this.slotId
+    );
+  }
+
+  private accept(result: ExamResult, preserveDrafts = false): void {
+    const previous = this.result();
     this.result.set(result);
     for (const component of result.modelVersion.rules.components) {
       const current = this.currentCommittee(result, component.key);
-      if (current) this.componentPoints.set(component.key, current.points);
+      const previousCurrent = previous ? this.currentCommittee(previous, component.key) : undefined;
+      const draftPoints = this.componentPoints.get(component.key);
+      const preservePoints =
+        preserveDrafts &&
+        draftPoints !== undefined &&
+        draftPoints !== previousCurrent?.points &&
+        draftPoints !== current?.points;
+      if (current && !preservePoints) this.componentPoints.set(component.key, current.points);
     }
     this.externalAreaKey ||= result.modelVersion.rules.externalAreas[0]?.key ?? '';
-    this.retentionPeriodStart = result.retention?.periodStart ?? this.retentionPeriodStart;
-    this.retentionUntil = result.retention?.retainUntil ?? this.retentionUntil;
-    this.retentionLegalHold = result.retention?.legalHold ?? this.retentionLegalHold;
-    this.retentionHoldReason = result.retention?.holdReason ?? this.retentionHoldReason;
+    const previousRetention = previous?.retention;
+    const incomingRetention = result.retention;
+    const previousPeriodStart = previousRetention?.periodStart ?? '';
+    const incomingPeriodStart = incomingRetention?.periodStart ?? '';
+    if (
+      !this.isDirtyReloadDraft(
+        preserveDrafts,
+        previous,
+        this.retentionPeriodStart,
+        previousPeriodStart,
+        incomingPeriodStart,
+      )
+    ) {
+      this.retentionPeriodStart = incomingPeriodStart;
+    }
+    const previousRetainUntil = previousRetention?.retainUntil ?? '';
+    const incomingRetainUntil = incomingRetention?.retainUntil ?? '';
+    if (
+      !this.isDirtyReloadDraft(
+        preserveDrafts,
+        previous,
+        this.retentionUntil,
+        previousRetainUntil,
+        incomingRetainUntil,
+      )
+    ) {
+      this.retentionUntil = incomingRetainUntil;
+    }
+    const previousLegalHold = previousRetention?.legalHold ?? false;
+    const incomingLegalHold = incomingRetention?.legalHold ?? false;
+    if (
+      !this.isDirtyReloadDraft(
+        preserveDrafts,
+        previous,
+        this.retentionLegalHold,
+        previousLegalHold,
+        incomingLegalHold,
+      )
+    ) {
+      this.retentionLegalHold = incomingLegalHold;
+    }
+    const previousHoldReason = previousRetention?.holdReason ?? '';
+    const incomingHoldReason = incomingRetention?.holdReason ?? '';
+    if (
+      !this.isDirtyReloadDraft(
+        preserveDrafts,
+        previous,
+        this.retentionHoldReason,
+        previousHoldReason,
+        incomingHoldReason,
+      )
+    ) {
+      this.retentionHoldReason = incomingHoldReason;
+    }
     if (!this.communicationAt) {
       const now = new Date();
       now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
       this.communicationAt = now.toISOString().slice(0, 16);
     }
+  }
+
+  private isDirtyReloadDraft<T>(
+    preserveDrafts: boolean,
+    previous: ExamResult | null,
+    draft: T,
+    previousValue: T,
+    incomingValue: T,
+  ): boolean {
+    return (
+      preserveDrafts && previous !== null && draft !== previousValue && draft !== incomingValue
+    );
   }
 
   private draftKey(componentKey: string, criterionKey: string): string {

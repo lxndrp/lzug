@@ -31,7 +31,25 @@
   </section>
 } @else {
   @if (editablePlan(); as editablePlan) {
-    <app-confirmed-plan-editor [roundId]="editablePlan.id" [plan]="editablePlan" [board]="board" />
+    @if (editorReferencesState() === 'loading') {
+      <p role="status">Referenzen für den Planeditor werden geladen.</p>
+    } @else if (editorReferencesState() === 'error') {
+      <section class="app-panel" role="alert">
+        <div class="app-panel-body app-confirmed-message">
+          <strong>Referenzen nicht verfügbar</strong>
+          <span>Die Auswahlwerte für diesen Prüfungsplan konnten nicht geladen werden.</span>
+          <button tuiButton appearance="secondary" type="button" (click)="retryEditorReferences()">
+            Erneut versuchen
+          </button>
+        </div>
+      </section>
+    } @else if (board(); as board) {
+      <app-confirmed-plan-editor
+        [roundId]="editablePlan.id"
+        [plan]="editablePlan"
+        [board]="board"
+      />
+    }
   } @else {
     <div class="app-confirmed-tabs" role="tablist" aria-label="Prüfungspläne nach Ausschuss">
       @for (committee of committees(); track committee.id) {

@@ -1,4 +1,4 @@
-import { Component, Input, OnChanges, OnInit, SimpleChanges, inject, signal } from '@angular/core';
+import { Component, Input, OnChanges, SimpleChanges, effect, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { TuiButton } from '@taiga-ui/core';
@@ -11,28 +11,23 @@ import {
   ConfirmedPlanDayView,
   ExecutionStatus,
   ExecutionStatusSummary,
-  ExamDayReopeningImpact,
   ExamDayReopeningScope,
   ExamDayReopeningScopeKind,
 } from './exam-day.models';
-import { ApplicationError } from '../application/application-error';
 import { ExamDayFacade } from './exam-day.facade';
-import { PersonalFacade } from '../personal/personal.facade';
 import { AuthService } from '../auth/auth.service';
 import { ExamProtocolComponent } from '../exam-protocol/exam-protocol.component';
 import { ExamResultComponent } from '../exam-result/exam-result.component';
 
-export type ExamDayViewState = 'loading' | 'ready' | 'error' | 'not-found';
-
 @Component({
   selector: 'app-exam-day',
+  providers: [ExamDayFacade],
   imports: [ExamProtocolComponent, ExamResultComponent, FormsModule, TuiBadge, TuiButton],
   templateUrl: './exam-day.component.html',
   styleUrl: './exam-day.component.css',
 })
-export class ExamDayComponent implements OnInit, OnChanges {
+export class ExamDayComponent implements OnChanges {
   private readonly examDay = inject(ExamDayFacade);
-  private readonly personal = inject(PersonalFacade);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
 
@@ -43,14 +38,15 @@ export class ExamDayComponent implements OnInit, OnChanges {
   @Input() canReportOwnAbsence = true;
   @Input() ownMemberId: number | null = null;
 
-  protected readonly state = signal<ExamDayViewState>('loading');
-  protected readonly view = signal<ConfirmedPlanDayView | null>(null);
-  protected readonly actionMessage = signal<string | null>(null);
-  protected readonly actionError = signal<string | null>(null);
-  protected readonly savingKeys = signal<Set<string>>(new Set());
+  protected readonly state = this.examDay.state;
+  protected readonly view = this.examDay.view;
+  protected readonly actionMessage = this.examDay.actionMessage;
+  protected readonly actionError = this.examDay.actionError;
+  protected readonly embeddedActionError = this.examDay.embeddedActionError;
+  protected readonly savingKeys = this.examDay.savingKeys;
   protected readonly drafts = new Map<string, AttendanceDraft>();
   protected readonly executionDrafts = new Map<number, ExecutionStatusDraft>();
-  protected readonly reopeningImpact = signal<ExamDayReopeningImpact | null>(null);
+  protected readonly reopeningImpact = this.examDay.reopeningImpact;
   protected closureType: 'regular' | 'exception' = 'regular';
   protected closureReason = '';
   protected clarificationAttempts = '';
@@ -58,6 +54,9 @@ export class ExamDayComponent implements OnInit, OnChanges {
   protected reopeningOccasion = '';
   protected reopeningSource = '';
   protected reopeningReason = '';
+  private draftContext: string | null = null;
+  private lastDraftView: ConfirmedPlanDayView | null = null;
+  private draftContextGeneration: number | null = null;
   protected readonly executionSummaryStatuses = [
     { value: 'open', label: 'Offen' },
     { value: 'running', label: 'Läuft' },
@@ -65,93 +64,45 @@ export class ExamDayComponent implements OnInit, OnChanges {
     { value: 'cancelled', label: 'Ausgefallen' },
     { value: 'needs_follow_up', label: 'Nachzubereiten' },
   ] as const;
-  private initialized = false;
-  private requestSequence = 0;
-  private contextSequence = 0;
-  private previewSequence = 0;
 
+  constructor() {
+    effect(() => {
+      const contextGeneration = this.examDay.contextGeneration();
+      const view = this.view();
+      if (this.draftContextGeneration !== contextGeneration) {
+        this.drafts.clear();
+        this.executionDrafts.clear();
+        this.draftContext = null;
+        this.lastDraftView = null;
+        this.draftContextGeneration = contextGeneration;
+        this.resetClosureDrafts();
+      }
+      if (view) this.resetDrafts(view);
+    });
+  }
   ngOnChanges(changes: SimpleChanges): void {
     const contextChanged =
       changes['roundId']?.previousValue !== changes['roundId']?.currentValue ||
       changes['dayId']?.previousValue !== changes['dayId']?.currentValue;
-    if (this.initialized && contextChanged) {
-      this.contextSequence += 1;
-      this.load(true);
-    }
-  }
-
-  ngOnInit(): void {
-    this.initialized = true;
-    this.load();
-  }
-
-  protected load(contextChanged = false): void {
-    const requestSequence = ++this.requestSequence;
-    const requestedDayId = this.dayId;
-    const requestedRoundId = this.roundId;
-    this.actionMessage.set(null);
-    this.actionError.set(null);
-    this.previewSequence += 1;
-    this.reopeningImpact.set(null);
     if (contextChanged) {
-      this.savingKeys.set(new Set());
-      this.view.set(null);
+      this.drafts.clear();
+      this.executionDrafts.clear();
+      this.draftContext = null;
+      this.lastDraftView = null;
       this.resetClosureDrafts();
-    } else {
-      this.savingKeys.update((keys) => {
-        const current = new Set(keys);
-        current.delete('day-reopening-impact');
-        return current;
-      });
     }
+    this.examDay.bindContext(this.roundId, this.dayId);
+  }
 
-    if (requestedDayId === null) {
-      this.view.set(null);
-      this.state.set('not-found');
-      return;
-    }
-
-    this.state.set('loading');
-    this.examDay.getConfirmedPlanDay(requestedDayId).subscribe({
-      next: (view) => {
-        if (
-          requestSequence !== this.requestSequence ||
-          this.dayId !== requestedDayId ||
-          this.roundId !== requestedRoundId
-        ) {
-          return;
-        }
-        if (requestedRoundId !== null && view.plan.id !== requestedRoundId) {
-          this.view.set(null);
-          this.state.set('not-found');
-          return;
-        }
-        this.view.set(view);
-        this.resetDrafts(view);
-        this.state.set('ready');
-      },
-      error: (error: ApplicationError) => {
-        if (
-          requestSequence !== this.requestSequence ||
-          this.dayId !== requestedDayId ||
-          this.roundId !== requestedRoundId
-        ) {
-          return;
-        }
-        if (contextChanged) this.view.set(null);
-        this.state.set(error.kind === 'not-found' ? 'not-found' : 'error');
-      },
-    });
+  protected load(): void {
+    this.examDay.load();
   }
 
   protected attendanceDraft(key: string, attendance: Attendance | undefined): AttendanceDraft {
     const existing = this.drafts.get(key);
     if (existing) return existing;
     const current = attendance ?? { status: 'open', arrivedAt: null };
-    const draft = {
-      status: current.status as AttendanceStatus,
-      arrivedAt: this.datetimeLocalValue(current.arrivedAt),
-    };
+    const draft = this.toAttendanceDraft(current);
     this.drafts.set(key, draft);
     return draft;
   }
@@ -177,16 +128,13 @@ export class ExamDayComponent implements OnInit, OnChanges {
     }
     const dayId = this.view()?.day.id;
     if (dayId === undefined) return;
-    this.saveAction(
-      `candidate-${slotId}`,
-      this.examDay.saveCandidateAttendance({
-        dayId,
-        entityId: slotId,
-        status: draft.status,
-        arrivedAt: this.apiDateTimeValue(draft.arrivedAt),
-        dayRevision: this.view()?.day.revision,
-      }),
-    );
+    this.examDay.saveCandidateAttendance({
+      dayId,
+      entityId: slotId,
+      status: draft.status,
+      arrivedAt: this.apiDateTimeValue(draft.arrivedAt),
+      dayRevision: this.view()?.day.revision,
+    });
   }
 
   protected saveMemberAttendance(assignmentId: number, draft: AttendanceDraft): void {
@@ -200,31 +148,20 @@ export class ExamDayComponent implements OnInit, OnChanges {
     }
     const dayId = this.view()?.day.id;
     if (dayId === undefined) return;
-    this.saveAction(
-      `member-${assignmentId}`,
-      this.examDay.saveMemberAttendance({
-        dayId,
-        entityId: assignmentId,
-        status: draft.status,
-        arrivedAt: this.apiDateTimeValue(draft.arrivedAt),
-        dayRevision: this.view()?.day.revision,
-      }),
-    );
+    this.examDay.saveMemberAttendance({
+      dayId,
+      entityId: assignmentId,
+      status: draft.status,
+      arrivedAt: this.apiDateTimeValue(draft.arrivedAt),
+      dayRevision: this.view()?.day.revision,
+    });
   }
 
   protected startExamSlot(slotId: number): void {
     if (!this.canCoordinateAttendance || !this.canMutateDayData('slot_status', slotId)) return;
     const dayId = this.view()?.day.id;
     if (dayId === undefined) return;
-    this.saveAction(
-      `start-${slotId}`,
-      this.examDay.startExamSlot(
-        dayId,
-        slotId,
-        new Date().toISOString(),
-        this.view()?.day.revision,
-      ),
-    );
+    this.examDay.startExamSlot(dayId, slotId, new Date().toISOString(), this.view()?.day.revision);
   }
 
   protected reportAbsence(assignmentId: number): void {
@@ -238,44 +175,13 @@ export class ExamDayComponent implements OnInit, OnChanges {
     }
     const dayId = this.view()?.day.id;
     if (dayId === undefined || this.hasSavingAction()) return;
-    const actionSequence = this.contextSequence;
-    this.savingKeys.set(new Set([`absence-${assignmentId}`]));
-    this.actionMessage.set(null);
-    this.actionError.set(null);
-    this.personal
-      .createAbsenceReport({
-        examDayId: dayId,
-        assignmentId,
-        dayRevision: this.view()?.day.revision,
-      })
-      .subscribe({
-        next: () => {
-          if (actionSequence !== this.contextSequence || this.dayId !== dayId) return;
-          this.savingKeys.set(new Set());
-          this.actionMessage.set('Ausfallmeldung gespeichert.');
-          void this.router.navigateByUrl(
-            this.auth.session()?.demo_role ? '/demo-scenarios' : '/absence-reports',
-          );
-        },
-        error: (error: ApplicationError) => {
-          if (actionSequence !== this.contextSequence || this.dayId !== dayId) return;
-          this.savingKeys.set(new Set());
-          this.actionError.set(
-            this.applicationError(error, 'Die Ausfallmeldung konnte nicht gespeichert werden.'),
-          );
-        },
-      });
+    this.examDay.reportAbsence(dayId, assignmentId, this.view()?.day.revision);
   }
 
   protected executionStatusDraft(slot: ConfirmedPlanDay['slots'][number]): ExecutionStatusDraft {
     const existing = this.executionDrafts.get(slot.id);
     if (existing) return existing;
-    const draft = {
-      status: slot.executionStatus,
-      reason: slot.statusReason ?? '',
-      actualStartedAt: this.datetimeLocalValue(slot.actualStartedAt),
-      actualCompletedAt: this.datetimeLocalValue(slot.actualCompletedAt),
-    };
+    const draft = this.toExecutionStatusDraft(slot);
     this.executionDrafts.set(slot.id, draft);
     return draft;
   }
@@ -322,27 +228,24 @@ export class ExamDayComponent implements OnInit, OnChanges {
     const dayId = this.view()?.day.id;
     if (dayId === undefined) return;
     if (this.requiresExecutionReason(draft.status) && !draft.reason.trim()) {
-      this.actionError.set(
+      this.examDay.showValidationError(
         'Für einen Ausfall oder eine Nachbereitung ist eine Begründung erforderlich.',
       );
       return;
     }
-    this.saveAction(
-      `execution-${slotId}`,
-      this.examDay.updateExamSlotStatus({
-        dayId,
-        slotId,
-        status: draft.status,
-        reason: draft.reason.trim(),
-        dayRevision: this.view()?.day.revision,
-        actualStartedAt: this.isReopenedScope('slot_status', slotId)
-          ? this.apiDateTimeValue(draft.actualStartedAt)
-          : undefined,
-        actualCompletedAt: this.isReopenedScope('slot_status', slotId)
-          ? this.apiDateTimeValue(draft.actualCompletedAt)
-          : undefined,
-      }),
-    );
+    this.examDay.updateExamSlotStatus({
+      dayId,
+      slotId,
+      status: draft.status,
+      reason: draft.reason.trim(),
+      dayRevision: this.view()?.day.revision,
+      actualStartedAt: this.isReopenedScope('slot_status', slotId)
+        ? this.apiDateTimeValue(draft.actualStartedAt)
+        : undefined,
+      actualCompletedAt: this.isReopenedScope('slot_status', slotId)
+        ? this.apiDateTimeValue(draft.actualCompletedAt)
+        : undefined,
+    });
   }
 
   protected closeDay(): void {
@@ -352,18 +255,17 @@ export class ExamDayComponent implements OnInit, OnChanges {
       this.closureType === 'exception' &&
       (!this.closureReason.trim() || !this.clarificationAttempts.trim())
     ) {
-      this.actionError.set('Grund und bisherige Klärungsversuche sind erforderlich.');
+      this.examDay.showValidationError('Grund und bisherige Klärungsversuche sind erforderlich.');
       return;
     }
-    this.runClosureAction(
-      'day-close',
-      this.examDay.closeExamDay({
+    this.examDay.closeExamDay(
+      {
         dayId: day.id,
         revision: day.revision,
         closureType: this.closureType,
         reason: this.closureReason,
         clarificationAttempts: this.clarificationAttempts,
-      }),
+      },
       'Prüfungstag formal abgeschlossen.',
     );
   }
@@ -379,28 +281,7 @@ export class ExamDayComponent implements OnInit, OnChanges {
     ) {
       return;
     }
-    const actionSequence = this.contextSequence;
-    const previewSequence = this.previewSequence;
-    this.savingKeys.set(new Set(['day-reopening-impact']));
-    this.actionError.set(null);
-    this.examDay.previewExamDayReopening(day.id, [scope]).subscribe({
-      next: (impact) => {
-        if (actionSequence !== this.contextSequence || previewSequence !== this.previewSequence) {
-          return;
-        }
-        this.savingKeys.set(new Set());
-        this.reopeningImpact.set(impact);
-      },
-      error: (error: ApplicationError) => {
-        if (actionSequence !== this.contextSequence || previewSequence !== this.previewSequence) {
-          return;
-        }
-        this.savingKeys.set(new Set());
-        this.actionError.set(
-          this.applicationError(error, 'Die Auswirkungen konnten nicht ermittelt werden.'),
-        );
-      },
-    });
+    this.examDay.previewReopening(day.id, [scope]);
   }
 
   protected reopenDay(): void {
@@ -413,21 +294,20 @@ export class ExamDayComponent implements OnInit, OnChanges {
       !this.reopeningSource.trim() ||
       !this.reopeningReason.trim()
     ) {
-      this.actionError.set(
+      this.examDay.showValidationError(
         'Auswirkungsprüfung, Anlass, Quelle und fachliche Begründung sind erforderlich.',
       );
       return;
     }
-    this.runClosureAction(
-      'day-reopen',
-      this.examDay.reopenExamDay({
+    this.examDay.reopenExamDay(
+      {
         dayId: day.id,
         revision: day.revision,
         occasion: this.reopeningOccasion,
         source: this.reopeningSource,
         reason: this.reopeningReason,
         scope: [scope],
-      }),
+      },
       'Prüfungstag zielgerichtet wieder geöffnet.',
     );
   }
@@ -565,84 +445,11 @@ export class ExamDayComponent implements OnInit, OnChanges {
     );
   }
 
-  private saveAction(
-    key: string,
-    request: ReturnType<ExamDayFacade['saveCandidateAttendance']>,
-  ): void {
-    if (this.hasSavingAction()) return;
-    const actionSequence = this.contextSequence;
-    const actionDayId = this.view()?.day.id;
-    this.savingKeys.set(new Set([key]));
-    this.actionMessage.set(null);
-    this.actionError.set(null);
-    request.subscribe({
-      next: (view) => {
-        if (actionSequence !== this.contextSequence || this.dayId !== actionDayId) return;
-        this.requestSequence += 1;
-        this.view.set(view);
-        this.resetDrafts(view);
-        this.savingKeys.set(new Set());
-        this.state.set('ready');
-        this.actionMessage.set('Änderung gespeichert.');
-      },
-      error: (error: ApplicationError) => {
-        if (actionSequence !== this.contextSequence || this.dayId !== actionDayId) return;
-        this.savingKeys.set(new Set());
-        this.actionError.set(
-          this.applicationError(error, 'Die Änderung konnte nicht gespeichert werden.'),
-        );
-      },
-    });
-  }
-
   private selectedReopeningScope(): ExamDayReopeningScope | null {
     const [kind, rawId] = this.reopeningToken.split(':');
     const entityId = Number(rawId);
     if (!kind || !Number.isInteger(entityId) || entityId < 1) return null;
     return { kind: kind as ExamDayReopeningScopeKind, entityId };
-  }
-
-  private runClosureAction(
-    key: string,
-    request: ReturnType<ExamDayFacade['closeExamDay']>,
-    successMessage: string,
-  ): void {
-    if (this.hasSavingAction()) return;
-    const actionSequence = this.contextSequence;
-    const actionDayId = this.view()?.day.id;
-    this.savingKeys.set(new Set([key]));
-    this.actionMessage.set(null);
-    this.actionError.set(null);
-    request.subscribe({
-      next: (closure) => {
-        if (actionSequence !== this.contextSequence || this.dayId !== actionDayId) return;
-        this.requestSequence += 1;
-        this.savingKeys.set(new Set());
-        this.reopeningImpact.set(null);
-        this.view.update((current) =>
-          current
-            ? {
-                ...current,
-                day: {
-                  ...current.day,
-                  revision: closure.revision,
-                  closureStatus: closure.status,
-                  closure,
-                },
-              }
-            : current,
-        );
-        this.state.set('ready');
-        this.actionMessage.set(successMessage);
-      },
-      error: (error: ApplicationError) => {
-        if (actionSequence !== this.contextSequence || this.dayId !== actionDayId) return;
-        this.savingKeys.set(new Set());
-        this.actionError.set(
-          this.applicationError(error, 'Die Abschlussaktion konnte nicht ausgeführt werden.'),
-        );
-      },
-    });
   }
 
   private resetClosureDrafts(): void {
@@ -656,15 +463,108 @@ export class ExamDayComponent implements OnInit, OnChanges {
   }
 
   private resetDrafts(view: ConfirmedPlanDayView): void {
-    this.drafts.clear();
-    this.executionDrafts.clear();
+    const context = `${view.plan.id}:${view.day.id}`;
+    const sameContext = context === this.draftContext;
+    const previousView = sameContext ? this.lastDraftView : null;
+    if (!sameContext) {
+      this.drafts.clear();
+      this.executionDrafts.clear();
+    }
+
+    const attendanceKeys = new Set<string>();
+    const executionKeys = new Set<number>();
     for (const slot of view.day.slots) {
-      this.attendanceDraft(`candidate-${slot.id}`, this.candidateAttendanceFor(slot));
-      this.executionStatusDraft(slot);
+      const key = `candidate-${slot.id}`;
+      attendanceKeys.add(key);
+      this.reconcileAttendanceDraft(
+        key,
+        this.candidateAttendanceFor(slot),
+        previousView?.day.slots.find((item) => item.id === slot.id)?.candidateAttendance,
+      );
+      executionKeys.add(slot.id);
+      this.reconcileExecutionDraft(
+        slot,
+        previousView?.day.slots.find((item) => item.id === slot.id),
+      );
     }
     for (const assignment of view.day.assignments) {
-      this.attendanceDraft(`member-${assignment.id}`, this.memberAttendanceFor(assignment));
+      const key = `member-${assignment.id}`;
+      attendanceKeys.add(key);
+      this.reconcileAttendanceDraft(
+        key,
+        this.memberAttendanceFor(assignment),
+        previousView?.day.assignments.find((item) => item.id === assignment.id)?.attendance,
+      );
     }
+    for (const key of this.drafts.keys()) if (!attendanceKeys.has(key)) this.drafts.delete(key);
+    for (const key of this.executionDrafts.keys())
+      if (!executionKeys.has(key)) this.executionDrafts.delete(key);
+    this.draftContext = context;
+    this.lastDraftView = view;
+  }
+
+  private reconcileAttendanceDraft(
+    key: string,
+    attendance: Attendance | undefined,
+    previousAttendance: Attendance | undefined,
+  ): void {
+    const incoming = this.toAttendanceDraft(attendance ?? { status: 'open', arrivedAt: null });
+    const current = this.drafts.get(key);
+    const previous = previousAttendance ? this.toAttendanceDraft(previousAttendance) : undefined;
+    if (
+      !current ||
+      !previous ||
+      this.sameAttendanceDraft(current, previous) ||
+      this.sameAttendanceDraft(current, incoming)
+    ) {
+      this.drafts.set(key, incoming);
+    }
+  }
+
+  private reconcileExecutionDraft(
+    slot: ConfirmedPlanDay['slots'][number],
+    previousSlot: ConfirmedPlanDay['slots'][number] | undefined,
+  ): void {
+    const incoming = this.toExecutionStatusDraft(slot);
+    const current = this.executionDrafts.get(slot.id);
+    const previous = previousSlot ? this.toExecutionStatusDraft(previousSlot) : undefined;
+    if (
+      !current ||
+      !previous ||
+      this.sameExecutionDraft(current, previous) ||
+      this.sameExecutionDraft(current, incoming)
+    ) {
+      this.executionDrafts.set(slot.id, incoming);
+    }
+  }
+
+  private toAttendanceDraft(attendance: Attendance): AttendanceDraft {
+    return {
+      status: attendance.status as AttendanceStatus,
+      arrivedAt: this.datetimeLocalValue(attendance.arrivedAt),
+    };
+  }
+
+  private sameAttendanceDraft(left: AttendanceDraft, right: AttendanceDraft): boolean {
+    return left.status === right.status && left.arrivedAt === right.arrivedAt;
+  }
+
+  private toExecutionStatusDraft(slot: ConfirmedPlanDay['slots'][number]): ExecutionStatusDraft {
+    return {
+      status: slot.executionStatus,
+      reason: slot.statusReason ?? '',
+      actualStartedAt: this.datetimeLocalValue(slot.actualStartedAt),
+      actualCompletedAt: this.datetimeLocalValue(slot.actualCompletedAt),
+    };
+  }
+
+  private sameExecutionDraft(left: ExecutionStatusDraft, right: ExecutionStatusDraft): boolean {
+    return (
+      left.status === right.status &&
+      left.reason === right.reason &&
+      left.actualStartedAt === right.actualStartedAt &&
+      left.actualCompletedAt === right.actualCompletedAt
+    );
   }
 
   private datetimeLocalValue(value: string | null): string {
@@ -673,10 +573,6 @@ export class ExamDayComponent implements OnInit, OnChanges {
 
   private apiDateTimeValue(value: string): string | null {
     return value ? new Date(value).toISOString() : null;
-  }
-
-  private applicationError(error: ApplicationError, fallback: string): string {
-    return error.message || fallback;
   }
 
   protected backHref(): string {
@@ -730,6 +626,28 @@ export class ExamDayComponent implements OnInit, OnChanges {
     if (status === 'confirmed') return 'Bestätigt';
     if (status === 'proposed') return 'Vorgesehen';
     return 'Nicht zutreffend';
+  }
+
+  protected refreshAfterProtocolChange(change: {
+    roundId: number;
+    dayId: number;
+    revision: number;
+  }): void {
+    if (change.roundId !== this.roundId) return;
+    this.examDay.refreshAfterEmbeddedMutation(change.dayId, change.revision);
+  }
+
+  protected showEmbeddedActionError(message: string): void {
+    this.examDay.showEmbeddedActionError(message);
+  }
+
+  protected refreshAfterResultChange(dayRevisions: Record<string, number>): void {
+    const dayId = this.view()?.day.id;
+    if (dayId === undefined) return;
+    const revision = dayRevisions[String(dayId)];
+    if (revision !== undefined && revision > (this.view()?.day.revision ?? 0)) {
+      this.examDay.refreshAfterEmbeddedMutation(dayId, revision);
+    }
   }
 }
 

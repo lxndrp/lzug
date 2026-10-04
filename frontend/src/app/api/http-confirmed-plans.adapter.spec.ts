@@ -8,6 +8,8 @@ import type {
 } from './api.models';
 import { ConfirmedPlanApiService } from './confirmed-plan-api.service';
 import { HttpConfirmedPlansAdapter } from './http-confirmed-plans.adapter';
+import { MasterDataApiService } from './master-data-api.service';
+import { PlanningApiService } from './planning-api.service';
 import type {
   ConfirmedPlan,
   ConfirmedPlanRevision,
@@ -25,7 +27,18 @@ describe('HttpConfirmedPlansAdapter', () => {
       getConfirmedPlanRevisions: vi.fn(() => of([apiRevision()])),
     };
     TestBed.configureTestingModule({
-      providers: [HttpConfirmedPlansAdapter, { provide: ConfirmedPlanApiService, useValue: api }],
+      providers: [
+        HttpConfirmedPlansAdapter,
+        { provide: ConfirmedPlanApiService, useValue: api },
+        {
+          provide: MasterDataApiService,
+          useValue: {
+            getCandidateViews: vi.fn(() => of([])),
+            getCommitteeMembers: vi.fn(() => of([])),
+          },
+        },
+        { provide: PlanningApiService, useValue: { getLocations: vi.fn(() => of([])) } },
+      ],
     });
 
     const adapter = TestBed.inject(HttpConfirmedPlansAdapter);
@@ -41,6 +54,81 @@ describe('HttpConfirmedPlansAdapter', () => {
     expect(api.getEditableConfirmedPlan).toHaveBeenCalledWith(1);
     expect(api.saveEditableConfirmedPlan).toHaveBeenCalledWith(1, apiEditablePayload(), ' reason ');
     expect(api.getConfirmedPlanRevisions).toHaveBeenCalledWith(1);
+  });
+
+  it('loads editor references from the explicit route round', async () => {
+    const candidateViews = [
+      {
+        candidate: {
+          id: 1,
+          first_name: 'Ada',
+          last_name: 'Beispiel',
+          ihk_exam_number: 'A-1',
+          specialization: 'Software',
+          training_company: 'Example GmbH',
+        },
+        roundCandidate: {
+          id: 14,
+          exam_round_id: 8,
+          candidate_id: 1,
+          attempt_number: 1,
+          requires_mep: 0,
+          is_active: 1,
+        },
+      },
+      {
+        candidate: {
+          id: 2,
+          first_name: 'Lin',
+          last_name: 'Beispiel',
+          ihk_exam_number: 'B-2',
+          specialization: 'Software',
+          training_company: 'Example GmbH',
+        },
+      },
+    ];
+    const members = [
+      {
+        id: 21,
+        person_id: 2,
+        committee_id: 3,
+        first_name: 'Max',
+        last_name: 'Muster',
+        member_status: 'ordinary',
+        committee_role: 'examiner',
+        representing_side: 'employer',
+        email: 'max@example.test',
+        email_verified_at: null,
+        mobile: null,
+        is_active: 1,
+      },
+    ];
+    const locations = [{ id: 31, name: 'Zentrum', room: '101', city: 'Teststadt' }];
+    const getCandidateViews = vi.fn(() => of(candidateViews));
+    const getCommitteeMembers = vi.fn(() => of(members));
+    const getLocations = vi.fn(() => of(locations));
+    TestBed.configureTestingModule({
+      providers: [
+        HttpConfirmedPlansAdapter,
+        { provide: ConfirmedPlanApiService, useValue: {} },
+        { provide: MasterDataApiService, useValue: { getCandidateViews, getCommitteeMembers } },
+        { provide: PlanningApiService, useValue: { getLocations } },
+      ],
+    });
+
+    const adapter = TestBed.inject(HttpConfirmedPlansAdapter);
+    const references = await firstValueFrom(adapter.loadEditorReferences(8));
+
+    expect(getCandidateViews).toHaveBeenCalledWith(8);
+    expect(getCommitteeMembers).toHaveBeenCalledOnce();
+    expect(getLocations).toHaveBeenCalledOnce();
+    expect(references).toEqual({
+      candidates: [
+        { roundCandidateId: 14, firstName: 'Ada', lastName: 'Beispiel', examNumber: 'A-1' },
+      ],
+      members: [{ id: 21, firstName: 'Max', lastName: 'Muster' }],
+      locations: [{ id: 31, name: 'Zentrum', room: '101', city: 'Teststadt' }],
+    });
   });
 });
 

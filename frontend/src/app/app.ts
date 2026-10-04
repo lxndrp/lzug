@@ -30,6 +30,7 @@ import { ApplicationWorkspaceService } from './shell/application-workspace.servi
 import { ApplicationShellContextService } from './shell/application-shell-context.service';
 import { DashboardProjectionService } from './dashboard/dashboard-projection.service';
 import { MasterDataWorkflowService } from './master-data/master-data-workflow.service';
+import { PlanningWorkflowService } from './planning/planning-workflow.service';
 import { UiFeedbackService } from './shell/ui-feedback.service';
 
 @Component({
@@ -57,6 +58,7 @@ export class App {
   protected readonly shellContext = inject(ApplicationShellContextService);
   private readonly dashboard = inject(DashboardProjectionService);
   private readonly masterData = inject(MasterDataWorkflowService);
+  private readonly planning = inject(PlanningWorkflowService);
   private readonly feedbackService = inject(UiFeedbackService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly injector = inject(Injector);
@@ -71,6 +73,7 @@ export class App {
     () =>
       this.workspace.loading() ||
       this.shellContext.loading() ||
+      this.planning.loading() ||
       this.dashboard.loading() ||
       this.dashboard.candidateRefreshLoading() ||
       this.dashboard.committeeRefreshLoading(),
@@ -110,7 +113,7 @@ export class App {
     effect(() => {
       const authState = this.auth.state();
       if (previousAuthState === 'anonymous' && authState === 'authenticated') {
-        this.refresh();
+        this.refresh(false);
       }
       previousAuthState = authState;
     });
@@ -118,7 +121,7 @@ export class App {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(({ previousEstablished, established }) => {
         if (previousEstablished && established && this.auth.state() === 'authenticated') {
-          this.refresh();
+          this.refresh(false);
         }
       });
     this.router.events
@@ -136,7 +139,7 @@ export class App {
       if (!ready) return;
       this.feedbackService.dismiss();
       this.auth.initialize().subscribe((authenticated) => {
-        if (authenticated) this.refresh();
+        if (authenticated) this.refresh(false);
         this.focusPageHeading();
       });
     });
@@ -146,10 +149,11 @@ export class App {
     this.auth.retrySessionRevocation().subscribe();
   }
 
-  protected refresh(): void {
+  protected refresh(includePlanning = true): void {
     this.workspace.refresh();
     this.shellContext.refresh();
     this.dashboard.refresh();
+    if (includePlanning) this.planning.refreshActiveView();
     const path = this.router.url.split(/[?#]/, 1)[0];
     if (path === '/candidates') this.masterData.loadCandidates();
     else if (path === '/committee') this.masterData.loadCommittees();

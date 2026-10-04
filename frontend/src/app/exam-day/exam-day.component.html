@@ -1,6 +1,9 @@
 @if (state() === 'loading') {
   <section class="app-panel" aria-busy="true" aria-live="polite">
     <div class="app-panel-body app-exam-day-message">Tagesansicht wird geladen …</div>
+    @if (actionError(); as message) {
+      <p class="app-exam-day-feedback app-exam-day-feedback-error" role="alert">{{ message }}</p>
+    }
   </section>
 } @else if (state() === 'not-found') {
   <section class="app-panel" role="alert">
@@ -22,13 +25,22 @@
       <span
         >Die bestätigten Daten konnten nicht geladen werden. Bitte versuchen Sie es erneut.</span
       >
+      @if (actionError(); as message) {
+        <p class="app-exam-day-feedback app-exam-day-feedback-error">{{ message }}</p>
+      }
       <button tuiButton appearance="secondary" type="button" (click)="load()">
         Erneut versuchen
       </button>
     </div>
   </section>
-} @else if (view(); as current) {
-  <section class="app-panel app-exam-day-view">
+}
+
+@if (state() !== 'ready' && embeddedActionError(); as message) {
+  <p class="app-exam-day-feedback app-exam-day-feedback-error" role="alert">{{ message }}</p>
+}
+
+@if (view(); as current) {
+  <section class="app-panel app-exam-day-view" [hidden]="state() !== 'ready'">
     <header class="app-panel-header app-exam-day-header">
       <div>
         <p class="app-eyebrow">Bestätigter Prüfungstag</p>
@@ -457,16 +469,24 @@
       @for (slot of current.day.slots; track slot.id) {
         @if (slot.actualStartedAt) {
           <app-exam-protocol
+            [roundId]="current.plan.id"
             [dayId]="current.day.id"
             [dayRevision]="current.day.revision"
+            [dayRefreshing]="state() !== 'ready'"
             [slotId]="slot.id"
             [ownMemberId]="ownMemberId"
+            (dayRevisionChanged)="refreshAfterProtocolChange($event)"
+            (actionErrorOccurred)="showEmbeddedActionError($event)"
           />
           <app-exam-result
+            [roundId]="current.plan.id"
             [dayId]="current.day.id"
             [dayRevision]="current.day.revision"
+            [dayRefreshing]="state() !== 'ready'"
             [slotId]="slot.id"
             [ownMemberId]="ownMemberId"
+            (dayRevisionsChanged)="refreshAfterResultChange($event)"
+            (actionErrorOccurred)="showEmbeddedActionError($event)"
           />
         }
       }

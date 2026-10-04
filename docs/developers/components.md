@@ -913,6 +913,9 @@ Kandidaten- und Ausschussansichten laden über eigene Methoden des
 `MasterDataPort`; deren Fehler und Invalidierung bleiben voneinander getrennt.
 `ApplicationWorkspaceService` hält befristet den Planungs-/Halbjahres-
 Kompatibilitätszustand hinter `WorkspacePort`.
+Die Prüfungshalbjahresroute bezieht die aktive Runde aus `RoundContextService`.
+Weicht sie von der Workspace-Runde ab, aktualisiert sie gezielt die
+rundenabhängigen Prüflingsreferenzen statt den vollständigen Workspace zu laden.
 Nach Venue-/Raumänderungen werden die Dashboard- und Legacy-Board-Ortsreferenzen
 mit gezielten `/api/locations`-Reads aktualisiert; die übrigen Workspace- und
 Dashboarddaten bleiben erhalten.
@@ -948,6 +951,36 @@ Routenwechsel bricht Planning-Reads und ansichtsgebundene Vorschlagsladung ab.
 Prüfungstag-Anwesenheit übergibt Slot-ID für Prüflinge beziehungsweise
 Assignment-ID für Ausschussmitglieder sowie die vom Befehl akzeptierte
 Tagesrevision.
+`ExamDayFacade` besitzt Tagesread, Lade-/Fehlerzustand, angenommene Commands
+und bestätigte Antworten für die Lebensdauer der Prüfungstagsansicht;
+die reine `ExamDayApplication`-Weiterleitung entfällt.
+Ein Tagesread setzt gültige Runden- und Tages-IDs voraus. Nach einem
+angenommenen Kindwrite hält die Facade dessen höchste bestätigte Tagesrevision
+über fehlgeschlagene Reads und manuelle Wiederholungen hinweg fest.
+Die Komponente behält ihre Formularentwürfe und Darstellung. Ein Refresh im
+gleichen Runden-/Tageskontext übernimmt neue Serverwerte in unveränderte Drafts,
+bewahrt davon abweichende lokale Drafts und löscht Drafts entfernter Einträge.
+Ein Wechsel von Runde oder Tag verwirft alle Tages-Drafts.
+Protokoll und Ergebnis erhalten Runde, Tag, Slot und Tagesrevision explizit;
+ihre erfolgreichen Änderungen melden Tagesrevisionen über Outputs zurück,
+damit Prüfungstag den bestätigten Tagesread und beide Kindreads gezielt
+aktualisiert.
+Während dieser Tagesrefresh läuft, bleibt der bestätigte Snapshot verborgen
+gemountet, damit bereits angenommene Kindcommands ihre verzögerten Antworten
+weiter an Protokoll oder Ergebnis zurückmelden können. Fehler dieser Commands
+werden währenddessen am Prüfungstag sichtbar gehalten. Neue Kindcommands bleiben
+bis zur geladenen Tagesrevision gesperrt.
+Die Fehlerdetails eines bestätigten Kindwrites bleiben außerdem in der
+Prüfungstags-Fehleransicht sichtbar, wenn der Folge-Read scheitert.
+Ein Wechsel nur der Tagesrevision lädt Protokoll und Ergebnis neu, ändert aber
+nicht die Fence eines bereits angenommenen Commands; dessen Antwort kann einen
+Versionskonflikt weiterhin im Ursprungskontext anzeigen. Ein Wechsel von Runde,
+Tag oder Slot invalidiert dagegen den Commandkontext. Ergebnisstimmen bleiben
+bei einer reinen Tagesrevision im lokalen Entwurf erhalten. Abweichende lokale
+Protokollentwürfe, Vorbehaltstexte und Ergebnis-Punkteentwürfe überstehen
+denselben Reload.
+Session- und Ansichtswechsel verhindern, dass verspätete Antworten geschützten
+Zustand einer neuen Ansicht verändern.
 Bestätigte Pläne verwenden denselben Schnitt: `ConfirmedPlansWorkflowService`
 ruft `ConfirmedPlansPort` auf, dessen HTTP-Adapter Plan- und Revisionsantworten
 von HAL-Links bereinigt.

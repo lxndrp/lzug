@@ -67,7 +67,7 @@ export class PlanningWorkflowService {
   private acceptedProposalSaveGeneration = 0;
   private pendingProposalReload: { roundId: number; view: symbol | null } | null = null;
 
-  readonly actionBusy = computed(() => this.pending());
+  readonly actionBusy = computed(() => this.pending() || this.loading() || this.loadError());
   readonly snapshot = signal<PlanningSnapshot | null>(null);
   readonly loading = signal(false);
   readonly loadError = signal(false);
@@ -166,6 +166,11 @@ export class PlanningWorkflowService {
     this.snapshot.set(null);
     this.resetPlanningState();
     this.loadPlanning(roundId, view);
+  }
+
+  refreshActiveView(): void {
+    const roundId = this.activeRoundId;
+    if (roundId !== null && this.activeView) this.refreshPlanning(roundId);
   }
 
   deactivateView(view: symbol): void {

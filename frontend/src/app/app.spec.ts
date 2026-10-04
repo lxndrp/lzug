@@ -437,6 +437,21 @@ describe('App', () => {
     );
   });
 
+  it('includes the active planning feature in the application refresh', () => {
+    const fixture = TestBed.createComponent(App);
+    const http = TestBed.inject(HttpTestingController);
+    flushDashboardRequests(http);
+    const planning = TestBed.inject(PlanningWorkflowService);
+    const refreshSpy = vi.spyOn(planning, 'refreshActiveView');
+    const app = fixture.componentInstance as unknown as { refresh(): void };
+
+    app.refresh();
+
+    expect(refreshSpy).toHaveBeenCalledOnce();
+    flushDashboardRequests(http);
+    fixture.destroy();
+  });
+
   it('updates title and focus from route data after browser navigation', async () => {
     const fixture = TestBed.createComponent(App);
     const http = TestBed.inject(HttpTestingController);

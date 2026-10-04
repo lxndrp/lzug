@@ -5,6 +5,7 @@ import {
   CanActivateFn,
   convertToParamMap,
   provideRouter,
+  RedirectCommand,
   Router,
   type ResolveFn,
   type Route,
@@ -118,7 +119,7 @@ describe('application routes', () => {
       ],
     });
     const resolver = routeFor('scheduling-overview/:roundId').resolve?.['roundId'] as ResolveFn<
-      number | null
+      number | RedirectCommand
     >;
     const route = {
       paramMap: convertToParamMap({ roundId: '7' }),
@@ -128,6 +129,33 @@ describe('application routes', () => {
 
     expect(roundId()).toBe(7);
     expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it('redirects invalid round deep links during real router navigation', async () => {
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([
+          { path: 'scheduling-overview', component: RoundDeepLinkProbe },
+          {
+            path: 'scheduling-overview/:roundId',
+            component: RoundDeepLinkProbe,
+            resolve: { roundId: roundContextResolver },
+          },
+          { path: 'confirmed-plans', component: RoundDeepLinkProbe },
+          {
+            path: 'confirmed-plans/:roundId',
+            component: RoundDeepLinkProbe,
+            resolve: { roundId: roundContextResolver },
+          },
+        ]),
+      ],
+    });
+    const router = TestBed.inject(Router);
+
+    await router.navigateByUrl('/scheduling-overview/foo');
+    expect(router.url).toBe('/scheduling-overview');
+    await router.navigateByUrl('/confirmed-plans/0');
+    expect(router.url).toBe('/confirmed-plans');
   });
 
   it('preserves a protected round deep link while the initial session is established', async () => {

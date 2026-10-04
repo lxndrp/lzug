@@ -168,6 +168,63 @@ describe('ApplicationWorkspaceService', () => {
     expect(loadDashboard).toHaveBeenCalledOnce();
   });
 
+  it('loads selected-round candidate references before the workspace snapshot exists', () => {
+    const workspace = TestBed.inject(ApplicationWorkspaceService);
+    const context = TestBed.inject(RoundContextService);
+    const candidates = [{ candidate: { id: 7 }, roundCandidate: null }];
+    const candidateAssignments = [{ id: 8 }];
+    context.select(2);
+    loadCandidateReferences.mockReturnValueOnce(of({ candidates, candidateAssignments }));
+
+    workspace.refreshCandidateReferences(2);
+
+    expect(loadCandidateReferences).toHaveBeenCalledWith(2);
+    expect(workspace.candidateReferenceSnapshot()).toEqual({
+      roundId: 2,
+      candidates,
+      candidateAssignments,
+    });
+    expect(workspace.masterData()).toBeNull();
+    expect(loadDashboard).toHaveBeenCalledOnce();
+    expect(loadDashboard).toHaveBeenCalledWith(2);
+  });
+
+  it('keeps targeted references out of a workspace snapshot for another round', () => {
+    const workspace = TestBed.inject(ApplicationWorkspaceService);
+    const context = TestBed.inject(RoundContextService);
+    const roundOneCandidates = [{ candidate: { id: 1 }, roundCandidate: null }];
+    const roundOneAssignments = [{ id: 10 }];
+    const roundTwoCandidates = [{ candidate: { id: 2 }, roundCandidate: null }];
+    const roundTwoAssignments = [{ id: 20 }];
+    workspace.refresh();
+    requests[0].next({
+      ...dashboard(1, 'Runde A'),
+      board: { days: [], locations: [], candidates: roundOneCandidates },
+      masterData: {
+        committees: [],
+        locations: [],
+        candidates: roundOneCandidates,
+        candidateAssignments: roundOneAssignments,
+      },
+    });
+    requests[0].complete();
+    context.select(2);
+    loadCandidateReferences.mockReturnValueOnce(
+      of({ candidates: roundTwoCandidates, candidateAssignments: roundTwoAssignments }),
+    );
+
+    workspace.refreshCandidateReferences(2);
+
+    expect(workspace.candidateReferenceSnapshot()).toEqual({
+      roundId: 2,
+      candidates: roundTwoCandidates,
+      candidateAssignments: roundTwoAssignments,
+    });
+    expect(workspace.board()).toBeNull();
+    expect(workspace.masterData()).toBeNull();
+    expect(loadDashboard).toHaveBeenLastCalledWith(2);
+  });
+
   it('updates only committee members in the transitional planning workspace', () => {
     const workspace = TestBed.inject(ApplicationWorkspaceService);
     workspace.refresh();
