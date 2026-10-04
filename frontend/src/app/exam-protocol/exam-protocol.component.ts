@@ -38,6 +38,7 @@ export class ExamProtocolComponent implements OnChanges {
   @Input({ required: true }) roundId!: number;
   @Input({ required: true }) dayId!: number;
   @Input() dayRevision: number | null = null;
+  @Input() dayRefreshing = false;
   @Input({ required: true }) slotId!: number;
   @Input() ownMemberId: number | null = null;
   readonly dayRevisionChanged = output<{ roundId: number; dayId: number; revision: number }>();
@@ -72,10 +73,10 @@ export class ExamProtocolComponent implements OnChanges {
       this.contextSequence += 1;
       this.busy.set(false);
     }
-    if (identityChanged || changes['dayRevision']) this.load();
+    if (identityChanged || changes['dayRevision']) this.load(!identityChanged);
   }
 
-  protected load(): void {
+  protected load(preserveDrafts = false): void {
     const sequence = ++this.requestSequence;
     const contextSequence = this.contextSequence;
     const sessionGeneration = this.sessionScope.generation();
@@ -83,8 +84,10 @@ export class ExamProtocolComponent implements OnChanges {
     const dayId = this.dayId;
     const slotId = this.slotId;
     this.state.set('loading');
-    this.message.set(null);
-    this.error.set(null);
+    if (!preserveDrafts) {
+      this.message.set(null);
+      this.error.set(null);
+    }
     this.sessionScope.forCurrentSession(this.facade.get(dayId, slotId)).subscribe({
       next: (protocol) => {
         if (
@@ -92,7 +95,7 @@ export class ExamProtocolComponent implements OnChanges {
         ) {
           return;
         }
-        this.accept(protocol);
+        this.accept(protocol, preserveDrafts);
         this.state.set('ready');
       },
       error: (error: ApplicationError) => {
@@ -211,7 +214,7 @@ export class ExamProtocolComponent implements OnChanges {
 
   protected downloadExport(format: ProtocolExportFormat): void {
     const protocol = this.protocol();
-    if (!protocol || this.exportBusy()) return;
+    if (!protocol || this.exportBusy() || this.dayRefreshing) return;
     this.exportBusy.set(true);
     this.error.set(null);
     this.facade.export(protocol.id, format).subscribe({
@@ -272,7 +275,7 @@ export class ExamProtocolComponent implements OnChanges {
   }
 
   private run(request: Observable<ExamProtocol>, successMessage: string): void {
-    if (this.busy()) return;
+    if (this.busy() || this.dayRefreshing) return;
     const contextSequence = this.contextSequence;
     const sessionGeneration = this.sessionScope.generation();
     const roundId = this.roundId;
@@ -337,16 +340,49 @@ export class ExamProtocolComponent implements OnChanges {
     );
   }
 
-  private accept(protocol: ExamProtocol): void {
+  private accept(protocol: ExamProtocol, preserveDrafts = false): void {
+    const previous = this.protocol();
+    const incomingDeclaration = protocol.currentRevision.declaration ?? '';
+    const incomingEntries = this.entryDrafts(protocol);
+    const preserveDeclaration =
+      preserveDrafts &&
+      previous !== null &&
+      this.declaration !== (previous.currentRevision.declaration ?? '') &&
+      this.declaration !== incomingDeclaration;
+    const preserveEntries =
+      preserveDrafts &&
+      previous !== null &&
+      !this.sameEntries(this.entries, this.entryDrafts(previous)) &&
+      !this.sameEntries(this.entries, incomingEntries);
     this.protocol.set(protocol);
-    this.declaration = protocol.currentRevision.declaration ?? '';
-    this.entries = protocol.currentRevision.entries.map((entry) => ({
+    if (!preserveDeclaration) this.declaration = incomingDeclaration;
+    if (!preserveEntries) this.entries = incomingEntries;
+    if (!preserveDrafts) this.reservationText = '';
+  }
+
+  private entryDrafts(protocol: ExamProtocol): EntryDraft[] {
+    return protocol.currentRevision.entries.map((entry) => ({
       category: entry.category,
       statement: entry.statement,
       occurredFrom: this.localDateTimeValue(entry.occurredFrom),
       occurredTo: entry.occurredTo ? this.localDateTimeValue(entry.occurredTo) : '',
     }));
-    this.reservationText = '';
+  }
+
+  private sameEntries(left: EntryDraft[], right: EntryDraft[]): boolean {
+    return (
+      left.length === right.length &&
+      left.every((entry, index) => {
+        const other = right[index];
+        return (
+          other !== undefined &&
+          entry.category === other.category &&
+          entry.statement === other.statement &&
+          entry.occurredFrom === other.occurredFrom &&
+          entry.occurredTo === other.occurredTo
+        );
+      })
+    );
   }
 
   private apiDateTimeValue(value: string): string {

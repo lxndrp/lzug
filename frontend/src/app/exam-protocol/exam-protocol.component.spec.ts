@@ -162,6 +162,49 @@ describe('ExamProtocolComponent', () => {
     expect(port.get).toHaveBeenCalledTimes(2);
   });
 
+  it('preserves dirty protocol drafts and reservation text during a day revision reload', () => {
+    const refreshed = protocolFixture({
+      dayRevision: 5,
+      currentRevision: revisionFixture({
+        declaration: 'without_special_occurrences',
+        entries: [],
+      }),
+    });
+    vi.mocked(port.get)
+      .mockReturnValueOnce(of(protocolFixture()))
+      .mockReturnValueOnce(of(refreshed));
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance as unknown as {
+      declaration: string;
+      entries: Array<{
+        category: string;
+        statement: string;
+        occurredFrom: string;
+        occurredTo: string;
+      }>;
+      reservationText: string;
+    };
+    component.declaration = 'with_special_occurrences';
+    component.entries = [
+      {
+        category: 'other',
+        statement: 'Lokaler, noch nicht gespeicherter Vermerk',
+        occurredFrom: '2026-11-16T09:20',
+        occurredTo: '',
+      },
+    ];
+    component.reservationText = 'Vorbehalt aus dem offenen Entwurf';
+
+    fixture.componentRef.setInput('dayRevision', 5);
+    fixture.detectChanges();
+
+    expect(component.declaration).toBe('with_special_occurrences');
+    expect(component.entries[0]?.statement).toBe('Lokaler, noch nicht gespeicherter Vermerk');
+    expect(component.reservationText).toBe('Vorbehalt aus dem offenen Entwurf');
+  });
+
   it('offers participant confirmation only for the active version', () => {
     vi.mocked(port.get).mockReturnValue(
       of(

@@ -344,7 +344,6 @@ export class ExamDayFacade {
     const sessionGeneration = this.sessionScope.generation();
     const roundId = this.roundId;
     this.actionError.set(null);
-    this.view.set(null);
     this.state.set('loading');
     this.sessionScope.forCurrentSession(this.port.getConfirmedPlanDay(dayId)).subscribe({
       next: (view) => {
@@ -352,12 +351,10 @@ export class ExamDayFacade {
           return;
         }
         if (view.plan.id !== roundId) {
-          this.view.set(null);
           this.state.set('not-found');
           return;
         }
         if (minimumRevision !== undefined && view.day.revision < minimumRevision) {
-          this.view.set(null);
           this.state.set('error');
           this.actionError.set(
             'Die aktualisierten Tagesdaten entsprechen nicht der akzeptierten Revision.',
@@ -371,7 +368,6 @@ export class ExamDayFacade {
         if (!this.isCurrent(requestSequence, contextSequence, sessionGeneration, dayId, roundId)) {
           return;
         }
-        this.view.set(null);
         this.state.set('error');
         this.actionError.set(
           'Die Änderung wurde gespeichert, aber die aktuelle Tagesansicht konnte ' +

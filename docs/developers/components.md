@@ -952,11 +952,16 @@ Protokoll und Ergebnis erhalten Runde, Tag, Slot und Tagesrevision explizit;
 ihre erfolgreichen Änderungen melden Tagesrevisionen über Outputs zurück,
 damit Prüfungstag den bestätigten Tagesread und beide Kindreads gezielt
 aktualisiert.
+Während dieser Tagesrefresh läuft, bleibt der bestätigte Snapshot verborgen
+gemountet, damit bereits angenommene Kindcommands ihre verzögerten Antworten
+weiter an Protokoll oder Ergebnis zurückmelden können. Neue Kindcommands bleiben
+bis zur geladenen Tagesrevision gesperrt.
 Ein Wechsel nur der Tagesrevision lädt Protokoll und Ergebnis neu, ändert aber
 nicht die Fence eines bereits angenommenen Commands; dessen Antwort kann einen
 Versionskonflikt weiterhin im Ursprungskontext anzeigen. Ein Wechsel von Runde,
 Tag oder Slot invalidiert dagegen den Commandkontext. Ergebnisstimmen bleiben
-bei einer reinen Tagesrevision im lokalen Entwurf erhalten.
+bei einer reinen Tagesrevision im lokalen Entwurf erhalten. Abweichende lokale
+Protokollentwürfe und Vorbehaltstexte überstehen denselben Reload.
 Session- und Ansichtswechsel verhindern, dass verspätete Antworten geschützten
 Zustand einer neuen Ansicht verändern.
 Bestätigte Pläne verwenden denselben Schnitt: `ConfirmedPlansWorkflowService`

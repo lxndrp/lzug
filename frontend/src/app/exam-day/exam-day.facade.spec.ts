@@ -133,7 +133,7 @@ describe('ExamDayFacade', () => {
     expect(facade.savingKeys()).toEqual(new Set());
   });
 
-  it('hides stale day data after an embedded refresh fails and allows retry', () => {
+  it('retains the mounted day during an embedded refresh failure and allows retry', () => {
     facade.bindContext(1, 7);
     expect(facade.state()).toBe('ready');
     vi.mocked(port.getConfirmedPlanDay).mockReturnValueOnce(
@@ -143,7 +143,7 @@ describe('ExamDayFacade', () => {
     facade.refreshAfterEmbeddedMutation(7, 2);
 
     expect(facade.state()).toBe('error');
-    expect(facade.view()).toBeNull();
+    expect(facade.view()?.day.revision).toBe(1);
     expect(facade.actionError()).toContain('aktuelle Tagesansicht');
 
     vi.mocked(port.getConfirmedPlanDay).mockReturnValueOnce(of(dayView(7, 1, 2)));

@@ -27,8 +27,10 @@
       </button>
     </div>
   </section>
-} @else if (view(); as current) {
-  <section class="app-panel app-exam-day-view">
+}
+
+@if (view(); as current) {
+  <section class="app-panel app-exam-day-view" [hidden]="state() !== 'ready'">
     <header class="app-panel-header app-exam-day-header">
       <div>
         <p class="app-eyebrow">Bestätigter Prüfungstag</p>
@@ -460,6 +462,7 @@
             [roundId]="current.plan.id"
             [dayId]="current.day.id"
             [dayRevision]="current.day.revision"
+            [dayRefreshing]="state() !== 'ready'"
             [slotId]="slot.id"
             [ownMemberId]="ownMemberId"
             (dayRevisionChanged)="refreshAfterProtocolChange($event)"
@@ -468,6 +471,7 @@
             [roundId]="current.plan.id"
             [dayId]="current.day.id"
             [dayRevision]="current.day.revision"
+            [dayRefreshing]="state() !== 'ready'"
             [slotId]="slot.id"
             [ownMemberId]="ownMemberId"
             (dayRevisionsChanged)="refreshAfterResultChange($event)"

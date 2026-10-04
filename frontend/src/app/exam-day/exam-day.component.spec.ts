@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { provideRouter, Router } from '@angular/router';
 import { provideTaiga } from '@taiga-ui/core';
 import { of, Subject, throwError } from 'rxjs';
@@ -6,6 +7,10 @@ import { vi } from 'vitest';
 
 import { ApplicationError } from '../application/application-error';
 import { AuthService } from '../auth/auth.service';
+import { ExamProtocolComponent } from '../exam-protocol/exam-protocol.component';
+import { EXAM_PROTOCOL_PORT, type ExamProtocolPort } from '../exam-protocol/exam-protocol.port';
+import type { ExamProtocol } from '../exam-protocol/exam-protocol.models';
+import { EXAM_RESULT_PORT, type ExamResultPort } from '../exam-result/exam-result.port';
 import { PERSONAL_PORT, type PersonalPort } from '../personal/personal.port';
 import type { PersonalAbsenceReport } from '../personal/personal.models';
 import { EXAM_DAY_PORT, type ExamDayPort } from './exam-day.port';
@@ -20,10 +25,12 @@ import { ExamDayComponent } from './exam-day.component';
 describe('ExamDayComponent', () => {
   let fixture: ComponentFixture<ExamDayComponent>;
   let examDay: ExamDayPort;
+  let protocolPort: ExamProtocolPort;
   let personal: Pick<PersonalPort, 'createAbsenceReport'>;
 
   beforeEach(async () => {
     examDay = createExamDayPort();
+    protocolPort = createProtocolPort(new Subject<ExamProtocol>());
     personal = { createAbsenceReport: vi.fn().mockReturnValue(of({} as never)) };
     await TestBed.configureTestingModule({
       imports: [ExamDayComponent],
@@ -32,6 +39,13 @@ describe('ExamDayComponent', () => {
         provideTaiga({ scrollbars: 'native' }),
         { provide: EXAM_DAY_PORT, useValue: examDay },
         { provide: PERSONAL_PORT, useValue: personal },
+        { provide: EXAM_PROTOCOL_PORT, useValue: protocolPort },
+        {
+          provide: EXAM_RESULT_PORT,
+          useValue: {
+            get: vi.fn(() => throwError(() => new ApplicationError('not-found', 'No result'))),
+          },
+        },
       ],
     }).compileComponents();
     fixture = TestBed.createComponent(ExamDayComponent);
@@ -64,6 +78,53 @@ describe('ExamDayComponent', () => {
         .querySelector<HTMLButtonElement>('.app-exam-day-actions button')
         ?.getAttribute('aria-label'),
     ).toBe('Prüfling Plan-Day: Anwesenheit speichern');
+  });
+
+  it('keeps a pending protocol command mounted through the parent day refresh', () => {
+    const dayRefresh = new Subject<ConfirmedPlanDayView>();
+    const startedDay = dayView();
+    startedDay.day.slots[0].actualStartedAt = '2026-11-16T08:30:00+01:00';
+    vi.mocked(examDay.getConfirmedPlanDay)
+      .mockReturnValueOnce(of(startedDay))
+      .mockReturnValueOnce(dayRefresh.asObservable());
+    const pendingUpdate = new Subject<ExamProtocol>();
+    vi.mocked(protocolPort.update).mockReturnValueOnce(pendingUpdate.asObservable());
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    const childDebugElement = fixture.debugElement.query(By.directive(ExamProtocolComponent));
+    expect(childDebugElement).toBeTruthy();
+    const child = childDebugElement.componentInstance as ExamProtocolComponent;
+    const childState = child as unknown as {
+      declaration: string;
+      save(): void;
+      error(): string | null;
+    };
+    childState.declaration = 'without_special_occurrences';
+    childState.save();
+    expect(protocolPort.update).toHaveBeenCalledTimes(1);
+
+    (fixture.componentInstance as unknown as {
+      refreshAfterProtocolChange(change: {
+        roundId: number;
+        dayId: number;
+        revision: number;
+      }): void;
+    }).refreshAfterProtocolChange({ roundId: 1, dayId: 7, revision: 2 });
+    fixture.detectChanges();
+    expect(fixture.debugElement.query(By.directive(ExamProtocolComponent)).componentInstance).toBe(
+      child,
+    );
+
+    pendingUpdate.error(new ApplicationError('conflict', 'Die Tagesrevision wurde geändert.'));
+    fixture.detectChanges();
+
+    expect(childState.error()).toBe('Die Tagesrevision wurde geändert.');
+    expect(fixture.debugElement.query(By.directive(ExamProtocolComponent)).componentInstance).toBe(
+      child,
+    );
+    childState.save();
+    expect(protocolPort.update).toHaveBeenCalledTimes(1);
   });
 
   it('does not present an unknown day or a day from another round', () => {
@@ -738,6 +799,44 @@ function createExamDayPort(): ExamDayPort {
     ),
     reopenExamDay: vi.fn(() => of(dayView().day.closure)),
   };
+}
+
+function createProtocolPort(updateResponse: Subject<ExamProtocol>): ExamProtocolPort {
+  const protocol: ExamProtocol = {
+    id: 41,
+    examSlotId: 7,
+    dayRevision: 1,
+    currentVersion: 1,
+    state: 'in_progress',
+    closingReady: false,
+    currentRevision: {
+      id: 41,
+      version: 1,
+      declaration: null,
+      workflowState: 'draft',
+      changeReason: null,
+      submittedAt: null,
+      obsolete: false,
+      missingResponseMemberIds: [],
+      entries: [],
+      responses: [],
+    },
+    history: [],
+    correctionRequests: [],
+    permissions: {
+      edit: true,
+      submit: false,
+      respond: false,
+      requestCorrection: false,
+      coordinateCorrection: false,
+      manageRetention: false,
+    },
+    exports: { machineReadable: false, humanReadable: false },
+  };
+  return {
+    get: vi.fn(() => of(protocol)),
+    update: vi.fn(() => updateResponse.asObservable()),
+  } as unknown as ExamProtocolPort;
 }
 
 function dayView(

@@ -38,6 +38,7 @@ export class ExamResultComponent implements OnChanges {
   @Input({ required: true }) roundId!: number;
   @Input({ required: true }) dayId!: number;
   @Input() dayRevision: number | null = null;
+  @Input() dayRefreshing = false;
   @Input({ required: true }) slotId!: number;
   @Input() ownMemberId: number | null = null;
   readonly dayRevisionsChanged = output<Record<string, number>>();
@@ -86,10 +87,10 @@ export class ExamResultComponent implements OnChanges {
       this.examResultVotes.clear();
       this.examResultVoters.clear();
     }
-    if (identityChanged || changes['dayRevision']) this.load();
+    if (identityChanged || changes['dayRevision']) this.load(!identityChanged);
   }
 
-  protected load(): void {
+  protected load(preserveFeedback = false): void {
     const sequence = ++this.requestSequence;
     const contextSequence = this.contextSequence;
     const sessionGeneration = this.sessionScope.generation();
@@ -97,8 +98,10 @@ export class ExamResultComponent implements OnChanges {
     const dayId = this.dayId;
     const slotId = this.slotId;
     this.state.set('loading');
-    this.message.set(null);
-    this.error.set(null);
+    if (!preserveFeedback) {
+      this.message.set(null);
+      this.error.set(null);
+    }
     this.sessionScope.forCurrentSession(this.facade.get(dayId, slotId)).subscribe({
       next: (result) => {
         if (
@@ -530,7 +533,7 @@ export class ExamResultComponent implements OnChanges {
     successMessage: string,
     afterSuccess?: () => void,
   ): void {
-    if (this.busy()) return;
+    if (this.busy() || this.dayRefreshing) return;
     const contextSequence = this.contextSequence;
     const sessionGeneration = this.sessionScope.generation();
     const roundId = this.roundId;
