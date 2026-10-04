@@ -12,6 +12,7 @@ from backend.planning.exam_venues import ExamVenueService
 from backend.planning_ports import (
     ExamVenueError,
     GeocodeCandidate,
+    VenueActorFacts,
     VenueChange,
     VenueCommand,
     VenueCommandFacts,
@@ -40,6 +41,17 @@ class _VenueRepositoryDouble:
 
         class UnitOfWork:
             def facts(self):
+                def actor_for(committee_id):
+                    if command.actor_member_id is None:
+                        return None
+                    return VenueActorFacts(
+                        member_id=command.actor_member_id,
+                        person_id=command.actor_person_id or 1,
+                        committee_id=committee_id,
+                        committee_role="chair",
+                        is_active=True,
+                    )
+
                 if command.kind == VenueCommandKind.UPDATE_VENUE:
                     return VenueCommandFacts(
                         current={
@@ -62,10 +74,20 @@ class _VenueRepositoryDouble:
                             "coordinate_source": None,
                             "is_active": True,
                         },
+                        actor=actor_for(1),
                         venue_id=command.entity_id,
+                        venue_committee_id=1,
+                        venue_scope="committee",
                         has_active_room=True,
                     )
-                return VenueCommandFacts()
+                committee_id = (
+                    command.values.get("committee_id", 4) if command.values is not None else 4
+                )
+                return VenueCommandFacts(
+                    actor=actor_for(committee_id),
+                    venue_committee_id=committee_id,
+                    venue_scope="committee" if command.actor_member_id is not None else None,
+                )
 
             def commit(self, plan):
                 repository.plans.append(plan)
@@ -116,6 +138,7 @@ class PlanningVenuePortTests(unittest.TestCase):
                 "accessibility_status": "needs_clarification",
             },
             actor_member_id=4,
+            actor_person_id=1,
         )
 
         self.assertEqual([{"id": 7, "name": "Nord"}], rows)
@@ -133,6 +156,7 @@ class PlanningVenuePortTests(unittest.TestCase):
             service.create_venue(
                 {"scope": "global", "committee_id": 4, "name": "Invalid"},
                 actor_member_id=4,
+                actor_person_id=1,
             )
 
         self.assertEqual(1, len(repository.commands))
@@ -207,6 +231,7 @@ class PlanningVenuePortTests(unittest.TestCase):
                     entity_id=venue["id"],
                     values={"name": "Port-Testort Neu"},
                     actor_member_id=1,
+                    actor_person_id=1,
                     expected_revision=venue["revision"],
                 )
             )
@@ -246,6 +271,7 @@ class PlanningVenuePortTests(unittest.TestCase):
                     venue["id"],
                     {"expected_revision": venue["revision"], "is_active": True},
                     actor_member_id=1,
+                    actor_person_id=1,
                 )
 
             with session_scope(db_path) as session:

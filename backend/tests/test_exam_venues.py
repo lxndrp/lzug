@@ -9,12 +9,18 @@ from sqlalchemy import func, select
 
 from backend.composition import exam_venue_service
 from backend.persistence.database import session_scope
-from backend.persistence.models import ExamVenueAuditEvent, ExamVenueContact
+from backend.persistence.models import (
+    CommitteeMember,
+    ExamVenue,
+    ExamVenueAuditEvent,
+    ExamVenueContact,
+)
 from backend.persistence.sqlite_exam_venues import (
     room_is_usable_for_committee as repository_room_is_usable,
 )
 from backend.planning.exam_venues import ExamVenueService
 from backend.planning_ports import (
+    ExamVenueAccessDeniedError,
     ExamVenueConfirmationRequiredError,
     ExamVenueConflictError,
     ExamVenueError,
@@ -91,7 +97,7 @@ class ExamVenueServiceTests(unittest.TestCase):
                 service.create_venue(self._venue_payload(street="Hafenstraße 2"), actor_member_id=1)
             global_venue = service.create_venue(
                 self._venue_payload(scope="global", committee_id=None, duplicates_reviewed=True),
-                actor_member_id=1,
+                technical_actor="operator:test",
             )
             service.create_room(
                 first["id"], {"name": "A-101", "is_active": True}, actor_member_id=1
@@ -157,9 +163,69 @@ class ExamVenueServiceTests(unittest.TestCase):
                     actor_member_id=1,
                 )
             with self.assertRaises(ExamVenueInUseError):
-                service.delete_room(1, expected_revision=1, actor_member_id=1)
+                service.delete_room(1, expected_revision=1, technical_actor="operator:test")
 
         self.assertEqual(venue["revision"] + 1, updated["revision"])
+
+    def test_write_uow_rechecks_current_membership_role_for_venue_mutation(self) -> None:
+        with TempDatabase() as db_path:
+            service = exam_venue_service(db_path)
+            venue = service.create_venue(self._venue_payload(), actor_member_id=1)
+            with session_scope(db_path) as session:
+                actor = session.get(CommitteeMember, 1)
+                assert actor is not None
+                person_id = actor.person_id
+                actor.committee_role = "member"
+                audit_count = session.query(ExamVenueAuditEvent).count()
+
+            with self.assertRaises(ExamVenueAccessDeniedError):
+                service.update_venue(
+                    venue["id"],
+                    {"expected_revision": venue["revision"], "name": "Unberechtigt"},
+                    actor_member_id=1,
+                    actor_person_id=person_id,
+                )
+
+            stored = service.get_venue(venue["id"])
+            with session_scope(db_path) as session:
+                current_audit_count = session.query(ExamVenueAuditEvent).count()
+
+        self.assertIsNotNone(stored)
+        assert stored is not None
+        self.assertEqual(venue["name"], stored["name"])
+        self.assertEqual(venue["revision"], stored["revision"])
+        self.assertEqual(audit_count, current_audit_count)
+
+    def test_write_uow_rechecks_current_venue_committee_for_mutation(self) -> None:
+        with TempDatabase() as db_path:
+            service = exam_venue_service(db_path)
+            venue = service.create_venue(self._venue_payload(), actor_member_id=1)
+            with session_scope(db_path) as session:
+                stored_venue = session.get(ExamVenue, venue["id"])
+                assert stored_venue is not None
+                stored_venue.committee_id = 2
+                actor = session.get(CommitteeMember, 1)
+                assert actor is not None
+                person_id = actor.person_id
+                audit_count = session.query(ExamVenueAuditEvent).count()
+
+            with self.assertRaises(ExamVenueAccessDeniedError):
+                service.update_venue(
+                    venue["id"],
+                    {"expected_revision": venue["revision"], "name": "Falscher Ausschuss"},
+                    actor_member_id=1,
+                    actor_person_id=person_id,
+                )
+
+            stored = service.get_venue(venue["id"])
+            with session_scope(db_path) as session:
+                current_audit_count = session.query(ExamVenueAuditEvent).count()
+
+        self.assertIsNotNone(stored)
+        assert stored is not None
+        self.assertEqual(2, stored["committee_id"])
+        self.assertEqual(venue["revision"], stored["revision"])
+        self.assertEqual(audit_count, current_audit_count)
 
     def test_contact_delete_commits_and_audits(self) -> None:
         with TempDatabase() as db_path:
@@ -235,15 +301,17 @@ class ExamVenueServiceTests(unittest.TestCase):
             service = exam_venue_service(db_path)
             venue = service.create_venue(
                 self._venue_payload(scope="global", committee_id=None, name="Zentraler Ort"),
-                actor_member_id=1,
+                technical_actor="operator:test",
             )
             room = service.create_room(
-                venue["id"], {"name": "Großer Saal", "is_active": True}, actor_member_id=1
+                venue["id"],
+                {"name": "Großer Saal", "is_active": True},
+                technical_actor="operator:test",
             )
             activated = service.update_venue(
                 venue["id"],
                 {"expected_revision": venue["revision"], "is_active": True},
-                actor_member_id=1,
+                technical_actor="operator:test",
             )
             assert activated is not None
             with session_scope(db_path) as session:
@@ -258,7 +326,7 @@ class ExamVenueServiceTests(unittest.TestCase):
                 self._venue_payload(
                     scope="global", committee_id=None, name="Prüfungszentrum Hafen"
                 ),
-                actor_member_id=1,
+                technical_actor="operator:test",
             )
             candidate = self._venue_payload(
                 name="Prüfungszentrum am Hafen", street="Andere Straße 2"

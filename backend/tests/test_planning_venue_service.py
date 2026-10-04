@@ -14,7 +14,9 @@ class PlanningVenueServiceIsolationTests(unittest.TestCase):
 import sys
 from contextlib import contextmanager
 from backend.planning.exam_venues import ExamVenueService
-from backend.planning_ports import ExamVenueError, VenueCommandFacts, VenueCommandResult
+from backend.planning_ports import (
+    ExamVenueError, VenueActorFacts, VenueCommandFacts, VenueCommandResult
+)
 
 class FakeVenueUnitOfWork:
     def __init__(self, command):
@@ -22,17 +24,34 @@ class FakeVenueUnitOfWork:
         self.committed_plans = []
     def facts(self):
         command = self.command
+        def actor_for(committee_id):
+            if command.actor_member_id is None:
+                return None
+            return VenueActorFacts(
+                member_id=command.actor_member_id,
+                person_id=command.actor_person_id or 1,
+                committee_id=committee_id,
+                committee_role="chair",
+                is_active=True,
+            )
         if command.kind.name in {"CREATE_CONTACT", "UPDATE_CONTACT"}:
-            return VenueCommandFacts(venue_id=4, room_venue_ids={3: 99})
+            return VenueCommandFacts(
+                actor=actor_for(9), venue_id=4, venue_committee_id=9,
+                venue_scope="committee", room_venue_ids={3: 99}
+            )
         if command.kind.name == "CREATE_VENUE":
             candidates = ()
             if command.values.get("name") == "Nord":
                 candidates = ({"scope": "global", "committee_id": None,
                     "normalized_name": "nord", "street": "", "postal_code": "",
                     "city": "", "country": "Deutschland"},)
-            return VenueCommandFacts(duplicate_candidates=candidates)
+            committee_id = command.values.get("committee_id", 9)
+            return VenueCommandFacts(
+                actor=actor_for(committee_id), duplicate_candidates=candidates
+            )
         if command.kind.name == "UPDATE_VENUE":
             return VenueCommandFacts(
+                actor=actor_for(9), venue_committee_id=9, venue_scope="committee",
                 current={"scope": "committee", "committee_id": 9, "name": "Alt",
                     "street": "", "postal_code": "", "city": "", "country": "Deutschland",
                     "site_name": "", "entrance": "", "travel_directions": "",
@@ -43,12 +62,16 @@ class FakeVenueUnitOfWork:
             )
         if command.kind.name == "UPDATE_ROOM":
             return VenueCommandFacts(
+                actor=actor_for(9), venue_committee_id=9, venue_scope="committee",
                 current={"name": "A-101", "building": None, "wing": None, "floor": None,
                     "room_number": None, "access_notes": None, "capacity": None, "is_active": True},
                 venue_active=True, room_active=True, has_another_active_room=True,
                 has_future_confirmed_assignments=True,
             )
-        return VenueCommandFacts(venue_id=4, venue_active=True)
+        return VenueCommandFacts(
+            actor=actor_for(9), venue_id=4, venue_committee_id=9,
+            venue_scope="committee", venue_active=True
+        )
     def commit(self, plan):
         self.committed_plans.append(plan)
         return VenueCommandResult(dict(plan.values))

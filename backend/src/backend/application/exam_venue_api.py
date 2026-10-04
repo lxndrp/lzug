@@ -77,7 +77,9 @@ class ExamVenueApi:
             result = self.service.create_venue(payload, technical_actor=self._operator_actor(auth))
         else:
             result = self.service.create_venue(
-                payload, actor_member_id=self._actor_for_payload(scope, payload)
+                payload,
+                actor_member_id=self._actor_for_payload(scope, payload),
+                actor_person_id=scope.person_id,
             )
         return self._decorate(scope, auth, result)
 
@@ -88,7 +90,11 @@ class ExamVenueApi:
         actor_member_id, technical_actor = self._actor_for_venue(scope, auth, venue)
         self._reject_scope_change(payload)
         result = self.service.update_venue(
-            venue_id, payload, actor_member_id=actor_member_id, technical_actor=technical_actor
+            venue_id,
+            payload,
+            actor_member_id=actor_member_id,
+            actor_person_id=scope.person_id,
+            technical_actor=technical_actor,
         )
         return self._decorate(scope, auth, result) if result else None
 
@@ -116,6 +122,7 @@ class ExamVenueApi:
             venue_id,
             expected_revision=self._expected_revision(payload),
             actor_member_id=actor_member_id,
+            actor_person_id=scope.person_id,
             technical_actor=technical_actor,
             reason=self._reason(payload),
         )
@@ -126,7 +133,11 @@ class ExamVenueApi:
             return None
         actor_member_id, technical_actor = self._actor_for_venue(scope, auth, venue)
         return self.service.create_room(
-            venue_id, payload, actor_member_id=actor_member_id, technical_actor=technical_actor
+            venue_id,
+            payload,
+            actor_member_id=actor_member_id,
+            actor_person_id=scope.person_id,
+            technical_actor=technical_actor,
         )
 
     def get_room(self, room_id, scope, auth=None):
@@ -141,7 +152,11 @@ class ExamVenueApi:
             return None
         actor_member_id, technical_actor = self._actor_for_venue(scope, auth, venue)
         return self.service.update_room(
-            room_id, payload, actor_member_id=actor_member_id, technical_actor=technical_actor
+            room_id,
+            payload,
+            actor_member_id=actor_member_id,
+            actor_person_id=scope.person_id,
+            technical_actor=technical_actor,
         )
 
     def delete_room(self, room_id, payload, scope, auth=None):
@@ -153,6 +168,7 @@ class ExamVenueApi:
             room_id,
             expected_revision=self._expected_revision(payload),
             actor_member_id=actor_member_id,
+            actor_person_id=scope.person_id,
             technical_actor=technical_actor,
             reason=self._reason(payload),
         )
@@ -163,7 +179,11 @@ class ExamVenueApi:
             return None
         actor_member_id, technical_actor = self._actor_for_venue(scope, auth, venue)
         return self.service.create_contact(
-            venue_id, payload, actor_member_id=actor_member_id, technical_actor=technical_actor
+            venue_id,
+            payload,
+            actor_member_id=actor_member_id,
+            actor_person_id=scope.person_id,
+            technical_actor=technical_actor,
         )
 
     def get_contact(self, contact_id, scope, auth=None):
@@ -178,7 +198,11 @@ class ExamVenueApi:
             return None
         actor_member_id, technical_actor = self._actor_for_venue(scope, auth, venue)
         return self.service.update_contact(
-            contact_id, payload, actor_member_id=actor_member_id, technical_actor=technical_actor
+            contact_id,
+            payload,
+            actor_member_id=actor_member_id,
+            actor_person_id=scope.person_id,
+            technical_actor=technical_actor,
         )
 
     def delete_contact(self, contact_id, payload, scope, auth=None):
@@ -190,6 +214,7 @@ class ExamVenueApi:
             contact_id,
             expected_revision=self._expected_revision(payload),
             actor_member_id=actor_member_id,
+            actor_person_id=scope.person_id,
             technical_actor=technical_actor,
             reason=self._reason(payload),
         )
@@ -205,6 +230,7 @@ class ExamVenueApi:
             venue_id,
             expected_revision=self._expected_revision(payload),
             actor_member_id=actor_member_id,
+            actor_person_id=scope.person_id,
             reason=self._required_reason(payload),
         )
 

@@ -15,6 +15,7 @@ from backend.planning_ports import (
     VENUE_DUPLICATE_FIELDS,
     VENUE_FIELDS,
     VENUE_SCOPES,
+    ExamVenueAccessDeniedError,
     ExamVenueConfirmationRequiredError,
     ExamVenueConflictError,
     ExamVenueError,
@@ -516,6 +517,7 @@ class ExamVenueService:
         *,
         expected_revision: int,
         actor_member_id: int,
+        actor_person_id: int | None = None,
         reason: str,
     ) -> dict[str, Any]:
         return self._execute(
@@ -523,6 +525,7 @@ class ExamVenueService:
                 VenueCommandKind.REQUEST_PROMOTION,
                 entity_id=venue_id,
                 actor_member_id=actor_member_id,
+                actor_person_id=actor_person_id,
                 reason=reason,
                 expected_revision=expected_revision,
             )
@@ -556,6 +559,7 @@ class ExamVenueService:
         payload: Mapping[str, object],
         *,
         actor_member_id: int | None = None,
+        actor_person_id: int | None = None,
         technical_actor: str | None = None,
     ) -> dict[str, Any]:
         return self._execute(
@@ -563,6 +567,7 @@ class ExamVenueService:
                 VenueCommandKind.CREATE_VENUE,
                 values=payload,
                 actor_member_id=actor_member_id,
+                actor_person_id=actor_person_id,
                 technical_actor=technical_actor,
             )
         ).value
@@ -573,6 +578,7 @@ class ExamVenueService:
         payload: Mapping[str, object],
         *,
         actor_member_id: int | None = None,
+        actor_person_id: int | None = None,
         technical_actor: str | None = None,
     ) -> dict[str, Any] | None:
         values = dict(payload)
@@ -585,6 +591,7 @@ class ExamVenueService:
                 entity_id=venue_id,
                 values=values,
                 actor_member_id=actor_member_id,
+                actor_person_id=actor_person_id,
                 technical_actor=technical_actor,
                 expected_revision=revision,
             )
@@ -597,6 +604,7 @@ class ExamVenueService:
         *,
         expected_revision: int,
         actor_member_id: int | None = None,
+        actor_person_id: int | None = None,
         technical_actor: str | None = None,
         reason: str | None = None,
     ) -> bool:
@@ -605,6 +613,7 @@ class ExamVenueService:
                 VenueCommandKind.DELETE_VENUE,
                 entity_id=venue_id,
                 actor_member_id=actor_member_id,
+                actor_person_id=actor_person_id,
                 technical_actor=technical_actor,
                 reason=reason,
                 expected_revision=expected_revision,
@@ -617,6 +626,7 @@ class ExamVenueService:
         payload: Mapping[str, object],
         *,
         actor_member_id: int | None = None,
+        actor_person_id: int | None = None,
         technical_actor: str | None = None,
     ) -> dict[str, Any]:
         return self._execute(
@@ -625,6 +635,7 @@ class ExamVenueService:
                 entity_id=venue_id,
                 values=payload,
                 actor_member_id=actor_member_id,
+                actor_person_id=actor_person_id,
                 technical_actor=technical_actor,
             )
         ).value
@@ -635,6 +646,7 @@ class ExamVenueService:
         payload: Mapping[str, object],
         *,
         actor_member_id: int | None = None,
+        actor_person_id: int | None = None,
         technical_actor: str | None = None,
     ) -> dict[str, Any] | None:
         values = dict(payload)
@@ -647,6 +659,7 @@ class ExamVenueService:
                 entity_id=room_id,
                 values=values,
                 actor_member_id=actor_member_id,
+                actor_person_id=actor_person_id,
                 technical_actor=technical_actor,
                 expected_revision=revision,
             )
@@ -658,6 +671,7 @@ class ExamVenueService:
         *,
         expected_revision: int,
         actor_member_id: int | None = None,
+        actor_person_id: int | None = None,
         technical_actor: str | None = None,
         reason: str | None = None,
     ) -> bool:
@@ -666,6 +680,7 @@ class ExamVenueService:
                 VenueCommandKind.DELETE_ROOM,
                 entity_id=room_id,
                 actor_member_id=actor_member_id,
+                actor_person_id=actor_person_id,
                 technical_actor=technical_actor,
                 reason=reason,
                 expected_revision=expected_revision,
@@ -678,6 +693,7 @@ class ExamVenueService:
         payload: Mapping[str, object],
         *,
         actor_member_id: int | None = None,
+        actor_person_id: int | None = None,
         technical_actor: str | None = None,
     ) -> dict[str, Any]:
         return self._execute(
@@ -686,6 +702,7 @@ class ExamVenueService:
                 entity_id=venue_id,
                 values=payload,
                 actor_member_id=actor_member_id,
+                actor_person_id=actor_person_id,
                 technical_actor=technical_actor,
             )
         ).value
@@ -696,6 +713,7 @@ class ExamVenueService:
         payload: Mapping[str, object],
         *,
         actor_member_id: int | None = None,
+        actor_person_id: int | None = None,
         technical_actor: str | None = None,
     ) -> dict[str, Any] | None:
         values = dict(payload)
@@ -708,6 +726,7 @@ class ExamVenueService:
                 entity_id=contact_id,
                 values=values,
                 actor_member_id=actor_member_id,
+                actor_person_id=actor_person_id,
                 technical_actor=technical_actor,
                 expected_revision=revision,
             )
@@ -719,6 +738,7 @@ class ExamVenueService:
         *,
         expected_revision: int,
         actor_member_id: int | None = None,
+        actor_person_id: int | None = None,
         technical_actor: str | None = None,
         reason: str | None = None,
     ) -> bool:
@@ -727,6 +747,7 @@ class ExamVenueService:
                 VenueCommandKind.DELETE_CONTACT,
                 entity_id=contact_id,
                 actor_member_id=actor_member_id,
+                actor_person_id=actor_person_id,
                 technical_actor=technical_actor,
                 reason=reason,
                 expected_revision=expected_revision,
@@ -794,6 +815,7 @@ class ExamVenueService:
     def plan(self, command: VenueCommand, facts: VenueCommandFacts) -> VenueMutationPlan:
         """Build a validated mutation plan from facts read inside the adapter UoW."""
         values = dict(command.values or {})
+        self._assert_current_committee_actor(command, facts)
         match command.kind:
             case VenueCommandKind.CREATE_VENUE | VenueCommandKind.UPDATE_VENUE:
                 normalized, reason = self.policy.venue_values(values, facts.current)
@@ -913,6 +935,38 @@ class ExamVenueService:
                 return VenueMutationPlan({}, decision_reason, values)
             case _:
                 return VenueMutationPlan({}, command.reason, values)
+
+    @staticmethod
+    def _assert_current_committee_actor(command: VenueCommand, facts: VenueCommandFacts) -> None:
+        """Bind committee authorization to current membership and venue facts."""
+        if command.actor_member_id is None:
+            return
+        if command.kind == VenueCommandKind.CREATE_VENUE:
+            values = command.values or {}
+            if values.get("scope") == "global" and values.get("committee_id") is None:
+                raise ExamVenueAccessDeniedError("Forbidden.")
+            if values.get("scope") != "committee":
+                # Invalid scope/committee combinations retain their validation error.
+                return
+            committee_id = values.get("committee_id")
+        elif facts.venue_scope == "committee":
+            committee_id = facts.venue_committee_id
+        elif facts.venue_scope == "global":
+            raise ExamVenueAccessDeniedError("Forbidden.")
+        else:
+            # Missing aggregates retain their established not-found/no-op handling.
+            return
+
+        actor = facts.actor
+        if (
+            actor is None
+            or actor.member_id != command.actor_member_id
+            or not actor.is_active
+            or actor.committee_role not in {"chair", "deputy_chair"}
+            or actor.committee_id != committee_id
+            or (command.actor_person_id is not None and actor.person_id != command.actor_person_id)
+        ):
+            raise ExamVenueAccessDeniedError("Forbidden.")
 
     def plan_query(self, query: VenueQuery, facts: VenueCommandFacts) -> VenueMutationPlan:
         """Prepare proposed venue values for a query without adapter-owned rules."""

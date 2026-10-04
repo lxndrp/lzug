@@ -115,13 +115,17 @@ class ExamVenueApiTests(unittest.TestCase):
             service = exam_venue_service_for_test(db_path)
             venue = service.create_venue(
                 self._payload(scope="global", committee_id=None, name="Globaler Ort"),
-                actor_member_id=1,
+                technical_actor="operator:test",
             )
-            service.create_room(venue["id"], {"name": "Saal", "is_active": True}, actor_member_id=1)
+            service.create_room(
+                venue["id"],
+                {"name": "Saal", "is_active": True},
+                technical_actor="operator:test",
+            )
             venue = service.update_venue(
                 venue["id"],
                 {"expected_revision": venue["revision"], "is_active": True},
-                actor_member_id=1,
+                technical_actor="operator:test",
             )
             assert venue is not None
             api = exam_venue_api_for_test(db_path)

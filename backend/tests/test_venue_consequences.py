@@ -64,7 +64,7 @@ class VenueConsequenceTests(unittest.TestCase):
                     select(func.count()).select_from(ConfirmedPlanRevision)
                 )
 
-            result = venues.update_venue(1, payload, actor_member_id=1)
+            result = venues.update_venue(1, payload, technical_actor="operator:test")
             assert result is not None
 
             with session_scope(db_path) as session:
@@ -236,7 +236,7 @@ class VenueConsequenceTests(unittest.TestCase):
                     "site_name": "Neuer Gebäudeteil",
                     "confirm_future_assignments": True,
                 },
-                actor_member_id=1,
+                technical_actor="operator:test",
             )
             with session_scope(db_path) as session:
                 past = session.get(CalendarEvent, past_event_id)
@@ -263,7 +263,7 @@ class VenueConsequenceTests(unittest.TestCase):
                         "site_name": "Gebäude B",
                         "confirm_future_assignments": True,
                     },
-                    actor_member_id=1,
+                    technical_actor="operator:test",
                 )
             assert result is not None
             self.assertEqual("Gebäude B", result["site_name"])
@@ -339,7 +339,7 @@ class VenueConsequenceTests(unittest.TestCase):
                         "site_name": "Zwischenstand",
                         "confirm_future_assignments": True,
                     },
-                    actor_member_id=1,
+                    technical_actor="operator:test",
                 )
             assert failed is not None
             current = venues.get_venue(1)
@@ -351,7 +351,7 @@ class VenueConsequenceTests(unittest.TestCase):
                     "site_name": "Aktueller Stand",
                     "confirm_future_assignments": True,
                 },
-                actor_member_id=1,
+                technical_actor="operator:test",
             )
 
             old = venue_consequence_service_for_test(db_path).retry_audit(
@@ -372,7 +372,7 @@ class VenueConsequenceTests(unittest.TestCase):
                 venues.update_venue(
                     1,
                     {"expected_revision": venue["revision"], "entrance": "Eingang West"},
-                    actor_member_id=1,
+                    technical_actor="operator:test",
                 )
             unchanged = venues.get_venue(1)
             assert unchanged is not None

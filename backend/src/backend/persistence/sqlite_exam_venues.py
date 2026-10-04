@@ -46,6 +46,7 @@ from backend.planning_ports import (
     ExamVenueError,
     ExamVenueInUseError,
     ExamVenueNotFoundError,
+    VenueActorFacts,
     VenueChange,
     VenueCommand,
     VenueCommandFacts,
@@ -184,7 +185,11 @@ class SQLiteExamVenueRepository:
             yield _SQLiteVenueCommandUnitOfWork(self, session, command)
 
     def _command_facts(self, session: Session, command: VenueCommand) -> VenueCommandFacts:
-        self._require_actor(session, command.actor_member_id, command.technical_actor)
+        actor_member = (
+            session.get(CommitteeMember, command.actor_member_id)
+            if command.actor_member_id is not None
+            else None
+        )
         kind = command.kind
         venue = None
         room = None
@@ -332,7 +337,20 @@ class SQLiteExamVenueRepository:
 
         return VenueCommandFacts(
             current=current,
+            actor=(
+                VenueActorFacts(
+                    member_id=actor_member.id,
+                    person_id=actor_member.person_id,
+                    committee_id=actor_member.committee_id,
+                    committee_role=actor_member.committee_role,
+                    is_active=bool(actor_member.is_active),
+                )
+                if actor_member is not None
+                else None
+            ),
             venue_id=venue_id,
+            venue_committee_id=venue.committee_id if venue is not None else None,
+            venue_scope=venue.scope if venue is not None else None,
             venue_active=bool(venue and venue.is_active),
             has_active_room=has_active_room,
             room_active=bool(room and room.is_active),

@@ -31,6 +31,10 @@ class ExamVenueConfirmationRequiredError(ExamVenueError):
     """Signal that a visible impact or duplicate warning needs confirmation."""
 
 
+class ExamVenueAccessDeniedError(PermissionError):
+    """Signal that the current persisted membership cannot change this venue."""
+
+
 VENUE_SCOPES = frozenset({"global", "committee"})
 ACCESSIBILITY_STATUSES = frozenset({"confirmed", "needs_clarification"})
 COORDINATE_STATUSES = frozenset({"missing", "confirmed", "needs_review"})
@@ -173,6 +177,7 @@ class VenueCommand:
     entity_id: int | None = None
     values: Mapping[str, object] | None = None
     actor_member_id: int | None = None
+    actor_person_id: int | None = None
     technical_actor: str | None = None
     reason: str | None = None
     decision: str | None = None
@@ -184,11 +189,25 @@ class VenueCommand:
 
 
 @dataclass(frozen=True)
+class VenueActorFacts:
+    """Current detached membership fields used by Planning to authorize a command."""
+
+    member_id: int
+    person_id: int
+    committee_id: int
+    committee_role: str
+    is_active: bool
+
+
+@dataclass(frozen=True)
 class VenueCommandFacts:
     """Detached facts read by a write adapter inside the command transaction."""
 
     current: Mapping[str, object] | None = None
+    actor: VenueActorFacts | None = None
     venue_id: int | None = None
+    venue_committee_id: int | None = None
+    venue_scope: str | None = None
     venue_active: bool = False
     has_active_room: bool = False
     room_active: bool = False
