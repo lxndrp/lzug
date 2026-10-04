@@ -1,11 +1,16 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { provideRouter, Router } from '@angular/router';
 import { provideTaiga } from '@taiga-ui/core';
-import { of, Subject, throwError } from 'rxjs';
+import { Observable, of, Subject, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { ApplicationError } from '../application/application-error';
 import { AuthService } from '../auth/auth.service';
+import { ExamProtocolComponent } from '../exam-protocol/exam-protocol.component';
+import { EXAM_PROTOCOL_PORT, type ExamProtocolPort } from '../exam-protocol/exam-protocol.port';
+import type { ExamProtocol } from '../exam-protocol/exam-protocol.models';
+import { EXAM_RESULT_PORT } from '../exam-result/exam-result.port';
 import { PERSONAL_PORT, type PersonalPort } from '../personal/personal.port';
 import type { PersonalAbsenceReport } from '../personal/personal.models';
 import { EXAM_DAY_PORT, type ExamDayPort } from './exam-day.port';
@@ -20,10 +25,12 @@ import { ExamDayComponent } from './exam-day.component';
 describe('ExamDayComponent', () => {
   let fixture: ComponentFixture<ExamDayComponent>;
   let examDay: ExamDayPort;
+  let protocolPort: ExamProtocolPort;
   let personal: Pick<PersonalPort, 'createAbsenceReport'>;
 
   beforeEach(async () => {
     examDay = createExamDayPort();
+    protocolPort = createProtocolPort(new Subject<ExamProtocol>());
     personal = { createAbsenceReport: vi.fn().mockReturnValue(of({} as never)) };
     await TestBed.configureTestingModule({
       imports: [ExamDayComponent],
@@ -32,6 +39,13 @@ describe('ExamDayComponent', () => {
         provideTaiga({ scrollbars: 'native' }),
         { provide: EXAM_DAY_PORT, useValue: examDay },
         { provide: PERSONAL_PORT, useValue: personal },
+        { provide: EXAM_PROTOCOL_PORT, useValue: protocolPort },
+        {
+          provide: EXAM_RESULT_PORT,
+          useValue: {
+            get: vi.fn(() => throwError(() => new ApplicationError('not-found', 'No result'))),
+          },
+        },
       ],
     }).compileComponents();
     fixture = TestBed.createComponent(ExamDayComponent);
@@ -64,6 +78,157 @@ describe('ExamDayComponent', () => {
         .querySelector<HTMLButtonElement>('.app-exam-day-actions button')
         ?.getAttribute('aria-label'),
     ).toBe('Prüfling Plan-Day: Anwesenheit speichern');
+  });
+
+  it('keeps pending child feedback visible through parent and child refresh failures', () => {
+    const dayRefresh = new Subject<ConfirmedPlanDayView>();
+    const startedDay = dayView();
+    startedDay.day.slots[0].actualStartedAt = '2026-11-16T08:30:00+01:00';
+    vi.mocked(examDay.getConfirmedPlanDay)
+      .mockReturnValueOnce(of(startedDay))
+      .mockReturnValueOnce(dayRefresh.asObservable())
+      .mockReturnValueOnce(
+        throwError(() => new ApplicationError('unavailable', 'Tagesreload fehlgeschlagen.')),
+      );
+    vi.mocked(protocolPort.get)
+      .mockReturnValueOnce(of(protocolFixture()))
+      .mockReturnValueOnce(
+        throwError(() => new ApplicationError('unavailable', 'Kindreload fehlgeschlagen.')),
+      );
+    const pendingUpdate = new Subject<ExamProtocol>();
+    let updateSubscriptions = 0;
+    const pendingUpdateRequest = new Observable<ExamProtocol>((subscriber) => {
+      updateSubscriptions += 1;
+      return pendingUpdate.subscribe(subscriber);
+    });
+    vi.mocked(protocolPort.update).mockReturnValueOnce(pendingUpdateRequest);
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    const childDebugElement = fixture.debugElement.query(By.directive(ExamProtocolComponent));
+    expect(childDebugElement).toBeTruthy();
+    const child = childDebugElement.componentInstance as ExamProtocolComponent;
+    const childState = child as unknown as {
+      declaration: string;
+      save(): void;
+      error(): string | null;
+    };
+    childState.declaration = 'without_special_occurrences';
+    childState.save();
+    expect(updateSubscriptions).toBe(1);
+
+    (
+      fixture.componentInstance as unknown as {
+        refreshAfterProtocolChange(change: {
+          roundId: number;
+          dayId: number;
+          revision: number;
+        }): void;
+      }
+    ).refreshAfterProtocolChange({ roundId: 1, dayId: 7, revision: 2 });
+    fixture.detectChanges();
+    expect(fixture.debugElement.query(By.directive(ExamProtocolComponent)).componentInstance).toBe(
+      child,
+    );
+
+    pendingUpdate.error(new ApplicationError('conflict', 'Die Tagesrevision wurde geändert.'));
+    fixture.detectChanges();
+
+    expect(childState.error()).toBe('Die Tagesrevision wurde geändert.');
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      'Die Tagesrevision wurde geändert.',
+    );
+    const dayViewElement = (fixture.nativeElement as HTMLElement).querySelector(
+      '.app-exam-day-view',
+    );
+    expect(dayViewElement?.hasAttribute('hidden')).toBe(true);
+    expect(fixture.debugElement.query(By.directive(ExamProtocolComponent)).componentInstance).toBe(
+      child,
+    );
+    childState.save();
+    expect(updateSubscriptions).toBe(1);
+
+    const refreshedDay = dayView();
+    refreshedDay.day.slots[0].actualStartedAt = '2026-11-16T08:30:00+01:00';
+    refreshedDay.day.revision = 2;
+    dayRefresh.next(refreshedDay);
+    dayRefresh.complete();
+    fixture.detectChanges();
+
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      'Die Tagesrevision wurde geändert.',
+    );
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      'Das Prüfungsprotokoll konnte nicht geladen werden.',
+    );
+    expect(childState.error()).toBe('Die Tagesrevision wurde geändert.');
+
+    (
+      fixture.componentInstance as unknown as {
+        refreshAfterProtocolChange(change: {
+          roundId: number;
+          dayId: number;
+          revision: number;
+        }): void;
+      }
+    ).refreshAfterProtocolChange({ roundId: 1, dayId: 7, revision: 3 });
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      'Die Änderung wurde gespeichert, aber die aktuelle Tagesansicht konnte nicht geladen werden.',
+    );
+  });
+
+  it('shows saved-write feedback and retry after a not-found refresh retry', () => {
+    const recoveredDay = dayView();
+    recoveredDay.day.revision = 2;
+    vi.mocked(examDay.getConfirmedPlanDay)
+      .mockReturnValueOnce(of(dayView()))
+      .mockReturnValueOnce(
+        throwError(() => new ApplicationError('unavailable', 'Refresh fehlgeschlagen.')),
+      )
+      .mockReturnValueOnce(
+        throwError(() => new ApplicationError('not-found', 'Tag nicht gefunden.')),
+      )
+      .mockReturnValueOnce(of(recoveredDay));
+    fixture.detectChanges();
+
+    (
+      fixture.componentInstance as unknown as {
+        refreshAfterProtocolChange(change: {
+          roundId: number;
+          dayId: number;
+          revision: number;
+        }): void;
+      }
+    ).refreshAfterProtocolChange({ roundId: 1, dayId: 7, revision: 2 });
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      'Die Änderung wurde gespeichert, aber die aktuelle Tagesansicht konnte nicht geladen werden.',
+    );
+
+    let retry = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button'),
+    ).find((button) => button.textContent?.includes('Erneut versuchen'));
+    expect(retry).toBeTruthy();
+    retry!.click();
+    fixture.detectChanges();
+
+    expect((fixture.nativeElement as HTMLElement).textContent).not.toContain(
+      'Prüfungstag nicht verfügbar',
+    );
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      'Die Änderung wurde gespeichert, aber die aktuelle Tagesansicht konnte nicht geladen werden.',
+    );
+    retry = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button'),
+    ).find((button) => button.textContent?.includes('Erneut versuchen'));
+    expect(retry).toBeTruthy();
+    retry!.click();
+    fixture.detectChanges();
+
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      'Montag, 16. November 2026',
+    );
   });
 
   it('does not present an unknown day or a day from another round', () => {
@@ -540,6 +705,82 @@ describe('ExamDayComponent', () => {
     expect(component.reopeningReason).toBe('Protokollangabe korrigieren');
   });
 
+  it('preserves dirty attendance and execution drafts across an embedded day refresh', () => {
+    fixture.detectChanges();
+    const component = fixture.componentInstance as unknown as {
+      attendanceDraft(
+        key: string,
+        attendance: ConfirmedPlanDayView['day']['assignments'][number]['attendance'],
+      ): {
+        status: string;
+        arrivedAt: string;
+      };
+      executionStatusDraft(slot: ConfirmedPlanDayView['day']['slots'][number]): {
+        status: string;
+        reason: string;
+        actualStartedAt: string;
+        actualCompletedAt: string;
+      };
+      refreshAfterProtocolChange(change: {
+        roundId: number;
+        dayId: number;
+        revision: number;
+      }): void;
+    };
+    const current = dayView();
+    const candidateDraft = component.attendanceDraft(
+      'candidate-7',
+      current.day.slots[0].candidateAttendance,
+    );
+    candidateDraft.status = 'late';
+    candidateDraft.arrivedAt = '2026-11-16T08:24';
+    const executionDraft = component.executionStatusDraft(current.day.slots[0]);
+    executionDraft.status = 'running';
+    executionDraft.actualStartedAt = '2026-11-16T08:30';
+    const refreshed = dayView();
+    refreshed.day.revision = 2;
+    refreshed.day.assignments[0].attendance = {
+      status: 'late',
+      arrivedAt: '2026-11-16T08:51:00+01:00',
+    };
+    vi.mocked(examDay.getConfirmedPlanDay).mockReturnValueOnce(of(refreshed));
+    component.refreshAfterProtocolChange({ roundId: 1, dayId: 7, revision: 2 });
+    fixture.detectChanges();
+
+    expect(candidateDraft).toEqual({ status: 'late', arrivedAt: '2026-11-16T08:24' });
+    expect(executionDraft.status).toBe('running');
+    expect(executionDraft.actualStartedAt).toBe('2026-11-16T08:30');
+    expect(component.attendanceDraft('member-7', refreshed.day.assignments[0].attendance)).toEqual({
+      status: 'late',
+      arrivedAt: '2026-11-16T08:51',
+    });
+  });
+
+  it('clears attendance and execution drafts when the selected day changes', () => {
+    fixture.detectChanges();
+    const component = fixture.componentInstance as unknown as {
+      drafts: Map<string, { status: string; arrivedAt: string }>;
+      executionDrafts: Map<
+        number,
+        { status: string; reason: string; actualStartedAt: string; actualCompletedAt: string }
+      >;
+    };
+    component.drafts.set('candidate-7', { status: 'late', arrivedAt: '2026-11-16T08:24' });
+    component.executionDrafts.set(7, {
+      status: 'running',
+      reason: '',
+      actualStartedAt: '',
+      actualCompletedAt: '',
+    });
+
+    fixture.componentRef.setInput('dayId', 8);
+    fixture.detectChanges();
+
+    expect(component.drafts.has('candidate-7')).toBe(false);
+    expect(component.executionDrafts.has(7)).toBe(false);
+    expect(component.drafts.get('candidate-8')).toEqual({ status: 'open', arrivedAt: '' });
+  });
+
   it('applies a pending closure response after a same-day refresh', () => {
     const pending = new Subject<ExamDayClosure>();
     const staleRefresh = new Subject<ConfirmedPlanDayView>();
@@ -662,6 +903,47 @@ function createExamDayPort(): ExamDayPort {
       }),
     ),
     reopenExamDay: vi.fn(() => of(dayView().day.closure)),
+  };
+}
+
+function createProtocolPort(updateResponse: Subject<ExamProtocol>): ExamProtocolPort {
+  return {
+    get: vi.fn(() => of(protocolFixture())),
+    update: vi.fn(() => updateResponse.asObservable()),
+  } as unknown as ExamProtocolPort;
+}
+
+function protocolFixture(): ExamProtocol {
+  return {
+    id: 41,
+    examSlotId: 7,
+    dayRevision: 1,
+    currentVersion: 1,
+    state: 'in_progress',
+    closingReady: false,
+    currentRevision: {
+      id: 41,
+      version: 1,
+      declaration: null,
+      workflowState: 'draft',
+      changeReason: null,
+      submittedAt: null,
+      obsolete: false,
+      missingResponseMemberIds: [],
+      entries: [],
+      responses: [],
+    },
+    history: [],
+    correctionRequests: [],
+    permissions: {
+      edit: true,
+      submit: false,
+      respond: false,
+      requestCorrection: false,
+      coordinateCorrection: false,
+      manageRetention: false,
+    },
+    exports: { machineReadable: false, humanReadable: false },
   };
 }
 

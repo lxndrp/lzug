@@ -1,10 +1,18 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Observable, of, throwError } from 'rxjs';
+import { Observable, Subject, of, throwError } from 'rxjs';
 import { provideTaiga } from '@taiga-ui/core';
 
+import { ApplicationError } from '../application/application-error';
 import { AuthService } from '../auth/auth.service';
+import type { AuthSession } from '../auth/auth.models';
+import { SessionScopeService } from '../auth/session-scope.service';
 import { EXAM_PROTOCOL_PORT, type ExamProtocolPort } from './exam-protocol.port';
-import type { ExamProtocol, ProtocolRevision, UpdateExamProtocol } from './exam-protocol.models';
+import type {
+  ExamProtocol,
+  ProtocolExport,
+  ProtocolRevision,
+  UpdateExamProtocol,
+} from './exam-protocol.models';
 import { ExamProtocolComponent } from './exam-protocol.component';
 
 describe('ExamProtocolComponent', () => {
@@ -44,6 +52,7 @@ describe('ExamProtocolComponent', () => {
       providers: [provideTaiga({}), { provide: EXAM_PROTOCOL_PORT, useValue: port }],
     }).compileComponents();
     fixture = TestBed.createComponent(ExamProtocolComponent);
+    fixture.componentRef.setInput('roundId', 1);
     fixture.componentRef.setInput('dayId', 7);
     fixture.componentRef.setInput('dayRevision', 4);
     fixture.componentRef.setInput('slotId', 11);
@@ -113,6 +122,142 @@ describe('ExamProtocolComponent', () => {
     fixture.detectChanges();
     expect(element.textContent).toContain('Neuer Protokollstand gespeichert.');
     expect(element.textContent).toContain('Version 2');
+  });
+
+  it('returns an accepted day revision to its explicit round and day owner', () => {
+    fixture.componentRef.setInput('roundId', 1);
+    fixture.componentRef.setInput('dayRevision', 4);
+    const changes: Array<{ roundId: number; dayId: number; revision: number }> = [];
+    fixture.componentInstance.dayRevisionChanged.subscribe((change) => changes.push(change));
+    vi.mocked(port.update).mockReturnValueOnce(of(protocolFixture({ dayRevision: 5 })));
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance as unknown as {
+      declaration: string;
+      save(): void;
+    };
+    component.declaration = 'without_special_occurrences';
+    component.save();
+
+    expect(changes).toEqual([{ roundId: 1, dayId: 7, revision: 5 }]);
+  });
+
+  it('keeps a pending command fenced to the same action context during a day refresh', () => {
+    const pending = new Subject<ExamProtocol>();
+    vi.mocked(port.update).mockReturnValueOnce(pending.asObservable());
+    fixture.detectChanges();
+    fixture.detectChanges();
+    const component = fixture.componentInstance as unknown as {
+      declaration: string;
+      busy: () => boolean;
+      error: () => string | null;
+      save(): void;
+    };
+    component.declaration = 'without_special_occurrences';
+    component.save();
+    expect(component.busy()).toBe(true);
+
+    fixture.componentRef.setInput('dayRevision', 5);
+    fixture.detectChanges();
+    expect(component.busy()).toBe(true);
+
+    pending.error(new ApplicationError('conflict', 'Die Tagesrevision wurde geändert.'));
+    fixture.detectChanges();
+
+    expect(component.busy()).toBe(false);
+    expect(component.error()).toBe('Die Tagesrevision wurde geändert.');
+    expect(port.get).toHaveBeenCalledTimes(2);
+  });
+
+  it('preserves dirty protocol drafts and reservation text during a day revision reload', () => {
+    const refreshed = protocolFixture({
+      dayRevision: 5,
+      currentRevision: revisionFixture({
+        declaration: 'without_special_occurrences',
+        entries: [],
+      }),
+    });
+    vi.mocked(port.get)
+      .mockReturnValueOnce(of(protocolFixture()))
+      .mockReturnValueOnce(of(refreshed));
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance as unknown as {
+      declaration: string;
+      entries: Array<{
+        category: string;
+        statement: string;
+        occurredFrom: string;
+        occurredTo: string;
+      }>;
+      reservationText: string;
+    };
+    component.declaration = 'with_special_occurrences';
+    component.entries = [
+      {
+        category: 'other',
+        statement: 'Lokaler, noch nicht gespeicherter Vermerk',
+        occurredFrom: '2026-11-16T09:20',
+        occurredTo: '',
+      },
+    ];
+    component.reservationText = 'Vorbehalt aus dem offenen Entwurf';
+
+    fixture.componentRef.setInput('dayRevision', 5);
+    fixture.detectChanges();
+
+    expect(component.declaration).toBe('with_special_occurrences');
+    expect(component.entries[0]?.statement).toBe('Lokaler, noch nicht gespeicherter Vermerk');
+    expect(component.reservationText).toBe('Vorbehalt aus dem offenen Entwurf');
+  });
+
+  it('preserves protocol drafts when retrying a failed same-context revision reload', () => {
+    const refreshed = protocolFixture({
+      dayRevision: 5,
+      currentRevision: revisionFixture({ declaration: 'without_special_occurrences', entries: [] }),
+    });
+    vi.mocked(port.get)
+      .mockReturnValueOnce(of(protocolFixture()))
+      .mockReturnValueOnce(
+        throwError(() => new ApplicationError('unavailable', 'Reload fehlgeschlagen.')),
+      )
+      .mockReturnValueOnce(of(refreshed));
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance as unknown as {
+      declaration: string;
+      entries: Array<{
+        category: string;
+        statement: string;
+        occurredFrom: string;
+        occurredTo: string;
+      }>;
+      reservationText: string;
+      state: () => string;
+    };
+    component.declaration = 'with_special_occurrences';
+    component.entries = [
+      {
+        category: 'interruption',
+        statement: 'Manuell ergänzte Unterbrechung',
+        occurredFrom: '2026-11-16T09:20',
+        occurredTo: '',
+      },
+    ];
+    component.reservationText = 'Manueller Vorbehalt';
+    fixture.componentRef.setInput('dayRevision', 5);
+    fixture.detectChanges();
+    expect(component.state()).toBe('error');
+
+    buttonByText(fixture.nativeElement as HTMLElement, 'Erneut versuchen').click();
+    fixture.detectChanges();
+
+    expect(component.declaration).toBe('with_special_occurrences');
+    expect(component.entries[0]?.statement).toBe('Manuell ergänzte Unterbrechung');
+    expect(component.reservationText).toBe('Manueller Vorbehalt');
+    expect(component.state()).toBe('ready');
   });
 
   it('offers participant confirmation only for the active version', () => {
@@ -275,7 +420,75 @@ describe('ExamProtocolComponent', () => {
     expect(createObjectURL).toHaveBeenCalledWith(expect.any(Blob));
     createObjectURL.mockRestore();
   });
+
+  it('discards a delayed export after the component context changes', () => {
+    const pending = new Subject<ProtocolExport>();
+    vi.mocked(port.export).mockReturnValueOnce(pending.asObservable());
+    fixture.detectChanges();
+    fixture.detectChanges();
+    const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:protocol');
+    const component = fixture.componentInstance as unknown as {
+      downloadExport(format: 'machine-readable'): void;
+    };
+    component.downloadExport('machine-readable');
+
+    fixture.componentRef.setInput('slotId', 12);
+    fixture.detectChanges();
+    pending.next({ content: '{}', mediaType: 'application/json', fileName: 'protocol.json' });
+
+    expect(createObjectURL).not.toHaveBeenCalled();
+    createObjectURL.mockRestore();
+  });
+
+  it('discards a delayed export after the authenticated session changes', () => {
+    const scope = TestBed.inject(SessionScopeService);
+    scope.establish(authSession(1));
+    const pending = new Subject<ProtocolExport>();
+    vi.mocked(port.export).mockReturnValueOnce(pending.asObservable());
+    fixture.detectChanges();
+    fixture.detectChanges();
+    const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:protocol');
+    const component = fixture.componentInstance as unknown as {
+      downloadExport(format: 'machine-readable'): void;
+    };
+    component.downloadExport('machine-readable');
+
+    scope.establish(authSession(2));
+    pending.next({ content: '{}', mediaType: 'application/json', fileName: 'protocol.json' });
+
+    expect(createObjectURL).not.toHaveBeenCalled();
+    createObjectURL.mockRestore();
+  });
+
+  it('cancels a delayed export when the protocol component is destroyed', () => {
+    const pending = new Subject<ProtocolExport>();
+    vi.mocked(port.export).mockReturnValueOnce(pending.asObservable());
+    fixture.detectChanges();
+    fixture.detectChanges();
+    const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:protocol');
+    const component = fixture.componentInstance as unknown as {
+      downloadExport(format: 'machine-readable'): void;
+    };
+    component.downloadExport('machine-readable');
+
+    fixture.destroy();
+    pending.next({ content: '{}', mediaType: 'application/json', fileName: 'protocol.json' });
+
+    expect(createObjectURL).not.toHaveBeenCalled();
+    createObjectURL.mockRestore();
+  });
 });
+
+function authSession(accountId: number): AuthSession {
+  return {
+    authenticated: true,
+    account_id: accountId,
+    person_id: accountId,
+    committee_member_id: 1,
+    is_operator: false,
+    capabilities: ['exam-protocol:export'],
+  };
+}
 
 function buttonByText(element: HTMLElement, text: string): HTMLButtonElement {
   const button = Array.from(element.querySelectorAll<HTMLButtonElement>('button')).find(
