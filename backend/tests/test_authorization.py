@@ -134,6 +134,24 @@ class AuthorizationTests(unittest.TestCase):
             assert_status(status, HTTPStatus.NOT_FOUND)
             self.assertNotIn("Prüfungsausschuss Teststadt 1", str(foreign))
 
+            hidden_candidate = api.request(
+                "GET", "/api/candidates/1", credentials=self.credentials(9)
+            )
+            missing_candidate = api.request(
+                "GET", "/api/candidates/999999", credentials=self.credentials(9)
+            )
+            self.assertEqual((HTTPStatus.NOT_FOUND, {"error": "Not found"}), hidden_candidate)
+            self.assertEqual(missing_candidate, hidden_candidate)
+
+            hidden_summary = api.request(
+                "GET", "/api/round-summary?round_id=1", credentials=self.credentials(9)
+            )
+            missing_summary = api.request(
+                "GET", "/api/round-summary?round_id=999999", credentials=self.credentials(9)
+            )
+            self.assertEqual((HTTPStatus.FORBIDDEN, {"error": "Forbidden."}), hidden_summary)
+            self.assertEqual(missing_summary, hidden_summary)
+
             status, candidates = api.request(
                 "GET", "/api/candidates", credentials=self.credentials(9)
             )

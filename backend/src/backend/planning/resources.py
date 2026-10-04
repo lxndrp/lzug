@@ -972,8 +972,19 @@ class PlanningResourceService:
         with self._unit_of_work_factory() as unit_of_work:
             return unit_of_work.planning_snapshot(round_id)
 
-    def round_summary(self, round_id: int) -> PlanningRoundSummary | None:
+    def round_summary(
+        self,
+        round_id: int,
+        visible_committee_ids: frozenset[int] | None = None,
+    ) -> PlanningRoundSummary | None:
         with self._unit_of_work_factory() as unit_of_work:
+            if visible_committee_ids is not None:
+                exam_round = unit_of_work.get_round(round_id)
+                committee_id = (
+                    exam_round.values.get("committee_id") if exam_round is not None else None
+                )
+                if not isinstance(committee_id, int) or committee_id not in visible_committee_ids:
+                    return None
             return unit_of_work.round_summary(round_id)
 
     def list_visible_records(
@@ -1017,10 +1028,25 @@ class PlanningResourceService:
                 "planning_settings": "get_settings",
                 "member_availability": "get_availability",
             }.get(resource)
+            if get_method_name is None and resource not in {
+                "round_candidate",
+                "candidate_committee_assignment",
+            }:
+                raise ValueError(f"No Planning query for resource {resource}")
+
+            if self._visible is not None:
+                is_visible = self._visible(
+                    unit_of_work.authorization_queries(), resource, resource_id, {}
+                )
+                if not isinstance(is_visible, bool):
+                    raise TypeError("Planning item visibility must return a boolean")
+                if not is_visible:
+                    return None
+
             if get_method_name is not None:
                 get_method = getattr(unit_of_work, get_method_name)
                 record = get_method(resource_id)
-            elif resource in {"round_candidate", "candidate_committee_assignment"}:
+            else:
                 list_method = (
                     unit_of_work.list_round_candidates
                     if resource == "round_candidate"
@@ -1029,22 +1055,13 @@ class PlanningResourceService:
                 record = next(
                     (
                         row
-                        for row in list_method({"id": resource_id})
+                        for row in list_method({"id": resource_id}, frozenset({resource_id}))
                         if row.values.get("id") == resource_id
                     ),
                     None,
                 )
-            else:
-                raise ValueError(f"No Planning query for resource {resource}")
             if record is None:
                 return None
             if resource == "candidate":
                 record = self.present_candidates((record,))[0]
-            if self._visible is None:
-                return record
-            is_visible = self._visible(
-                unit_of_work.authorization_queries(), resource, resource_id, {}
-            )
-            if not isinstance(is_visible, bool):
-                raise TypeError("Planning item visibility must return a boolean")
-            return record if is_visible else None
+            return record

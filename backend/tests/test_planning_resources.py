@@ -181,6 +181,88 @@ class PlanningResourcePortTests(unittest.TestCase):
             events,
         )
 
+    def test_visible_item_is_authorized_before_loading_its_planning_record(self) -> None:
+        events: list[str] = []
+        active = False
+
+        class FakeUnitOfWork:
+            def authorization_queries(self):
+                if not active:
+                    raise AssertionError("Visibility escaped its unit of work")
+                events.append("queries")
+                return object()
+
+            def get_candidate(self, candidate_id):
+                events.append(f"load:{candidate_id}")
+                raise AssertionError("Invisible Planning record was loaded")
+
+        @contextmanager
+        def unit_of_work_factory(*, write=False):
+            nonlocal active
+            active = True
+            try:
+                yield FakeUnitOfWork()
+            finally:
+                active = False
+
+        def visible(_queries, resource, entity_id, filters):
+            self.assertTrue(active)
+            self.assertEqual(("candidate", 23, {}), (resource, entity_id, filters))
+            events.append("visibility")
+            return False
+
+        record = PlanningResourceService(unit_of_work_factory, visible=visible).get_visible_record(
+            "candidate", 23
+        )
+
+        self.assertIsNone(record)
+        self.assertEqual(["queries", "visibility"], events)
+
+    def test_round_summary_visibility_precedes_summary_read_in_one_unit_of_work(self) -> None:
+        calls: list[str] = []
+        summary = object()
+
+        class FakeUnitOfWork:
+            def get_round(self, round_id):
+                calls.append(f"round:{round_id}")
+                if round_id == 9:
+                    return PlanningRecordValue({"id": 9, "committee_id": 4})
+                return None
+
+            def round_summary(self, round_id):
+                calls.append(f"summary:{round_id}")
+                return summary
+
+        @contextmanager
+        def unit_of_work_factory(*, write=False):
+            calls.append("begin")
+            try:
+                yield FakeUnitOfWork()
+            finally:
+                calls.append("end")
+
+        service = PlanningResourceService(unit_of_work_factory)
+
+        self.assertIsNone(service.round_summary(9, frozenset({8})))
+        self.assertIsNone(service.round_summary(999, frozenset({8})))
+        self.assertIs(summary, service.round_summary(9, frozenset({4})))
+
+        self.assertEqual(
+            [
+                "begin",
+                "round:9",
+                "end",
+                "begin",
+                "round:999",
+                "end",
+                "begin",
+                "round:9",
+                "summary:9",
+                "end",
+            ],
+            calls,
+        )
+
     def test_round_reassignment_policy_runs_before_the_port_write(self) -> None:
         existing = PlanningRecordValue(
             {

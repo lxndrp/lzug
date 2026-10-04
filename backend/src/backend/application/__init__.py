@@ -120,16 +120,10 @@ class ReadApplication:
         if self.services.planning_resource_service_factory is None:
             raise RuntimeError("Planning resource service factory must be injected by composition")
         summary = self.services.planning_resource_service_factory(self.db_path).round_summary(
-            round_id
+            round_id, scope.committee_ids
         )
-        committee_id = summary.committee_id if summary is not None else None
-        if not scope.can_read_committee(committee_id):
-            raise ForbiddenRequestError("Forbidden.")
         if summary is None:
-            return ApplicationResult(
-                {"error": "Exam round not found"},
-                HTTPStatus.NOT_FOUND,
-            )
+            raise ForbiddenRequestError("Forbidden.")
         return ApplicationResult(hateoas.round_summary(summary.as_payload(), round_id))
 
 
