@@ -62,7 +62,7 @@ describe('domain API services', () => {
     let dayDates: string[] = [];
     let slotIds: number[] = [];
 
-    planning.getPlanningBoard().subscribe((board) => {
+    planning.getPlanningBoard(1).subscribe((board) => {
       dayDates = board.days.map((item) => item.day.date);
       slotIds = board.days[0].slots.map((slot) => slot.id);
       expect(board.days[0].location?.name).toBe('Prüfungszentrum am Zappeion (Demo)');
@@ -95,7 +95,7 @@ describe('domain API services', () => {
   });
 
   it('should use the backend write endpoints for planning actions', () => {
-    planning.generateProposal().subscribe((result) => {
+    planning.generateProposal(1).subscribe((result) => {
       expect(result.status).toBe('plan_proposed');
       expect(result.counts['planned_slots']).toBe(16);
     });
@@ -115,18 +115,20 @@ describe('domain API services', () => {
       exam_days: [],
       _links: {},
     };
-    planning.getPlanningProposal().subscribe((result) => expect(result.revision).toBe(3));
+    planning.getPlanningProposal(1).subscribe((result) => expect(result.revision).toBe(3));
     const getEditable = http.expectOne('/api/exam-rounds/1/planning-proposal');
     expect(getEditable.request.method).toBe('GET');
     getEditable.flush(editable);
 
-    planning.savePlanningProposal(editable).subscribe((result) => expect(result.revision).toBe(4));
+    planning
+      .savePlanningProposal(1, editable)
+      .subscribe((result) => expect(result.revision).toBe(4));
     const saveEditable = http.expectOne('/api/exam-rounds/1/planning-proposal');
     expect(saveEditable.request.method).toBe('PUT');
     expect(saveEditable.request.body).toEqual(editable);
     saveEditable.flush({ ...editable, revision: 4 });
 
-    planning.confirmPlan().subscribe((result) => {
+    planning.confirmPlan(1).subscribe((result) => {
       expect(result.status).toBe('plan_confirmed');
       expect(result.counts['confirmed_slots']).toBe(16);
     });
@@ -671,16 +673,19 @@ describe('domain API services', () => {
 
   it('should save planning settings for the active round', () => {
     planning
-      .savePlanningSettings({
-        calendar_week_from: '2026-W47',
-        calendar_week_to: '2026-W49',
-        exams_per_day: 6,
-        max_exam_days_per_week: 3,
-        lunch_break_enabled: 1,
-        exclude_public_holidays: 1,
-        holiday_subdivision_code: 'DE-NW',
-        default_location_id: 1,
-      })
+      .savePlanningSettings(
+        {
+          calendar_week_from: '2026-W47',
+          calendar_week_to: '2026-W49',
+          exams_per_day: 6,
+          max_exam_days_per_week: 3,
+          lunch_break_enabled: 1,
+          exclude_public_holidays: 1,
+          holiday_subdivision_code: 'DE-NW',
+          default_location_id: 1,
+        },
+        1,
+      )
       .subscribe();
 
     const request = http.expectOne('/api/planning-settings');
@@ -701,11 +706,14 @@ describe('domain API services', () => {
 
   it('should update exam round metadata for the active round', () => {
     planning
-      .updateExamRound({
-        name: 'Sommer 2027',
-        availability_deadline: '2027-04-15 18:00:00',
-        availability_reminder_at: '2027-04-08 09:00:00',
-      })
+      .updateExamRound(
+        {
+          name: 'Sommer 2027',
+          availability_deadline: '2027-04-15 18:00:00',
+          availability_reminder_at: '2027-04-08 09:00:00',
+        },
+        1,
+      )
       .subscribe();
 
     const request = http.expectOne('/api/exam-rounds/1');
@@ -720,7 +728,7 @@ describe('domain API services', () => {
       availability_deadline: '2026-10-15 18:00:00',
       availability_reminder_at: '2026-10-08 09:00:00',
     };
-    planning.requestAvailabilities(payload).subscribe();
+    planning.requestAvailabilities(payload, 1).subscribe();
 
     const update = http.expectOne('/api/exam-rounds/1');
     expect(update.request.method).toBe('PATCH');
@@ -734,7 +742,7 @@ describe('domain API services', () => {
   });
 
   it('should expose possible day and availability write operations', () => {
-    planning.generateCandidateExamDays().subscribe();
+    planning.generateCandidateExamDays(1).subscribe();
     const generateDays = http.expectOne('/api/candidate-exam-days/generate');
     expect(generateDays.request.method).toBe('POST');
     expect(generateDays.request.body).toEqual({ round_id: 1 });
@@ -750,7 +758,7 @@ describe('domain API services', () => {
       counts: { calculated_weekdays: 15, created: 0, existing: 15, excluded_holidays: 0 },
     });
 
-    planning.createCandidateExamDay({ date: '2026-11-18', is_active: 1 }).subscribe();
+    planning.createCandidateExamDay({ date: '2026-11-18', is_active: 1 }, 1).subscribe();
     const createDay = http.expectOne('/api/candidate-exam-days');
     expect(createDay.request.method).toBe('POST');
     expect(createDay.request.body).toEqual({
@@ -767,11 +775,14 @@ describe('domain API services', () => {
     candidateDay.flush({ ...inactiveCandidateDayFixture, is_active: 1 });
 
     planning
-      .saveMemberAvailability({
-        committee_member_id: 1,
-        candidate_exam_day_id: 2,
-        availability: 'morning',
-      })
+      .saveMemberAvailability(
+        {
+          committee_member_id: 1,
+          candidate_exam_day_id: 2,
+          availability: 'morning',
+        },
+        1,
+      )
       .subscribe();
     const availability = http.expectOne('/api/member-availabilities');
     expect(availability.request.method).toBe('POST');
