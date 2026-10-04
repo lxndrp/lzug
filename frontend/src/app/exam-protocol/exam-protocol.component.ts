@@ -1,4 +1,14 @@
-import { Component, Input, OnChanges, SimpleChanges, inject, output, signal } from '@angular/core';
+import {
+  Component,
+  DestroyRef,
+  Input,
+  OnChanges,
+  SimpleChanges,
+  inject,
+  output,
+  signal,
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { TuiButton } from '@taiga-ui/core';
 import { TuiBadge } from '@taiga-ui/kit';
@@ -34,6 +44,7 @@ export class ExamProtocolComponent implements OnChanges {
   private readonly facade = inject(ExamProtocolFacade);
   private readonly auth = inject(AuthService);
   private readonly sessionScope = inject(SessionScopeService);
+  private readonly destroyRef = inject(DestroyRef);
 
   @Input({ required: true }) roundId!: number;
   @Input({ required: true }) dayId!: number;
@@ -58,6 +69,7 @@ export class ExamProtocolComponent implements OnChanges {
   private requestSequence = 0;
   private contextSequence = 0;
   private exportSequence = 0;
+  private loadedContextSequence: number | null = null;
 
   protected readonly categories: Array<{ value: ProtocolEntryCategory; label: string }> = [
     { value: 'late_start', label: 'Verspäteter Beginn' },
@@ -74,21 +86,23 @@ export class ExamProtocolComponent implements OnChanges {
     if (identityChanged) {
       this.contextSequence += 1;
       this.exportSequence += 1;
+      this.protocol.set(null);
       this.busy.set(false);
       this.exportBusy.set(false);
     }
     if (identityChanged || changes['dayRevision']) this.load(!identityChanged);
   }
 
-  protected load(preserveDrafts = false): void {
+  protected load(preserveDrafts = false, preserveFeedback = preserveDrafts): void {
     const sequence = ++this.requestSequence;
     const contextSequence = this.contextSequence;
+    const keepDrafts = preserveDrafts && this.loadedContextSequence === contextSequence;
     const sessionGeneration = this.sessionScope.generation();
     const roundId = this.roundId;
     const dayId = this.dayId;
     const slotId = this.slotId;
     this.state.set('loading');
-    if (!preserveDrafts) {
+    if (!preserveFeedback) {
       this.message.set(null);
       this.error.set(null);
     }
@@ -97,14 +111,14 @@ export class ExamProtocolComponent implements OnChanges {
         if (!this.isCurrent(sequence, contextSequence, sessionGeneration, roundId, dayId, slotId)) {
           return;
         }
-        this.accept(protocol, preserveDrafts);
+        this.accept(protocol, keepDrafts);
+        this.loadedContextSequence = contextSequence;
         this.state.set('ready');
       },
       error: (error: ApplicationError) => {
         if (!this.isCurrent(sequence, contextSequence, sessionGeneration, roundId, dayId, slotId)) {
           return;
         }
-        this.protocol.set(null);
         this.state.set(error.kind === 'not-found' ? 'not-found' : 'error');
       },
     });
@@ -223,38 +237,41 @@ export class ExamProtocolComponent implements OnChanges {
     const slotId = this.slotId;
     this.exportBusy.set(true);
     this.error.set(null);
-    this.sessionScope.forCurrentSession(this.facade.export(protocol.id, format)).subscribe({
-      next: ({ content, mediaType, fileName }) => {
-        if (
-          exportSequence !== this.exportSequence ||
-          !this.isActionCurrent(contextSequence, sessionGeneration, roundId, dayId, slotId)
-        ) {
-          return;
-        }
-        const url = URL.createObjectURL(new Blob([content], { type: mediaType }));
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = fileName;
-        link.click();
-        window.setTimeout(() => URL.revokeObjectURL(url), 0);
-        this.exportBusy.set(false);
-      },
-      error: () => {
-        if (
-          exportSequence !== this.exportSequence ||
-          !this.isActionCurrent(contextSequence, sessionGeneration, roundId, dayId, slotId)
-        ) {
-          return;
-        }
-        const message = 'Der Protokollexport konnte nicht geladen werden.';
-        this.error.set(message);
-        this.actionErrorOccurred.emit(message);
-        this.exportBusy.set(false);
-      },
-      complete: () => {
-        if (exportSequence === this.exportSequence) this.exportBusy.set(false);
-      },
-    });
+    this.sessionScope
+      .forCurrentSession(this.facade.export(protocol.id, format))
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ({ content, mediaType, fileName }) => {
+          if (
+            exportSequence !== this.exportSequence ||
+            !this.isActionCurrent(contextSequence, sessionGeneration, roundId, dayId, slotId)
+          ) {
+            return;
+          }
+          const url = URL.createObjectURL(new Blob([content], { type: mediaType }));
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = fileName;
+          link.click();
+          window.setTimeout(() => URL.revokeObjectURL(url), 0);
+          this.exportBusy.set(false);
+        },
+        error: () => {
+          if (
+            exportSequence !== this.exportSequence ||
+            !this.isActionCurrent(contextSequence, sessionGeneration, roundId, dayId, slotId)
+          ) {
+            return;
+          }
+          const message = 'Der Protokollexport konnte nicht geladen werden.';
+          this.error.set(message);
+          this.actionErrorOccurred.emit(message);
+          this.exportBusy.set(false);
+        },
+        complete: () => {
+          if (exportSequence === this.exportSequence) this.exportBusy.set(false);
+        },
+      });
   }
 
   protected hasResponded(protocol: ExamProtocol): boolean {

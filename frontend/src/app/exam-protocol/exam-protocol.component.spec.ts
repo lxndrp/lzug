@@ -212,6 +212,54 @@ describe('ExamProtocolComponent', () => {
     expect(component.reservationText).toBe('Vorbehalt aus dem offenen Entwurf');
   });
 
+  it('preserves protocol drafts when retrying a failed same-context revision reload', () => {
+    const refreshed = protocolFixture({
+      dayRevision: 5,
+      currentRevision: revisionFixture({ declaration: 'without_special_occurrences', entries: [] }),
+    });
+    vi.mocked(port.get)
+      .mockReturnValueOnce(of(protocolFixture()))
+      .mockReturnValueOnce(
+        throwError(() => new ApplicationError('unavailable', 'Reload fehlgeschlagen.')),
+      )
+      .mockReturnValueOnce(of(refreshed));
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance as unknown as {
+      declaration: string;
+      entries: Array<{
+        category: string;
+        statement: string;
+        occurredFrom: string;
+        occurredTo: string;
+      }>;
+      reservationText: string;
+      state: () => string;
+    };
+    component.declaration = 'with_special_occurrences';
+    component.entries = [
+      {
+        category: 'interruption',
+        statement: 'Manuell ergänzte Unterbrechung',
+        occurredFrom: '2026-11-16T09:20',
+        occurredTo: '',
+      },
+    ];
+    component.reservationText = 'Manueller Vorbehalt';
+    fixture.componentRef.setInput('dayRevision', 5);
+    fixture.detectChanges();
+    expect(component.state()).toBe('error');
+
+    buttonByText(fixture.nativeElement as HTMLElement, 'Erneut versuchen').click();
+    fixture.detectChanges();
+
+    expect(component.declaration).toBe('with_special_occurrences');
+    expect(component.entries[0]?.statement).toBe('Manuell ergänzte Unterbrechung');
+    expect(component.reservationText).toBe('Manueller Vorbehalt');
+    expect(component.state()).toBe('ready');
+  });
+
   it('offers participant confirmation only for the active version', () => {
     vi.mocked(port.get).mockReturnValue(
       of(
@@ -406,6 +454,24 @@ describe('ExamProtocolComponent', () => {
     component.downloadExport('machine-readable');
 
     scope.establish(authSession(2));
+    pending.next({ content: '{}', mediaType: 'application/json', fileName: 'protocol.json' });
+
+    expect(createObjectURL).not.toHaveBeenCalled();
+    createObjectURL.mockRestore();
+  });
+
+  it('cancels a delayed export when the protocol component is destroyed', () => {
+    const pending = new Subject<ProtocolExport>();
+    vi.mocked(port.export).mockReturnValueOnce(pending.asObservable());
+    fixture.detectChanges();
+    fixture.detectChanges();
+    const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:protocol');
+    const component = fixture.componentInstance as unknown as {
+      downloadExport(format: 'machine-readable'): void;
+    };
+    component.downloadExport('machine-readable');
+
+    fixture.destroy();
     pending.next({ content: '{}', mediaType: 'application/json', fileName: 'protocol.json' });
 
     expect(createObjectURL).not.toHaveBeenCalled();

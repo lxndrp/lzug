@@ -203,6 +203,7 @@ describe('ExamResultComponent', () => {
 
   it('preserves dirty retention drafts across a day revision reload', () => {
     const initial = resultFixture({
+      committeeAssessments: [committeeAssessment('78')],
       retention: {
         ruleReference: 'Prüfungsordnung',
         periodStart: '2026-01-01',
@@ -213,6 +214,7 @@ describe('ExamResultComponent', () => {
     });
     const refreshed = resultFixture({
       dayRevisions: { '7': 5 },
+      committeeAssessments: [committeeAssessment('82')],
       retention: {
         ruleReference: 'Prüfungsordnung',
         periodStart: '2026-02-01',
@@ -221,7 +223,12 @@ describe('ExamResultComponent', () => {
         holdReason: 'Neuer Rechtsbehelf',
       },
     });
-    vi.mocked(port.get).mockReturnValueOnce(of(initial)).mockReturnValueOnce(of(refreshed));
+    vi.mocked(port.get)
+      .mockReturnValueOnce(of(initial))
+      .mockReturnValueOnce(
+        throwError(() => new ApplicationError('unavailable', 'Reload fehlgeschlagen.')),
+      )
+      .mockReturnValueOnce(of(refreshed));
     fixture.detectChanges();
     fixture.detectChanges();
 
@@ -230,18 +237,27 @@ describe('ExamResultComponent', () => {
       retentionUntil: string;
       retentionLegalHold: boolean;
       retentionHoldReason: string;
+      componentPoints: Map<string, string>;
+      state: () => string;
     };
+    component.componentPoints.set('documentation', '74');
     component.retentionPeriodStart = '2026-03-15';
     component.retentionUntil = '2038-03-15';
     component.retentionLegalHold = true;
     component.retentionHoldReason = 'Manuelle Notiz';
     fixture.componentRef.setInput('dayRevision', 5);
     fixture.detectChanges();
+    expect(component.state()).toBe('error');
+
+    (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('button')!.click();
+    fixture.detectChanges();
 
     expect(component.retentionPeriodStart).toBe('2026-03-15');
     expect(component.retentionUntil).toBe('2038-03-15');
     expect(component.retentionLegalHold).toBe(true);
     expect(component.retentionHoldReason).toBe('Manuelle Notiz');
+    expect(component.componentPoints.get('documentation')).toBe('74');
+    expect(component.state()).toBe('ready');
   });
 
   it('hides mutation and export controls without the matching capability', () => {

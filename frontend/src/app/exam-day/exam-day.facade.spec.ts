@@ -172,6 +172,23 @@ describe('ExamDayFacade', () => {
     expect(facade.actionError()).toBeNull();
   });
 
+  it('uses a neutral stale-revision message after an authenticated session change', () => {
+    facade.bindContext(1, 7);
+    vi.mocked(port.getConfirmedPlanDay)
+      .mockReturnValueOnce(
+        throwError(() => new ApplicationError('unavailable', 'Refresh fehlgeschlagen.')),
+      )
+      .mockReturnValueOnce(of(dayView(7, 1, 1)));
+    facade.refreshAfterEmbeddedMutation(7, 2);
+    expect(facade.actionError()).toContain('Änderung wurde gespeichert');
+
+    TestBed.inject(SessionScopeService).establish(session(10));
+
+    expect(facade.state()).toBe('error');
+    expect(facade.actionError()).toContain('älter als die erwartete Revision');
+    expect(facade.actionError()).not.toContain('Änderung wurde gespeichert');
+  });
+
   it('invalidates a reopening preview when an embedded capability changes the day', () => {
     const pendingPreview = new Subject<ExamDayReopeningImpact>();
     vi.mocked(port.previewExamDayReopening).mockReturnValueOnce(pendingPreview.asObservable());

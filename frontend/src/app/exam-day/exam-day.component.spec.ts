@@ -206,9 +206,9 @@ describe('ExamDayComponent', () => {
       'Die Änderung wurde gespeichert, aber die aktuelle Tagesansicht konnte nicht geladen werden.',
     );
 
-    let retry = Array.from(fixture.nativeElement.querySelectorAll('button')).find((button) =>
-      button.textContent?.includes('Erneut versuchen'),
-    );
+    let retry = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button'),
+    ).find((button) => button.textContent?.includes('Erneut versuchen'));
     expect(retry).toBeTruthy();
     retry!.click();
     fixture.detectChanges();
@@ -219,9 +219,9 @@ describe('ExamDayComponent', () => {
     expect((fixture.nativeElement as HTMLElement).textContent).toContain(
       'Die Änderung wurde gespeichert, aber die aktuelle Tagesansicht konnte nicht geladen werden.',
     );
-    retry = Array.from(fixture.nativeElement.querySelectorAll('button')).find((button) =>
-      button.textContent?.includes('Erneut versuchen'),
-    );
+    retry = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button'),
+    ).find((button) => button.textContent?.includes('Erneut versuchen'));
     expect(retry).toBeTruthy();
     retry!.click();
     fixture.detectChanges();

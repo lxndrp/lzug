@@ -4,7 +4,7 @@
       <p class="app-eyebrow">Gemeinsames Prüfungsprotokoll</p>
       <h4 [id]="'protocol-heading-' + slotId">Gestarteter Slot {{ slotId }}</h4>
     </div>
-    @if (protocol(); as current) {
+    @if (state() === 'ready' && protocol(); as current) {
       <span tuiBadge [appearance]="stateAppearance(current.state)">
         {{ stateLabel(current.state) }} · Version {{ current.currentVersion }}
       </span>
@@ -24,7 +24,7 @@
     <p role="alert">Für die gestartete Prüfung fehlt das verpflichtende Protokoll.</p>
   } @else if (state() === 'error') {
     <p role="alert">Das Prüfungsprotokoll konnte nicht geladen werden.</p>
-    <button tuiButton appearance="secondary" type="button" (click)="load()">
+    <button tuiButton appearance="secondary" type="button" (click)="load(true, false)">
       Erneut versuchen
     </button>
   } @else if (protocol(); as current) {

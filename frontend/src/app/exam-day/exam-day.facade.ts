@@ -402,6 +402,9 @@ export class ExamDayFacade {
   }
 
   private embeddedRevisionError(): string {
+    if (!this.embeddedWriteRefreshPending) {
+      return 'Der geladene Tagesstand ist älter als die erwartete Revision. Bitte laden Sie erneut.';
+    }
     return (
       this.embeddedWriteUnavailableError() +
       ' Die Tagesdaten entsprechen noch nicht der akzeptierten Revision.'

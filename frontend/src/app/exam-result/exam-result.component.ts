@@ -77,11 +77,13 @@ export class ExamResultComponent implements OnChanges {
   protected retentionReleaseReason = '';
   private requestSequence = 0;
   private contextSequence = 0;
+  private loadedContextSequence: number | null = null;
 
   ngOnChanges(changes: SimpleChanges): void {
     const identityChanged = changes['roundId'] || changes['dayId'] || changes['slotId'];
     if (identityChanged) {
       this.contextSequence += 1;
+      this.result.set(null);
       this.busy.set(false);
       this.componentVotes.clear();
       this.componentVoters.clear();
@@ -91,9 +93,10 @@ export class ExamResultComponent implements OnChanges {
     if (identityChanged || changes['dayRevision']) this.load(!identityChanged);
   }
 
-  protected load(preserveFeedback = false): void {
+  protected load(preserveDrafts = false, preserveFeedback = preserveDrafts): void {
     const sequence = ++this.requestSequence;
     const contextSequence = this.contextSequence;
+    const keepDrafts = preserveDrafts && this.loadedContextSequence === contextSequence;
     const sessionGeneration = this.sessionScope.generation();
     const roundId = this.roundId;
     const dayId = this.dayId;
@@ -108,14 +111,14 @@ export class ExamResultComponent implements OnChanges {
         if (!this.isCurrent(sequence, contextSequence, sessionGeneration, roundId, dayId, slotId)) {
           return;
         }
-        this.accept(result, preserveFeedback);
+        this.accept(result, keepDrafts);
+        this.loadedContextSequence = contextSequence;
         this.state.set('ready');
       },
       error: (error: ApplicationError) => {
         if (!this.isCurrent(sequence, contextSequence, sessionGeneration, roundId, dayId, slotId)) {
           return;
         }
-        this.result.set(null);
         this.state.set(error.kind === 'not-found' ? 'not-found' : 'error');
       },
     });
