@@ -178,6 +178,59 @@ describe('ExamDayComponent', () => {
     );
   });
 
+  it('shows saved-write feedback and retry after a not-found refresh retry', () => {
+    const recoveredDay = dayView();
+    recoveredDay.day.revision = 2;
+    vi.mocked(examDay.getConfirmedPlanDay)
+      .mockReturnValueOnce(of(dayView()))
+      .mockReturnValueOnce(
+        throwError(() => new ApplicationError('unavailable', 'Refresh fehlgeschlagen.')),
+      )
+      .mockReturnValueOnce(
+        throwError(() => new ApplicationError('not-found', 'Tag nicht gefunden.')),
+      )
+      .mockReturnValueOnce(of(recoveredDay));
+    fixture.detectChanges();
+
+    (
+      fixture.componentInstance as unknown as {
+        refreshAfterProtocolChange(change: {
+          roundId: number;
+          dayId: number;
+          revision: number;
+        }): void;
+      }
+    ).refreshAfterProtocolChange({ roundId: 1, dayId: 7, revision: 2 });
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      'Die Änderung wurde gespeichert, aber die aktuelle Tagesansicht konnte nicht geladen werden.',
+    );
+
+    let retry = Array.from(fixture.nativeElement.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Erneut versuchen'),
+    );
+    expect(retry).toBeTruthy();
+    retry!.click();
+    fixture.detectChanges();
+
+    expect((fixture.nativeElement as HTMLElement).textContent).not.toContain(
+      'Prüfungstag nicht verfügbar',
+    );
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      'Die Änderung wurde gespeichert, aber die aktuelle Tagesansicht konnte nicht geladen werden.',
+    );
+    retry = Array.from(fixture.nativeElement.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Erneut versuchen'),
+    );
+    expect(retry).toBeTruthy();
+    retry!.click();
+    fixture.detectChanges();
+
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      'Montag, 16. November 2026',
+    );
+  });
+
   it('does not present an unknown day or a day from another round', () => {
     vi.mocked(examDay.getConfirmedPlanDay).mockReturnValueOnce(
       throwError(() => new ApplicationError('not-found', 'unknown')),

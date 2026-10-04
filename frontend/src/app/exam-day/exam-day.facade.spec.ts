@@ -70,6 +70,50 @@ describe('ExamDayFacade', () => {
     expect(port.getConfirmedPlanDay).not.toHaveBeenCalled();
   });
 
+  it('rejects a response for another day in the same round', () => {
+    vi.mocked(port.getConfirmedPlanDay).mockReturnValueOnce(of(dayView(8, 1)));
+
+    facade.bindContext(1, 7);
+
+    expect(facade.state()).toBe('not-found');
+    expect(facade.view()).toBeNull();
+  });
+
+  it('keeps the saved-write outcome when a retry returns not found', () => {
+    facade.bindContext(1, 7);
+    vi.mocked(port.getConfirmedPlanDay)
+      .mockReturnValueOnce(
+        throwError(() => new ApplicationError('unavailable', 'Refresh fehlgeschlagen.')),
+      )
+      .mockReturnValueOnce(
+        throwError(() => new ApplicationError('not-found', 'Tag nicht gefunden.')),
+      )
+      .mockReturnValueOnce(of(dayView(7, 1, 2)));
+
+    facade.refreshAfterEmbeddedMutation(7, 2);
+    expect(facade.state()).toBe('error');
+
+    facade.load();
+    expect(facade.state()).toBe('error');
+    expect(facade.actionError()).toContain('Änderung wurde gespeichert');
+
+    facade.load();
+    expect(facade.state()).toBe('ready');
+    expect(facade.view()?.day.revision).toBe(2);
+    expect(facade.actionError()).toBeNull();
+  });
+
+  it('rejects another day returned by an embedded refresh', () => {
+    facade.bindContext(1, 7);
+    vi.mocked(port.getConfirmedPlanDay).mockReturnValueOnce(of(dayView(8, 1, 2)));
+
+    facade.refreshAfterEmbeddedMutation(7, 2);
+
+    expect(facade.state()).toBe('error');
+    expect(facade.view()?.day.id).toBe(7);
+    expect(facade.actionError()).toContain('Änderung wurde gespeichert');
+  });
+
   it('keeps a command response bound to its original day', () => {
     const pendingCommand = new Subject<ConfirmedPlanDayView>();
     vi.mocked(port.saveCandidateAttendance).mockReturnValueOnce(pendingCommand.asObservable());

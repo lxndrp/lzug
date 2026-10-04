@@ -57,6 +57,7 @@ export class ExamProtocolComponent implements OnChanges {
   protected reopeningReference = '';
   private requestSequence = 0;
   private contextSequence = 0;
+  private exportSequence = 0;
 
   protected readonly categories: Array<{ value: ProtocolEntryCategory; label: string }> = [
     { value: 'late_start', label: 'Verspäteter Beginn' },
@@ -72,7 +73,9 @@ export class ExamProtocolComponent implements OnChanges {
     const identityChanged = changes['roundId'] || changes['dayId'] || changes['slotId'];
     if (identityChanged) {
       this.contextSequence += 1;
+      this.exportSequence += 1;
       this.busy.set(false);
+      this.exportBusy.set(false);
     }
     if (identityChanged || changes['dayRevision']) this.load(!identityChanged);
   }
@@ -212,10 +215,22 @@ export class ExamProtocolComponent implements OnChanges {
   protected downloadExport(format: ProtocolExportFormat): void {
     const protocol = this.protocol();
     if (!protocol || this.exportBusy() || this.dayRefreshing) return;
+    const exportSequence = ++this.exportSequence;
+    const contextSequence = this.contextSequence;
+    const sessionGeneration = this.sessionScope.generation();
+    const roundId = this.roundId;
+    const dayId = this.dayId;
+    const slotId = this.slotId;
     this.exportBusy.set(true);
     this.error.set(null);
-    this.facade.export(protocol.id, format).subscribe({
+    this.sessionScope.forCurrentSession(this.facade.export(protocol.id, format)).subscribe({
       next: ({ content, mediaType, fileName }) => {
+        if (
+          exportSequence !== this.exportSequence ||
+          !this.isActionCurrent(contextSequence, sessionGeneration, roundId, dayId, slotId)
+        ) {
+          return;
+        }
         const url = URL.createObjectURL(new Blob([content], { type: mediaType }));
         const link = document.createElement('a');
         link.href = url;
@@ -225,10 +240,19 @@ export class ExamProtocolComponent implements OnChanges {
         this.exportBusy.set(false);
       },
       error: () => {
+        if (
+          exportSequence !== this.exportSequence ||
+          !this.isActionCurrent(contextSequence, sessionGeneration, roundId, dayId, slotId)
+        ) {
+          return;
+        }
         const message = 'Der Protokollexport konnte nicht geladen werden.';
         this.error.set(message);
         this.actionErrorOccurred.emit(message);
         this.exportBusy.set(false);
+      },
+      complete: () => {
+        if (exportSequence === this.exportSequence) this.exportBusy.set(false);
       },
     });
   }

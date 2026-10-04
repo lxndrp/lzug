@@ -116,7 +116,12 @@ export class ExamDayFacade {
         ) {
           return;
         }
-        if (requestedRoundId !== null && view.plan.id !== requestedRoundId) {
+        if (view.plan.id !== requestedRoundId || view.day.id !== requestedDayId) {
+          if (this.embeddedWriteRefreshPending) {
+            this.state.set('error');
+            this.actionError.set(this.embeddedWriteUnavailableError());
+            return;
+          }
           this.view.set(null);
           this.state.set('not-found');
           return;
@@ -145,9 +150,11 @@ export class ExamDayFacade {
           return;
         }
         if (contextChanged) this.view.set(null);
-        this.state.set(error.kind === 'not-found' ? 'not-found' : 'error');
         if (this.embeddedWriteRefreshPending) {
+          this.state.set('error');
           this.actionError.set(this.embeddedWriteUnavailableError());
+        } else {
+          this.state.set(error.kind === 'not-found' ? 'not-found' : 'error');
         }
       },
     });
@@ -361,8 +368,9 @@ export class ExamDayFacade {
         if (!this.isCurrent(requestSequence, contextSequence, sessionGeneration, dayId, roundId)) {
           return;
         }
-        if (view.plan.id !== roundId) {
-          this.state.set('not-found');
+        if (view.plan.id !== roundId || view.day.id !== dayId) {
+          this.state.set('error');
+          this.actionError.set(this.embeddedWriteUnavailableError());
           return;
         }
         if (this.minimumDayRevision !== null && view.day.revision < this.minimumDayRevision) {

@@ -608,15 +608,77 @@ export class ExamResultComponent implements OnChanges {
       if (current && !preservePoints) this.componentPoints.set(component.key, current.points);
     }
     this.externalAreaKey ||= result.modelVersion.rules.externalAreas[0]?.key ?? '';
-    this.retentionPeriodStart = result.retention?.periodStart ?? this.retentionPeriodStart;
-    this.retentionUntil = result.retention?.retainUntil ?? this.retentionUntil;
-    this.retentionLegalHold = result.retention?.legalHold ?? this.retentionLegalHold;
-    this.retentionHoldReason = result.retention?.holdReason ?? this.retentionHoldReason;
+    const previousRetention = previous?.retention;
+    const incomingRetention = result.retention;
+    const previousPeriodStart = previousRetention?.periodStart ?? '';
+    const incomingPeriodStart = incomingRetention?.periodStart ?? '';
+    if (
+      !this.isDirtyReloadDraft(
+        preserveDrafts,
+        previous,
+        this.retentionPeriodStart,
+        previousPeriodStart,
+        incomingPeriodStart,
+      )
+    ) {
+      this.retentionPeriodStart = incomingPeriodStart;
+    }
+    const previousRetainUntil = previousRetention?.retainUntil ?? '';
+    const incomingRetainUntil = incomingRetention?.retainUntil ?? '';
+    if (
+      !this.isDirtyReloadDraft(
+        preserveDrafts,
+        previous,
+        this.retentionUntil,
+        previousRetainUntil,
+        incomingRetainUntil,
+      )
+    ) {
+      this.retentionUntil = incomingRetainUntil;
+    }
+    const previousLegalHold = previousRetention?.legalHold ?? false;
+    const incomingLegalHold = incomingRetention?.legalHold ?? false;
+    if (
+      !this.isDirtyReloadDraft(
+        preserveDrafts,
+        previous,
+        this.retentionLegalHold,
+        previousLegalHold,
+        incomingLegalHold,
+      )
+    ) {
+      this.retentionLegalHold = incomingLegalHold;
+    }
+    const previousHoldReason = previousRetention?.holdReason ?? '';
+    const incomingHoldReason = incomingRetention?.holdReason ?? '';
+    if (
+      !this.isDirtyReloadDraft(
+        preserveDrafts,
+        previous,
+        this.retentionHoldReason,
+        previousHoldReason,
+        incomingHoldReason,
+      )
+    ) {
+      this.retentionHoldReason = incomingHoldReason;
+    }
     if (!this.communicationAt) {
       const now = new Date();
       now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
       this.communicationAt = now.toISOString().slice(0, 16);
     }
+  }
+
+  private isDirtyReloadDraft<T>(
+    preserveDrafts: boolean,
+    previous: ExamResult | null,
+    draft: T,
+    previousValue: T,
+    incomingValue: T,
+  ): boolean {
+    return (
+      preserveDrafts && previous !== null && draft !== previousValue && draft !== incomingValue
+    );
   }
 
   private draftKey(componentKey: string, criterionKey: string): string {

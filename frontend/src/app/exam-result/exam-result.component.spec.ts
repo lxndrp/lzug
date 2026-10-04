@@ -201,6 +201,49 @@ describe('ExamResultComponent', () => {
     expect(component.componentPoints.get('documentation')).toBe('74');
   });
 
+  it('preserves dirty retention drafts across a day revision reload', () => {
+    const initial = resultFixture({
+      retention: {
+        ruleReference: 'Prüfungsordnung',
+        periodStart: '2026-01-01',
+        retainUntil: '2036-01-01',
+        legalHold: false,
+        holdReason: null,
+      },
+    });
+    const refreshed = resultFixture({
+      dayRevisions: { '7': 5 },
+      retention: {
+        ruleReference: 'Prüfungsordnung',
+        periodStart: '2026-02-01',
+        retainUntil: '2037-01-01',
+        legalHold: true,
+        holdReason: 'Neuer Rechtsbehelf',
+      },
+    });
+    vi.mocked(port.get).mockReturnValueOnce(of(initial)).mockReturnValueOnce(of(refreshed));
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance as unknown as {
+      retentionPeriodStart: string;
+      retentionUntil: string;
+      retentionLegalHold: boolean;
+      retentionHoldReason: string;
+    };
+    component.retentionPeriodStart = '2026-03-15';
+    component.retentionUntil = '2038-03-15';
+    component.retentionLegalHold = true;
+    component.retentionHoldReason = 'Manuelle Notiz';
+    fixture.componentRef.setInput('dayRevision', 5);
+    fixture.detectChanges();
+
+    expect(component.retentionPeriodStart).toBe('2026-03-15');
+    expect(component.retentionUntil).toBe('2038-03-15');
+    expect(component.retentionLegalHold).toBe(true);
+    expect(component.retentionHoldReason).toBe('Manuelle Notiz');
+  });
+
   it('hides mutation and export controls without the matching capability', () => {
     TestBed.inject(AuthService).session.update((session) => ({
       ...session!,

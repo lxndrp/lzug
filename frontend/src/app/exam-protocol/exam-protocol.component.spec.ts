@@ -4,8 +4,15 @@ import { provideTaiga } from '@taiga-ui/core';
 
 import { ApplicationError } from '../application/application-error';
 import { AuthService } from '../auth/auth.service';
+import type { AuthSession } from '../auth/auth.models';
+import { SessionScopeService } from '../auth/session-scope.service';
 import { EXAM_PROTOCOL_PORT, type ExamProtocolPort } from './exam-protocol.port';
-import type { ExamProtocol, ProtocolRevision, UpdateExamProtocol } from './exam-protocol.models';
+import type {
+  ExamProtocol,
+  ProtocolExport,
+  ProtocolRevision,
+  UpdateExamProtocol,
+} from './exam-protocol.models';
 import { ExamProtocolComponent } from './exam-protocol.component';
 
 describe('ExamProtocolComponent', () => {
@@ -365,7 +372,57 @@ describe('ExamProtocolComponent', () => {
     expect(createObjectURL).toHaveBeenCalledWith(expect.any(Blob));
     createObjectURL.mockRestore();
   });
+
+  it('discards a delayed export after the component context changes', () => {
+    const pending = new Subject<ProtocolExport>();
+    vi.mocked(port.export).mockReturnValueOnce(pending.asObservable());
+    fixture.detectChanges();
+    fixture.detectChanges();
+    const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:protocol');
+    const component = fixture.componentInstance as unknown as {
+      downloadExport(format: 'machine-readable'): void;
+    };
+    component.downloadExport('machine-readable');
+
+    fixture.componentRef.setInput('slotId', 12);
+    fixture.detectChanges();
+    pending.next({ content: '{}', mediaType: 'application/json', fileName: 'protocol.json' });
+
+    expect(createObjectURL).not.toHaveBeenCalled();
+    createObjectURL.mockRestore();
+  });
+
+  it('discards a delayed export after the authenticated session changes', () => {
+    const scope = TestBed.inject(SessionScopeService);
+    scope.establish(authSession(1));
+    const pending = new Subject<ProtocolExport>();
+    vi.mocked(port.export).mockReturnValueOnce(pending.asObservable());
+    fixture.detectChanges();
+    fixture.detectChanges();
+    const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:protocol');
+    const component = fixture.componentInstance as unknown as {
+      downloadExport(format: 'machine-readable'): void;
+    };
+    component.downloadExport('machine-readable');
+
+    scope.establish(authSession(2));
+    pending.next({ content: '{}', mediaType: 'application/json', fileName: 'protocol.json' });
+
+    expect(createObjectURL).not.toHaveBeenCalled();
+    createObjectURL.mockRestore();
+  });
 });
+
+function authSession(accountId: number): AuthSession {
+  return {
+    authenticated: true,
+    account_id: accountId,
+    person_id: accountId,
+    committee_member_id: 1,
+    is_operator: false,
+    capabilities: ['exam-protocol:export'],
+  };
+}
 
 function buttonByText(element: HTMLElement, text: string): HTMLButtonElement {
   const button = Array.from(element.querySelectorAll<HTMLButtonElement>('button')).find(
