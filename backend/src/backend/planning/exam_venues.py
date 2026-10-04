@@ -26,6 +26,7 @@ from backend.planning_ports import (
     VenueCommandKind,
     VenueCommandResult,
     VenueFutureImpactFacts,
+    VenueGeocodingAddress,
     VenueImpactQuery,
     VenueMutationPlan,
     VenueQuery,
@@ -456,8 +457,24 @@ class ExamVenueService:
     def get_venue(self, venue_id: int) -> dict[str, Any] | None:
         return self._query(VenueQuery(VenueQueryKind.GET_VENUE, entity_id=venue_id))
 
-    def address_label(self, venue_id: int) -> str | None:
-        return self._query(VenueQuery(VenueQueryKind.ADDRESS_LABEL, entity_id=venue_id))
+    def geocoding_address(self, venue_id: int, expected_revision: int) -> str | None:
+        """Return an address only when its detached snapshot has the requested revision."""
+        snapshot = self._query(
+            VenueQuery(
+                VenueQueryKind.GEOCODING_ADDRESS,
+                entity_id=venue_id,
+                expected_revision=expected_revision,
+            )
+        )
+        if snapshot is None:
+            return None
+        if not isinstance(snapshot, VenueGeocodingAddress):
+            raise TypeError("Geocoding address query returned invalid facts")
+        if snapshot.revision != expected_revision:
+            raise ExamVenueConflictError("Venue data revision is stale")
+        if not snapshot.address:
+            raise ExamVenueError("A complete address is required for geocoding")
+        return snapshot.address
 
     def referenced_committee_ids(self, venue_id: int) -> frozenset[int]:
         return self._query(VenueQuery(VenueQueryKind.REFERENCED_COMMITTEES, entity_id=venue_id))

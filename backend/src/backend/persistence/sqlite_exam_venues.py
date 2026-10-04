@@ -53,6 +53,7 @@ from backend.planning_ports import (
     VenueCommandResult,
     VenueCommandUnitOfWork,
     VenueFutureImpactFacts,
+    VenueGeocodingAddress,
     VenueMutationPlan,
     VenueQuery,
     VenueQueryKind,
@@ -149,10 +150,17 @@ class SQLiteExamVenueRepository:
                 if query.entity_id is None:
                     raise ValueError("Venue query needs an entity id")
                 return self.get_venue(query.entity_id)
-            case VenueQueryKind.ADDRESS_LABEL:
-                if query.entity_id is None:
-                    raise ValueError("Address query needs a venue id")
-                return self.address_label(query.entity_id)
+            case VenueQueryKind.GEOCODING_ADDRESS:
+                if query.entity_id is None or query.expected_revision is None:
+                    raise ValueError("Geocoding address query needs venue id and revision")
+                with session_scope(self.db_path) as session:
+                    venue = session.get(ExamVenue, query.entity_id)
+                    if venue is None:
+                        return None
+                    return VenueGeocodingAddress(
+                        revision=venue.revision,
+                        address=self._address_label(vars(venue)),
+                    )
             case VenueQueryKind.REFERENCED_COMMITTEES:
                 if query.entity_id is None:
                     raise ValueError("Reference query needs a venue id")
@@ -479,12 +487,6 @@ class SQLiteExamVenueRepository:
         with session_scope(self.db_path) as session:
             venue = session.get(ExamVenue, venue_id)
             return self._venue_payload(session, venue) if venue else None
-
-    def address_label(self, venue_id: int) -> str | None:
-        """Return the address only for the authorized explicit geocoding command."""
-        with session_scope(self.db_path) as session:
-            venue = session.get(ExamVenue, venue_id)
-            return self._address_label(vars(venue)) if venue else None
 
     def referenced_committee_ids(self, venue_id: int) -> frozenset[int]:
         """Return committees with a durable plan reference to this venue."""

@@ -15,6 +15,7 @@ from backend.integrations.map_provider import (
 )
 from backend.persistence.database import session_scope
 from backend.persistence.sqlite_exam_venues import room_is_usable_for_committee
+from backend.planning.exam_venues import ExamVenueService
 from backend.tests.helpers import ApiServer, TempDatabase, TestLzugHandler
 
 
@@ -176,6 +177,63 @@ class MapProviderTests(unittest.TestCase):
         self.assertEqual("needs_review", updated["coordinate_status"])
         self.assertEqual(53.55, updated["latitude"])
         self.assertEqual("nominatim", updated["coordinate_source"])
+
+    def test_geocoding_rejects_address_changed_after_revision_read(self) -> None:
+        class OSMHandler(TestLzugHandler):
+            map_provider = MapProviderConfig.from_environment(
+                {"LZUG_MAP_PROVIDER": "osm", "LZUG_NOMINATIM_USER_AGENT": "lzug-test"}
+            )
+
+        with TempDatabase() as db_path, ApiServer(db_path, OSMHandler) as api:
+            status, venue = api.request(
+                "POST",
+                "/api/exam-venues",
+                {
+                    "scope": "committee",
+                    "committee_id": 1,
+                    "name": "Prüfungszentrum",
+                    "street": "Testweg 1",
+                    "postal_code": "20095",
+                    "city": "Hamburg",
+                    "country": "Deutschland",
+                    "accessibility_status": "confirmed",
+                    "is_accessible": True,
+                    "coordinate_status": "missing",
+                    "is_active": False,
+                },
+            )
+            self.assertEqual(201, status)
+            original_get = ExamVenueService.get_venue
+            changed = False
+
+            def read_then_change(service, venue_id):
+                nonlocal changed
+                snapshot = original_get(service, venue_id)
+                if snapshot is not None and not changed:
+                    changed = True
+                    service.update_venue(
+                        venue_id,
+                        {
+                            "expected_revision": snapshot["revision"],
+                            "street": "Testweg 2",
+                        },
+                        actor_member_id=1,
+                    )
+                return snapshot
+
+            with (
+                patch.object(ExamVenueService, "get_venue", read_then_change),
+                patch("backend.integrations.map_provider.urlopen") as request,
+            ):
+                status, error = api.request(
+                    "POST",
+                    f"/api/exam-venues/{venue['id']}/geocode",
+                    {"expected_revision": venue["revision"]},
+                )
+
+        self.assertEqual(409, status)
+        self.assertEqual("exam_venue_conflict", error["error"]["code"])
+        request.assert_not_called()
 
     def test_active_mode_blocks_unconfirmed_rooms_from_planning(self) -> None:
         with TempDatabase() as db_path:

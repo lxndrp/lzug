@@ -97,11 +97,9 @@ class ExamVenueApi:
         if venue is None:
             return None
         self._actor_for_venue(scope, auth, venue)
-        if payload.get("expected_revision") != venue["revision"]:
-            raise ValueError("Venue data revision is stale")
-        address = self.service.address_label(venue_id)
-        if not address:
-            raise ValueError("A complete address is required for geocoding")
+        address = self.service.geocoding_address(venue_id, payload["expected_revision"])
+        if address is None:
+            return None
         candidate = self.service.geocode(address)
         return {
             "latitude": candidate.latitude,

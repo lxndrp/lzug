@@ -158,7 +158,7 @@ class VenueQueryKind(StrEnum):
 
     LIST_VENUES = "list_venues"
     GET_VENUE = "get_venue"
-    ADDRESS_LABEL = "address_label"
+    GEOCODING_ADDRESS = "geocoding_address"
     REFERENCED_COMMITTEES = "referenced_committee_ids"
     FUTURE_IMPACT = "future_impact"
     FIND_DUPLICATES = "find_duplicates"
@@ -242,6 +242,14 @@ class VenueFutureImpactFacts:
 
 
 @dataclass(frozen=True)
+class VenueGeocodingAddress:
+    """Address and revision captured from one detached venue read."""
+
+    revision: int
+    address: str
+
+
+@dataclass(frozen=True)
 class VenueQuery:
     """Typed request to read a venue aggregate or its planning impact."""
 
@@ -251,6 +259,7 @@ class VenueQuery:
     room_id: int | None = None
     visible_venue_ids: frozenset[int] | None = None
     excluded_id: int | None = None
+    expected_revision: int | None = None
 
     def __post_init__(self) -> None:
         if self.values is not None:
