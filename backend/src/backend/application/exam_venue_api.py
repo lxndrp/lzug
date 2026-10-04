@@ -2,14 +2,9 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from pathlib import Path
-
 from backend.identity.auth import AuthContext
 from backend.identity.authorization import AuthorizationScope
-from backend.integrations.map_provider import MapProviderConfig, NominatimGeocoder
-from backend.notifications.service import NotificationService
-from backend.persistence.database import DEFAULT_DB_PATH
+from backend.integrations.map_provider import MapProviderConfig
 from backend.planning.exam_venues import ExamVenueService
 from backend.planning.venue_consequences import VenueConsequenceService
 
@@ -19,18 +14,13 @@ class ExamVenueApi:
 
     def __init__(
         self,
-        db_path: Path = DEFAULT_DB_PATH,
-        map_provider: MapProviderConfig | None = None,
-        *,
-        notification_service_factory: Callable[[Path], NotificationService],
+        service: ExamVenueService,
+        map_provider: MapProviderConfig,
+        consequences: VenueConsequenceService,
     ):
-        self.service = ExamVenueService(
-            db_path, notification_service_factory=notification_service_factory
-        )
-        self.consequences = VenueConsequenceService(
-            db_path, notification_service=notification_service_factory(db_path)
-        )
-        self.map_provider = map_provider or MapProviderConfig()
+        self.service = service
+        self.consequences = consequences
+        self.map_provider = map_provider
 
     def list_venues(self, scope: AuthorizationScope, auth: AuthContext | None = None):
         return [
@@ -87,7 +77,9 @@ class ExamVenueApi:
             result = self.service.create_venue(payload, technical_actor=self._operator_actor(auth))
         else:
             result = self.service.create_venue(
-                payload, actor_member_id=self._actor_for_payload(scope, payload)
+                payload,
+                actor_member_id=self._actor_for_payload(scope, payload),
+                actor_person_id=scope.person_id,
             )
         return self._decorate(scope, auth, result)
 
@@ -98,7 +90,11 @@ class ExamVenueApi:
         actor_member_id, technical_actor = self._actor_for_venue(scope, auth, venue)
         self._reject_scope_change(payload)
         result = self.service.update_venue(
-            venue_id, payload, actor_member_id=actor_member_id, technical_actor=technical_actor
+            venue_id,
+            payload,
+            actor_member_id=actor_member_id,
+            actor_person_id=scope.person_id,
+            technical_actor=technical_actor,
         )
         return self._decorate(scope, auth, result) if result else None
 
@@ -107,12 +103,15 @@ class ExamVenueApi:
         if venue is None:
             return None
         self._actor_for_venue(scope, auth, venue)
-        if payload.get("expected_revision") != venue["revision"]:
-            raise ValueError("Venue data revision is stale")
-        address = self.service.address_label(venue_id)
-        if not address:
-            raise ValueError("A complete address is required for geocoding")
-        return NominatimGeocoder(self.map_provider).geocode(address)
+        address = self.service.geocoding_address(venue_id, payload["expected_revision"])
+        if address is None:
+            return None
+        candidate = self.service.geocode(address)
+        return {
+            "latitude": candidate.latitude,
+            "longitude": candidate.longitude,
+            "source": candidate.source,
+        }
 
     def delete_venue(self, venue_id, payload, scope, auth=None):
         venue = self.service.get_venue(venue_id)
@@ -123,6 +122,7 @@ class ExamVenueApi:
             venue_id,
             expected_revision=self._expected_revision(payload),
             actor_member_id=actor_member_id,
+            actor_person_id=scope.person_id,
             technical_actor=technical_actor,
             reason=self._reason(payload),
         )
@@ -133,7 +133,11 @@ class ExamVenueApi:
             return None
         actor_member_id, technical_actor = self._actor_for_venue(scope, auth, venue)
         return self.service.create_room(
-            venue_id, payload, actor_member_id=actor_member_id, technical_actor=technical_actor
+            venue_id,
+            payload,
+            actor_member_id=actor_member_id,
+            actor_person_id=scope.person_id,
+            technical_actor=technical_actor,
         )
 
     def get_room(self, room_id, scope, auth=None):
@@ -148,7 +152,11 @@ class ExamVenueApi:
             return None
         actor_member_id, technical_actor = self._actor_for_venue(scope, auth, venue)
         return self.service.update_room(
-            room_id, payload, actor_member_id=actor_member_id, technical_actor=technical_actor
+            room_id,
+            payload,
+            actor_member_id=actor_member_id,
+            actor_person_id=scope.person_id,
+            technical_actor=technical_actor,
         )
 
     def delete_room(self, room_id, payload, scope, auth=None):
@@ -160,6 +168,7 @@ class ExamVenueApi:
             room_id,
             expected_revision=self._expected_revision(payload),
             actor_member_id=actor_member_id,
+            actor_person_id=scope.person_id,
             technical_actor=technical_actor,
             reason=self._reason(payload),
         )
@@ -170,7 +179,11 @@ class ExamVenueApi:
             return None
         actor_member_id, technical_actor = self._actor_for_venue(scope, auth, venue)
         return self.service.create_contact(
-            venue_id, payload, actor_member_id=actor_member_id, technical_actor=technical_actor
+            venue_id,
+            payload,
+            actor_member_id=actor_member_id,
+            actor_person_id=scope.person_id,
+            technical_actor=technical_actor,
         )
 
     def get_contact(self, contact_id, scope, auth=None):
@@ -185,7 +198,11 @@ class ExamVenueApi:
             return None
         actor_member_id, technical_actor = self._actor_for_venue(scope, auth, venue)
         return self.service.update_contact(
-            contact_id, payload, actor_member_id=actor_member_id, technical_actor=technical_actor
+            contact_id,
+            payload,
+            actor_member_id=actor_member_id,
+            actor_person_id=scope.person_id,
+            technical_actor=technical_actor,
         )
 
     def delete_contact(self, contact_id, payload, scope, auth=None):
@@ -197,6 +214,7 @@ class ExamVenueApi:
             contact_id,
             expected_revision=self._expected_revision(payload),
             actor_member_id=actor_member_id,
+            actor_person_id=scope.person_id,
             technical_actor=technical_actor,
             reason=self._reason(payload),
         )
@@ -212,6 +230,7 @@ class ExamVenueApi:
             venue_id,
             expected_revision=self._expected_revision(payload),
             actor_member_id=actor_member_id,
+            actor_person_id=scope.person_id,
             reason=self._required_reason(payload),
         )
 

@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import os
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 from urllib.error import HTTPError
 
+from backend.composition import exam_venue_service
 from backend.integrations.map_provider import (
     MapProviderConfig,
     MapProviderConfigurationError,
@@ -14,13 +14,9 @@ from backend.integrations.map_provider import (
     NominatimGeocoder,
 )
 from backend.persistence.database import session_scope
-from backend.planning.exam_venues import room_is_usable_for_committee
-from backend.tests.helpers import (
-    ApiServer,
-    TempDatabase,
-    TestLzugHandler,
-    exam_venue_service_for_test,
-)
+from backend.persistence.sqlite_exam_venues import room_is_usable_for_committee
+from backend.planning.exam_venues import ExamVenueService
+from backend.tests.helpers import ApiServer, TempDatabase, TestLzugHandler
 
 
 class _Response:
@@ -130,10 +126,13 @@ class MapProviderTests(unittest.TestCase):
         ) as request:
             candidate = NominatimGeocoder(config).geocode("Testweg 1, 20095 Hamburg")
 
-        self.assertEqual({"latitude": 53.55, "longitude": 9.99, "source": "nominatim"}, candidate)
+        self.assertEqual(
+            (53.55, 9.99, "nominatim"),
+            (candidate.latitude, candidate.longitude, candidate.source),
+        )
         url = request.call_args.args[0].full_url
         self.assertIn("q=Testweg+1%2C+20095+Hamburg", url)
-        self.assertNotIn("display_name", str(candidate))
+        self.assertNotIn("display_name", repr(candidate))
 
     def test_geocoder_failure_has_no_retry_or_data_payload(self) -> None:
         config = MapProviderConfig.from_environment(
@@ -148,7 +147,7 @@ class MapProviderTests(unittest.TestCase):
 
     def test_address_change_marks_existing_coordinates_for_review(self) -> None:
         with TempDatabase() as db_path:
-            service = exam_venue_service_for_test(db_path)
+            service = exam_venue_service(db_path)
             venue = service.create_venue(
                 {
                     "scope": "committee",
@@ -179,9 +178,66 @@ class MapProviderTests(unittest.TestCase):
         self.assertEqual(53.55, updated["latitude"])
         self.assertEqual("nominatim", updated["coordinate_source"])
 
+    def test_geocoding_rejects_address_changed_after_revision_read(self) -> None:
+        class OSMHandler(TestLzugHandler):
+            map_provider = MapProviderConfig.from_environment(
+                {"LZUG_MAP_PROVIDER": "osm", "LZUG_NOMINATIM_USER_AGENT": "lzug-test"}
+            )
+
+        with TempDatabase() as db_path, ApiServer(db_path, OSMHandler) as api:
+            status, venue = api.request(
+                "POST",
+                "/api/exam-venues",
+                {
+                    "scope": "committee",
+                    "committee_id": 1,
+                    "name": "Prüfungszentrum",
+                    "street": "Testweg 1",
+                    "postal_code": "20095",
+                    "city": "Hamburg",
+                    "country": "Deutschland",
+                    "accessibility_status": "confirmed",
+                    "is_accessible": True,
+                    "coordinate_status": "missing",
+                    "is_active": False,
+                },
+            )
+            self.assertEqual(201, status)
+            original_get = ExamVenueService.get_venue
+            changed = False
+
+            def read_then_change(service, venue_id):
+                nonlocal changed
+                snapshot = original_get(service, venue_id)
+                if snapshot is not None and not changed:
+                    changed = True
+                    service.update_venue(
+                        venue_id,
+                        {
+                            "expected_revision": snapshot["revision"],
+                            "street": "Testweg 2",
+                        },
+                        actor_member_id=1,
+                    )
+                return snapshot
+
+            with (
+                patch.object(ExamVenueService, "get_venue", read_then_change),
+                patch("backend.integrations.map_provider.urlopen") as request,
+            ):
+                status, error = api.request(
+                    "POST",
+                    f"/api/exam-venues/{venue['id']}/geocode",
+                    {"expected_revision": venue["revision"]},
+                )
+
+        self.assertEqual(409, status)
+        self.assertEqual("exam_venue_conflict", error["error"]["code"])
+        request.assert_not_called()
+
     def test_active_mode_blocks_unconfirmed_rooms_from_planning(self) -> None:
         with TempDatabase() as db_path:
-            service = exam_venue_service_for_test(db_path)
+            service = exam_venue_service(db_path)
             venue = service.create_venue(
                 {
                     "scope": "committee",
@@ -207,14 +263,15 @@ class MapProviderTests(unittest.TestCase):
                 actor_member_id=1,
             )
             with session_scope(db_path) as session:
-                with patch.dict(os.environ, {}, clear=True):
-                    self.assertTrue(room_is_usable_for_committee(session, room["id"], 1))
-                with patch.dict(
-                    os.environ,
-                    {"LZUG_MAP_PROVIDER": "osm", "LZUG_NOMINATIM_USER_AGENT": "lzug-test"},
-                    clear=True,
-                ):
-                    self.assertFalse(room_is_usable_for_committee(session, room["id"], 1))
+                self.assertTrue(room_is_usable_for_committee(session, room["id"], 1))
+                self.assertFalse(
+                    room_is_usable_for_committee(
+                        session,
+                        room["id"],
+                        1,
+                        require_confirmed_coordinates=True,
+                    )
+                )
 
     def test_explicit_geocoding_returns_a_candidate_without_mutating_the_venue(self) -> None:
         class OSMHandler(TestLzugHandler):
@@ -250,7 +307,7 @@ class MapProviderTests(unittest.TestCase):
                     f"/api/exam-venues/{venue['id']}/geocode",
                     {"expected_revision": venue["revision"]},
                 )
-            unchanged = exam_venue_service_for_test(db_path).get_venue(venue["id"])
+            unchanged = exam_venue_service(db_path).get_venue(venue["id"])
 
         self.assertEqual(200, status)
         self.assertEqual({"latitude": 53.55, "longitude": 9.99, "source": "nominatim"}, candidate)
@@ -273,7 +330,7 @@ class MapProviderTests(unittest.TestCase):
             )
 
         with TempDatabase() as db_path:
-            venue = exam_venue_service_for_test(db_path).create_venue(
+            venue = exam_venue_service(db_path).create_venue(
                 {
                     "scope": "committee",
                     "committee_id": 1,
@@ -353,7 +410,7 @@ class MapProviderTests(unittest.TestCase):
                     f"/api/exam-venues/{venue['id']}/geocode",
                     {"expected_revision": venue["revision"]},
                 )
-            unchanged = exam_venue_service_for_test(db_path).get_venue(venue["id"])
+            unchanged = exam_venue_service(db_path).get_venue(venue["id"])
 
         self.assertEqual(503, status)
         self.assertEqual("map_provider_unavailable", error["error"]["code"])
@@ -390,7 +447,7 @@ class MapProviderTests(unittest.TestCase):
                     f"/api/exam-venues/{venue['id']}/geocode",
                     {"expected_revision": venue["revision"]},
                 )
-            unchanged = exam_venue_service_for_test(db_path).get_venue(venue["id"])
+            unchanged = exam_venue_service(db_path).get_venue(venue["id"])
 
         self.assertEqual(409, status)
         self.assertEqual("map_provider_disabled", error["error"]["code"])

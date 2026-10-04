@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import timedelta
 from pathlib import Path
 
+from backend.application.exam_venue_api import ExamVenueApi
 from backend.identity.admin_service import OperatorAuthService
 from backend.identity.auth import AuthenticationRepository
 from backend.identity.authorization import AuthorizationService
@@ -12,6 +14,7 @@ from backend.identity.committee_admin import CommitteeAdminService
 from backend.identity.local_auth import LocalAuthService
 from backend.identity.people import IdentityService
 from backend.integrations.holiday_provider import PythonHolidaysProvider
+from backend.integrations.map_provider import MapProviderConfig, NominatimGeocoder
 from backend.integrations.notification_delivery import NotificationDeliveryGateway
 from backend.notifications.service import NotificationService
 from backend.persistence.auth import (
@@ -20,6 +23,7 @@ from backend.persistence.auth import (
 )
 from backend.persistence.candidate_days import SQLiteCandidateDayUnitOfWorkFactory
 from backend.persistence.committee_admin import SQLiteCommitteeAdminUnitOfWorkFactory
+from backend.persistence.database import DEFAULT_DB_PATH
 from backend.persistence.identity import (
     SQLiteIdentityQueryFactory,
     SQLiteIdentityUnitOfWorkFactory,
@@ -33,7 +37,11 @@ from backend.persistence.notifications import (
     SQLiteNotificationUnitOfWorkFactory,
 )
 from backend.persistence.planning_resources import SQLitePlanningResourceUnitOfWorkFactory
+from backend.persistence.sqlite_exam_venues import SQLiteExamVenueRepository
 from backend.planning.candidate_days import CandidateDayService
+from backend.planning.exam_venues import ExamVenuePolicy, ExamVenueService
+from backend.planning.venue_consequences import VenueConsequenceService
+from backend.planning_ports import Geocoder, VenueChange, VenueChangeFollowUp
 from backend.settings import RuntimeSettings
 
 
@@ -114,3 +122,58 @@ def authorization_service(db_path: Path) -> AuthorizationService:
 def committee_admin_service(db_path: Path) -> CommitteeAdminService:
     """Wire Identity committee commands to their transactional SQLite adapter."""
     return CommitteeAdminService(SQLiteCommitteeAdminUnitOfWorkFactory(db_path))
+
+
+DEFAULT_MAP_PROVIDER_CONFIG = MapProviderConfig()
+
+
+def venue_geocoder(config: MapProviderConfig) -> Geocoder:
+    """Construct the configured geocoder adapter at the application root."""
+    return NominatimGeocoder(config)
+
+
+def exam_venue_service(
+    db_path: Path = DEFAULT_DB_PATH,
+    map_provider: MapProviderConfig = DEFAULT_MAP_PROVIDER_CONFIG,
+    *,
+    notification_service_factory: Callable[[Path], NotificationService] | None = None,
+) -> ExamVenueService:
+    """Wire Planning's venue ports to SQLite and the configured provider adapter."""
+    notifications = (notification_service_factory or notification_service)(db_path)
+    consequences = VenueConsequenceService(db_path, notification_service=notifications)
+    return ExamVenueService(
+        SQLiteExamVenueRepository(db_path, require_confirmed_coordinates=map_provider.active),
+        geocoder=venue_geocoder(map_provider),
+        follow_up=_VenueAuditFollowUp(consequences),
+        impact_query=consequences,
+        policy=ExamVenuePolicy(),
+    )
+
+
+def exam_venue_api(
+    db_path: Path = DEFAULT_DB_PATH,
+    map_provider: MapProviderConfig = DEFAULT_MAP_PROVIDER_CONFIG,
+    *,
+    notification_service_factory: Callable[[Path], NotificationService] | None = None,
+) -> ExamVenueApi:
+    """Wire the API consumer to Planning ports and database-scoped services."""
+    notifications = (notification_service_factory or notification_service)(db_path)
+    consequences = VenueConsequenceService(db_path, notification_service=notifications)
+    service = ExamVenueService(
+        SQLiteExamVenueRepository(db_path, require_confirmed_coordinates=map_provider.active),
+        geocoder=venue_geocoder(map_provider),
+        follow_up=_VenueAuditFollowUp(consequences),
+        impact_query=consequences,
+        policy=ExamVenuePolicy(),
+    )
+    return ExamVenueApi(service, map_provider, consequences)
+
+
+class _VenueAuditFollowUp(VenueChangeFollowUp):
+    """Execute the existing audit-driven follow-up as an explicit transition."""
+
+    def __init__(self, consequences: VenueConsequenceService) -> None:
+        self.consequences = consequences
+
+    def process(self, change: VenueChange):
+        return self.consequences.process_audit(change.audit_id)

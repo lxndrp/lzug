@@ -16,7 +16,13 @@ from typing import Any, Protocol
 
 from fastapi.testclient import TestClient
 
-from backend.composition import notification_service as compose_notification_service
+from backend.composition import (
+    exam_venue_api,
+    exam_venue_service,
+)
+from backend.composition import (
+    notification_service as compose_notification_service,
+)
 from backend.fastapi_assembly import FastAPIConfig, create_app
 from backend.integrations.map_provider import MapProviderConfig
 from backend.notifications.service import NotificationService
@@ -46,9 +52,7 @@ def notification_service_factory_for_test(
 
 def exam_venue_service_for_test(db_path: Path):
     """Build the venue service with its explicit notifications factory dependency."""
-    from backend.planning.exam_venues import ExamVenueService
-
-    return ExamVenueService(
+    return exam_venue_service(
         db_path, notification_service_factory=notification_service_factory_for_test(db_path)
     )
 
@@ -64,9 +68,7 @@ def venue_consequence_service_for_test(db_path: Path):
 
 def exam_venue_api_for_test(db_path: Path):
     """Build the venue transport facade with its explicit notification factory."""
-    from backend.application.exam_venue_api import ExamVenueApi
-
-    return ExamVenueApi(
+    return exam_venue_api(
         db_path, notification_service_factory=notification_service_factory_for_test(db_path)
     )
 
