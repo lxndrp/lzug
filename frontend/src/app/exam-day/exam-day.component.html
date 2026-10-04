@@ -457,16 +457,20 @@
       @for (slot of current.day.slots; track slot.id) {
         @if (slot.actualStartedAt) {
           <app-exam-protocol
+            [roundId]="current.plan.id"
             [dayId]="current.day.id"
             [dayRevision]="current.day.revision"
             [slotId]="slot.id"
             [ownMemberId]="ownMemberId"
+            (dayRevisionChanged)="refreshAfterProtocolChange($event)"
           />
           <app-exam-result
+            [roundId]="current.plan.id"
             [dayId]="current.day.id"
             [dayRevision]="current.day.revision"
             [slotId]="slot.id"
             [ownMemberId]="ownMemberId"
+            (dayRevisionsChanged)="refreshAfterResultChange($event)"
           />
         }
       }

@@ -32,6 +32,7 @@ describe('ExamResultComponent', () => {
       providers: [provideTaiga({}), { provide: EXAM_RESULT_PORT, useValue: port }],
     }).compileComponents();
     fixture = TestBed.createComponent(ExamResultComponent);
+    fixture.componentRef.setInput('roundId', 1);
     fixture.componentRef.setInput('dayId', 7);
     fixture.componentRef.setInput('dayRevision', 4);
     fixture.componentRef.setInput('slotId', 11);
@@ -98,6 +99,37 @@ describe('ExamResultComponent', () => {
       changeReason: '',
       dayRevisions: { '7': 4 },
     });
+  });
+
+  it('returns accepted day revisions to the examination-day owner', () => {
+    const changes: Array<Record<string, number>> = [];
+    fixture.componentInstance.dayRevisionsChanged.subscribe((revisions) => changes.push(revisions));
+    vi.mocked(port.saveIndividualAssessment).mockReturnValueOnce(
+      of(resultFixture({ dayRevisions: { '7': 5 } })),
+    );
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance as unknown as {
+      drafts: Map<string, { rawPoints: string; rationale: string; changeReason: string }>;
+      saveAssessment(
+        model: ExamResult['modelVersion']['rules']['components'][number],
+        criterion: ExamResult['modelVersion']['rules']['components'][number]['criteria'][number],
+        submitted: boolean,
+      ): void;
+    };
+    component.drafts.set('documentation:clarity', {
+      rawPoints: '82',
+      rationale: 'Beobachtung',
+      changeReason: '',
+    });
+    component.saveAssessment(
+      resultFixture().modelVersion.rules.components[0],
+      criterionFixture(),
+      true,
+    );
+
+    expect(changes).toEqual([{ '7': 5 }]);
   });
 
   it('hides mutation and export controls without the matching capability', () => {

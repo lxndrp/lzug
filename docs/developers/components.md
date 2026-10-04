@@ -941,6 +941,16 @@ und übermittelt sie unverändert für die optimistische Sperre.
 Prüfungstag-Anwesenheit übergibt Slot-ID für Prüflinge beziehungsweise
 Assignment-ID für Ausschussmitglieder sowie die vom Befehl akzeptierte
 Tagesrevision.
+`ExamDayFacade` besitzt Tagesread, Lade-/Fehlerzustand, angenommene Commands
+und bestätigte Antworten für die Lebensdauer der Prüfungstagsansicht;
+die reine `ExamDayApplication`-Weiterleitung entfällt.
+Die Komponente behält ihre Formularentwürfe und Darstellung.
+Protokoll und Ergebnis erhalten Runde, Tag, Slot und Tagesrevision explizit;
+ihre erfolgreichen Änderungen melden Tagesrevisionen über Outputs zurück,
+damit Prüfungstag den bestätigten Tagesread und beide Kindreads gezielt
+aktualisiert.
+Session- und Ansichtswechsel verhindern, dass verspätete Antworten geschützten
+Zustand einer neuen Ansicht verändern.
 Bestätigte Pläne verwenden denselben Schnitt: `ConfirmedPlansWorkflowService`
 ruft `ConfirmedPlansPort` auf, dessen HTTP-Adapter Plan- und Revisionsantworten
 von HAL-Links bereinigt.

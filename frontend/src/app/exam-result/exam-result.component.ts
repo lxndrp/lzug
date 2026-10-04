@@ -1,4 +1,4 @@
-import { Component, Input, OnChanges, SimpleChanges, inject, signal } from '@angular/core';
+import { Component, Input, OnChanges, SimpleChanges, inject, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { TuiButton } from '@taiga-ui/core';
 import { TuiBadge } from '@taiga-ui/kit';
@@ -13,6 +13,7 @@ import type {
 import { collectCommitteeVote } from './exam-result.voting';
 import { ApplicationError } from '../application/application-error';
 import { AuthService } from '../auth/auth.service';
+import { SessionScopeService } from '../auth/session-scope.service';
 import { ExamResultFacade } from './exam-result.facade';
 
 export type ResultViewState = 'loading' | 'ready' | 'error' | 'not-found';
@@ -32,11 +33,14 @@ export type CriterionDraft = {
 export class ExamResultComponent implements OnChanges {
   private readonly facade = inject(ExamResultFacade);
   private readonly auth = inject(AuthService);
+  private readonly sessionScope = inject(SessionScopeService);
 
+  @Input({ required: true }) roundId!: number;
   @Input({ required: true }) dayId!: number;
   @Input() dayRevision: number | null = null;
   @Input({ required: true }) slotId!: number;
   @Input() ownMemberId: number | null = null;
+  readonly dayRevisionsChanged = output<Record<string, number>>();
 
   protected readonly state = signal<ResultViewState>('loading');
   protected readonly result = signal<ExamResult | null>(null);
@@ -70,9 +74,12 @@ export class ExamResultComponent implements OnChanges {
   protected retentionHoldReason = '';
   protected retentionReleaseReason = '';
   private requestSequence = 0;
+  private contextSequence = 0;
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['dayId'] || changes['slotId']) {
+    if (changes['roundId'] || changes['dayId'] || changes['slotId'] || changes['dayRevision']) {
+      this.contextSequence += 1;
+      this.busy.set(false);
       this.componentVotes.clear();
       this.componentVoters.clear();
       this.examResultVotes.clear();
@@ -83,17 +90,30 @@ export class ExamResultComponent implements OnChanges {
 
   protected load(): void {
     const sequence = ++this.requestSequence;
+    const contextSequence = this.contextSequence;
+    const sessionGeneration = this.sessionScope.generation();
+    const roundId = this.roundId;
+    const dayId = this.dayId;
+    const slotId = this.slotId;
     this.state.set('loading');
     this.message.set(null);
     this.error.set(null);
-    this.facade.get(this.dayId, this.slotId).subscribe({
+    this.sessionScope.forCurrentSession(this.facade.get(dayId, slotId)).subscribe({
       next: (result) => {
-        if (sequence !== this.requestSequence) return;
+        if (
+          !this.isCurrent(sequence, contextSequence, sessionGeneration, roundId, dayId, slotId)
+        ) {
+          return;
+        }
         this.accept(result);
         this.state.set('ready');
       },
       error: (error: ApplicationError) => {
-        if (sequence !== this.requestSequence) return;
+        if (
+          !this.isCurrent(sequence, contextSequence, sessionGeneration, roundId, dayId, slotId)
+        ) {
+          return;
+        }
         this.result.set(null);
         this.state.set(error.kind === 'not-found' ? 'not-found' : 'error');
       },
@@ -510,21 +530,64 @@ export class ExamResultComponent implements OnChanges {
     afterSuccess?: () => void,
   ): void {
     if (this.busy()) return;
+    const contextSequence = this.contextSequence;
+    const sessionGeneration = this.sessionScope.generation();
+    const roundId = this.roundId;
+    const dayId = this.dayId;
+    const slotId = this.slotId;
     this.busy.set(true);
     this.message.set(null);
     this.error.set(null);
     request.subscribe({
       next: (result) => {
+        if (!this.isActionCurrent(contextSequence, sessionGeneration, roundId, dayId, slotId)) {
+          return;
+        }
+        this.requestSequence += 1;
         this.accept(result);
         afterSuccess?.();
         this.busy.set(false);
         this.message.set(successMessage);
+        if (result.dayRevisions) this.dayRevisionsChanged.emit(result.dayRevisions);
       },
       error: (error: ApplicationError) => {
+        if (!this.isActionCurrent(contextSequence, sessionGeneration, roundId, dayId, slotId)) {
+          return;
+        }
         this.busy.set(false);
         this.error.set(error.message || 'Die Ergebnisaktion konnte nicht gespeichert werden.');
       },
     });
+  }
+
+  private isCurrent(
+    requestSequence: number,
+    contextSequence: number,
+    sessionGeneration: number,
+    roundId: number | null,
+    dayId: number,
+    slotId: number,
+  ): boolean {
+    return (
+      requestSequence === this.requestSequence &&
+      this.isActionCurrent(contextSequence, sessionGeneration, roundId, dayId, slotId)
+    );
+  }
+
+  private isActionCurrent(
+    contextSequence: number,
+    sessionGeneration: number,
+    roundId: number | null,
+    dayId: number,
+    slotId: number,
+  ): boolean {
+    return (
+      contextSequence === this.contextSequence &&
+      sessionGeneration === this.sessionScope.generation() &&
+      roundId === this.roundId &&
+      dayId === this.dayId &&
+      slotId === this.slotId
+    );
   }
 
   private accept(result: ExamResult): void {

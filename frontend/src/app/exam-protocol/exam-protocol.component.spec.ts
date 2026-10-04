@@ -44,6 +44,7 @@ describe('ExamProtocolComponent', () => {
       providers: [provideTaiga({}), { provide: EXAM_PROTOCOL_PORT, useValue: port }],
     }).compileComponents();
     fixture = TestBed.createComponent(ExamProtocolComponent);
+    fixture.componentRef.setInput('roundId', 1);
     fixture.componentRef.setInput('dayId', 7);
     fixture.componentRef.setInput('dayRevision', 4);
     fixture.componentRef.setInput('slotId', 11);
@@ -113,6 +114,24 @@ describe('ExamProtocolComponent', () => {
     fixture.detectChanges();
     expect(element.textContent).toContain('Neuer Protokollstand gespeichert.');
     expect(element.textContent).toContain('Version 2');
+  });
+
+  it('returns an accepted day revision to its explicit round and day owner', () => {
+    fixture.componentRef.setInput('roundId', 1);
+    fixture.componentRef.setInput('dayRevision', 4);
+    const changes: Array<{ roundId: number; dayId: number; revision: number }> = [];
+    fixture.componentInstance.dayRevisionChanged.subscribe((change) => changes.push(change));
+    vi.mocked(port.update).mockReturnValueOnce(of(protocolFixture({ dayRevision: 5 })));
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance as unknown as {
+      declaration: string;
+      save(): void;
+    };
+    component.declaration = 'without_special_occurrences';
+    component.save();
+
+    expect(changes).toEqual([{ roundId: 1, dayId: 7, revision: 5 }]);
   });
 
   it('offers participant confirmation only for the active version', () => {
