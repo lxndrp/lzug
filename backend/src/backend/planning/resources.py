@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -12,8 +12,9 @@ from typing import Protocol
 from backend.planning.candidate_days import CandidateDayRecord
 
 PlanningValue = str | int | bool | None
+MAX_PLANNING_VISIBILITY_PAGE_SIZE = 500
 PlanningVisibility = Callable[
-    [object, str, int | None, Mapping[str, PlanningValue]], bool | frozenset[int]
+    [object, str, int | None, Mapping[str, PlanningValue]], bool | Iterable[frozenset[int]]
 ]
 
 SPECIALIZATION_LABELS = {
@@ -992,17 +993,15 @@ class PlanningResourceService:
     ) -> tuple[PlanningRecord, ...]:
         normalized_filters = filters or {}
         with self._unit_of_work_factory() as unit_of_work:
-            visible_ids: frozenset[int] | None = None
+            visibility_pages: Iterable[frozenset[int] | None] = (None,)
             if self._visible is not None:
                 collection_visibility = self._visible(
                     unit_of_work.authorization_queries(), resource, None, normalized_filters
                 )
                 if isinstance(collection_visibility, bool):
                     raise TypeError("Planning collection visibility must return record identifiers")
-                visible_ids = collection_visibility
-            if resource == "exam_half_year":
-                records = unit_of_work.list_half_years(visible_ids)
-            else:
+                visibility_pages = collection_visibility
+            if resource != "exam_half_year":
                 list_method_name = {
                     "exam_round": "list_rounds",
                     "round_candidate": "list_round_candidates",
@@ -1014,10 +1013,22 @@ class PlanningResourceService:
                 if list_method_name is None:
                     raise ValueError(f"No Planning query for resource {resource}")
                 list_method = getattr(unit_of_work, list_method_name)
-                records = list_method(normalized_filters, visible_ids)
+            records: list[PlanningRecord] = []
+            for visible_ids in visibility_pages:
+                if (
+                    visible_ids is not None
+                    and len(visible_ids) > MAX_PLANNING_VISIBILITY_PAGE_SIZE
+                ):
+                    raise ValueError("Planning visibility page exceeds its maximum size")
+                page_records = (
+                    unit_of_work.list_half_years(visible_ids)
+                    if resource == "exam_half_year"
+                    else list_method(normalized_filters, visible_ids)
+                )
+                records.extend(page_records)
             if resource == "candidate":
                 records = self.present_candidates(records)
-            return records
+            return tuple(records)
 
     def get_visible_record(self, resource: str, resource_id: int) -> PlanningRecord | None:
         with self._unit_of_work_factory() as unit_of_work:

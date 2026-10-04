@@ -163,7 +163,7 @@ class PlanningResourcePortTests(unittest.TestCase):
             self.assertEqual("exam_round", resource)
             self.assertIsNone(entity_id)
             events.append("visibility-read")
-            return frozenset({12})
+            return iter((frozenset({12}),))
 
         result = PlanningResourceService(
             unit_of_work_factory, visible=visible

@@ -48,6 +48,7 @@ from backend.planning import PlanningService
 from backend.planning.candidate_days import CandidateDayService
 from backend.planning.plan_consequences import PlanConsequenceService
 from backend.planning.resources import (
+    MAX_PLANNING_VISIBILITY_PAGE_SIZE,
     PlanningResourceService,
     PlanningResourceUnitOfWorkFactory,
     PlanningValue,
@@ -138,12 +139,26 @@ class RequestContext:
         def visible(queries, resource, entity_id, filters):
             resource_kind = ResourceKind(resource)
             if entity_id is None:
-                return frozenset(
-                    int(row["id"])
-                    for row in queries.list_visible(
-                        resource_kind, self.authorization_scope, filters
-                    )
-                )
+                page_size = MAX_PLANNING_VISIBILITY_PAGE_SIZE
+
+                def pages():
+                    offset = 0
+                    while True:
+                        rows = queries.list_visible_page(
+                            resource_kind,
+                            self.authorization_scope,
+                            filters,
+                            offset=offset,
+                            limit=page_size,
+                        )
+                        if not rows:
+                            return
+                        yield frozenset(int(row["id"]) for row in rows)
+                        if len(rows) < page_size:
+                            return
+                        offset += page_size
+
+                return pages()
             return (
                 queries.get_visible(resource_kind, entity_id, self.authorization_scope) is not None
             )

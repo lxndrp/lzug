@@ -239,6 +239,22 @@ class ResourceAccessTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Unknown field"):
             self.repository.list_visible(CANDIDATE, self.scope, {"unknown": 1})
 
+    def test_visible_pages_preserve_query_order_and_bound_each_read(self) -> None:
+        with self.access_queries.snapshot() as queries:
+            expected = queries.list_visible(ResourceKind.EXAM_ROUND, self.scope)
+            pages = [
+                queries.list_visible_page(
+                    ResourceKind.EXAM_ROUND,
+                    self.scope,
+                    offset=offset,
+                    limit=1,
+                )
+                for offset in range(len(expected) + 1)
+            ]
+
+        self.assertEqual(expected, [row for page in pages for row in page])
+        self.assertTrue(all(len(page) <= 1 for page in pages))
+
     def test_empty_multi_committee_and_person_scopes(self) -> None:
         empty = AuthorizationScope(None, frozenset(), frozenset(), frozenset(), frozenset(), {})
         multi = replace(self.scope, committee_ids=frozenset({1, self.foreign_committee}))

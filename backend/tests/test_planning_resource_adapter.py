@@ -6,11 +6,11 @@ from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
 from unittest.mock import patch
 
-from sqlalchemy import text
+from sqlalchemy import insert, text
 from sqlalchemy.exc import IntegrityError
 
 from backend.persistence.database import session_scope
-from backend.persistence.models import CANDIDATE, CANDIDATE_EXAM_DAY
+from backend.persistence.models import CANDIDATE, CANDIDATE_EXAM_DAY, Candidate
 from backend.persistence.planning_resources import SQLitePlanningResourceUnitOfWorkFactory
 from backend.persistence.store import Store
 from backend.planning.resources import (
@@ -21,6 +21,55 @@ from backend.tests.helpers import TempDatabase
 
 
 class PlanningResourceAdapterTests(unittest.TestCase):
+    def test_collection_visibility_reads_are_bounded_above_sqlite_bind_limit(self) -> None:
+        candidate_ids = tuple(range(900_000, 901_200))
+        with TempDatabase() as db_path:
+            with session_scope(db_path, begin_immediate=True) as session:
+                session.execute(
+                    insert(Candidate),
+                    [
+                        {
+                            "id": candidate_id,
+                            "first_name": "Visible",
+                            "last_name": f"Candidate {candidate_id}",
+                            "ihk_exam_number": f"PORT-LARGE-{candidate_id}",
+                            "specialization": "system_integration",
+                            "training_company": "Port-Test",
+                        }
+                        for candidate_id in candidate_ids
+                    ],
+                )
+            factory = SQLitePlanningResourceUnitOfWorkFactory(db_path)
+            pages = tuple(
+                frozenset(candidate_ids[offset : offset + 400])
+                for offset in range(0, len(candidate_ids), 400)
+            )
+            page_sizes: list[int] = []
+            original_where = Store.where
+
+            def capture_where(store, resource, *conditions, **filters):
+                if resource is CANDIDATE and conditions:
+                    page_sizes.append(len(conditions[0].right.value))
+                return original_where(store, resource, *conditions, **filters)
+
+            planning = PlanningResourceService(factory, visible=lambda *_args: iter(pages))
+            with patch.object(Store, "where", capture_where):
+                visible = planning.list_visible_records("candidate")
+
+        self.assertEqual(len(candidate_ids), len(visible))
+        self.assertEqual(3, len(page_sizes))
+        self.assertLessEqual(max(page_sizes), 400)
+
+    def test_collection_visibility_rejects_an_unbounded_page(self) -> None:
+        with TempDatabase() as db_path:
+            planning = PlanningResourceService(
+                SQLitePlanningResourceUnitOfWorkFactory(db_path),
+                visible=lambda *_args: iter((frozenset(range(1_000)),)),
+            )
+
+            with self.assertRaisesRegex(ValueError, "visibility page exceeds"):
+                planning.list_visible_records("candidate")
+
     def test_visible_candidate_ids_bound_the_sqlite_list_query(self) -> None:
         with TempDatabase() as db_path:
             factory = SQLitePlanningResourceUnitOfWorkFactory(db_path)
@@ -53,7 +102,7 @@ class PlanningResourceAdapterTests(unittest.TestCase):
 
             scoped_service = PlanningResourceService(
                 factory,
-                visible=lambda *_args: frozenset({int(first.values["id"])}),
+                visible=lambda *_args: iter((frozenset({int(first.values["id"])}),)),
             )
             with patch.object(Store, "where", capture_where):
                 visible = scoped_service.list_visible_records("candidate")
