@@ -1,4 +1,5 @@
 import { computed, Injectable, inject, signal } from '@angular/core';
+import { toObservable } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 import {
   EMPTY,
@@ -10,6 +11,7 @@ import {
   finalize,
   of,
   switchMap,
+  take,
   takeUntil,
 } from 'rxjs';
 
@@ -44,6 +46,9 @@ import { PLANNING_PORT } from './planning.port';
 export class PlanningWorkflowService {
   private readonly planning = inject(PLANNING_PORT);
   private readonly auth = inject(AuthService);
+  private readonly authenticated$ = toObservable(this.auth.state).pipe(
+    filter((state) => state === 'authenticated'),
+  );
   private readonly sessionScope = inject(SessionScopeService);
   private readonly feedback = inject(UiFeedbackService);
   private readonly roundContext = inject(RoundContextService);
@@ -148,12 +153,18 @@ export class PlanningWorkflowService {
 
   private loadPlanning(roundId: number, view: symbol): void {
     const generation = ++this.planningGeneration;
-    const sessionGeneration = this.sessionScope.generation();
+    let sessionGeneration: number | null = null;
     this.planningLoad?.unsubscribe();
     this.loading.set(true);
     this.loadError.set(false);
-    this.planningLoad = this.sessionScope
-      .forCurrentSession(this.planning.loadPlanning(roundId))
+    this.planningLoad = this.authenticated$
+      .pipe(
+        take(1),
+        switchMap(() => {
+          sessionGeneration = this.sessionScope.generation();
+          return this.sessionScope.forCurrentSession(this.planning.loadPlanning(roundId));
+        }),
+      )
       .pipe(
         takeUntil(this.viewEnded(view)),
         finalize(() => {
@@ -164,6 +175,7 @@ export class PlanningWorkflowService {
         next: (snapshot) => {
           if (
             generation !== this.planningGeneration ||
+            sessionGeneration === null ||
             sessionGeneration !== this.sessionScope.generation() ||
             !this.isCurrentView(view) ||
             this.activeRoundId !== roundId ||

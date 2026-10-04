@@ -79,12 +79,13 @@ export class PlanningRouteComponent implements OnDestroy {
   protected readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
-  private readonly viewId = Symbol('planning-route-view');
+  private viewId = Symbol('planning-route-view');
   protected roundId: number | null = null;
   constructor() {
     this.route.data.pipe(takeUntilDestroyed()).subscribe((data) => {
       const roundId = Number(data['roundId']);
       if (!Number.isInteger(roundId) || roundId <= 0) return;
+      this.viewId = Symbol('planning-route-view');
       this.roundId = roundId;
       this.workflow.activateView(this.viewId, roundId);
     });

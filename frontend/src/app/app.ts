@@ -113,7 +113,7 @@ export class App {
     effect(() => {
       const authState = this.auth.state();
       if (previousAuthState === 'anonymous' && authState === 'authenticated') {
-        this.refresh();
+        this.refresh(false);
       }
       previousAuthState = authState;
     });
@@ -121,7 +121,7 @@ export class App {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(({ previousEstablished, established }) => {
         if (previousEstablished && established && this.auth.state() === 'authenticated') {
-          this.refresh();
+          this.refresh(false);
         }
       });
     this.router.events
@@ -139,7 +139,7 @@ export class App {
       if (!ready) return;
       this.feedbackService.dismiss();
       this.auth.initialize().subscribe((authenticated) => {
-        if (authenticated) this.refresh();
+        if (authenticated) this.refresh(false);
         this.focusPageHeading();
       });
     });
@@ -149,11 +149,11 @@ export class App {
     this.auth.retrySessionRevocation().subscribe();
   }
 
-  protected refresh(): void {
+  protected refresh(includePlanning = true): void {
     this.workspace.refresh();
     this.shellContext.refresh();
     this.dashboard.refresh();
-    this.planning.refreshActiveView();
+    if (includePlanning) this.planning.refreshActiveView();
     const path = this.router.url.split(/[?#]/, 1)[0];
     if (path === '/candidates') this.masterData.loadCandidates();
     else if (path === '/committee') this.masterData.loadCommittees();

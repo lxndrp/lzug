@@ -63,6 +63,23 @@ describe('PlanningWorkflowService', () => {
     expect(workflow.snapshot()).toBeNull();
   });
 
+  it('waits for authentication before loading a cold deep link', () => {
+    const authState = signal<'checking' | 'authenticated' | 'anonymous'>('checking');
+    const { workflow, port, roundId } = createHarness({ authState });
+    const view = Symbol('planning-view');
+
+    roundId.set(8);
+    workflow.activateView(view, 8);
+    expect(port.loadPlanning).not.toHaveBeenCalled();
+
+    authState.set('authenticated');
+    TestBed.flushEffects();
+
+    expect(port.loadPlanning).toHaveBeenCalledTimes(1);
+    expect(port.loadPlanning).toHaveBeenCalledWith(8);
+    expect(workflow.snapshot()?.round.id).toBe(8);
+  });
+
   it('keeps an accepted mutation bound to its captured round after selection changes', () => {
     const response = new Subject<unknown>();
     const { workflow, port, roundId } = createHarness({
@@ -306,7 +323,7 @@ describe('PlanningWorkflowService', () => {
     );
   });
 
-  it('clears planning state when a session ends and reloads after it is established', () => {
+  it('clears on session changes and reloads once when a session is established', () => {
     const sessionChanges = new Subject<{ previousEstablished: boolean; established: boolean }>();
     const { workflow, port } = createHarness({
       sessionScopeChanges: sessionChanges,
@@ -326,6 +343,8 @@ describe('PlanningWorkflowService', () => {
     sessionChanges.next({ previousEstablished: false, established: true });
 
     expect(port.loadPlanning).toHaveBeenCalledTimes(3);
+    workflow.refreshActiveView();
+    expect(port.loadPlanning).toHaveBeenCalledTimes(4);
     expect(workflow.snapshot()?.round.id).toBe(1);
   });
 
@@ -360,6 +379,10 @@ function createHarness(
     select: (id: number) => roundId.set(id),
   };
   const proposal = { round_id: 1, revision: 2, exam_days: [] };
+  const authState =
+    (overrides['authState'] as
+      ReturnType<typeof signal<'checking' | 'authenticated' | 'anonymous'>> | undefined) ??
+    signal<'checking' | 'authenticated' | 'anonymous'>('authenticated');
   const port = {
     loadPlanning: vi.fn((id: number) => of(emptySnapshot(id))),
     savePlanningSettings: vi.fn(() => of({})),
@@ -389,13 +412,18 @@ function createHarness(
       { provide: SessionScopeService, useValue: sessionScope },
       { provide: ApplicationShellContextService, useValue: { refresh: vi.fn() } },
       { provide: PLANNING_PORT, useValue: port },
-      { provide: AuthService, useValue: { hasCapability: () => true, session: () => null } },
+      {
+        provide: AuthService,
+        useValue: { state: authState, hasCapability: () => true, session: () => null },
+      },
       { provide: UiFeedbackService, useValue: feedback },
     ],
   });
+  const workflow = TestBed.inject(PlanningWorkflowService);
+  TestBed.flushEffects();
 
   return {
-    workflow: TestBed.inject(PlanningWorkflowService),
+    workflow,
     port,
     feedback,
     roundId,
