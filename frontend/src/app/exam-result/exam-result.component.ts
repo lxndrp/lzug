@@ -42,6 +42,7 @@ export class ExamResultComponent implements OnChanges {
   @Input({ required: true }) slotId!: number;
   @Input() ownMemberId: number | null = null;
   readonly dayRevisionsChanged = output<Record<string, number>>();
+  readonly actionErrorOccurred = output<string>();
 
   protected readonly state = signal<ResultViewState>('loading');
   protected readonly result = signal<ExamResult | null>(null);
@@ -109,7 +110,7 @@ export class ExamResultComponent implements OnChanges {
         ) {
           return;
         }
-        this.accept(result);
+        this.accept(result, preserveFeedback);
         this.state.set('ready');
       },
       error: (error: ApplicationError) => {
@@ -559,7 +560,9 @@ export class ExamResultComponent implements OnChanges {
           return;
         }
         this.busy.set(false);
-        this.error.set(error.message || 'Die Ergebnisaktion konnte nicht gespeichert werden.');
+        const message = error.message || 'Die Ergebnisaktion konnte nicht gespeichert werden.';
+        this.error.set(message);
+        this.actionErrorOccurred.emit(message);
       },
     });
   }
@@ -594,11 +597,21 @@ export class ExamResultComponent implements OnChanges {
     );
   }
 
-  private accept(result: ExamResult): void {
+  private accept(result: ExamResult, preserveDrafts = false): void {
+    const previous = this.result();
     this.result.set(result);
     for (const component of result.modelVersion.rules.components) {
       const current = this.currentCommittee(result, component.key);
-      if (current) this.componentPoints.set(component.key, current.points);
+      const previousCurrent = previous
+        ? this.currentCommittee(previous, component.key)
+        : undefined;
+      const draftPoints = this.componentPoints.get(component.key);
+      const preservePoints =
+        preserveDrafts &&
+        draftPoints !== undefined &&
+        draftPoints !== previousCurrent?.points &&
+        draftPoints !== current?.points;
+      if (current && !preservePoints) this.componentPoints.set(component.key, current.points);
     }
     this.externalAreaKey ||= result.modelVersion.rules.externalAreas[0]?.key ?? '';
     this.retentionPeriodStart = result.retention?.periodStart ?? this.retentionPeriodStart;

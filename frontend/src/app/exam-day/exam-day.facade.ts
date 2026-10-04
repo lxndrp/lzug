@@ -41,6 +41,7 @@ export class ExamDayFacade {
   readonly view = signal<ConfirmedPlanDayView | null>(null);
   readonly actionMessage = signal<string | null>(null);
   readonly actionError = signal<string | null>(null);
+  readonly embeddedActionError = signal<string | null>(null);
   readonly savingKeys = signal<Set<string>>(new Set());
   readonly reopeningImpact = signal<ExamDayReopeningImpact | null>(null);
   readonly contextGeneration = signal(0);
@@ -68,6 +69,7 @@ export class ExamDayFacade {
     this.dayId = dayId;
     this.contextSequence += 1;
     this.contextGeneration.update((generation) => generation + 1);
+    this.embeddedActionError.set(null);
     this.load(true);
   }
 
@@ -118,6 +120,7 @@ export class ExamDayFacade {
           return;
         }
         this.view.set(view);
+        this.embeddedActionError.set(null);
         this.state.set('ready');
       },
       error: (error: ApplicationError) => {
@@ -362,6 +365,7 @@ export class ExamDayFacade {
           return;
         }
         this.view.set(view);
+        this.embeddedActionError.set(null);
         this.state.set('ready');
       },
       error: () => {
@@ -386,6 +390,10 @@ export class ExamDayFacade {
     this.actionError.set(message);
   }
 
+  showEmbeddedActionError(message: string): void {
+    this.embeddedActionError.set(message);
+  }
+
   private onSessionChange(): void {
     this.contextSequence += 1;
     this.contextGeneration.update((generation) => generation + 1);
@@ -394,6 +402,7 @@ export class ExamDayFacade {
     this.view.set(null);
     this.actionMessage.set(null);
     this.actionError.set(null);
+    this.embeddedActionError.set(null);
     this.savingKeys.set(new Set());
     this.reopeningImpact.set(null);
     if (this.dayId === null) {

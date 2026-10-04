@@ -29,6 +29,10 @@
   </section>
 }
 
+@if (state() !== 'ready' && embeddedActionError(); as message) {
+  <p class="app-exam-day-feedback app-exam-day-feedback-error" role="alert">{{ message }}</p>
+}
+
 @if (view(); as current) {
   <section class="app-panel app-exam-day-view" [hidden]="state() !== 'ready'">
     <header class="app-panel-header app-exam-day-header">
@@ -466,6 +470,7 @@
             [slotId]="slot.id"
             [ownMemberId]="ownMemberId"
             (dayRevisionChanged)="refreshAfterProtocolChange($event)"
+            (actionErrorOccurred)="showEmbeddedActionError($event)"
           />
           <app-exam-result
             [roundId]="current.plan.id"
@@ -475,6 +480,7 @@
             [slotId]="slot.id"
             [ownMemberId]="ownMemberId"
             (dayRevisionsChanged)="refreshAfterResultChange($event)"
+            (actionErrorOccurred)="showEmbeddedActionError($event)"
           />
         }
       }

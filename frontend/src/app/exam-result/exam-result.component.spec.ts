@@ -179,6 +179,28 @@ describe('ExamResultComponent', () => {
     expect(port.get).toHaveBeenCalledTimes(2);
   });
 
+  it('preserves a dirty component-points draft across a day revision reload', () => {
+    const initial = resultFixture({
+      committeeAssessments: [committeeAssessment('78')],
+    });
+    const refreshed = resultFixture({
+      dayRevisions: { '7': 5 },
+      committeeAssessments: [committeeAssessment('82')],
+    });
+    vi.mocked(port.get).mockReturnValueOnce(of(initial)).mockReturnValueOnce(of(refreshed));
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance as unknown as {
+      componentPoints: Map<string, string>;
+    };
+    component.componentPoints.set('documentation', '74');
+    fixture.componentRef.setInput('dayRevision', 5);
+    fixture.detectChanges();
+
+    expect(component.componentPoints.get('documentation')).toBe('74');
+  });
+
   it('hides mutation and export controls without the matching capability', () => {
     TestBed.inject(AuthService).session.update((session) => ({
       ...session!,
@@ -880,5 +902,20 @@ function resultFixture(overrides: Partial<ExamResult> = {}): ExamResult {
       human: '/api/exam-results/41/export.txt',
     },
     ...overrides,
+  };
+}
+
+function committeeAssessment(points: string): ExamResult['committeeAssessments'][number] {
+  return {
+    id: 71,
+    componentKey: 'documentation',
+    revision: 1,
+    points,
+    rationale: 'Beschluss',
+    participantMemberIds: [1, 2],
+    vote: { yes: [1, 2], no: [], abstain: [] },
+    dissent: [],
+    status: 'current',
+    determinedAt: '2026-09-30T12:00:00Z',
   };
 }

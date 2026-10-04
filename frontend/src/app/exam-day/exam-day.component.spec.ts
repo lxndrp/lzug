@@ -10,7 +10,7 @@ import { AuthService } from '../auth/auth.service';
 import { ExamProtocolComponent } from '../exam-protocol/exam-protocol.component';
 import { EXAM_PROTOCOL_PORT, type ExamProtocolPort } from '../exam-protocol/exam-protocol.port';
 import type { ExamProtocol } from '../exam-protocol/exam-protocol.models';
-import { EXAM_RESULT_PORT, type ExamResultPort } from '../exam-result/exam-result.port';
+import { EXAM_RESULT_PORT } from '../exam-result/exam-result.port';
 import { PERSONAL_PORT, type PersonalPort } from '../personal/personal.port';
 import type { PersonalAbsenceReport } from '../personal/personal.models';
 import { EXAM_DAY_PORT, type ExamDayPort } from './exam-day.port';
@@ -120,6 +120,13 @@ describe('ExamDayComponent', () => {
     fixture.detectChanges();
 
     expect(childState.error()).toBe('Die Tagesrevision wurde geändert.');
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      'Die Tagesrevision wurde geändert.',
+    );
+    const dayViewElement = (fixture.nativeElement as HTMLElement).querySelector(
+      '.app-exam-day-view',
+    );
+    expect(dayViewElement?.hasAttribute('hidden')).toBe(true);
     expect(fixture.debugElement.query(By.directive(ExamProtocolComponent)).componentInstance).toBe(
       child,
     );

@@ -42,6 +42,7 @@ export class ExamProtocolComponent implements OnChanges {
   @Input({ required: true }) slotId!: number;
   @Input() ownMemberId: number | null = null;
   readonly dayRevisionChanged = output<{ roundId: number; dayId: number; revision: number }>();
+  readonly actionErrorOccurred = output<string>();
 
   protected readonly state = signal<ProtocolState>('loading');
   protected readonly protocol = signal<ExamProtocol | null>(null);
@@ -305,7 +306,9 @@ export class ExamProtocolComponent implements OnChanges {
           return;
         }
         this.busy.set(false);
-        this.error.set(error.message || 'Die Protokollaktion konnte nicht gespeichert werden.');
+        const message = error.message || 'Die Protokollaktion konnte nicht gespeichert werden.';
+        this.error.set(message);
+        this.actionErrorOccurred.emit(message);
       },
     });
   }

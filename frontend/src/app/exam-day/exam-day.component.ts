@@ -42,6 +42,7 @@ export class ExamDayComponent implements OnChanges {
   protected readonly view = this.examDay.view;
   protected readonly actionMessage = this.examDay.actionMessage;
   protected readonly actionError = this.examDay.actionError;
+  protected readonly embeddedActionError = this.examDay.embeddedActionError;
   protected readonly savingKeys = this.examDay.savingKeys;
   protected readonly drafts = new Map<string, AttendanceDraft>();
   protected readonly executionDrafts = new Map<number, ExecutionStatusDraft>();
@@ -632,6 +633,10 @@ export class ExamDayComponent implements OnChanges {
   }): void {
     if (change.roundId !== this.roundId) return;
     this.examDay.refreshAfterEmbeddedMutation(change.dayId, change.revision);
+  }
+
+  protected showEmbeddedActionError(message: string): void {
+    this.examDay.showEmbeddedActionError(message);
   }
 
   protected refreshAfterResultChange(dayRevisions: Record<string, number>): void {
