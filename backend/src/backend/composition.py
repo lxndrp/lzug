@@ -36,8 +36,8 @@ from backend.persistence.notifications import (
     SQLiteNotificationDeliveryUnitOfWorkFactory,
     SQLiteNotificationUnitOfWorkFactory,
 )
-from backend.persistence.sqlite_exam_venues import SQLiteExamVenueRepository
 from backend.persistence.planning_resources import SQLitePlanningResourceUnitOfWorkFactory
+from backend.persistence.sqlite_exam_venues import SQLiteExamVenueRepository
 from backend.planning.candidate_days import CandidateDayService
 from backend.planning.exam_venues import ExamVenuePolicy, ExamVenueService
 from backend.planning.venue_consequences import VenueConsequenceService

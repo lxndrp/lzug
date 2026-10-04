@@ -35,12 +35,12 @@ from backend.integrations.map_provider import (
 from backend.integrations.notification_delivery import NotificationProviderConfigurationError
 from backend.persistence.database import persistence_paths
 from backend.planning import ConfirmedPlanConflictError, PlanConflictError, PlanValidationError
+from backend.planning.resources import RoundCandidateInUseError
 from backend.planning_ports import (
     ExamVenueConfirmationRequiredError,
     ExamVenueConflictError,
     ExamVenueInUseError,
 )
-from backend.planning.resources import RoundCandidateInUseError
 
 from .api_contracts import (
     ApiRootResponse,
