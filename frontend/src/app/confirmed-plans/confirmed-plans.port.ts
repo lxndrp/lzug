@@ -4,12 +4,14 @@ import { Observable } from 'rxjs';
 import type {
   ConfirmedPlan,
   ConfirmedPlanRevision,
+  ConfirmedPlansBoard,
   EditableConfirmedPlan,
 } from './confirmed-plans.models';
 
 /** Confirmed-plan queries and revision commands required by the feature. */
 export interface ConfirmedPlansPort {
   list(): Observable<ConfirmedPlan[]>;
+  loadEditorReferences(roundId: number): Observable<ConfirmedPlansBoard>;
   getEditable(roundId: number): Observable<EditableConfirmedPlan>;
   saveEditable(
     roundId: number,
