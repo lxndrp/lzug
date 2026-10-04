@@ -284,6 +284,8 @@ export class ExamDayFacade {
           !this.isActionContextCurrent(context) ||
           previewSequence !== this.previewSequence
         ) {
+          return;
+        }
         this.savingKeys.set(new Set());
         this.actionError.set(
           this.applicationError(error, 'Die Auswirkungen konnten nicht ermittelt werden.'),
