@@ -5,6 +5,7 @@ import json
 import shutil
 import sys
 import tempfile
+from collections.abc import Callable
 from contextlib import AbstractContextManager
 from copy import deepcopy
 from dataclasses import dataclass
@@ -15,9 +16,17 @@ from typing import Any, Protocol
 
 from fastapi.testclient import TestClient
 
+from backend.composition import (
+    exam_venue_api,
+    exam_venue_service,
+)
+from backend.composition import (
+    notification_service as compose_notification_service,
+)
 from backend.fastapi_assembly import FastAPIConfig, create_app
-from backend.identity.auth import AuthenticationRepository, SessionCredentials
 from backend.integrations.map_provider import MapProviderConfig
+from backend.notifications.service import NotificationService
+from backend.persistence.auth import SessionCredentials, SQLiteAuthenticationRepository
 from backend.persistence.database import initialize, is_ready, session_scope
 from backend.persistence.models import COMMITTEE
 from backend.persistence.store import Store
@@ -27,6 +36,41 @@ from backend.security import RequestRateLimiter
 _DATABASE_TEMPLATE_DIRECTORY = tempfile.TemporaryDirectory(prefix="lzug-test-databases-")
 _DATABASE_TEMPLATES: dict[tuple[bool, str | None], Path] = {}
 _OPENAPI_DOCUMENT: dict[str, Any] | None = None
+
+
+def notification_service_for_test(db_path: Path) -> NotificationService:
+    """Compose an isolated notification service for tests that exercise effects."""
+    return compose_notification_service(db_path, external_delivery_enabled=False)
+
+
+def notification_service_factory_for_test(
+    db_path: Path,
+) -> Callable[[Path], NotificationService]:
+    """Provide the app-style notification factory contract for direct service tests."""
+    return lambda requested_path: notification_service_for_test(requested_path)
+
+
+def exam_venue_service_for_test(db_path: Path):
+    """Build the venue service with its explicit notifications factory dependency."""
+    return exam_venue_service(
+        db_path, notification_service_factory=notification_service_factory_for_test(db_path)
+    )
+
+
+def venue_consequence_service_for_test(db_path: Path):
+    """Build venue consequences with their explicit notification service dependency."""
+    from backend.planning.venue_consequences import VenueConsequenceService
+
+    return VenueConsequenceService(
+        db_path, notification_service=notification_service_for_test(db_path)
+    )
+
+
+def exam_venue_api_for_test(db_path: Path):
+    """Build the venue transport facade with its explicit notification factory."""
+    return exam_venue_api(
+        db_path, notification_service_factory=notification_service_factory_for_test(db_path)
+    )
 
 
 def copy_database_template(db_path: Path, seed_sql: str) -> None:
@@ -181,7 +225,7 @@ class FastAPIAdapter(AbstractContextManager):
             app.openapi_schema = deepcopy(_OPENAPI_DOCUMENT)
         self.client = TestClient(app, base_url="http://127.0.0.1")
         if is_ready(self.db_path):
-            self.credentials = AuthenticationRepository(self.db_path).create_session(1)
+            self.credentials = SQLiteAuthenticationRepository(self.db_path).create_session(1)
         return self
 
     def __exit__(self, exc_type, exc_value, traceback) -> None:

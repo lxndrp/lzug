@@ -15,7 +15,7 @@ from backend.execution.exam_protocols import (
     ExamProtocolService,
     create_protocol_for_started_slot,
 )
-from backend.identity.auth import AuthenticationRepository
+from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.persistence.database import initialize, session_scope
 from backend.persistence.models import (
     CandidateExamAttendance,
@@ -37,7 +37,7 @@ class ExamProtocolTests(unittest.TestCase):
     def setUp(self) -> None:
         self.database = TempDatabase()
         self.db_path = self.database.__enter__()
-        self.authentication = AuthenticationRepository(self.db_path)
+        self.authentication = SQLiteAuthenticationRepository(self.db_path)
         self.chair = self.authentication.create_session(1)
         self.examiner = self.authentication.create_session(2)
         outsider = self.authentication.create_account(

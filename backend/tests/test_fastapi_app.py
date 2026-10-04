@@ -4,6 +4,7 @@ import inspect
 import os
 import unittest
 from dataclasses import replace
+from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -11,6 +12,7 @@ from unittest.mock import Mock, patch
 
 from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
+from pydantic import SecretStr
 
 from backend.api_contracts import (
     ApiRootResponse,
@@ -55,10 +57,15 @@ from backend.api_contracts import (
     TokenRequest,
 )
 from backend.application import ApplicationServices
+from backend.composition import notification_service as compose_notification_service
 from backend.fastapi_app import MIGRATED_DOMAIN_RESOURCES
 from backend.fastapi_assembly import FastAPIConfig, create_app
 from backend.fastapi_planning_router import MIGRATED_PLANNING_RESOURCES
-from backend.identity.auth import AuthenticationRepository, SessionCredentials
+from backend.persistence.auth import (
+    SessionCredentials,
+    SQLiteAuthenticationRepository,
+)
+from backend.settings import NotificationSettings, RuntimeSettings
 from backend.tests.helpers import ApiServer, TempDatabase, TestLzugHandler
 
 
@@ -73,6 +80,34 @@ def api_routes(routes):
 
 
 class FastAPIApplicationTests(unittest.TestCase):
+    def test_invalid_vapid_key_is_a_safe_provider_error_not_bad_request(self) -> None:
+        secret_marker = "PRIVATE-VAPID-KEY-MUST-NOT-LEAK"
+        with TempDatabase() as db_path:
+            credentials = SQLiteAuthenticationRepository(db_path).create_session(1)
+            invalid_settings = RuntimeSettings.model_construct(
+                notifications=NotificationSettings.model_construct(
+                    web_push_vapid_private_key=SecretStr(secret_marker),
+                    web_push_subject="mailto:operator@example.invalid",
+                    notification_sink="",
+                    smtp_host=None,
+                )
+            )
+            app = create_app(replace(self.config(db_path), runtime_settings=invalid_settings))
+            app.state.notification_service_factory = lambda path: compose_notification_service(
+                path,
+                external_delivery_enabled=True,
+                settings=invalid_settings,
+            )
+            with TestClient(app) as client:
+                status, body = self.fastapi_get(client, "/api/notification-channels", credentials)
+
+        self.assertEqual(HTTPStatus.SERVICE_UNAVAILABLE, status)
+        self.assertEqual(
+            "notification_provider_configuration_invalid",
+            body["error"]["code"],
+        )
+        self.assertNotIn(secret_marker, str(body))
+
     def test_routes_use_the_extracted_api_contract_models(self) -> None:
         """Keep FastAPI's model identities stable while isolating their type-check scope."""
         from backend import fastapi_app
@@ -202,6 +237,47 @@ class FastAPIApplicationTests(unittest.TestCase):
                 self.assertEqual(expected_health, self.fastapi_get(client, "/api/health"))
                 self.assertEqual(expected_readiness, self.fastapi_get(client, "/api/ready"))
 
+    def test_injected_authentication_repository_is_shared_with_local_login(self) -> None:
+        with TempDatabase() as db_path:
+            selected = SQLiteAuthenticationRepository(db_path)
+            services = replace(ApplicationServices(), authentication_factory=lambda _path: selected)
+            app = create_app(self.config(db_path), services)
+
+            local_auth = app.state.local_auth_service_factory(
+                db_path, session_ttl=app.state.lzug_config.session_ttl, settings=None
+            )
+
+            account = selected.create_account("local-contract@example.invalid")
+            now = datetime.now(UTC)
+            with local_auth.unit_of_work_factory.unit_of_work() as uow:
+                credentials = uow.create_session(account["id"], now, timedelta(minutes=5))
+
+            self.assertIsNotNone(selected.authenticate(credentials.token, now=now))
+
+    def test_custom_authentication_repository_requires_matching_local_auth_factory(self) -> None:
+        with TempDatabase() as db_path:
+            services = replace(ApplicationServices(), authentication_factory=lambda _path: object())
+            app = create_app(self.config(db_path), services)
+
+            with self.assertRaisesRegex(ValueError, "must provide a matching"):
+                app.state.local_auth_service_factory(
+                    db_path, session_ttl=app.state.lzug_config.session_ttl, settings=None
+                )
+
+            local_auth_service = Mock()
+            paired_services = replace(
+                services, local_authentication_factory=lambda _path, **_kwargs: local_auth_service
+            )
+            paired_app = create_app(self.config(db_path), paired_services)
+            self.assertIs(
+                paired_app.state.local_auth_service_factory(
+                    db_path,
+                    session_ttl=paired_app.state.lzug_config.session_ttl,
+                    settings=None,
+                ),
+                local_auth_service,
+            )
+
     def test_health_is_pure_liveness_and_ready_uses_injected_probe(self) -> None:
         readiness_probe = Mock(return_value={"ready": False})
         services = replace(ApplicationServices(), readiness_probe=readiness_probe)
@@ -221,7 +297,7 @@ class FastAPIApplicationTests(unittest.TestCase):
 
     def test_round_summary_matches_authentication_and_committee_contract(self) -> None:
         with TempDatabase() as db_path:
-            authentication = AuthenticationRepository(db_path)
+            authentication = SQLiteAuthenticationRepository(db_path)
             chair = authentication.create_session(1)
             examiner = authentication.create_session(2)
             operator_account = authentication.create_account(

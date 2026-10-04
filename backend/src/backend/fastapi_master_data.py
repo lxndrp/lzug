@@ -391,8 +391,14 @@ def _resource_routes(resolved: FastAPIConfig, resource_name: str):
     )
 
 
-def _register_exam_venue_routes(app, resolved, application, read_security, write_security):
-    venue_api = exam_venue_api(resolved.db_path, resolved.map_provider)
+def _register_exam_venue_routes(
+    app, resolved, application, read_security, write_security, notification_service_factory
+):
+    venue_api = exam_venue_api(
+        resolved.db_path,
+        resolved.map_provider,
+        notification_service_factory=notification_service_factory,
+    )
     _register_exam_venue_change_routes(app, venue_api, read_security, write_security)
     _register_exam_venue_resource_routes(app, venue_api, read_security, write_security)
 
@@ -649,8 +655,14 @@ def _register_exam_venue_resource_routes(app, venue_api, read_security, write_se
         )
 
 
-def _register_exam_room_routes(app, resolved, application, read_security, write_security):
-    venue_api = exam_venue_api(resolved.db_path, resolved.map_provider)
+def _register_exam_room_routes(
+    app, resolved, application, read_security, write_security, notification_service_factory
+):
+    venue_api = exam_venue_api(
+        resolved.db_path,
+        resolved.map_provider,
+        notification_service_factory=notification_service_factory,
+    )
 
     @app.post(
         "/api/exam-venues/{id}/rooms",
@@ -734,8 +746,14 @@ def _register_exam_room_routes(app, resolved, application, read_security, write_
         )
 
 
-def _register_exam_venue_contact_routes(app, resolved, application, read_security, write_security):
-    venue_api = exam_venue_api(resolved.db_path, resolved.map_provider)
+def _register_exam_venue_contact_routes(
+    app, resolved, application, read_security, write_security, notification_service_factory
+):
+    venue_api = exam_venue_api(
+        resolved.db_path,
+        resolved.map_provider,
+        notification_service_factory=notification_service_factory,
+    )
 
     @app.post(
         "/api/exam-venues/{id}/contacts",
@@ -821,8 +839,14 @@ def _register_exam_venue_contact_routes(app, resolved, application, read_securit
         )
 
 
-def _register_legacy_location_routes(app, resolved, application, read_security, write_security):
-    venue_api = exam_venue_api(resolved.db_path, resolved.map_provider)
+def _register_legacy_location_routes(
+    app, resolved, application, read_security, write_security, notification_service_factory
+):
+    venue_api = exam_venue_api(
+        resolved.db_path,
+        resolved.map_provider,
+        notification_service_factory=notification_service_factory,
+    )
 
     @app.get(
         "/api/locations",
@@ -906,11 +930,21 @@ def _register_legacy_location_routes(app, resolved, application, read_security, 
         return legacy_location_write(context, ["locations", str(id)])
 
 
-def _register_venue_routes(app, resolved, application, read_security, write_security):
-    _register_exam_venue_routes(app, resolved, application, read_security, write_security)
-    _register_exam_room_routes(app, resolved, application, read_security, write_security)
-    _register_exam_venue_contact_routes(app, resolved, application, read_security, write_security)
-    _register_legacy_location_routes(app, resolved, application, read_security, write_security)
+def _register_venue_routes(
+    app, resolved, application, read_security, write_security, notification_service_factory
+):
+    _register_exam_venue_routes(
+        app, resolved, application, read_security, write_security, notification_service_factory
+    )
+    _register_exam_room_routes(
+        app, resolved, application, read_security, write_security, notification_service_factory
+    )
+    _register_exam_venue_contact_routes(
+        app, resolved, application, read_security, write_security, notification_service_factory
+    )
+    _register_legacy_location_routes(
+        app, resolved, application, read_security, write_security, notification_service_factory
+    )
 
 
 def _register_resource_routes(app, resolved, application, read_security, write_security):
@@ -1019,15 +1053,15 @@ def create_master_data_router(
     resolved: FastAPIConfig,
     read_security: dict[str, object],
     write_security: dict[str, object],
+    notification_service_factory,
 ) -> APIRouter:
     """Build the router that owns master data and organizational endpoints."""
     router = APIRouter(route_class=BoundedBodyRoute)
-    for registrar in (
-        _register_venue_routes,
-        _register_resource_routes,
-        _register_assignment_routes,
-    ):
-        registrar(router, resolved, None, read_security, write_security)
+    _register_venue_routes(
+        router, resolved, None, read_security, write_security, notification_service_factory
+    )
+    _register_resource_routes(router, resolved, None, read_security, write_security)
+    _register_assignment_routes(router, resolved, None, read_security, write_security)
     return router
 
 
@@ -1043,5 +1077,6 @@ def register_master_data_routes(
         resolved,
         read_security,
         write_security,
+        app.state.notification_service_factory,
     )
     app.include_router(router)

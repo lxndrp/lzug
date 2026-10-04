@@ -4,7 +4,7 @@ import unittest
 from http import HTTPStatus
 
 from backend.application.contract import validate_response
-from backend.identity.auth import AuthenticationRepository
+from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.tests.fixture_data import FIXTURE_IDS, FIXTURE_ROOT
 from backend.tests.helpers import ApiServer, TempDatabase, openapi_document
 
@@ -118,7 +118,7 @@ class ExamVenueHttpTests(unittest.TestCase):
             self.assertEqual(HTTPStatus.FORBIDDEN, status)
             self.assertIsInstance(global_error, dict)
 
-            member = AuthenticationRepository(db_path).create_session(2)
+            member = SQLiteAuthenticationRepository(db_path).create_session(2)
             status, management_error = self.request(
                 api,
                 "POST",
@@ -181,7 +181,7 @@ class ExamVenueHttpTests(unittest.TestCase):
             )
             self.assertEqual(HTTPStatus.CREATED, status)
 
-            auth = AuthenticationRepository(db_path)
+            auth = SQLiteAuthenticationRepository(db_path)
             operator = auth.create_account("operator@example.invalid", is_operator=True)
             operator_session = auth.create_session(operator["id"])
             status, visible = self.request(

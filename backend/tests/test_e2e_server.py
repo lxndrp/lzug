@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 
 from backend.e2e_server import create_e2e_app
 from backend.fastapi_assembly import FastAPIConfig
-from backend.identity.auth import AuthenticationRepository
+from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.tests.helpers import ApiServer, TempDatabase, assert_status
 
 
@@ -36,7 +36,7 @@ class E2EServerTests(unittest.TestCase):
             assert_status(status, HTTPStatus.OK)
             self.assertEqual({"status": "reset"}, response)
 
-            api.credentials = AuthenticationRepository(db_path).create_session(1)
+            api.credentials = SQLiteAuthenticationRepository(db_path).create_session(1)
             status, candidates = api.request("GET", "/api/candidates")
             assert_status(status, HTTPStatus.OK)
             self.assertNotIn(

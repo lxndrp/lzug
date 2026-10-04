@@ -233,6 +233,11 @@ Verwendung des zweiten Faktors.
 TOTP-Replay-Schutz, Recovery-Code-Verbrauch, Kennwort-Rehash und Sessionwechsel
 bleiben Teil einer gemeinsamen Transaktion mit generischen Anmeldefehlern und
 Dummy-Hash-Prüfung für unbekannte Konten oder Konten ohne Kennwort.
+Identity besitzt dafür typisierte Konto-, Token-, Faktor-, Session- und
+Schlüsselzugriffsverträge.
+`persistence.auth` und `persistence.local_auth` halten SQLAlchemy, SQLite und
+Dateizugriff am Adapterrand; der Composition Root wählt die konkreten Adapter.
+Backup und Restore beziehen denselben Instanzschlüssel über den Schlüsseladapter.
 
 `integrations.calendar` ist der heutige Legacy-Pfad für lokale Kalenderlogik:
 `CalendarService` materialisiert bestätigte Zuweisungen als `CalendarEvent`-
@@ -482,10 +487,17 @@ Sync noch Ausgabe.
 Zielverantwortung für Feed-Credentials, lokale Projektion und ICS-Ausgabe ist
 ein eigenständiges `calendar`-Modul.
 `integrations` bleibt konkreten externen Adaptern vorbehalten.
-`integrations.notifications` entscheidet terminale Zustellfälle vor dem
-Providerzugriff und bildet dessen Ergebnis auf den Retry- oder Bestätigungsstatus ab.
-Der Providerzugriff erfolgt nach dem Commit des Claims; nur der weiterhin
-gültige Claim darf Ergebnis und Abonnementinvalidierung speichern.
+`notifications.service` besitzt Empfänger-, Ereignis- und Inhaltsregeln sowie
+Retry-, Fallback- und Claim-Policy.
+Es spricht über typisierte Repository-/UoW-Ports mit der Persistenz und über
+einen Gateway-Port mit dem Provideradapter.
+`integrations.notification_delivery` übersetzt SMTP- und WebPush-Ergebnisse in
+ProviderOutcomes; der SQLite-Adapter liegt unter `persistence.notifications`.
+Der Claim wird vor Provider-I/O committet.
+Nur der weiterhin gültige, nicht abgelaufene Claim darf Ergebnis und
+Abonnementinvalidierung speichern.
+Ob Empfänger und fachliches Ereignis vor dem Versand erneut validiert werden,
+bleibt als Entscheidung in #1079 offen.
 
 `persistence.database` prüft Historienpräfix und Checksummen getrennt von
 Backup, migrationsspezifischer Vorbereitung, SQL-Ausführung und Historiennachweis.
@@ -755,17 +767,18 @@ Die folgende Tabelle ist die kanonische knappe Zuordnung der aktuellen
 Backend-Paketstruktur.
 Abhängigkeiten verlaufen nur in die genannten Zielpakete; der automatisierte
 Architekturtest verhindert nicht zugeordnete Module, unerlaubte Richtungen und
-Zyklen zwischen den acht Kernpaketen.
+Zyklen zwischen den zehn Kernpaketen.
 
 | Paket | Verantwortung | Darf abhängen von |
 | --- | --- | --- |
-| `application/` | frameworkneutrale Use-Case-Orchestrierung, Ressourcenfassade, Transportobjekte und HATEOAS | `assessment`, `execution`, `identity`, `integrations`, `operations`, `persistence`, `planning` |
-| `planning/` | Planaggregate, mögliche Prüfungstage, Prüfungsorte und Folgen bestätigter Änderungen; Kandidatentage beginnen mit einem adapterfreien Port-Pilot | `integrations`, `persistence` (Legacy-Aufrufe) |
-| `execution/` | Ausfall und Ersatz, Protokolle, Tagesabschluss und Rundenlebenszyklus | `identity`, `integrations`, `persistence` |
+| `application/` | frameworkneutrale Use-Case-Orchestrierung, Ressourcenfassade, Transportobjekte und HATEOAS | `assessment`, `execution`, `identity`, `integrations`, `notifications`, `operations`, `persistence`, `planning` |
+| `planning/` | Planaggregate, mögliche Prüfungstage, Prüfungsorte und Folgen bestätigter Änderungen; Kandidatentage beginnen mit einem adapterfreien Port-Pilot | `integrations`, `notifications`, `persistence` (Legacy-Aufrufe) |
+| `execution/` | Ausfall und Ersatz, Protokolle, Tagesabschluss und Rundenlebenszyklus | `identity`, `integrations`, `notifications`, `persistence` |
 | `assessment/` | individuelle Bewertungen und festgestellte Ergebnisse | `execution`, `identity`, `persistence` |
-| `identity/` | Authentisierung, Autorisierung, Mitgliedschaften und lokale Betreiberidentität | `persistence` |
-| `integrations/` | Kalender (Übergangspfad), Benachrichtigungen, Dokumentablage, Feiertage, Kartenanbieter und künftige externe Adapter | `identity`, `persistence` |
-| `persistence/` | Modelle, Datenbank, Migrationen und niedrige Store-Primitive | keine anderen Kernpakete |
+| `identity/` | Authentisierung, Autorisierung, Mitgliedschaften und lokale Betreiberidentität | keine anderen Kernpakete |
+| `integrations/` | Kalender (Übergangspfad), Dokumentablage, Feiertage, Kartenanbieter und künftige externe Adapter | `identity`, `notifications`, `persistence` |
+| `notifications/` | Benachrichtigungsregeln, Zustellpolicy sowie Provider- und Persistenzports | keine anderen Kernpakete |
+| `persistence/` | Modelle, Datenbank, Migrationen und niedrige Store-Primitive | `identity`, `notifications` |
 | `operations/` | Backup und Export, Empfängerverwaltung, Diagnose und Lifecycle | `identity`, `integrations`, `persistence` |
 
 Der Paketroot enthält ausschließlich gemeinsame Runtime-Verträge und die
