@@ -9,6 +9,8 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import TYPE_CHECKING, NamedTuple, cast
 
+from sqlalchemy import select
+
 from backend.persistence.candidate_days import SQLiteCandidateDayUnitOfWork
 from backend.persistence.database import DEFAULT_DB_PATH, read_session_scope, session_scope
 from backend.persistence.models import (
@@ -27,6 +29,7 @@ from backend.persistence.models import (
     MEMBER_AVAILABILITY,
     PLANNING_SETTINGS,
     ROUND_CANDIDATE,
+    ExamResult,
     Resource,
 )
 from backend.persistence.resource_access import SQLiteResourceAccessQueryFactory
@@ -444,9 +447,18 @@ class SQLitePlanningResourceUnitOfWork:
         return self._store.delete(ROUND_CANDIDATE, round_candidate_id)
 
     def round_candidate_is_in_use(self, round_candidate_id: int) -> bool:
-        return any(
+        if any(
             self._store.first(resource, round_candidate_id=round_candidate_id) is not None
             for resource in (CANDIDATE_COMMITTEE_ASSIGNMENT, EXAM_SLOT)
+        ):
+            return True
+        return (
+            self._store.session.scalar(
+                select(ExamResult.id)
+                .where(ExamResult.round_candidate_id == round_candidate_id)
+                .limit(1)
+            )
+            is not None
         )
 
     def assign_candidate_to_round(

@@ -62,7 +62,7 @@ class PlanningRecordValue:
 
 
 class RoundCandidateInUseError(ValueError):
-    """A round candidate cannot be deleted while assignments or slots refer to it."""
+    """A round candidate cannot be deleted while persisted records refer to it."""
 
 
 class PlanningRecord(Protocol):
@@ -853,7 +853,8 @@ class PlanningResourceService:
             self._authorized(unit_of_work, "round_candidate", round_candidate_id, {})
             if unit_of_work.round_candidate_is_in_use(round_candidate_id):
                 raise RoundCandidateInUseError(
-                    "A round candidate with assignment history or scheduled slots cannot be deleted"
+                    "A round candidate with assignment history, scheduled slots, or exam results "
+                    "cannot be deleted"
                 )
             return unit_of_work.delete_round_candidate(round_candidate_id)
 

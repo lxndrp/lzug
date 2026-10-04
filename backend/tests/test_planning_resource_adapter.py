@@ -14,8 +14,11 @@ from backend.persistence.models import (
     CANDIDATE,
     CANDIDATE_COMMITTEE_ASSIGNMENT,
     CANDIDATE_EXAM_DAY,
+    EXAM_DAY,
+    EXAM_SLOT,
     ROUND_CANDIDATE,
     Candidate,
+    ExamResult,
 )
 from backend.persistence.planning_resources import SQLitePlanningResourceUnitOfWorkFactory
 from backend.persistence.store import Store
@@ -93,6 +96,79 @@ class PlanningResourceAdapterTests(unittest.TestCase):
 
             with session_scope(db_path) as session:
                 self.assertIsNotNone(Store(session).get(ROUND_CANDIDATE, round_candidate["id"]))
+
+    def test_round_candidate_with_exam_result_cannot_be_deleted(self) -> None:
+        with TempDatabase() as db_path:
+            with session_scope(db_path, begin_immediate=True) as session:
+                store = Store(session)
+                candidate = store.create(
+                    CANDIDATE,
+                    {
+                        "first_name": "Result",
+                        "last_name": "Candidate",
+                        "ihk_exam_number": "PORT-DELETE-RESULT-CANDIDATE",
+                        "specialization": "system_integration",
+                        "training_company": "Port-Test",
+                    },
+                )
+                round_candidate = store.create(
+                    ROUND_CANDIDATE,
+                    {
+                        "exam_round_id": 1,
+                        "candidate_id": candidate["id"],
+                        "attempt_number": 1,
+                    },
+                )
+                session.add(ExamResult(round_candidate_id=round_candidate["id"]))
+
+            planning = PlanningResourceService(SQLitePlanningResourceUnitOfWorkFactory(db_path))
+            with self.assertRaises(RoundCandidateInUseError):
+                planning.delete_round_candidate(round_candidate["id"])
+
+            with session_scope(db_path) as session:
+                self.assertIsNotNone(Store(session).get(ROUND_CANDIDATE, round_candidate["id"]))
+
+    def test_round_candidate_with_exam_slot_cannot_be_deleted(self) -> None:
+        with TempDatabase() as db_path:
+            with session_scope(db_path, begin_immediate=True) as session:
+                store = Store(session)
+                candidate = store.create(
+                    CANDIDATE,
+                    {
+                        "first_name": "Scheduled",
+                        "last_name": "Candidate",
+                        "ihk_exam_number": "PORT-DELETE-SLOTTED-CANDIDATE",
+                        "specialization": "system_integration",
+                        "training_company": "Port-Test",
+                    },
+                )
+                round_candidate = store.create(
+                    ROUND_CANDIDATE,
+                    {
+                        "exam_round_id": 1,
+                        "candidate_id": candidate["id"],
+                        "attempt_number": 1,
+                    },
+                )
+                exam_day = store.create(
+                    EXAM_DAY,
+                    {"exam_round_id": 1, "room_id": 1, "date": "2026-01-02"},
+                )
+                store.create(
+                    EXAM_SLOT,
+                    {
+                        "exam_day_id": exam_day["id"],
+                        "round_candidate_id": round_candidate["id"],
+                        "slot_type": "regular",
+                        "starts_at": "09:00",
+                        "ends_at": "10:00",
+                        "sequence_number": 99,
+                    },
+                )
+
+            planning = PlanningResourceService(SQLitePlanningResourceUnitOfWorkFactory(db_path))
+            with self.assertRaises(RoundCandidateInUseError):
+                planning.delete_round_candidate(round_candidate["id"])
 
     def test_collection_visibility_reads_are_bounded_above_sqlite_bind_limit(self) -> None:
         candidate_ids = tuple(range(900_000, 901_200))

@@ -20,6 +20,7 @@ from backend.persistence.models import (
     COMMITTEE_MEMBER,
     PERSON,
     ROUND_CANDIDATE,
+    ExamResult,
 )
 from backend.persistence.store import Store
 from backend.tests.fixture_data import DISPLAY_NAMES, FIXTURE_IDS, FIXTURE_ROOT
@@ -98,6 +99,38 @@ class ApiTests(unittest.TestCase):
                         "round_candidate_id": round_candidate["id"],
                     },
                 )
+
+            with ApiServer(db_path) as api:
+                status, body = api.request(
+                    "DELETE", f"/api/round-candidates/{round_candidate['id']}"
+                )
+
+            self.assertEqual(HTTPStatus.CONFLICT, status)
+            self.assertEqual("round_candidate_in_use", body["error"]["code"])
+
+    def test_round_candidate_delete_with_exam_result_returns_conflict(self) -> None:
+        with TempDatabase() as db_path:
+            with session_scope(db_path, begin_immediate=True) as session:
+                store = Store(session)
+                candidate = store.create(
+                    CANDIDATE,
+                    {
+                        "first_name": "Result",
+                        "last_name": "Candidate",
+                        "ihk_exam_number": "API-DELETE-RESULT-CANDIDATE",
+                        "specialization": "system_integration",
+                        "training_company": "API-Test",
+                    },
+                )
+                round_candidate = store.create(
+                    ROUND_CANDIDATE,
+                    {
+                        "exam_round_id": 1,
+                        "candidate_id": candidate["id"],
+                        "attempt_number": 1,
+                    },
+                )
+                session.add(ExamResult(round_candidate_id=round_candidate["id"]))
 
             with ApiServer(db_path) as api:
                 status, body = api.request(
