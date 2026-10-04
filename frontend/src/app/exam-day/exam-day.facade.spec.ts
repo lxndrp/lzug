@@ -154,6 +154,24 @@ describe('ExamDayFacade', () => {
     expect(facade.savingKeys()).toEqual(new Set());
   });
 
+  it('clears an embedded-write acknowledgement when the authenticated session changes', () => {
+    facade.bindContext(1, 7);
+    vi.mocked(port.getConfirmedPlanDay)
+      .mockReturnValueOnce(
+        throwError(() => new ApplicationError('unavailable', 'Refresh fehlgeschlagen.')),
+      )
+      .mockReturnValueOnce(
+        throwError(() => new ApplicationError('unavailable', 'Neuer Session-Read fehlgeschlagen.')),
+      );
+    facade.refreshAfterEmbeddedMutation(7, 2);
+    expect(facade.actionError()).toContain('Änderung wurde gespeichert');
+
+    TestBed.inject(SessionScopeService).establish(session(9));
+
+    expect(facade.state()).toBe('error');
+    expect(facade.actionError()).toBeNull();
+  });
+
   it('invalidates a reopening preview when an embedded capability changes the day', () => {
     const pendingPreview = new Subject<ExamDayReopeningImpact>();
     vi.mocked(port.previewExamDayReopening).mockReturnValueOnce(pendingPreview.asObservable());

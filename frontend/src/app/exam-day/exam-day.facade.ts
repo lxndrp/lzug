@@ -422,6 +422,7 @@ export class ExamDayFacade {
   }
 
   private onSessionChange(): void {
+    this.embeddedWriteRefreshPending = false;
     this.contextSequence += 1;
     this.contextGeneration.update((generation) => generation + 1);
     this.requestSequence += 1;
