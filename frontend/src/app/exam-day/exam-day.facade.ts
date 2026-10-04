@@ -52,11 +52,10 @@ export class ExamDayFacade {
   private requestSequence = 0;
   private contextSequence = 0;
   private previewSequence = 0;
+  private minimumDayRevision: number | null = null;
 
   constructor() {
-    this.sessionScope.changes$
-      .pipe(takeUntilDestroyed())
-      .subscribe(() => this.onSessionChange());
+    this.sessionScope.changes$.pipe(takeUntilDestroyed()).subscribe(() => this.onSessionChange());
     this.destroyRef.onDestroy(() => {
       this.contextSequence += 1;
     });
@@ -67,6 +66,7 @@ export class ExamDayFacade {
     this.hasBoundContext = true;
     this.roundId = roundId;
     this.dayId = dayId;
+    this.minimumDayRevision = null;
     this.contextSequence += 1;
     this.contextGeneration.update((generation) => generation + 1);
     this.embeddedActionError.set(null);
@@ -94,7 +94,7 @@ export class ExamDayFacade {
       });
     }
 
-    if (requestedDayId === null) {
+    if (requestedDayId === null || requestedRoundId === null) {
       this.view.set(null);
       this.state.set('not-found');
       return;
@@ -117,6 +117,13 @@ export class ExamDayFacade {
         if (requestedRoundId !== null && view.plan.id !== requestedRoundId) {
           this.view.set(null);
           this.state.set('not-found');
+          return;
+        }
+        if (this.minimumDayRevision !== null && view.day.revision < this.minimumDayRevision) {
+          this.state.set('error');
+          this.actionError.set(
+            'Die aktualisierten Tagesdaten entsprechen nicht der akzeptierten Revision.',
+          );
           return;
         }
         this.view.set(view);
@@ -270,10 +277,7 @@ export class ExamDayFacade {
     this.actionError.set(null);
     this.port.previewExamDayReopening(dayId, scope).subscribe({
       next: (impact) => {
-        if (
-          !this.isActionContextCurrent(context) ||
-          previewSequence !== this.previewSequence
-        ) {
+        if (!this.isActionContextCurrent(context) || previewSequence !== this.previewSequence) {
           return;
         }
         if (impact.dayId !== context.dayId) {
@@ -291,10 +295,7 @@ export class ExamDayFacade {
         this.reopeningImpact.set(impact);
       },
       error: (error: ApplicationError) => {
-        if (
-          !this.isActionContextCurrent(context) ||
-          previewSequence !== this.previewSequence
-        ) {
+        if (!this.isActionContextCurrent(context) || previewSequence !== this.previewSequence) {
           return;
         }
         this.savingKeys.set(new Set());
@@ -312,29 +313,30 @@ export class ExamDayFacade {
     this.savingKeys.set(new Set([`absence-${assignmentId}`]));
     this.actionMessage.set(null);
     this.actionError.set(null);
-    this.personal
-      .createAbsenceReport({ examDayId: dayId, assignmentId, dayRevision })
-      .subscribe({
-        next: () => {
-          if (!this.isActionContextCurrent(context)) return;
-          this.savingKeys.set(new Set());
-          this.actionMessage.set('Ausfallmeldung gespeichert.');
-          void this.router.navigateByUrl(
-            this.auth.session()?.demo_role ? '/demo-scenarios' : '/absence-reports',
-          );
-        },
-        error: (error: ApplicationError) => {
-          if (!this.isActionContextCurrent(context)) return;
-          this.savingKeys.set(new Set());
-          this.actionError.set(
-            this.applicationError(error, 'Die Ausfallmeldung konnte nicht gespeichert werden.'),
-          );
-        },
-      });
+    this.personal.createAbsenceReport({ examDayId: dayId, assignmentId, dayRevision }).subscribe({
+      next: () => {
+        if (!this.isActionContextCurrent(context)) return;
+        this.savingKeys.set(new Set());
+        this.actionMessage.set('Ausfallmeldung gespeichert.');
+        void this.router.navigateByUrl(
+          this.auth.session()?.demo_role ? '/demo-scenarios' : '/absence-reports',
+        );
+      },
+      error: (error: ApplicationError) => {
+        if (!this.isActionContextCurrent(context)) return;
+        this.savingKeys.set(new Set());
+        this.actionError.set(
+          this.applicationError(error, 'Die Ausfallmeldung konnte nicht gespeichert werden.'),
+        );
+      },
+    });
   }
 
   refreshAfterEmbeddedMutation(dayId: number, minimumRevision?: number): void {
     if (this.dayId !== dayId || this.roundId === null) return;
+    if (minimumRevision !== undefined) {
+      this.minimumDayRevision = Math.max(this.minimumDayRevision ?? 0, minimumRevision);
+    }
     this.previewSequence += 1;
     this.reopeningImpact.set(null);
     this.savingKeys.update((keys) => {
@@ -357,7 +359,7 @@ export class ExamDayFacade {
           this.state.set('not-found');
           return;
         }
-        if (minimumRevision !== undefined && view.day.revision < minimumRevision) {
+        if (this.minimumDayRevision !== null && view.day.revision < this.minimumDayRevision) {
           this.state.set('error');
           this.actionError.set(
             'Die aktualisierten Tagesdaten entsprechen nicht der akzeptierten Revision.',

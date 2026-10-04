@@ -22,6 +22,9 @@
       <span
         >Die bestätigten Daten konnten nicht geladen werden. Bitte versuchen Sie es erneut.</span
       >
+      @if (actionError(); as message) {
+        <p class="app-exam-day-feedback app-exam-day-feedback-error">{{ message }}</p>
+      }
       <button tuiButton appearance="secondary" type="button" (click)="load()">
         Erneut versuchen
       </button>

@@ -91,18 +91,14 @@ export class ExamProtocolComponent implements OnChanges {
     }
     this.sessionScope.forCurrentSession(this.facade.get(dayId, slotId)).subscribe({
       next: (protocol) => {
-        if (
-          !this.isCurrent(sequence, contextSequence, sessionGeneration, roundId, dayId, slotId)
-        ) {
+        if (!this.isCurrent(sequence, contextSequence, sessionGeneration, roundId, dayId, slotId)) {
           return;
         }
         this.accept(protocol, preserveDrafts);
         this.state.set('ready');
       },
       error: (error: ApplicationError) => {
-        if (
-          !this.isCurrent(sequence, contextSequence, sessionGeneration, roundId, dayId, slotId)
-        ) {
+        if (!this.isCurrent(sequence, contextSequence, sessionGeneration, roundId, dayId, slotId)) {
           return;
         }
         this.protocol.set(null);
@@ -229,7 +225,9 @@ export class ExamProtocolComponent implements OnChanges {
         this.exportBusy.set(false);
       },
       error: () => {
-        this.error.set('Der Protokollexport konnte nicht geladen werden.');
+        const message = 'Der Protokollexport konnte nicht geladen werden.';
+        this.error.set(message);
+        this.actionErrorOccurred.emit(message);
         this.exportBusy.set(false);
       },
     });
@@ -294,10 +292,7 @@ export class ExamProtocolComponent implements OnChanges {
         this.accept(protocol);
         this.busy.set(false);
         this.message.set(successMessage);
-        if (
-          protocol.dayRevision !== undefined &&
-          protocol.dayRevision > (this.dayRevision ?? 0)
-        ) {
+        if (protocol.dayRevision !== undefined && protocol.dayRevision > (this.dayRevision ?? 0)) {
           this.dayRevisionChanged.emit({ roundId, dayId, revision: protocol.dayRevision });
         }
       },

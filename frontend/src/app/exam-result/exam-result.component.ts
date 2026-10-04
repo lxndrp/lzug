@@ -105,18 +105,14 @@ export class ExamResultComponent implements OnChanges {
     }
     this.sessionScope.forCurrentSession(this.facade.get(dayId, slotId)).subscribe({
       next: (result) => {
-        if (
-          !this.isCurrent(sequence, contextSequence, sessionGeneration, roundId, dayId, slotId)
-        ) {
+        if (!this.isCurrent(sequence, contextSequence, sessionGeneration, roundId, dayId, slotId)) {
           return;
         }
         this.accept(result, preserveFeedback);
         this.state.set('ready');
       },
       error: (error: ApplicationError) => {
-        if (
-          !this.isCurrent(sequence, contextSequence, sessionGeneration, roundId, dayId, slotId)
-        ) {
+        if (!this.isCurrent(sequence, contextSequence, sessionGeneration, roundId, dayId, slotId)) {
           return;
         }
         this.result.set(null);
@@ -602,9 +598,7 @@ export class ExamResultComponent implements OnChanges {
     this.result.set(result);
     for (const component of result.modelVersion.rules.components) {
       const current = this.currentCommittee(result, component.key);
-      const previousCurrent = previous
-        ? this.currentCommittee(previous, component.key)
-        : undefined;
+      const previousCurrent = previous ? this.currentCommittee(previous, component.key) : undefined;
       const draftPoints = this.componentPoints.get(component.key);
       const preservePoints =
         preserveDrafts &&

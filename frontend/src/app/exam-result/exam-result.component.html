@@ -14,6 +14,13 @@
     }
   </header>
 
+  @if (message(); as currentMessage) {
+    <p class="app-result-success" role="status">{{ currentMessage }}</p>
+  }
+  @if (error(); as currentError) {
+    <p class="app-result-error" role="alert">{{ currentError }}</p>
+  }
+
   @if (state() === 'loading') {
     <p aria-live="polite">Ergebnisprozess wird geladen …</p>
   } @else if (state() === 'not-found') {
@@ -24,13 +31,6 @@
       Erneut versuchen
     </button>
   } @else if (result(); as current) {
-    @if (message(); as currentMessage) {
-      <p class="app-result-success" role="status">{{ currentMessage }}</p>
-    }
-    @if (error(); as currentError) {
-      <p class="app-result-error" role="alert">{{ currentError }}</p>
-    }
-
     <dl class="app-result-model">
       <div>
         <dt>Modellversion</dt>

@@ -944,6 +944,9 @@ Tagesrevision.
 `ExamDayFacade` besitzt Tagesread, Lade-/Fehlerzustand, angenommene Commands
 und bestätigte Antworten für die Lebensdauer der Prüfungstagsansicht;
 die reine `ExamDayApplication`-Weiterleitung entfällt.
+Ein Tagesread setzt gültige Runden- und Tages-IDs voraus. Nach einem
+angenommenen Kindwrite hält die Facade dessen höchste bestätigte Tagesrevision
+über fehlgeschlagene Reads und manuelle Wiederholungen hinweg fest.
 Die Komponente behält ihre Formularentwürfe und Darstellung. Ein Refresh im
 gleichen Runden-/Tageskontext übernimmt neue Serverwerte in unveränderte Drafts,
 bewahrt davon abweichende lokale Drafts und löscht Drafts entfernter Einträge.
@@ -957,6 +960,8 @@ gemountet, damit bereits angenommene Kindcommands ihre verzögerten Antworten
 weiter an Protokoll oder Ergebnis zurückmelden können. Fehler dieser Commands
 werden währenddessen am Prüfungstag sichtbar gehalten. Neue Kindcommands bleiben
 bis zur geladenen Tagesrevision gesperrt.
+Die Fehlerdetails eines bestätigten Kindwrites bleiben außerdem in der
+Prüfungstags-Fehleransicht sichtbar, wenn der Folge-Read scheitert.
 Ein Wechsel nur der Tagesrevision lädt Protokoll und Ergebnis neu, ändert aber
 nicht die Fence eines bereits angenommenen Commands; dessen Antwort kann einen
 Versionskonflikt weiterhin im Ursprungskontext anzeigen. Ein Wechsel von Runde,

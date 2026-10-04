@@ -258,13 +258,16 @@ export class ExamDayComponent implements OnChanges {
       this.examDay.showValidationError('Grund und bisherige Klärungsversuche sind erforderlich.');
       return;
     }
-    this.examDay.closeExamDay({
-      dayId: day.id,
-      revision: day.revision,
-      closureType: this.closureType,
-      reason: this.closureReason,
-      clarificationAttempts: this.clarificationAttempts,
-    }, 'Prüfungstag formal abgeschlossen.');
+    this.examDay.closeExamDay(
+      {
+        dayId: day.id,
+        revision: day.revision,
+        closureType: this.closureType,
+        reason: this.closureReason,
+        clarificationAttempts: this.clarificationAttempts,
+      },
+      'Prüfungstag formal abgeschlossen.',
+    );
   }
 
   protected previewReopening(): void {
@@ -296,14 +299,17 @@ export class ExamDayComponent implements OnChanges {
       );
       return;
     }
-    this.examDay.reopenExamDay({
-      dayId: day.id,
-      revision: day.revision,
-      occasion: this.reopeningOccasion,
-      source: this.reopeningSource,
-      reason: this.reopeningReason,
-      scope: [scope],
-    }, 'Prüfungstag zielgerichtet wieder geöffnet.');
+    this.examDay.reopenExamDay(
+      {
+        dayId: day.id,
+        revision: day.revision,
+        occasion: this.reopeningOccasion,
+        source: this.reopeningSource,
+        reason: this.reopeningReason,
+        scope: [scope],
+      },
+      'Prüfungstag zielgerichtet wieder geöffnet.',
+    );
   }
 
   protected canMutateDayData(kind: string, entityId: number): boolean {
@@ -504,9 +510,7 @@ export class ExamDayComponent implements OnChanges {
   ): void {
     const incoming = this.toAttendanceDraft(attendance ?? { status: 'open', arrivedAt: null });
     const current = this.drafts.get(key);
-    const previous = previousAttendance
-      ? this.toAttendanceDraft(previousAttendance)
-      : undefined;
+    const previous = previousAttendance ? this.toAttendanceDraft(previousAttendance) : undefined;
     if (
       !current ||
       !previous ||
@@ -545,9 +549,7 @@ export class ExamDayComponent implements OnChanges {
     return left.status === right.status && left.arrivedAt === right.arrivedAt;
   }
 
-  private toExecutionStatusDraft(
-    slot: ConfirmedPlanDay['slots'][number],
-  ): ExecutionStatusDraft {
+  private toExecutionStatusDraft(slot: ConfirmedPlanDay['slots'][number]): ExecutionStatusDraft {
     return {
       status: slot.executionStatus,
       reason: slot.statusReason ?? '',

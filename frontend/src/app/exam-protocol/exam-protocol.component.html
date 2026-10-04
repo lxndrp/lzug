@@ -11,6 +11,13 @@
     }
   </header>
 
+  @if (message(); as currentMessage) {
+    <p class="app-protocol-success" role="status">{{ currentMessage }}</p>
+  }
+  @if (error(); as currentError) {
+    <p class="app-protocol-error" role="alert">{{ currentError }}</p>
+  }
+
   @if (state() === 'loading') {
     <p aria-live="polite">Prüfungsprotokoll wird geladen …</p>
   } @else if (state() === 'not-found') {
@@ -21,13 +28,6 @@
       Erneut versuchen
     </button>
   } @else if (protocol(); as current) {
-    @if (message(); as currentMessage) {
-      <p class="app-protocol-success" role="status">{{ currentMessage }}</p>
-    }
-    @if (error(); as currentError) {
-      <p class="app-protocol-error" role="alert">{{ currentError }}</p>
-    }
-
     <p class="app-protocol-warning">
       Nur überprüfbare Tatsachen und Verfahrensabläufe dokumentieren. Keine Bewertungsbegründungen,
       Diagnosen oder sonstigen medizinischen Angaben eintragen.

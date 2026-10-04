@@ -80,13 +80,21 @@ describe('ExamDayComponent', () => {
     ).toBe('Prüfling Plan-Day: Anwesenheit speichern');
   });
 
-  it('keeps a pending protocol command mounted through the parent day refresh', () => {
+  it('keeps pending child feedback visible through parent and child refresh failures', () => {
     const dayRefresh = new Subject<ConfirmedPlanDayView>();
     const startedDay = dayView();
     startedDay.day.slots[0].actualStartedAt = '2026-11-16T08:30:00+01:00';
     vi.mocked(examDay.getConfirmedPlanDay)
       .mockReturnValueOnce(of(startedDay))
-      .mockReturnValueOnce(dayRefresh.asObservable());
+      .mockReturnValueOnce(dayRefresh.asObservable())
+      .mockReturnValueOnce(
+        throwError(() => new ApplicationError('unavailable', 'Tagesreload fehlgeschlagen.')),
+      );
+    vi.mocked(protocolPort.get)
+      .mockReturnValueOnce(of(protocolFixture()))
+      .mockReturnValueOnce(
+        throwError(() => new ApplicationError('unavailable', 'Kindreload fehlgeschlagen.')),
+      );
     const pendingUpdate = new Subject<ExamProtocol>();
     vi.mocked(protocolPort.update).mockReturnValueOnce(pendingUpdate.asObservable());
     fixture.detectChanges();
@@ -104,13 +112,15 @@ describe('ExamDayComponent', () => {
     childState.save();
     expect(protocolPort.update).toHaveBeenCalledTimes(1);
 
-    (fixture.componentInstance as unknown as {
-      refreshAfterProtocolChange(change: {
-        roundId: number;
-        dayId: number;
-        revision: number;
-      }): void;
-    }).refreshAfterProtocolChange({ roundId: 1, dayId: 7, revision: 2 });
+    (
+      fixture.componentInstance as unknown as {
+        refreshAfterProtocolChange(change: {
+          roundId: number;
+          dayId: number;
+          revision: number;
+        }): void;
+      }
+    ).refreshAfterProtocolChange({ roundId: 1, dayId: 7, revision: 2 });
     fixture.detectChanges();
     expect(fixture.debugElement.query(By.directive(ExamProtocolComponent)).componentInstance).toBe(
       child,
@@ -132,6 +142,35 @@ describe('ExamDayComponent', () => {
     );
     childState.save();
     expect(protocolPort.update).toHaveBeenCalledTimes(1);
+
+    const refreshedDay = dayView();
+    refreshedDay.day.slots[0].actualStartedAt = '2026-11-16T08:30:00+01:00';
+    refreshedDay.day.revision = 2;
+    dayRefresh.next(refreshedDay);
+    dayRefresh.complete();
+    fixture.detectChanges();
+
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      'Die Tagesrevision wurde geändert.',
+    );
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      'Das Prüfungsprotokoll konnte nicht geladen werden.',
+    );
+    expect(childState.error()).toBe('Die Tagesrevision wurde geändert.');
+
+    (
+      fixture.componentInstance as unknown as {
+        refreshAfterProtocolChange(change: {
+          roundId: number;
+          dayId: number;
+          revision: number;
+        }): void;
+      }
+    ).refreshAfterProtocolChange({ roundId: 1, dayId: 7, revision: 3 });
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      'Die Änderung wurde gespeichert, aber die aktuelle Tagesansicht konnte nicht geladen werden.',
+    );
   });
 
   it('does not present an unknown day or a day from another round', () => {
@@ -653,9 +692,10 @@ describe('ExamDayComponent', () => {
     expect(candidateDraft).toEqual({ status: 'late', arrivedAt: '2026-11-16T08:24' });
     expect(executionDraft.status).toBe('running');
     expect(executionDraft.actualStartedAt).toBe('2026-11-16T08:30');
-    expect(
-      component.attendanceDraft('member-7', refreshed.day.assignments[0].attendance),
-    ).toEqual({ status: 'late', arrivedAt: '2026-11-16T08:51' });
+    expect(component.attendanceDraft('member-7', refreshed.day.assignments[0].attendance)).toEqual({
+      status: 'late',
+      arrivedAt: '2026-11-16T08:51',
+    });
   });
 
   it('clears attendance and execution drafts when the selected day changes', () => {
@@ -809,7 +849,14 @@ function createExamDayPort(): ExamDayPort {
 }
 
 function createProtocolPort(updateResponse: Subject<ExamProtocol>): ExamProtocolPort {
-  const protocol: ExamProtocol = {
+  return {
+    get: vi.fn(() => of(protocolFixture())),
+    update: vi.fn(() => updateResponse.asObservable()),
+  } as unknown as ExamProtocolPort;
+}
+
+function protocolFixture(): ExamProtocol {
+  return {
     id: 41,
     examSlotId: 7,
     dayRevision: 1,
@@ -840,10 +887,6 @@ function createProtocolPort(updateResponse: Subject<ExamProtocol>): ExamProtocol
     },
     exports: { machineReadable: false, humanReadable: false },
   };
-  return {
-    get: vi.fn(() => of(protocol)),
-    update: vi.fn(() => updateResponse.asObservable()),
-  } as unknown as ExamProtocolPort;
 }
 
 function dayView(

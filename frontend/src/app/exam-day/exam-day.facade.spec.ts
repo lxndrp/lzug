@@ -62,6 +62,14 @@ describe('ExamDayFacade', () => {
     expect(facade.view()).toBeNull();
   });
 
+  it('rejects a day route without its round identity', () => {
+    facade.bindContext(null, 7);
+
+    expect(facade.state()).toBe('not-found');
+    expect(facade.view()).toBeNull();
+    expect(port.getConfirmedPlanDay).not.toHaveBeenCalled();
+  });
+
   it('keeps a command response bound to its original day', () => {
     const pendingCommand = new Subject<ConfirmedPlanDayView>();
     vi.mocked(port.saveCandidateAttendance).mockReturnValueOnce(pendingCommand.asObservable());
@@ -147,6 +155,31 @@ describe('ExamDayFacade', () => {
     expect(facade.actionError()).toContain('aktuelle Tagesansicht');
 
     vi.mocked(port.getConfirmedPlanDay).mockReturnValueOnce(of(dayView(7, 1, 2)));
+    facade.load();
+
+    expect(facade.state()).toBe('ready');
+    expect(facade.view()?.day.revision).toBe(2);
+  });
+
+  it('keeps the accepted revision floor through stale retries after a saved write', () => {
+    facade.bindContext(1, 7);
+    vi.mocked(port.getConfirmedPlanDay)
+      .mockReturnValueOnce(
+        throwError(() => new ApplicationError('unavailable', 'Refresh fehlgeschlagen.')),
+      )
+      .mockReturnValueOnce(of(dayView(7, 1, 1)))
+      .mockReturnValueOnce(of(dayView(7, 1, 2)));
+
+    facade.refreshAfterEmbeddedMutation(7, 2);
+    expect(facade.state()).toBe('error');
+    expect(facade.actionError()).toContain('akzeptierten Revision');
+
+    facade.load();
+
+    expect(facade.state()).toBe('error');
+    expect(facade.view()?.day.revision).toBe(1);
+    expect(facade.actionError()).toContain('akzeptierten Revision');
+
     facade.load();
 
     expect(facade.state()).toBe('ready');
