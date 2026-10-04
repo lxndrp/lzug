@@ -12,7 +12,6 @@ from backend.identity.committee_admin import CommitteeAdminService
 from backend.identity.local_auth import LocalAuthService
 from backend.identity.people import IdentityService
 from backend.integrations.holiday_provider import PythonHolidaysProvider
-from backend.integrations.map_provider import planning_requires_confirmed_coordinates
 from backend.integrations.notification_delivery import NotificationDeliveryGateway
 from backend.notifications.service import NotificationService
 from backend.persistence.auth import (
@@ -48,11 +47,13 @@ def candidate_day_service(db_path: Path) -> CandidateDayService:
 
 def planning_resource_unit_of_work_factory(
     db_path: Path,
+    *,
+    require_confirmed_coordinates: bool,
 ) -> SQLitePlanningResourceUnitOfWorkFactory:
-    """Wire Planning master-data commands to SQLite and current room policy."""
+    """Wire Planning commands to SQLite using resolved room policy."""
     return SQLitePlanningResourceUnitOfWorkFactory(
         db_path,
-        require_confirmed_coordinates=planning_requires_confirmed_coordinates(),
+        require_confirmed_coordinates=require_confirmed_coordinates,
     )
 
 

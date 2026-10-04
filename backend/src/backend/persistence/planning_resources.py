@@ -439,6 +439,9 @@ class SQLitePlanningResourceUnitOfWork:
             )
         )
 
+    def delete_round_candidate(self, round_candidate_id: int) -> bool:
+        return self._store.delete(ROUND_CANDIDATE, round_candidate_id)
+
     def assign_candidate_to_round(
         self,
         values: Mapping[str, PlanningValue],

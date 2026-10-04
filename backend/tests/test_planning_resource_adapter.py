@@ -10,7 +10,12 @@ from sqlalchemy import insert, text
 from sqlalchemy.exc import IntegrityError
 
 from backend.persistence.database import session_scope
-from backend.persistence.models import CANDIDATE, CANDIDATE_EXAM_DAY, Candidate
+from backend.persistence.models import (
+    CANDIDATE,
+    CANDIDATE_EXAM_DAY,
+    ROUND_CANDIDATE,
+    Candidate,
+)
 from backend.persistence.planning_resources import SQLitePlanningResourceUnitOfWorkFactory
 from backend.persistence.store import Store
 from backend.planning.resources import (
@@ -21,6 +26,33 @@ from backend.tests.helpers import TempDatabase
 
 
 class PlanningResourceAdapterTests(unittest.TestCase):
+    def test_round_candidate_delete_runs_through_the_planning_adapter(self) -> None:
+        with TempDatabase() as db_path:
+            with session_scope(db_path, begin_immediate=True) as session:
+                store = Store(session)
+                candidate = store.create(
+                    CANDIDATE,
+                    {
+                        "first_name": "Round",
+                        "last_name": "Candidate",
+                        "ihk_exam_number": "PORT-DELETE-ROUND-CANDIDATE",
+                        "specialization": "system_integration",
+                        "training_company": "Port-Test",
+                    },
+                )
+                round_candidate = store.create(
+                    ROUND_CANDIDATE,
+                    {
+                        "exam_round_id": 1,
+                        "candidate_id": candidate["id"],
+                        "attempt_number": 1,
+                    },
+                )
+
+            planning = PlanningResourceService(SQLitePlanningResourceUnitOfWorkFactory(db_path))
+            self.assertTrue(planning.delete_round_candidate(round_candidate["id"]))
+            self.assertFalse(planning.delete_round_candidate(round_candidate["id"]))
+
     def test_collection_visibility_reads_are_bounded_above_sqlite_bind_limit(self) -> None:
         candidate_ids = tuple(range(900_000, 901_200))
         with TempDatabase() as db_path:

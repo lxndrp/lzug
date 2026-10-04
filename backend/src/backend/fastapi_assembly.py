@@ -7,6 +7,7 @@ import json
 from collections.abc import Callable, Mapping
 from dataclasses import replace
 from datetime import timedelta
+from functools import partial
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -176,7 +177,11 @@ def create_app(
         candidate_day_service_factory or compose_candidate_day_service
     )
     app.state.planning_resource_unit_of_work_factory = (
-        planning_resource_unit_of_work_factory or compose_planning_resource_unit_of_work_factory
+        planning_resource_unit_of_work_factory
+        or partial(
+            compose_planning_resource_unit_of_work_factory,
+            require_confirmed_coordinates=resolved.map_provider.active,
+        )
     )
     app.state.resource_access_query_factory = (
         resource_access_query_factory or SQLiteResourceAccessQueryFactory

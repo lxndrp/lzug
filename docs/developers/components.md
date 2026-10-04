@@ -177,6 +177,8 @@ Referenzen werden innerhalb derselben Schreibtransaktion erneut geprüft.
 Planning besitzt Normalisierung und reine Fachvalidierung; der SQLite-Adapter
 liefert dafür materialisierte Referenzfakten und setzt die validierten
 Änderungen mit den relationalen Schreibbedingungen atomar um.
+Auch das Löschen einer Rundenzuordnung läuft über einen Planning-Command;
+die gespeicherte Zugehörigkeit wird innerhalb desselben Schreib-UoW geprüft.
 Die Auswahl der über dieselbe Person und Prüfungstagsdatum zu propagierenden
 Verfügbarkeiten sowie deren Zielwerte ist eine Planning-Policy; der Adapter
 liefert dafür detached Kandidaten-Fakten und schreibt den validierten Plan
@@ -186,6 +188,9 @@ verwendet den bereits eingeführten Candidate-Day-UoW aus #1071 für den
 Planungssnapshot.
 Der Composition Root wählt den Adapter; weder SQLAlchemy-Modelle noch
 Sessions verlassen Persistence.
+Für die Koordinatenpolicy erhält der Adapter den bereits aufgelösten Wert aus
+`FastAPIConfig.map_provider.active` und liest bei Requests keine
+Prozessumgebung erneut ein.
 `PlanningService` für Vorschläge und Revisionen bleibt der bisherige Pfad und
 liegt außerhalb dieser Portmigration.
 

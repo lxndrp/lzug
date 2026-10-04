@@ -117,6 +117,41 @@ class PlanningResourcePortTests(unittest.TestCase):
 
         self.assertEqual(["queries"], events)
 
+    def test_round_candidate_delete_is_authorized_and_runs_in_write_uow(self) -> None:
+        query_snapshot = object()
+        events: list[str] = []
+
+        class FakeUnitOfWork:
+            def authorization_queries(self):
+                events.append("queries")
+                return query_snapshot
+
+            def delete_round_candidate(self, round_candidate_id):
+                events.append(f"delete:{round_candidate_id}")
+                return True
+
+        @contextmanager
+        def unit_of_work_factory(*, write=False):
+            events.append(f"begin:{write}")
+            yield FakeUnitOfWork()
+            events.append("commit")
+
+        def authorize(queries, resource, entity_id, payload):
+            self.assertIs(query_snapshot, queries)
+            self.assertEqual("round_candidate", resource)
+            self.assertEqual(12, entity_id)
+            self.assertEqual({}, payload)
+            events.append("authorize")
+            return payload
+
+        self.assertTrue(
+            PlanningResourceService(unit_of_work_factory, authorize).delete_round_candidate(12)
+        )
+        self.assertEqual(
+            ["begin:True", "queries", "authorize", "delete:12", "commit"],
+            events,
+        )
+
     def test_visible_read_uses_one_unit_of_work_for_record_and_visibility(self) -> None:
         class PlanningRecordStub:
             def __init__(self, values):

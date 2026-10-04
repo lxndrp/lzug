@@ -13,7 +13,13 @@ from unittest.mock import patch
 from sqlalchemy.exc import SAWarning, SQLAlchemyError
 
 from backend.persistence.database import session_scope
-from backend.persistence.models import COMMITTEE, COMMITTEE_MEMBER, PERSON
+from backend.persistence.models import (
+    CANDIDATE,
+    COMMITTEE,
+    COMMITTEE_MEMBER,
+    PERSON,
+    ROUND_CANDIDATE,
+)
 from backend.persistence.store import Store
 from backend.tests.fixture_data import DISPLAY_NAMES, FIXTURE_IDS, FIXTURE_ROOT
 from backend.tests.helpers import (
@@ -30,6 +36,36 @@ class StaticTestHandler(TestLzugHandler):
 
 
 class ApiTests(unittest.TestCase):
+    def test_round_candidate_delete_uses_the_planning_command(self) -> None:
+        with TempDatabase() as db_path:
+            with session_scope(db_path, begin_immediate=True) as session:
+                candidate = Store(session).create(
+                    CANDIDATE,
+                    {
+                        "first_name": "Round",
+                        "last_name": "Candidate",
+                        "ihk_exam_number": "API-DELETE-ROUND-CANDIDATE",
+                        "specialization": "system_integration",
+                        "training_company": "API-Test",
+                    },
+                )
+                round_candidate = Store(session).create(
+                    ROUND_CANDIDATE,
+                    {
+                        "exam_round_id": 1,
+                        "candidate_id": candidate["id"],
+                        "attempt_number": 1,
+                    },
+                )
+
+            with ApiServer(db_path) as api:
+                status, body = api.request(
+                    "DELETE", f"/api/round-candidates/{round_candidate['id']}"
+                )
+
+            assert_status(status, HTTPStatus.NO_CONTENT)
+            self.assertIsNone(body)
+
     def test_foreign_membership_cannot_be_moved_by_payload_scope(self) -> None:
         with TempDatabase() as db_path:
             with session_scope(db_path) as session:

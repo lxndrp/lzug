@@ -316,6 +316,8 @@ class PlanningResourceUnitOfWork(Protocol):
         visible_ids: frozenset[int] | None = None,
     ) -> tuple[PlanningRecord, ...]: ...
 
+    def delete_round_candidate(self, round_candidate_id: int) -> bool: ...
+
     def assign_candidate_to_round(
         self,
         values: Mapping[str, PlanningValue],
@@ -839,6 +841,11 @@ class PlanningResourceService:
         with self._write_unit_of_work() as unit_of_work:
             self._authorized(unit_of_work, "candidate", candidate_id, {})
             return unit_of_work.delete_candidate(candidate_id)
+
+    def delete_round_candidate(self, round_candidate_id: int) -> bool:
+        with self._write_unit_of_work() as unit_of_work:
+            self._authorized(unit_of_work, "round_candidate", round_candidate_id, {})
+            return unit_of_work.delete_round_candidate(round_candidate_id)
 
     def list_candidate_assignments(
         self, filters: Mapping[str, PlanningValue] | None = None
