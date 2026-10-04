@@ -16,6 +16,7 @@ CORE_PACKAGES = frozenset(
         "execution",
         "identity",
         "integrations",
+        "notifications",
         "operations",
         "persistence",
         "presentation",
@@ -69,16 +70,20 @@ ALLOWED_PACKAGE_DEPENDENCIES = {
             "operations",
             "persistence",
             "planning",
+            "notifications",
         }
     ),
     "assessment": frozenset({"execution", "identity", "persistence", "presentation"}),
-    "execution": frozenset({"identity", "integrations", "persistence", "presentation"}),
-    "identity": frozenset({"persistence"}),
-    "integrations": frozenset({"identity", "persistence"}),
+    "execution": frozenset(
+        {"identity", "integrations", "notifications", "persistence", "presentation"}
+    ),
+    "identity": frozenset(),
+    "integrations": frozenset({"identity", "notifications", "persistence"}),
+    "notifications": frozenset(),
     "operations": frozenset({"identity", "integrations", "persistence"}),
-    "persistence": frozenset(),
+    "persistence": frozenset({"identity", "notifications"}),
     "presentation": frozenset(),
-    "planning": frozenset({"integrations", "persistence"}),
+    "planning": frozenset({"integrations", "notifications", "persistence"}),
 }
 
 TEST_OWNERS = {
@@ -143,8 +148,9 @@ TEST_OWNERS = {
         }
     ),
     "integrations": frozenset(
-        {"test_calendar.py", "test_map_provider.py", "test_notifications.py"}
+        {"test_calendar.py", "test_map_provider.py", "test_notification_delivery.py"}
     ),
+    "notifications": frozenset({"test_notifications.py"}),
     "operations": frozenset(
         {
             "test_admin.py",
@@ -242,6 +248,32 @@ class BackendPackageBoundaryTests(unittest.TestCase):
                 )
                 self.assertNotIn("backend.composition", imports)
 
+    def test_notification_consumers_receive_composition_instead_of_importing_it(self) -> None:
+        modules = (
+            "execution/absence.py",
+            "execution/exam_day_closures.py",
+            "execution/exam_round_lifecycle.py",
+            "planning/plan_consequences.py",
+            "planning/venue_consequences.py",
+            "planning/exam_venues.py",
+            "application/exam_venue_api.py",
+        )
+        for relative in modules:
+            with self.subTest(module=relative):
+                tree = ast.parse((BACKEND_ROOT / relative).read_text(encoding="utf-8"))
+                imports = {
+                    alias.name
+                    for node in ast.walk(tree)
+                    if isinstance(node, ast.Import)
+                    for alias in node.names
+                }
+                imports.update(
+                    node.module
+                    for node in ast.walk(tree)
+                    if isinstance(node, ast.ImportFrom) and node.module is not None
+                )
+                self.assertNotIn("backend.composition", imports)
+
     def test_every_backend_module_has_one_responsibility_area(self) -> None:
         self.assertEqual(
             {
@@ -272,6 +304,32 @@ class BackendPackageBoundaryTests(unittest.TestCase):
             leaves = {package for package in remaining if not (graph[package] & remaining)}
             self.assertTrue(leaves, f"cyclic backend package dependencies: {sorted(remaining)}")
             remaining -= leaves
+
+    def test_notifications_policy_has_no_provider_or_persistence_dependencies(self) -> None:
+        forbidden = {
+            "backend.persistence",
+            "backend.integrations",
+            "sqlalchemy",
+            "smtplib",
+            "pywebpush",
+        }
+        for path in sorted((BACKEND_ROOT / "notifications").glob("*.py")):
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            imports = {
+                alias.name
+                for node in ast.walk(tree)
+                if isinstance(node, ast.Import)
+                for alias in node.names
+            }
+            imports.update(
+                node.module
+                for node in ast.walk(tree)
+                if isinstance(node, ast.ImportFrom) and node.module is not None
+            )
+            self.assertFalse(
+                forbidden & imports,
+                f"{path.relative_to(BACKEND_ROOT)} imports provider or persistence details",
+            )
 
     def test_committee_identity_use_case_has_no_transitive_transport_or_persistence_imports(
         self,

@@ -8,7 +8,7 @@ from sqlalchemy import select, text
 
 from backend.composition import authorization_service
 from backend.execution.exam_round_lifecycle import ExamRoundConflictError, ExamRoundLifecycleService
-from backend.identity.auth import AuthenticationRepository
+from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.persistence.database import session_scope
 from backend.persistence.models import (
     CalendarEvent,
@@ -26,14 +26,19 @@ from backend.persistence.models import (
     RoundCandidate,
 )
 from backend.tests.fixture_data import prepare_exam_protocol_scenario
-from backend.tests.helpers import ApiServer, TempDatabase, assert_status
+from backend.tests.helpers import (
+    ApiServer,
+    TempDatabase,
+    assert_status,
+    notification_service_for_test,
+)
 
 
 class ExamRoundLifecycleTests(unittest.TestCase):
     def setUp(self) -> None:
         self.database = TempDatabase()
         self.db_path = self.database.__enter__()
-        authentication = AuthenticationRepository(self.db_path)
+        authentication = SQLiteAuthenticationRepository(self.db_path)
         self.chair = authentication.create_session(1)
         self.examiner = authentication.create_session(2)
         self.deputy = authentication.create_session(3)
@@ -313,13 +318,10 @@ class ExamRoundLifecycleTests(unittest.TestCase):
 
     def test_later_ihk_document_status_remains_allowed_on_a_closed_round(self) -> None:
         prepare_exam_protocol_scenario(self.db_path)
-        self.deputy = AuthenticationRepository(self.db_path).create_session(3)
+        self.deputy = SQLiteAuthenticationRepository(self.db_path).create_session(3)
         with session_scope(self.db_path) as session:
             session.execute(
-                text(
-                    "UPDATE exam_round SET lifecycle_status = 'closed', revision = 2 "
-                    "WHERE id = 2"
-                )
+                text("UPDATE exam_round SET lifecycle_status = 'closed', revision = 2 WHERE id = 2")
             )
 
         payload = {
@@ -348,8 +350,10 @@ class ExamRoundLifecycleTests(unittest.TestCase):
 
     def test_decision_and_reopening_rollback_and_replay_preserve_all_evidence(self) -> None:
         self._make_round_closable()
-        service = ExamRoundLifecycleService(self.db_path)
-        context = AuthenticationRepository(self.db_path).authenticate(self.chair.token)
+        service = ExamRoundLifecycleService(
+            self.db_path, notification_service=notification_service_for_test(self.db_path)
+        )
+        context = SQLiteAuthenticationRepository(self.db_path).authenticate(self.chair.token)
         scope = authorization_service(self.db_path).scope(context)
         close = {"revision": 1, "confirmed": True}
         with (
@@ -406,8 +410,10 @@ class ExamRoundLifecycleTests(unittest.TestCase):
             self.assertEqual(3, session.query(ExamRoundAuditEvent).count())
 
     def test_terminal_candidate_evidence_and_revision_guard_precede_mutation(self) -> None:
-        service = ExamRoundLifecycleService(self.db_path)
-        context = AuthenticationRepository(self.db_path).authenticate(self.chair.token)
+        service = ExamRoundLifecycleService(
+            self.db_path, notification_service=notification_service_for_test(self.db_path)
+        )
+        context = SQLiteAuthenticationRepository(self.db_path).authenticate(self.chair.token)
         scope = authorization_service(self.db_path).scope(context)
         for details in (
             {"terminal_status": "result_communicated"},
@@ -493,8 +499,10 @@ class ExamRoundLifecycleTests(unittest.TestCase):
             )
 
     def test_transferred_status_requires_effective_assignment_in_the_target_round(self) -> None:
-        service = ExamRoundLifecycleService(self.db_path)
-        context = AuthenticationRepository(self.db_path).authenticate(self.chair.token)
+        service = ExamRoundLifecycleService(
+            self.db_path, notification_service=notification_service_for_test(self.db_path)
+        )
+        context = SQLiteAuthenticationRepository(self.db_path).authenticate(self.chair.token)
         scope = authorization_service(self.db_path).scope(context)
         with session_scope(self.db_path) as session:
             target_committee = Committee(

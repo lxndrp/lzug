@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from backend.integrations.calendar import CalendarService
-from backend.integrations.notifications import NotificationService
+from backend.notifications.service import NotificationService
 from backend.persistence.database import DEFAULT_DB_PATH, session_scope
 from backend.persistence.models import (
     ExamDay,
@@ -93,11 +93,12 @@ class VenueConsequenceService:
     def __init__(
         self,
         db_path: Path = DEFAULT_DB_PATH,
-        notification_service: NotificationService | None = None,
+        *,
+        notification_service: NotificationService,
         calendar_service: CalendarService | None = None,
     ) -> None:
         self.db_path = Path(db_path)
-        self.notifications = notification_service or NotificationService(self.db_path)
+        self.notifications = notification_service
         self.calendar = calendar_service or CalendarService(self.db_path)
 
     def preview(

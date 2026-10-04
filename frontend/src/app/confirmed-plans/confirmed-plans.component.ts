@@ -1,6 +1,7 @@
 import {
   Component,
   Input,
+  OnDestroy,
   OnChanges,
   OnInit,
   SimpleChanges,
@@ -8,13 +9,17 @@ import {
   inject,
   signal,
 } from '@angular/core';
+import { toObservable } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 import { TuiButton } from '@taiga-ui/core';
 import { TuiBadge } from '@taiga-ui/kit';
+import { AuthService } from '../auth/auth.service';
+import { SessionScopeService } from '../auth/session-scope.service';
 
 import { ConfirmedPlansWorkflowService } from './confirmed-plans-workflow.service';
 import type { ConfirmedPlan, ConfirmedPlansBoard } from './confirmed-plans.models';
 import { ConfirmedPlanEditorComponent } from './confirmed-plan-editor.component';
+import { Subscription, filter, switchMap, take } from 'rxjs';
 
 export type ViewState = 'loading' | 'ready' | 'error';
 
@@ -24,19 +29,46 @@ export type ViewState = 'loading' | 'ready' | 'error';
   templateUrl: './confirmed-plans.component.html',
   styleUrl: './confirmed-plans.component.css',
 })
-export class ConfirmedPlansComponent implements OnInit, OnChanges {
+export class ConfirmedPlansComponent implements OnInit, OnChanges, OnDestroy {
   private readonly confirmedPlans = inject(ConfirmedPlansWorkflowService);
   private readonly router = inject(Router);
+  private readonly auth = inject(AuthService);
+  private readonly authenticated$ = toObservable(this.auth.state).pipe(
+    filter((state) => state === 'authenticated'),
+  );
+  private readonly sessionScope = inject(SessionScopeService);
+  private readonly sessionChanges = this.sessionScope.changes$.subscribe(({ established }) => {
+    this.editorReferencesGeneration += 1;
+    this.editorReferencesLoad?.unsubscribe();
+    this.editorReferencesLoad = undefined;
+    this.board.set(null);
+    this.editorReferencesState.set('idle');
+    this.plansGeneration += 1;
+    this.plansLoad?.unsubscribe();
+    this.plansLoad = undefined;
+    this.plans.set([]);
+    this.state.set(established ? 'loading' : 'ready');
+    if (!established) return;
+    this.load();
+    if (this.canEditRequested() && this.editRequested() !== null) {
+      this.loadEditorReferences(this.editRequested());
+    }
+  });
 
   @Input() roundId: number | null = null;
   @Input() editRoundId: number | null = null;
-  @Input() board: ConfirmedPlansBoard | null = null;
   @Input() canEdit = false;
+  protected readonly board = signal<ConfirmedPlansBoard | null>(null);
+  protected readonly editorReferencesState = signal<ViewState | 'idle'>('idle');
   protected readonly state = signal<ViewState>('loading');
   protected readonly plans = signal<ConfirmedPlan[]>([]);
   private readonly requestedRoundId = signal<number | null>(null);
   private readonly editRequested = signal<number | null>(null);
   private readonly canEditRequested = signal(false);
+  private editorReferencesLoad?: Subscription;
+  private editorReferencesGeneration = 0;
+  private plansLoad?: Subscription;
+  private plansGeneration = 0;
   protected readonly selectedCommitteeId = signal<number | null>(null);
   protected readonly visiblePlans = computed(() => {
     const roundId = this.requestedRoundId();
@@ -59,6 +91,9 @@ export class ConfirmedPlansComponent implements OnInit, OnChanges {
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['editRoundId']) this.editRequested.set(this.editRoundId);
     if (changes['canEdit']) this.canEditRequested.set(this.canEdit);
+    if (changes['editRoundId'] || changes['canEdit']) {
+      this.loadEditorReferences(this.canEditRequested() ? this.editRequested() : null);
+    }
     if (!changes['roundId']) return;
 
     this.requestedRoundId.set(this.roundId);
@@ -69,20 +104,98 @@ export class ConfirmedPlansComponent implements OnInit, OnChanges {
     this.load();
   }
 
+  ngOnDestroy(): void {
+    this.editorReferencesLoad?.unsubscribe();
+    this.plansLoad?.unsubscribe();
+    this.sessionChanges.unsubscribe();
+  }
+
+  protected retryEditorReferences(): void {
+    this.loadEditorReferences(this.editRequested());
+  }
+
   protected load(): void {
+    const generation = ++this.plansGeneration;
+    this.plansLoad?.unsubscribe();
     this.state.set('loading');
-    this.confirmedPlans.getConfirmedPlans().subscribe({
-      next: (plans) => {
-        this.plans.set(plans);
-        this.selectFirstVisibleCommittee();
-        this.state.set('ready');
-      },
-      error: () => this.state.set('error'),
-    });
+    const sessionGeneration = this.sessionScope.generation();
+    this.plansLoad = this.sessionScope
+      .forCurrentSession(this.confirmedPlans.getConfirmedPlans())
+      .subscribe({
+        next: (plans) => {
+          if (
+            generation !== this.plansGeneration ||
+            sessionGeneration !== this.sessionScope.generation()
+          ) {
+            return;
+          }
+          this.plans.set(plans);
+          this.selectFirstVisibleCommittee();
+          this.state.set('ready');
+        },
+        error: () => {
+          if (
+            generation !== this.plansGeneration ||
+            sessionGeneration !== this.sessionScope.generation()
+          ) {
+            return;
+          }
+          this.state.set('error');
+        },
+      });
   }
 
   private selectFirstVisibleCommittee(): void {
     this.selectedCommitteeId.set(this.visiblePlans()[0]?.committee.id ?? null);
+  }
+
+  private loadEditorReferences(roundId: number | null): void {
+    const generation = ++this.editorReferencesGeneration;
+    this.editorReferencesLoad?.unsubscribe();
+    this.editorReferencesLoad = undefined;
+    this.board.set(null);
+    if (roundId === null || !this.canEditRequested()) {
+      this.editorReferencesState.set('idle');
+      return;
+    }
+
+    this.editorReferencesState.set('loading');
+    let sessionGeneration: number | null = null;
+    this.editorReferencesLoad = this.authenticated$
+      .pipe(
+        take(1),
+        switchMap(() => {
+          sessionGeneration = this.sessionScope.generation();
+          return this.sessionScope.forCurrentSession(
+            this.confirmedPlans.getEditorReferences(roundId),
+          );
+        }),
+      )
+      .subscribe({
+        next: (board) => {
+          if (
+            generation !== this.editorReferencesGeneration ||
+            sessionGeneration === null ||
+            sessionGeneration !== this.sessionScope.generation() ||
+            this.editRequested() !== roundId
+          ) {
+            return;
+          }
+          this.board.set(board);
+          this.editorReferencesState.set('ready');
+        },
+        error: () => {
+          if (
+            generation !== this.editorReferencesGeneration ||
+            sessionGeneration === null ||
+            sessionGeneration !== this.sessionScope.generation() ||
+            this.editRequested() !== roundId
+          ) {
+            return;
+          }
+          this.editorReferencesState.set('error');
+        },
+      });
   }
 
   protected selectCommittee(id: number): void {

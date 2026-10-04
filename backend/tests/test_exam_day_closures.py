@@ -10,7 +10,7 @@ from backend.execution.exam_day_closures import (
     ExamDayClosureService,
     ExamDayConflictError,
 )
-from backend.identity.auth import AuthenticationRepository
+from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.persistence.database import session_scope
 from backend.persistence.models import (
     ExamDay,
@@ -21,7 +21,12 @@ from backend.persistence.models import (
     Notification,
 )
 from backend.tests.fixture_data import prepare_exam_protocol_scenario
-from backend.tests.helpers import ApiServer, TempDatabase, assert_status
+from backend.tests.helpers import (
+    ApiServer,
+    TempDatabase,
+    assert_status,
+    notification_service_for_test,
+)
 
 
 class ExamDayClosureTests(unittest.TestCase):
@@ -29,7 +34,7 @@ class ExamDayClosureTests(unittest.TestCase):
         self.database = TempDatabase()
         self.db_path = self.database.__enter__()
         prepare_exam_protocol_scenario(self.db_path)
-        authentication = AuthenticationRepository(self.db_path)
+        authentication = SQLiteAuthenticationRepository(self.db_path)
         self.chair = authentication.create_session(1)
         self.examiner = authentication.create_session(2)
         self.deputy = authentication.create_session(3)
@@ -48,7 +53,12 @@ class ExamDayClosureTests(unittest.TestCase):
     def test_closure_evaluation_keeps_finding_order(self) -> None:
         with session_scope(self.db_path) as session:
             evaluation = ExamDayClosureService._evaluate(
-                ExamDayClosureService(self.db_path), session, session.get(ExamDay, 2)
+                ExamDayClosureService(
+                    self.db_path,
+                    notification_service=notification_service_for_test(self.db_path),
+                ),
+                session,
+                session.get(ExamDay, 2),
             )
         self.assertEqual(
             [
@@ -565,7 +575,7 @@ class ExamDayClosureTests(unittest.TestCase):
         for name, finding_code, statement in scenarios:
             with self.subTest(prerequisite=name), TempDatabase() as db_path:
                 prepare_exam_protocol_scenario(db_path)
-                authentication = AuthenticationRepository(db_path)
+                authentication = SQLiteAuthenticationRepository(db_path)
                 chair = authentication.create_session(1)
                 with session_scope(db_path) as session:
                     session.execute(text(statement))

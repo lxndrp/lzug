@@ -426,6 +426,7 @@ describe('App', () => {
 
     await router.navigateByUrl('/scheduling-overview/1');
     fixture.detectChanges();
+    flushPlanningRequests(http);
 
     expect(router.url).toBe('/scheduling-overview/1');
     expect((fixture.nativeElement as HTMLElement).querySelector('h1')?.textContent).toContain(
@@ -434,6 +435,21 @@ describe('App', () => {
     expect((fixture.nativeElement as HTMLElement).textContent).toContain(
       'Aktueller Prüfungskontext',
     );
+  });
+
+  it('includes the active planning feature in the application refresh', () => {
+    const fixture = TestBed.createComponent(App);
+    const http = TestBed.inject(HttpTestingController);
+    flushDashboardRequests(http);
+    const planning = TestBed.inject(PlanningWorkflowService);
+    const refreshSpy = vi.spyOn(planning, 'refreshActiveView');
+    const app = fixture.componentInstance as unknown as { refresh(): void };
+
+    app.refresh();
+
+    expect(refreshSpy).toHaveBeenCalledOnce();
+    flushDashboardRequests(http);
+    fixture.destroy();
   });
 
   it('updates title and focus from route data after browser navigation', async () => {
@@ -1032,6 +1048,27 @@ function flushDashboardRequests(http: HttpTestingController, round = examRoundFi
   const locationRequests = http.match('/api/locations');
   expect(locationRequests.length).toBe(2);
   locationRequests.forEach((request) => request.flush({ items: locationsFixture, _links: {} }));
+}
+
+function flushPlanningRequests(http: HttpTestingController): void {
+  http.expectOne('/api/exam-rounds/1').flush(examRoundFixture);
+  http.expectOne('/api/round-summary?round_id=1').flush(summaryFixture);
+  http.expectOne('/api/exam-days?round_id=1').flush({ items: examDaysFixture, _links: {} });
+  http.expectOne('/api/exam-slots').flush({ items: examSlotsFixture, _links: {} });
+  http.expectOne('/api/exam-day-assignments').flush({ items: assignmentsFixture, _links: {} });
+  http.expectOne('/api/members').flush({ items: membersFixture, _links: {} });
+  http.expectOne('/api/locations').flush({ items: locationsFixture, _links: {} });
+  http.expectOne('/api/candidates').flush({ items: candidatesFixture, _links: {} });
+  http.expectOne('/api/round-candidates?round_id=1&is_active=1').flush({
+    items: roundCandidatesFixture,
+    _links: {},
+  });
+  http
+    .expectOne('/api/candidate-exam-days?round_id=1')
+    .flush({ items: candidateDaysFixture, _links: {} });
+  http
+    .expectOne('/api/member-availabilities?round_id=1')
+    .flush({ items: availabilitiesFixture, _links: {} });
 }
 
 function flushLocationRead(http: HttpTestingController): void {

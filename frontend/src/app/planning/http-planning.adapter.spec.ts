@@ -107,7 +107,7 @@ describe('HttpPlanningAdapter', () => {
       ],
     });
 
-    const result = await firstValueFrom(TestBed.inject(HttpPlanningAdapter).getPlanningProposal());
+    const result = await firstValueFrom(TestBed.inject(HttpPlanningAdapter).getPlanningProposal(8));
 
     expect(result).toEqual({
       round_id: 8,

@@ -1,7 +1,9 @@
 import { Injectable, inject } from '@angular/core';
-import { map } from 'rxjs';
+import { forkJoin, map } from 'rxjs';
 
 import { ConfirmedPlanApiService } from './confirmed-plan-api.service';
+import { MasterDataApiService } from './master-data-api.service';
+import { PlanningApiService } from './planning-api.service';
 import type {
   ConfirmedPlan as ApiConfirmedPlan,
   ConfirmedPlanRevision as ApiConfirmedPlanRevision,
@@ -18,9 +20,45 @@ import type {
 @Injectable({ providedIn: 'root' })
 export class HttpConfirmedPlansAdapter implements ConfirmedPlansPort {
   private readonly api = inject(ConfirmedPlanApiService);
+  private readonly masterData = inject(MasterDataApiService);
+  private readonly planning = inject(PlanningApiService);
 
   list() {
     return this.api.getConfirmedPlans().pipe(map((plans) => plans.map(fromApiConfirmedPlan)));
+  }
+
+  loadEditorReferences(roundId: number) {
+    return forkJoin({
+      candidates: this.masterData.getCandidateViews(roundId),
+      members: this.masterData.getCommitteeMembers(),
+      locations: this.planning.getLocations(),
+    }).pipe(
+      map(({ candidates, members, locations }) => ({
+        candidates: candidates.flatMap(({ candidate, roundCandidate }) =>
+          roundCandidate
+            ? [
+                {
+                  roundCandidateId: roundCandidate.id,
+                  firstName: candidate.first_name,
+                  lastName: candidate.last_name,
+                  examNumber: candidate.ihk_exam_number,
+                },
+              ]
+            : [],
+        ),
+        members: members.map((member) => ({
+          id: member.id,
+          firstName: member.first_name,
+          lastName: member.last_name,
+        })),
+        locations: locations.map((location) => ({
+          id: location.id,
+          name: location.name,
+          room: location.room,
+          city: location.city,
+        })),
+      })),
+    );
   }
 
   getEditable(roundId: number) {

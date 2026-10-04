@@ -17,7 +17,12 @@ from backend.persistence.models import (
     MemberAvailability,
     ReplacementResponse,
 )
-from backend.tests.helpers import ApiServer, TempDatabase, assert_status
+from backend.tests.helpers import (
+    ApiServer,
+    TempDatabase,
+    assert_status,
+    notification_service_for_test,
+)
 
 
 def scope(member_id: int, *, management: bool = False) -> AuthorizationScope:
@@ -104,7 +109,9 @@ class AbsenceServiceTests(unittest.TestCase):
         self.database.__exit__(None, None, None)
 
     def test_report_uses_exclusive_fallback_window_and_audit_history(self) -> None:
-        result = AbsenceService(self.db_path).report(
+        result = AbsenceService(
+            self.db_path, notification_service=notification_service_for_test(self.db_path)
+        ).report(
             scope(1),
             {"exam_day_id": self.day_id, "exam_day_assignment_id": self.assignment_id},
             now=datetime(2026, 11, 1, tzinfo=UTC),
@@ -126,7 +133,9 @@ class AbsenceServiceTests(unittest.TestCase):
         )
 
     def test_urgent_report_requests_fallback_and_other_eligible_members(self) -> None:
-        result = AbsenceService(self.db_path).report(
+        result = AbsenceService(
+            self.db_path, notification_service=notification_service_for_test(self.db_path)
+        ).report(
             scope(1),
             {"exam_day_id": self.day_id, "exam_day_assignment_id": self.assignment_id},
             now=datetime(2026, 11, 15, tzinfo=UTC),
@@ -137,7 +146,9 @@ class AbsenceServiceTests(unittest.TestCase):
         self.assertTrue(all(item["urgent"] for item in result["responses"]))
 
     def test_expired_fallback_opens_further_search_and_audits_deadline(self) -> None:
-        service = AbsenceService(self.db_path)
+        service = AbsenceService(
+            self.db_path, notification_service=notification_service_for_test(self.db_path)
+        )
         result = service.report(
             scope(1),
             {"exam_day_id": self.day_id, "exam_day_assignment_id": self.assignment_id},
@@ -158,7 +169,9 @@ class AbsenceServiceTests(unittest.TestCase):
         self.assertIn("replacement_search_opened", audit_types)
 
     def test_selection_is_single_versioned_transition_and_emits_calendar_work(self) -> None:
-        service = AbsenceService(self.db_path)
+        service = AbsenceService(
+            self.db_path, notification_service=notification_service_for_test(self.db_path)
+        )
         result = service.report(
             scope(1),
             {"exam_day_id": self.day_id, "exam_day_assignment_id": self.assignment_id},
@@ -191,7 +204,9 @@ class AbsenceServiceTests(unittest.TestCase):
             self.assertEqual(1, session.query(ReplacementResponse).count())
 
     def test_cancellation_marks_only_the_affected_calendar_assignment(self) -> None:
-        service = AbsenceService(self.db_path)
+        service = AbsenceService(
+            self.db_path, notification_service=notification_service_for_test(self.db_path)
+        )
         result = service.report(
             scope(1),
             {"exam_day_id": self.day_id, "exam_day_assignment_id": self.assignment_id},
@@ -215,7 +230,9 @@ class AbsenceServiceTests(unittest.TestCase):
             self.assertTrue(all(event.status == "cancelled" for event in events))
 
     def test_failed_selection_preserves_assignment_audit_version_and_follow_up_work(self) -> None:
-        service = AbsenceService(self.db_path)
+        service = AbsenceService(
+            self.db_path, notification_service=notification_service_for_test(self.db_path)
+        )
         current = datetime(2026, 11, 1, tzinfo=UTC)
         report = service.report(
             scope(1),
@@ -272,7 +289,9 @@ class AbsenceServiceTests(unittest.TestCase):
 
     def test_member_cannot_report_another_member_absence(self) -> None:
         with self.assertRaises(PermissionError):
-            AbsenceService(self.db_path).report(
+            AbsenceService(
+                self.db_path, notification_service=notification_service_for_test(self.db_path)
+            ).report(
                 scope(2),
                 {"exam_day_id": self.day_id, "exam_day_assignment_id": self.assignment_id},
                 now=datetime(2026, 11, 1, tzinfo=UTC),

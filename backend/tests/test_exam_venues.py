@@ -15,7 +15,7 @@ from backend.planning.exam_venues import (
     ExamVenueService,
     room_is_usable_for_committee,
 )
-from backend.tests.helpers import TempDatabase
+from backend.tests.helpers import TempDatabase, exam_venue_service_for_test
 
 
 class ExamVenueServiceTests(unittest.TestCase):
@@ -54,7 +54,7 @@ class ExamVenueServiceTests(unittest.TestCase):
 
     def test_active_venue_needs_a_confirmed_accessibility_and_active_room(self) -> None:
         with TempDatabase() as db_path:
-            service = ExamVenueService(db_path)
+            service = exam_venue_service_for_test(db_path)
             with self.assertRaisesRegex(ExamVenueError, "created inactive"):
                 service.create_venue(self._venue_payload(is_active=True), actor_member_id=1)
 
@@ -80,7 +80,7 @@ class ExamVenueServiceTests(unittest.TestCase):
 
     def test_venue_names_are_unique_within_a_scope_and_room_names_within_a_venue(self) -> None:
         with TempDatabase() as db_path:
-            service = ExamVenueService(db_path)
+            service = exam_venue_service_for_test(db_path)
             first = service.create_venue(self._venue_payload(), actor_member_id=1)
             with self.assertRaisesRegex(ExamVenueConflictError, "Venue name"):
                 service.create_venue(self._venue_payload(street="Hafenstraße 2"), actor_member_id=1)
@@ -100,7 +100,7 @@ class ExamVenueServiceTests(unittest.TestCase):
 
     def test_contact_associations_are_optional_scoped_and_audited(self) -> None:
         with TempDatabase() as db_path:
-            service = ExamVenueService(db_path)
+            service = exam_venue_service_for_test(db_path)
             venue, room = self._create_active_venue_and_room(service)
             other_venue = service.create_venue(
                 self._venue_payload(name="Prüfungszentrum Süd", street="Elbstraße 3"),
@@ -137,7 +137,7 @@ class ExamVenueServiceTests(unittest.TestCase):
 
     def test_revisions_and_in_use_restrictions_prevent_lost_or_destructive_updates(self) -> None:
         with TempDatabase() as db_path:
-            service = ExamVenueService(db_path)
+            service = exam_venue_service_for_test(db_path)
             venue, _room = self._create_active_venue_and_room(service)
             updated = service.update_venue(
                 venue["id"],
@@ -158,7 +158,7 @@ class ExamVenueServiceTests(unittest.TestCase):
 
     def test_global_active_rooms_are_usable_for_any_committee(self) -> None:
         with TempDatabase() as db_path:
-            service = ExamVenueService(db_path)
+            service = exam_venue_service_for_test(db_path)
             venue = service.create_venue(
                 self._venue_payload(scope="global", committee_id=None, name="Zentraler Ort"),
                 actor_member_id=1,
@@ -179,7 +179,7 @@ class ExamVenueServiceTests(unittest.TestCase):
 
     def test_duplicate_candidates_need_review_and_global_overlap_needs_reason(self) -> None:
         with TempDatabase() as db_path:
-            service = ExamVenueService(db_path)
+            service = exam_venue_service_for_test(db_path)
             service.create_venue(
                 self._venue_payload(
                     scope="global", committee_id=None, name="Prüfungszentrum Hafen"
@@ -223,7 +223,7 @@ class ExamVenueServiceTests(unittest.TestCase):
 
     def test_future_confirmed_appointment_requires_explicit_change_confirmation(self) -> None:
         with TempDatabase() as db_path:
-            service = ExamVenueService(db_path)
+            service = exam_venue_service_for_test(db_path)
             venue, room = self._create_active_venue_and_room(service)
             with session_scope(db_path) as session:
                 from backend.persistence.models import ExamDay, ExamDayAssignment
