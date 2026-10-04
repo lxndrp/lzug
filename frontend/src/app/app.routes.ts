@@ -1,12 +1,11 @@
 import { inject } from '@angular/core';
-import { Router } from '@angular/router';
+import { RedirectCommand, Router } from '@angular/router';
 import type {
   ActivatedRouteSnapshot,
   CanActivateFn,
-  ResolveFn,
   Route,
   Routes,
-  UrlTree,
+  ResolveFn,
 } from '@angular/router';
 
 import { RoundContextService } from './api/round-context.service';
@@ -29,7 +28,7 @@ const routeData = (
   contextual = true,
 ): AppRouteData => ({ view, title, breadcrumb, contextual });
 
-export const roundContextResolver: ResolveFn<number | UrlTree> = (
+export const roundContextResolver: ResolveFn<number | RedirectCommand> = (
   route: ActivatedRouteSnapshot,
 ) => {
   const value = Number(route.paramMap.get('roundId'));
@@ -39,7 +38,7 @@ export const roundContextResolver: ResolveFn<number | UrlTree> = (
     const fallback = route.routeConfig?.path?.startsWith('confirmed-plans')
       ? '/confirmed-plans'
       : '/scheduling-overview';
-    return router.parseUrl(fallback);
+    return new RedirectCommand(router.parseUrl(fallback), { replaceUrl: true });
   }
 
   const context = inject(RoundContextService);

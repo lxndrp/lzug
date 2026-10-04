@@ -5,10 +5,10 @@ import {
   CanActivateFn,
   convertToParamMap,
   provideRouter,
+  RedirectCommand,
   Router,
   type ResolveFn,
   type Route,
-  UrlTree,
   type RouterStateSnapshot,
 } from '@angular/router';
 import { vi } from 'vitest';
@@ -114,7 +114,7 @@ describe('application routes', () => {
       ],
     });
     const resolver = routeFor('scheduling-overview/:roundId').resolve?.['roundId'] as ResolveFn<
-      number | UrlTree
+      number | RedirectCommand
     >;
     const route = {
       paramMap: convertToParamMap({ roundId: '7' }),
@@ -126,30 +126,31 @@ describe('application routes', () => {
     expect(refresh).not.toHaveBeenCalled();
   });
 
-  it('redirects invalid round deep links to their collection routes', () => {
-    TestBed.configureTestingModule({ providers: [provideRouter(routes)] });
-    const resolver = routeFor('scheduling-overview/:roundId').resolve?.['roundId'] as ResolveFn<
-      number | UrlTree
-    >;
-    const planningRoute = {
-      paramMap: convertToParamMap({ roundId: 'foo' }),
-      routeConfig: { path: 'scheduling-overview/:roundId' },
-    } as ActivatedRouteSnapshot;
-    const confirmedPlansRoute = {
-      paramMap: convertToParamMap({ roundId: '0' }),
-      routeConfig: { path: 'confirmed-plans/:roundId' },
-    } as ActivatedRouteSnapshot;
-
-    const planningRedirect = TestBed.runInInjectionContext(() =>
-      resolver(planningRoute, {} as RouterStateSnapshot),
-    );
-    const confirmedPlansRedirect = TestBed.runInInjectionContext(() =>
-      resolver(confirmedPlansRoute, {} as RouterStateSnapshot),
-    );
+  it('redirects invalid round deep links during real router navigation', async () => {
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([
+          { path: 'scheduling-overview', component: RoundDeepLinkProbe },
+          {
+            path: 'scheduling-overview/:roundId',
+            component: RoundDeepLinkProbe,
+            resolve: { roundId: roundContextResolver },
+          },
+          { path: 'confirmed-plans', component: RoundDeepLinkProbe },
+          {
+            path: 'confirmed-plans/:roundId',
+            component: RoundDeepLinkProbe,
+            resolve: { roundId: roundContextResolver },
+          },
+        ]),
+      ],
+    });
     const router = TestBed.inject(Router);
 
-    expect(planningRedirect).toEqual(router.parseUrl('/scheduling-overview'));
-    expect(confirmedPlansRedirect).toEqual(router.parseUrl('/confirmed-plans'));
+    await router.navigateByUrl('/scheduling-overview/foo');
+    expect(router.url).toBe('/scheduling-overview');
+    await router.navigateByUrl('/confirmed-plans/0');
+    expect(router.url).toBe('/confirmed-plans');
   });
 
   it('preserves a protected round deep link while the initial session is established', async () => {

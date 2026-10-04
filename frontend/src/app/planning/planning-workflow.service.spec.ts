@@ -30,6 +30,21 @@ describe('PlanningWorkflowService', () => {
     expect(workflow.snapshot()?.board).toEqual(emptySnapshot(8).board);
   });
 
+  it('reloads only the active planning view on an application refresh', () => {
+    const { workflow, port, roundId } = createHarness();
+    const view = Symbol('planning-view');
+    roundId.set(8);
+    workflow.activateView(view, 8);
+
+    workflow.refreshActiveView();
+
+    expect(port.loadPlanning).toHaveBeenCalledTimes(2);
+    expect(port.loadPlanning).toHaveBeenLastCalledWith(8);
+    workflow.deactivateView(view);
+    workflow.refreshActiveView();
+    expect(port.loadPlanning).toHaveBeenCalledTimes(2);
+  });
+
   it('redirects a stale planning deep link when the round is already confirmed', () => {
     const { workflow } = createHarness({
       loadPlanning: vi.fn((id: number) =>

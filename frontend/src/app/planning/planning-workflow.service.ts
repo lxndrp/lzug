@@ -102,6 +102,12 @@ export class PlanningWorkflowService {
     this.loadPlanning(roundId, view);
   }
 
+  refreshActiveView(): void {
+    const view = this.activeView;
+    const roundId = this.activeRoundId;
+    if (view !== null && roundId !== null) this.loadPlanning(roundId, view);
+  }
+
   deactivateView(view: symbol): void {
     if (this.activeView !== view) return;
     this.endActiveView();
