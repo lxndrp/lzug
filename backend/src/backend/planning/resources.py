@@ -1015,10 +1015,7 @@ class PlanningResourceService:
                 list_method = getattr(unit_of_work, list_method_name)
             records: list[PlanningRecord] = []
             for visible_ids in visibility_pages:
-                if (
-                    visible_ids is not None
-                    and len(visible_ids) > MAX_PLANNING_VISIBILITY_PAGE_SIZE
-                ):
+                if visible_ids is not None and len(visible_ids) > MAX_PLANNING_VISIBILITY_PAGE_SIZE:
                     raise ValueError("Planning visibility page exceeds its maximum size")
                 page_records = (
                     unit_of_work.list_half_years(visible_ids)
