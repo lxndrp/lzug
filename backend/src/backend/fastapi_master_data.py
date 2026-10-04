@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, FastAPI, Request
 
-from backend.application import hateoas
+from backend.application import ForbiddenRequestError, hateoas
 from backend.application.exam_venue_api import ExamVenueApi
 from backend.application.repositories import PLAN_AGGREGATE_RESOURCES, REST_RESOURCES
 from backend.application.transport import RequestContext
@@ -151,7 +151,7 @@ def _resource_collection_route(resolved: FastAPIConfig, resource_name: str, reso
     def get_collection(request: Request, context: ReadContext):
         params = request.query_params
         if resource_name in {"members", "memberships"}:
-            rows = context.repository.member_list(
+            rows = context.identity_service.members(
                 context.resource_filters(resource, params), context.authorization_scope
             )
         elif resource_name == "candidates":
@@ -184,7 +184,7 @@ def _resource_collection_route(resolved: FastAPIConfig, resource_name: str, reso
 def _resource_item_route(resolved: FastAPIConfig, resource_name: str, resource):
     def get_item(context: ReadContext, id: int):
         row = (
-            context.repository.member_get(id, context.authorization_scope)
+            context.identity_service.member(id, context.authorization_scope)
             if resource_name in {"members", "memberships"}
             else context.repository.get_visible(resource, id, context.authorization_scope)
         )
@@ -228,9 +228,23 @@ def _resource_create_route(resolved: FastAPIConfig, resource_name: str, resource
             )
             status = HTTPStatus.OK
         elif resource_name in {"members", "memberships"}:
-            row = context.repository.create_membership(
-                payload, authorization_scope=context.authorization_scope
-            )
+            try:
+                row = context.identity_service.create_membership(
+                    payload,
+                    actor_memberships=context.authorization_scope.member_by_committee,
+                    actor_person_id=context.authorization_scope.person_id,
+                )
+            except PermissionError as error:
+                raise ForbiddenRequestError("Forbidden.") from error
+        elif resource.table == "person":
+            try:
+                row = context.identity_service.create_person(
+                    payload,
+                    actor_memberships=context.authorization_scope.member_by_committee,
+                    actor_person_id=context.authorization_scope.person_id,
+                )
+            except PermissionError as error:
+                raise ForbiddenRequestError("Forbidden.") from error
         else:
             row = context.repository.create(
                 resource, payload, authorization_scope=context.authorization_scope
@@ -242,6 +256,55 @@ def _resource_create_route(resolved: FastAPIConfig, resource_name: str, resource
 
     create.__annotations__["request"] = MASTER_DATA_CONTRACTS[resource_name][0]
     return create
+
+
+def _identity_resource_update(context, resource_name: str, resource, identifier: int, payload):
+    try:
+        if resource_name == "committees":
+            return context.committee_admin_service.update_master_data(
+                identifier,
+                payload,
+                actor_memberships=context.authorization_scope.member_by_committee,
+                actor_person_id=context.authorization_scope.person_id,
+            )
+        if resource_name in {"members", "memberships"}:
+            return context.identity_service.update_membership(
+                identifier,
+                payload,
+                actor_memberships=context.authorization_scope.member_by_committee,
+                actor_person_id=context.authorization_scope.person_id,
+            )
+        return context.identity_service.update_person(
+            identifier,
+            payload,
+            actor_memberships=context.authorization_scope.member_by_committee,
+            actor_person_id=context.authorization_scope.person_id,
+        )
+    except PermissionError as error:
+        raise ForbiddenRequestError("Forbidden.") from error
+
+
+def _identity_resource_delete(context, resource_name: str, resource, identifier: int):
+    try:
+        if resource_name == "committees":
+            return context.committee_admin_service.delete_master_data(
+                identifier,
+                actor_memberships=context.authorization_scope.member_by_committee,
+                actor_person_id=context.authorization_scope.person_id,
+            )
+        if resource_name in {"members", "memberships"}:
+            return context.identity_service.delete_membership(
+                identifier,
+                actor_memberships=context.authorization_scope.member_by_committee,
+                actor_person_id=context.authorization_scope.person_id,
+            )
+        return context.identity_service.delete_person(
+            identifier,
+            actor_memberships=context.authorization_scope.member_by_committee,
+            actor_person_id=context.authorization_scope.person_id,
+        )
+    except PermissionError as error:
+        raise ForbiddenRequestError("Forbidden.") from error
 
 
 def _resource_update_route(resolved: FastAPIConfig, resource_name: str, resource):
@@ -266,10 +329,10 @@ def _resource_update_route(resolved: FastAPIConfig, resource_name: str, resource
             row = context.repository.update_exam_round(
                 identifier, payload, authorization_scope=context.authorization_scope
             )
-        elif resource_name in {"members", "memberships"}:
-            row = context.repository.update_membership(
-                identifier, payload, authorization_scope=context.authorization_scope
-            )
+        elif (
+            resource_name in {"committees", "members", "memberships"} or resource.table == "person"
+        ):
+            row = _identity_resource_update(context, resource_name, resource, identifier, payload)
         else:
             row = context.repository.update(
                 resource,
@@ -300,6 +363,10 @@ def _resource_delete_route(resolved: FastAPIConfig, resource_name: str, resource
             deleted = context.exam_round_lifecycle_service.delete_empty_draft(
                 context.authorization_scope, id
             )
+        elif (
+            resource_name in {"committees", "members", "memberships"} or resource.table == "person"
+        ):
+            deleted = _identity_resource_delete(context, resource_name, resource, id)
         else:
             deleted = context.repository.delete(
                 resource, id, authorization_scope=context.authorization_scope
@@ -324,8 +391,14 @@ def _resource_routes(resolved: FastAPIConfig, resource_name: str):
     )
 
 
-def _register_exam_venue_routes(app, resolved, application, read_security, write_security):
-    venue_api = ExamVenueApi(resolved.db_path, resolved.map_provider)
+def _register_exam_venue_routes(
+    app, resolved, application, read_security, write_security, notification_service_factory
+):
+    venue_api = ExamVenueApi(
+        resolved.db_path,
+        resolved.map_provider,
+        notification_service_factory=notification_service_factory,
+    )
     _register_exam_venue_change_routes(app, venue_api, read_security, write_security)
     _register_exam_venue_resource_routes(app, venue_api, read_security, write_security)
 
@@ -582,8 +655,13 @@ def _register_exam_venue_resource_routes(app, venue_api, read_security, write_se
         )
 
 
-def _register_exam_room_routes(app, resolved, application, read_security, write_security):
-    venue_api = ExamVenueApi(resolved.db_path)
+def _register_exam_room_routes(
+    app, resolved, application, read_security, write_security, notification_service_factory
+):
+    venue_api = ExamVenueApi(
+        resolved.db_path,
+        notification_service_factory=notification_service_factory,
+    )
 
     @app.post(
         "/api/exam-venues/{id}/rooms",
@@ -667,8 +745,13 @@ def _register_exam_room_routes(app, resolved, application, read_security, write_
         )
 
 
-def _register_exam_venue_contact_routes(app, resolved, application, read_security, write_security):
-    venue_api = ExamVenueApi(resolved.db_path)
+def _register_exam_venue_contact_routes(
+    app, resolved, application, read_security, write_security, notification_service_factory
+):
+    venue_api = ExamVenueApi(
+        resolved.db_path,
+        notification_service_factory=notification_service_factory,
+    )
 
     @app.post(
         "/api/exam-venues/{id}/contacts",
@@ -754,8 +837,13 @@ def _register_exam_venue_contact_routes(app, resolved, application, read_securit
         )
 
 
-def _register_legacy_location_routes(app, resolved, application, read_security, write_security):
-    venue_api = ExamVenueApi(resolved.db_path)
+def _register_legacy_location_routes(
+    app, resolved, application, read_security, write_security, notification_service_factory
+):
+    venue_api = ExamVenueApi(
+        resolved.db_path,
+        notification_service_factory=notification_service_factory,
+    )
 
     @app.get(
         "/api/locations",
@@ -839,11 +927,21 @@ def _register_legacy_location_routes(app, resolved, application, read_security, 
         return legacy_location_write(context, ["locations", str(id)])
 
 
-def _register_venue_routes(app, resolved, application, read_security, write_security):
-    _register_exam_venue_routes(app, resolved, application, read_security, write_security)
-    _register_exam_room_routes(app, resolved, application, read_security, write_security)
-    _register_exam_venue_contact_routes(app, resolved, application, read_security, write_security)
-    _register_legacy_location_routes(app, resolved, application, read_security, write_security)
+def _register_venue_routes(
+    app, resolved, application, read_security, write_security, notification_service_factory
+):
+    _register_exam_venue_routes(
+        app, resolved, application, read_security, write_security, notification_service_factory
+    )
+    _register_exam_room_routes(
+        app, resolved, application, read_security, write_security, notification_service_factory
+    )
+    _register_exam_venue_contact_routes(
+        app, resolved, application, read_security, write_security, notification_service_factory
+    )
+    _register_legacy_location_routes(
+        app, resolved, application, read_security, write_security, notification_service_factory
+    )
 
 
 def _register_resource_routes(app, resolved, application, read_security, write_security):
@@ -952,15 +1050,15 @@ def create_master_data_router(
     resolved: FastAPIConfig,
     read_security: dict[str, object],
     write_security: dict[str, object],
+    notification_service_factory,
 ) -> APIRouter:
     """Build the router that owns master data and organizational endpoints."""
     router = APIRouter(route_class=BoundedBodyRoute)
-    for registrar in (
-        _register_venue_routes,
-        _register_resource_routes,
-        _register_assignment_routes,
-    ):
-        registrar(router, resolved, None, read_security, write_security)
+    _register_venue_routes(
+        router, resolved, None, read_security, write_security, notification_service_factory
+    )
+    _register_resource_routes(router, resolved, None, read_security, write_security)
+    _register_assignment_routes(router, resolved, None, read_security, write_security)
     return router
 
 
@@ -976,5 +1074,6 @@ def register_master_data_routes(
         resolved,
         read_security,
         write_security,
+        app.state.notification_service_factory,
     )
     app.include_router(router)

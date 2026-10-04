@@ -6,52 +6,47 @@ import type {
   CandidateDayGenerationResult,
   CandidateExamDay,
   EditablePlanningProposal,
-  ExamRound,
-  ExamRoundUpdate,
-  MemberAvailability,
+  PlanningMemberAvailability,
   PlanningResult,
+  PlanningRound,
+  PlanningRoundUpdate,
   PlanningSettings,
-} from '../api/api.models';
-import type { WithoutHttpLinks } from '../application/without-http-links';
+  PlanningSnapshot,
+} from './planning.models';
 
 /** Commands and proposal queries required by planning workflows. */
 export interface PlanningPort {
+  loadPlanning(roundId: number): Observable<PlanningSnapshot>;
   savePlanningSettings(
     payload: Omit<PlanningSettings, 'id' | 'exam_round_id' | 'updated_by_member_id'>,
     roundId: number,
   ): Observable<PlanningSettings>;
-  updateExamRound(
-    payload: ExamRoundUpdate,
-    roundId: number,
-  ): Observable<WithoutHttpLinks<ExamRound>>;
-  requestAvailabilities(
-    payload: AvailabilityRequest,
-    roundId: number,
-  ): Observable<WithoutHttpLinks<ExamRound>>;
+  updateExamRound(payload: PlanningRoundUpdate, roundId: number): Observable<PlanningRound>;
+  requestAvailabilities(payload: AvailabilityRequest, roundId: number): Observable<PlanningRound>;
   createCandidateExamDay(
     payload: Omit<CandidateExamDay, 'id' | 'exam_round_id'>,
     roundId: number,
   ): Observable<CandidateExamDay>;
-  generateCandidateExamDays(
-    roundId: number,
-  ): Observable<WithoutHttpLinks<CandidateDayGenerationResult>>;
+  generateCandidateExamDays(roundId: number): Observable<CandidateDayGenerationResult>;
   updateCandidateExamDay(
     id: number,
     payload: Partial<Pick<CandidateExamDay, 'is_active'>>,
+    roundId: number,
   ): Observable<CandidateExamDay>;
   saveMemberAvailability(
     payload: Pick<
-      MemberAvailability,
+      PlanningMemberAvailability,
       'committee_member_id' | 'candidate_exam_day_id' | 'availability'
     >,
     roundId: number,
-  ): Observable<MemberAvailability>;
-  generateProposal(): Observable<WithoutHttpLinks<PlanningResult>>;
-  confirmPlan(): Observable<WithoutHttpLinks<PlanningResult>>;
-  getPlanningProposal(): Observable<WithoutHttpLinks<EditablePlanningProposal>>;
+  ): Observable<PlanningMemberAvailability>;
+  generateProposal(roundId: number): Observable<PlanningResult>;
+  confirmPlan(roundId: number): Observable<PlanningResult>;
+  getPlanningProposal(roundId: number): Observable<EditablePlanningProposal>;
   savePlanningProposal(
+    roundId: number,
     proposal: EditablePlanningProposal,
-  ): Observable<WithoutHttpLinks<EditablePlanningProposal>>;
+  ): Observable<EditablePlanningProposal>;
 }
 
 export const PLANNING_PORT = new InjectionToken<PlanningPort>('PLANNING_PORT');

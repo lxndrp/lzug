@@ -1,4 +1,4 @@
-import { InjectionToken, Signal } from '@angular/core';
+import { InjectionToken } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import type {
@@ -56,7 +56,7 @@ export const LOCATIONS_PORT = new InjectionToken<LocationsPort>('LOCATIONS_PORT'
 
 /** Feature read contract for the current examination-location snapshot. */
 export interface LocationsReadPort {
-  readonly snapshot: Signal<LocationSnapshot | null>;
+  load(): Observable<LocationSnapshot>;
 }
 
 export const LOCATIONS_READ_PORT = new InjectionToken<LocationsReadPort>('LOCATIONS_READ_PORT');

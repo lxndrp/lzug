@@ -11,6 +11,10 @@ export class ConfirmedPlansWorkflowService {
     return this.plans.list();
   }
 
+  getEditorReferences(roundId: number) {
+    return this.plans.loadEditorReferences(roundId);
+  }
+
   getEditableConfirmedPlan(roundId: number) {
     return this.plans.getEditable(roundId);
   }

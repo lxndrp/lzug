@@ -8,21 +8,22 @@ from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
 
-from backend.application.repositories import ResourceRepository
-from backend.identity.auth import AuthenticationRepository
-from backend.persistence.models import COMMITTEE
-from backend.tests.helpers import ApiServer, TempDatabase, assert_status
+from backend.identity.auth import AuthContext, SessionCredentials
+from backend.persistence.auth import SQLiteAuthenticationRepository
+from backend.tests.helpers import ApiServer, TempDatabase, assert_status, create_committee_record
 
 
 class AuthenticationTests(unittest.TestCase):
     def test_session_material_is_opaque_and_context_resolves_from_account(self) -> None:
         with TempDatabase() as db_path:
-            repository = AuthenticationRepository(db_path)
+            repository = SQLiteAuthenticationRepository(db_path)
             account = repository.create_account(
                 "New.User@Example.Invalid", person_id=4, is_operator=False
             )
             credentials = repository.create_session(account["id"])
             context = repository.authenticate(credentials.token)
+            self.assertIsInstance(credentials, SessionCredentials)
+            self.assertIsInstance(context, AuthContext)
 
             with closing(sqlite3.connect(db_path)) as connection, connection:
                 row = connection.execute(
@@ -32,14 +33,13 @@ class AuthenticationTests(unittest.TestCase):
 
         self.assertIsNotNone(context)
         self.assertEqual(4, context.person_id)
-        self.assertEqual(4, context.committee_member_id)
         self.assertNotEqual(credentials.token, row[0])
         self.assertNotEqual(credentials.csrf_token, row[1])
         self.assertEqual(hashlib.sha256(credentials.token.encode()).hexdigest(), row[0])
 
     def test_expiration_rotation_logout_and_account_revocation(self) -> None:
         with TempDatabase() as db_path:
-            repository = AuthenticationRepository(db_path)
+            repository = SQLiteAuthenticationRepository(db_path)
             account = repository.get_account(1)
             created_at = datetime(2026, 8, 10, 10, 0, tzinfo=UTC)
             credentials = repository.create_session(
@@ -73,7 +73,7 @@ class AuthenticationTests(unittest.TestCase):
 
     def test_invalid_expired_and_revoked_sessions_are_401(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:
-            repository = AuthenticationRepository(db_path)
+            repository = SQLiteAuthenticationRepository(db_path)
             expired = repository.create_session(
                 1,
                 now=datetime(2020, 1, 1, tzinfo=UTC),
@@ -122,7 +122,7 @@ class AuthenticationTests(unittest.TestCase):
 
     def test_operator_identity_does_not_become_a_domain_actor(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:
-            repository = AuthenticationRepository(db_path)
+            repository = SQLiteAuthenticationRepository(db_path)
             account = repository.create_account("operator@example.invalid", is_operator=True)
             credentials = repository.create_session(account["id"])
             status, error = api.request("GET", "/api/candidates", credentials=credentials)
@@ -132,8 +132,8 @@ class AuthenticationTests(unittest.TestCase):
 
     def test_missing_committee_or_round_membership_is_forbidden(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:
-            committee = ResourceRepository(db_path).create(
-                COMMITTEE, {"name": "Unassigned committee", "occupation": "Test"}
+            committee = create_committee_record(
+                db_path, {"name": "Unassigned committee", "occupation": "Test"}
             )
 
             status, error = api.request(

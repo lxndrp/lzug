@@ -24,9 +24,9 @@ from backend.admin_socket_protocol import (
     read_stream_frame,
     write_data,
 )
-from backend.identity.local_auth import authentication_key
 from backend.operations.backup_restore import ArtifactError
 from backend.persistence.database import activation_scope, initialize
+from backend.persistence.local_auth import SQLiteLocalAuthenticationKey
 from backend.runtime import RuntimeConflictError
 from backend.tests import test_admin_socket as control
 
@@ -98,7 +98,7 @@ class SocketArtifactTests(unittest.TestCase):
     )
     def test_real_go_age_backup_export_verify_restore(self):
         initialize(self.paths.database)
-        authentication_key(self.paths.database)
+        SQLiteLocalAuthenticationKey(self.paths.database).get_key()
         self.start(limit=64 * 1024 * 1024, timeout=30)
         result = subprocess.run(
             [
@@ -370,7 +370,7 @@ class SocketMigrationTests(unittest.TestCase):
 
         self.runtime.stop()
         initialize(self.paths.database)
-        authentication_key(self.paths.database)
+        SQLiteLocalAuthenticationKey(self.paths.database).get_key()
         recipient = recipient or RECIPIENT
         self.fingerprint = recipient_fingerprint(recipient)
         BackupRecipientRepository(self.paths.database).set(recipient, self.fingerprint)

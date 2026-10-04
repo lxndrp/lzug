@@ -12,7 +12,7 @@ from starlette.requests import Request
 
 from backend.application.repositories import ResourceRepository
 from backend.application.transport import RequestContext
-from backend.composition import candidate_day_service
+from backend.composition import authorization_service, candidate_day_service, identity_service
 from backend.fastapi_assembly import FastAPIConfig, create_app
 from backend.fastapi_dependencies import (
     BodyContext,
@@ -23,24 +23,23 @@ from backend.fastapi_dependencies import (
     request_context,
     round_access,
 )
-from backend.identity.auth import AuthenticationRepository
+from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.persistence.database import session_scope
 from backend.persistence.models import (
     CANDIDATE_EXAM_DAY,
-    COMMITTEE,
-    COMMITTEE_MEMBER,
     EXAM_ROUND,
     Committee,
 )
 from backend.planning.candidate_days import GenerateCandidateDays
 from backend.runtime_policy import ProductRuntimePolicy
-from backend.tests.helpers import TempDatabase, openapi_document
+from backend.tests.helpers import TempDatabase, create_committee_record, openapi_document
 
 
 class FastAPIDependencyTests(unittest.TestCase):
     def setUp(self) -> None:
         self.db_path = self.enterContext(TempDatabase())
-        self.auth = AuthenticationRepository(self.db_path)
+        self.repository = ResourceRepository(self.db_path)
+        self.auth = SQLiteAuthenticationRepository(self.db_path)
         self.chair = self.auth.create_session(1)
         self.member = self.auth.create_session(2)
         operator = self.auth.create_account("operator@demo.lzug.invalid", is_operator=True)
@@ -101,12 +100,19 @@ class FastAPIDependencyTests(unittest.TestCase):
             403,
             "Forbidden.",
         )
+        venue_response = self.client.get("/api/exam-venues", headers=self.headers(self.operator))
+        self.assertEqual(200, venue_response.status_code)
+        self.assertIn("committee_name", venue_response.json()["items"][0])
         self.assertEqual(
-            200,
-            self.client.get("/api/exam-venues", headers=self.headers(self.operator)).status_code,
+            403,
+            self.client.get("/api/committees", headers=self.headers(self.operator)).status_code,
         )
-        member_id = self.auth.authenticate(self.member.token).committee_member_id
-        ResourceRepository(self.db_path).update(COMMITTEE_MEMBER, member_id, {"is_active": 0})
+        member_id = min(
+            authorization_service(self.db_path)
+            .scope(self.auth.authenticate(self.member.token))
+            .member_ids
+        )
+        identity_service(self.db_path).update_membership(member_id, {"is_active": 0})
         for path in ("/api/committees", "/api/exam-venues"):
             self.assert_error(
                 self.client.get(path, headers=self.headers(self.member)), 403, "Forbidden."
@@ -138,7 +144,11 @@ class FastAPIDependencyTests(unittest.TestCase):
 
         created = self.client.post("/api/exam-rounds", json=payload, headers=headers)
         self.assertEqual(201, created.status_code, created.text)
-        actor = self.auth.authenticate(self.chair.token).committee_member_id
+        actor = min(
+            authorization_service(self.db_path)
+            .scope(self.auth.authenticate(self.chair.token))
+            .member_ids
+        )
         self.assertEqual(actor, created.json()["created_by_member_id"])
 
     def test_absent_expired_revoked_and_invalid_sessions_never_reach_the_handler(self) -> None:
@@ -259,12 +269,10 @@ class FastAPIDependencyTests(unittest.TestCase):
         fallback = self.app.router.routes.pop()
         self.app.include_router(router)
         self.app.router.routes.append(fallback)
-        repository = ResourceRepository(self.db_path)
-        foreign = repository.create(COMMITTEE, {"name": "Feenwald", "occupation": "FI"})
+        foreign = create_committee_record(self.db_path, {"name": "Feenwald", "occupation": "FI"})
         with session_scope(self.db_path) as session:
             session.get(Committee, foreign["id"]).bootstrap_state = "ready"
-        foreign_member = repository.create(
-            COMMITTEE_MEMBER,
+        foreign_member = identity_service(self.db_path).create_membership(
             {
                 "person_id": self.auth.authenticate(self.member.token).person_id,
                 "committee_id": foreign["id"],
@@ -274,7 +282,7 @@ class FastAPIDependencyTests(unittest.TestCase):
                 "is_active": 1,
             },
         )
-        foreign_round = repository.create(
+        foreign_round = self.repository.create(
             EXAM_ROUND,
             {
                 "committee_id": foreign["id"],
@@ -323,7 +331,7 @@ class FastAPIDependencyTests(unittest.TestCase):
 
     def test_context_uses_runtime_database_and_response_cookies_are_preserved(self) -> None:
         selected = self.enterContext(TempDatabase())
-        selected_auth = AuthenticationRepository(selected)
+        selected_auth = SQLiteAuthenticationRepository(selected)
         credentials = selected_auth.create_session(1)
         calls = []
 
@@ -383,7 +391,7 @@ class FastAPIDependencyTests(unittest.TestCase):
         }
         tokens = {}
         for name, db_path in databases.items():
-            tokens[name] = AuthenticationRepository(db_path).create_session(1).token
+            tokens[name] = SQLiteAuthenticationRepository(db_path).create_session(1).token
             ResourceRepository(db_path).save_planning_settings(
                 {
                     "exam_round_id": 1,

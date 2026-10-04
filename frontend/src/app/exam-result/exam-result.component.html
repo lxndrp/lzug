@@ -4,7 +4,7 @@
       <p class="app-eyebrow">Bewertung und Ergebnis</p>
       <h4 [id]="'result-heading-' + slotId">Regelgebundener Ergebnisprozess</h4>
     </div>
-    @if (result(); as current) {
+    @if (state() === 'ready' && result(); as current) {
       <span tuiBadge [appearance]="stateAppearance(current.state)">
         {{ stateLabel(current.state) }} · Stand {{ current.version }}
       </span>
@@ -14,23 +14,23 @@
     }
   </header>
 
+  @if (message(); as currentMessage) {
+    <p class="app-result-success" role="status">{{ currentMessage }}</p>
+  }
+  @if (error(); as currentError) {
+    <p class="app-result-error" role="alert">{{ currentError }}</p>
+  }
+
   @if (state() === 'loading') {
     <p aria-live="polite">Ergebnisprozess wird geladen …</p>
   } @else if (state() === 'not-found') {
     <p role="status">Für diesen Prüfungsvorgang wurde noch kein Bewertungsmodell gebunden.</p>
   } @else if (state() === 'error') {
     <p role="alert">Der Ergebnisprozess konnte nicht geladen werden.</p>
-    <button tuiButton appearance="secondary" type="button" (click)="load()">
+    <button tuiButton appearance="secondary" type="button" (click)="load(true, false)">
       Erneut versuchen
     </button>
   } @else if (result(); as current) {
-    @if (message(); as currentMessage) {
-      <p class="app-result-success" role="status">{{ currentMessage }}</p>
-    }
-    @if (error(); as currentError) {
-      <p class="app-result-error" role="alert">{{ currentError }}</p>
-    }
-
     <dl class="app-result-model">
       <div>
         <dt>Modellversion</dt>

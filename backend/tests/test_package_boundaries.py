@@ -16,6 +16,7 @@ CORE_PACKAGES = frozenset(
         "execution",
         "identity",
         "integrations",
+        "notifications",
         "operations",
         "persistence",
         "presentation",
@@ -35,6 +36,7 @@ ROOT_MODULE_OWNERS = {
     "api_contracts.py": "api",
     "composition.py": "composition-root",
     "e2e_server.py": "api-bootstrap",
+    "errors.py": "shared-contracts",
     "fastapi_app.py": "api",
     "fastapi_assembly.py": "api",
     "fastapi_assessment.py": "api",
@@ -68,16 +70,20 @@ ALLOWED_PACKAGE_DEPENDENCIES = {
             "operations",
             "persistence",
             "planning",
+            "notifications",
         }
     ),
     "assessment": frozenset({"execution", "identity", "persistence", "presentation"}),
-    "execution": frozenset({"identity", "integrations", "persistence", "presentation"}),
-    "identity": frozenset({"persistence"}),
-    "integrations": frozenset({"identity", "persistence"}),
+    "execution": frozenset(
+        {"identity", "integrations", "notifications", "persistence", "presentation"}
+    ),
+    "identity": frozenset(),
+    "integrations": frozenset({"identity", "notifications", "persistence"}),
+    "notifications": frozenset(),
     "operations": frozenset({"identity", "integrations", "persistence"}),
-    "persistence": frozenset(),
+    "persistence": frozenset({"identity", "notifications"}),
     "presentation": frozenset(),
-    "planning": frozenset({"integrations", "persistence"}),
+    "planning": frozenset({"integrations", "notifications", "persistence"}),
 }
 
 TEST_OWNERS = {
@@ -137,12 +143,14 @@ TEST_OWNERS = {
             "test_auth.py",
             "test_authorization.py",
             "test_committee_admin.py",
+            "test_identity_ports.py",
             "test_local_auth.py",
         }
     ),
     "integrations": frozenset(
-        {"test_calendar.py", "test_map_provider.py", "test_notifications.py"}
+        {"test_calendar.py", "test_map_provider.py", "test_notification_delivery.py"}
     ),
+    "notifications": frozenset({"test_notifications.py"}),
     "operations": frozenset(
         {
             "test_admin.py",
@@ -220,6 +228,49 @@ def _package_dependencies(package: str) -> set[str]:
 
 
 class BackendPackageBoundaryTests(unittest.TestCase):
+    def test_application_transport_does_not_import_composition_root(self) -> None:
+        for relative in ("application/__init__.py", "application/transport.py"):
+            with self.subTest(module=relative):
+                tree = ast.parse((BACKEND_ROOT / relative).read_text(encoding="utf-8"))
+                imports = {
+                    alias.name
+                    for node in ast.walk(tree)
+                    if isinstance(node, ast.Import)
+                    for alias in node.names
+                }
+                imports.update(
+                    node.module
+                    for node in ast.walk(tree)
+                    if isinstance(node, ast.ImportFrom) and node.module is not None
+                )
+                self.assertNotIn("backend.composition", imports)
+
+    def test_notification_consumers_receive_composition_instead_of_importing_it(self) -> None:
+        modules = (
+            "execution/absence.py",
+            "execution/exam_day_closures.py",
+            "execution/exam_round_lifecycle.py",
+            "planning/plan_consequences.py",
+            "planning/venue_consequences.py",
+            "planning/exam_venues.py",
+            "application/exam_venue_api.py",
+        )
+        for relative in modules:
+            with self.subTest(module=relative):
+                tree = ast.parse((BACKEND_ROOT / relative).read_text(encoding="utf-8"))
+                imports = {
+                    alias.name
+                    for node in ast.walk(tree)
+                    if isinstance(node, ast.Import)
+                    for alias in node.names
+                }
+                imports.update(
+                    node.module
+                    for node in ast.walk(tree)
+                    if isinstance(node, ast.ImportFrom) and node.module is not None
+                )
+                self.assertNotIn("backend.composition", imports)
+
     def test_every_backend_module_has_one_responsibility_area(self) -> None:
         self.assertEqual(
             {
@@ -250,6 +301,89 @@ class BackendPackageBoundaryTests(unittest.TestCase):
             leaves = {package for package in remaining if not (graph[package] & remaining)}
             self.assertTrue(leaves, f"cyclic backend package dependencies: {sorted(remaining)}")
             remaining -= leaves
+
+    def test_notifications_policy_has_no_provider_or_persistence_dependencies(self) -> None:
+        forbidden = {
+            "backend.persistence",
+            "backend.integrations",
+            "sqlalchemy",
+            "smtplib",
+            "pywebpush",
+        }
+        for path in sorted((BACKEND_ROOT / "notifications").glob("*.py")):
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            imports = {
+                alias.name
+                for node in ast.walk(tree)
+                if isinstance(node, ast.Import)
+                for alias in node.names
+            }
+            imports.update(
+                node.module
+                for node in ast.walk(tree)
+                if isinstance(node, ast.ImportFrom) and node.module is not None
+            )
+            self.assertFalse(
+                forbidden & imports,
+                f"{path.relative_to(BACKEND_ROOT)} imports provider or persistence details",
+            )
+
+    def test_committee_identity_use_case_has_no_transitive_transport_or_persistence_imports(
+        self,
+    ) -> None:
+        pending = ["backend.identity.committee_admin"]
+        visited: set[str] = set()
+        while pending:
+            module = pending.pop()
+            if module in visited:
+                continue
+            visited.add(module)
+            relative = module.removeprefix("backend.").replace(".", "/")
+            path = BACKEND_ROOT / f"{relative}.py"
+            if not path.exists():
+                path = BACKEND_ROOT / relative / "__init__.py"
+            if not path.exists():
+                continue
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+
+            class RuntimeImports(ast.NodeVisitor):
+                def __init__(self, current_module: str) -> None:
+                    self.current_module = current_module
+                    self.modules: set[str] = set()
+
+                def visit_If(self, node: ast.If) -> None:
+                    if isinstance(node.test, ast.Name) and node.test.id == "TYPE_CHECKING":
+                        for item in node.orelse:
+                            self.visit(item)
+                        return
+                    self.generic_visit(node)
+
+                def visit_Import(self, node: ast.Import) -> None:
+                    self.modules.update(alias.name for alias in node.names)
+
+                def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+                    if node.level:
+                        base = self.current_module.rsplit(".", node.level)[0]
+                        imported = f"{base}.{node.module}" if node.module else base
+                    else:
+                        imported = node.module or ""
+                    self.modules.add(imported)
+                    for alias in node.names:
+                        self.modules.add(f"{imported}.{alias.name}")
+
+            imports = RuntimeImports(module)
+            imports.visit(tree)
+            for imported in imports.modules:
+                if imported.startswith("backend."):
+                    pending.append(imported)
+        forbidden = sorted(
+            module
+            for module in visited
+            if module.startswith("backend.persistence")
+            or module.startswith("backend.fastapi")
+            or module.startswith("backend.application.repositories")
+        )
+        self.assertEqual(forbidden, [])
 
     def test_every_backend_test_has_exactly_one_owner(self) -> None:
         assigned = [name for names in TEST_OWNERS.values() for name in names]

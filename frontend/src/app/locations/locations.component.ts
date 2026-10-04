@@ -93,6 +93,7 @@ export class LocationsComponent implements OnChanges {
   }>();
   @Output() geocodeVenue = new EventEmitter<Venue>();
   @Output() retryConsequences = new EventEmitter<number>();
+  @Output() retryLoad = new EventEmitter<void>();
 
   protected readonly creating = signal(false);
   protected readonly editingVenueId = signal<number | null>(null);
@@ -194,6 +195,7 @@ export class LocationsComponent implements OnChanges {
   protected committeeName(venue: Venue): string {
     if (venue.scope === 'global') return 'Alle Ausschüsse';
     return (
+      venue.committeeName ??
       this.snapshot?.committees.find((committee) => committee.id === venue.committeeId)?.name ??
       'Zuständiger Ausschuss'
     );

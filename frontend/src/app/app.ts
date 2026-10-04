@@ -27,6 +27,10 @@ import { LifecycleNoticeComponent } from './runtime/lifecycle-notice.component';
 import { LifecycleService } from './runtime/lifecycle.service';
 import { RuntimeNoticeComponent } from './runtime/runtime-notice.component';
 import { ApplicationWorkspaceService } from './shell/application-workspace.service';
+import { ApplicationShellContextService } from './shell/application-shell-context.service';
+import { DashboardProjectionService } from './dashboard/dashboard-projection.service';
+import { MasterDataWorkflowService } from './master-data/master-data-workflow.service';
+import { PlanningWorkflowService } from './planning/planning-workflow.service';
 import { UiFeedbackService } from './shell/ui-feedback.service';
 
 @Component({
@@ -51,6 +55,10 @@ export class App {
   protected readonly auth = inject(AuthService);
   private readonly sessionScope = inject(SessionScopeService);
   private readonly workspace = inject(ApplicationWorkspaceService);
+  protected readonly shellContext = inject(ApplicationShellContextService);
+  private readonly dashboard = inject(DashboardProjectionService);
+  private readonly masterData = inject(MasterDataWorkflowService);
+  private readonly planning = inject(PlanningWorkflowService);
   private readonly feedbackService = inject(UiFeedbackService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly injector = inject(Injector);
@@ -59,11 +67,20 @@ export class App {
   @ViewChild('sidebarToggle') private sidebarToggle?: ElementRef<HTMLButtonElement>;
 
   protected readonly icons = appIcons;
-  protected readonly round = this.workspace.round;
-  protected readonly masterData = this.workspace.masterData;
   protected readonly message = this.workspace.message;
   protected readonly loading = this.workspace.loading;
-  protected readonly applicationVersion = this.workspace.applicationVersion;
+  protected readonly refreshBusy = computed(
+    () =>
+      this.workspace.loading() ||
+      this.shellContext.loading() ||
+      this.planning.loading() ||
+      this.dashboard.loading() ||
+      this.dashboard.candidateRefreshLoading() ||
+      this.dashboard.committeeRefreshLoading(),
+  );
+  protected readonly applicationVersion = computed(
+    () => this.shellContext.context()?.applicationVersion ?? null,
+  );
   protected readonly feedback = this.feedbackService.feedback;
   protected readonly activeView = signal<AppView>('dashboard');
   protected readonly pageTitle = signal('Übersicht');
@@ -79,20 +96,8 @@ export class App {
     return session?.demo_role ? session : null;
   });
   protected readonly activeContext = computed(() => {
-    const round = this.round();
-    const masterData = this.masterData();
-    if (!round || !masterData) return null;
-
-    const halfYear = masterData.examHalfYears.find((item) => item.id === round.exam_half_year_id);
-    const committee = masterData.committees.find((item) => item.id === round.committee_id);
-    if (!halfYear || !committee) return null;
-
-    return {
-      halfYear: `${halfYear.season === 'summer' ? 'Sommer' : 'Winter'} ${halfYear.year}`,
-      round: round.name,
-      committee: committee.name,
-      status: this.roundStatusLabel(round.status),
-    };
+    const context = this.shellContext.context();
+    return context ? { ...context, status: this.roundStatusLabel(context.status) } : null;
   });
   protected readonly directAccessDenied = computed(() => !this.canAccessView(this.activeView()));
 
@@ -108,7 +113,7 @@ export class App {
     effect(() => {
       const authState = this.auth.state();
       if (previousAuthState === 'anonymous' && authState === 'authenticated') {
-        this.refresh();
+        this.refresh(false);
       }
       previousAuthState = authState;
     });
@@ -116,7 +121,7 @@ export class App {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(({ previousEstablished, established }) => {
         if (previousEstablished && established && this.auth.state() === 'authenticated') {
-          this.refresh();
+          this.refresh(false);
         }
       });
     this.router.events
@@ -134,7 +139,7 @@ export class App {
       if (!ready) return;
       this.feedbackService.dismiss();
       this.auth.initialize().subscribe((authenticated) => {
-        if (authenticated) this.refresh();
+        if (authenticated) this.refresh(false);
         this.focusPageHeading();
       });
     });
@@ -144,8 +149,14 @@ export class App {
     this.auth.retrySessionRevocation().subscribe();
   }
 
-  protected refresh(): void {
+  protected refresh(includePlanning = true): void {
     this.workspace.refresh();
+    this.shellContext.refresh();
+    this.dashboard.refresh();
+    if (includePlanning) this.planning.refreshActiveView();
+    const path = this.router.url.split(/[?#]/, 1)[0];
+    if (path === '/candidates') this.masterData.loadCandidates();
+    else if (path === '/committee') this.masterData.loadCommittees();
   }
 
   protected closeSidebarOnMobile(): void {

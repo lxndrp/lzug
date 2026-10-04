@@ -16,8 +16,10 @@ from backend.application import ForbiddenRequestError
 from backend.application.repositories import ResourceRepository
 from backend.application.resource_access import ResourceKind, ResourceOwnership
 from backend.application.resource_authorization import ResourceAuthorizer
+from backend.composition import identity_service
 from backend.identity.authorization import AuthorizationScope
 from backend.persistence.database import session_scope
+from backend.persistence.identity import SQLiteIdentityUnitOfWork
 from backend.persistence.models import (
     CANDIDATE,
     CANDIDATE_COMMITTEE_ASSIGNMENT,
@@ -36,10 +38,11 @@ from backend.persistence.models import (
     PERSON,
     PLANNING_SETTINGS,
     ROUND_CANDIDATE,
+    Committee,
 )
 from backend.persistence.resource_access import SQLiteResourceAccessQueryFactory
 from backend.persistence.store import Store
-from backend.tests.helpers import TempDatabase
+from backend.tests.helpers import TempDatabase, create_committee_record
 
 
 @contextmanager
@@ -66,6 +69,7 @@ class ResourceAccessTests(unittest.TestCase):
     def setUp(self) -> None:
         self.db_path = self.enterContext(TempDatabase())
         self.repository = ResourceRepository(self.db_path)
+        self.identity = identity_service(self.db_path)
         self.scope = AuthorizationScope(
             1, frozenset({1}), frozenset({1}), frozenset({1}), frozenset({1}), {1: 1}
         )
@@ -245,6 +249,75 @@ class ResourceAccessTests(unittest.TestCase):
             else:
                 self.assertIsNotNone(self.repository.get_visible(resource, foreign_id, multi))
 
+    def test_membership_write_rechecks_saved_actor_role_inside_write_uow(self) -> None:
+        with session_scope(self.db_path) as session:
+            Store(session).update(COMMITTEE_MEMBER, 1, {"committee_role": "member"})
+
+        with self.assertRaises(PermissionError):
+            self.identity.update_membership(
+                2,
+                {"member_status": "deputy"},
+                actor_memberships=self.scope.member_by_committee,
+                actor_person_id=self.scope.person_id,
+            )
+
+    def test_membership_write_rechecks_saved_actor_activity_inside_write_uow(self) -> None:
+        with session_scope(self.db_path) as session:
+            Store(session).update(COMMITTEE_MEMBER, 1, {"is_active": 0})
+
+        with self.assertRaises(PermissionError):
+            self.identity.update_membership(
+                2,
+                {"member_status": "deputy"},
+                actor_memberships=self.scope.member_by_committee,
+                actor_person_id=self.scope.person_id,
+            )
+
+    def test_membership_write_rechecks_committee_state_inside_write_uow(self) -> None:
+        with session_scope(self.db_path) as session:
+            session.get(Committee, 1).is_active = 0
+        self.assertEqual(0, self.repository.get(COMMITTEE, 1)["is_active"])
+
+        with self.assertRaises(PermissionError):
+            self.identity.update_membership(
+                2,
+                {"member_status": "deputy"},
+                actor_memberships=self.scope.member_by_committee,
+                actor_person_id=self.scope.person_id,
+            )
+
+    def test_missing_membership_update_is_forbidden_without_key_error(self) -> None:
+        with self.assertRaisesRegex(PermissionError, "^Forbidden\\.$"):
+            self.identity.update_membership(
+                999999,
+                {"member_status": "deputy"},
+                actor_memberships=self.scope.member_by_committee,
+                actor_person_id=self.scope.person_id,
+            )
+
+    def test_membership_write_rejects_actor_membership_reassigned_to_another_person(self) -> None:
+        actor_membership_id = self.scope.member_by_committee[1]
+        with session_scope(self.db_path) as session:
+            store = Store(session)
+            other_person = store.create(
+                PERSON,
+                {
+                    "first_name": "Other",
+                    "last_name": "Actor",
+                    "email": "other-actor@example.test",
+                    "mobile": None,
+                },
+            )
+            store.update(COMMITTEE_MEMBER, actor_membership_id, {"person_id": other_person["id"]})
+
+        with self.assertRaisesRegex(PermissionError, "^Forbidden\\.$"):
+            self.identity.update_membership(
+                2,
+                {"member_status": "deputy"},
+                actor_memberships=self.scope.member_by_committee,
+                actor_person_id=self.scope.person_id,
+            )
+
     def test_history_inactive_members_and_mixed_availability_keep_distinct_rules(self) -> None:
         with session_scope(self.db_path) as session:
             store = Store(session)
@@ -267,7 +340,7 @@ class ResourceAccessTests(unittest.TestCase):
             self.assertIsNotNone(
                 self.repository.get_visible(resource, self.own[resource], self.scope)
             )
-        members = self.repository.member_list(scope=self.scope)
+        members = self.identity.members({}, self.scope)
         self.assertIn(2, [member["id"] for member in members])
         self.assertEqual(0, members[-1]["is_active"])
         self.assertIsNone(self.repository.get_visible(MEMBER_AVAILABILITY, mixed["id"], self.scope))
@@ -282,7 +355,7 @@ class ResourceAccessTests(unittest.TestCase):
                 self.assertEqual(1, len(sessions))
                 sizes[resource] = len(rows)
             for call, count in (
-                (lambda: self.repository.member_list(scope=self.scope), 2),
+                (lambda: self.identity.members({}, self.scope), 2),
                 (lambda: self.repository.candidate_list(self.scope), 1),
                 (lambda: self.repository.candidate_committee_assignments(scope=self.scope), 1),
             ):
@@ -304,7 +377,7 @@ class ResourceAccessTests(unittest.TestCase):
                     "exam_round_id": 1,
                 }
             )
-            self.repository.create_membership(
+            self.identity.create_membership(
                 {
                     "first_name": "Query",
                     "last_name": str(index),
@@ -313,7 +386,9 @@ class ResourceAccessTests(unittest.TestCase):
                     "member_status": "ordinary",
                     "committee_role": "member",
                     "representing_side": "employer",
-                }
+                },
+                actor_memberships=self.scope.member_by_committee,
+                actor_person_id=self.scope.person_id,
             )
         after = check_counts()
         for resource in (
@@ -408,21 +483,26 @@ class ResourceAccessTests(unittest.TestCase):
             1,
             {"member_status": "ordinary"},
         )
-        moved_committee = self.repository.create(
-            COMMITTEE,
+        moved_committee = create_committee_record(
+            self.db_path,
             {"name": "Zwischenzuständigkeit", "occupation": "FI", "bootstrap_state": "ready"},
         )["id"]
         with session_scope(self.db_path) as session:
             Store(session).update(COMMITTEE_MEMBER, 1, {"committee_id": moved_committee})
 
         with database_activity() as (_, sessions):
-            with self.assertRaisesRegex(ForbiddenRequestError, "^Forbidden\\.$"):
-                self.repository.update_membership(1, payload, authorization_scope=self.scope)
+            with self.assertRaisesRegex(PermissionError, "^Forbidden\\.$"):
+                self.identity.update_membership(
+                    1,
+                    payload,
+                    actor_memberships=self.scope.member_by_committee,
+                    actor_person_id=self.scope.person_id,
+                )
         self.assertEqual(1, len(sessions))
 
     def test_write_recheck_serializes_ownership_reads_with_mutation(self) -> None:
-        destination_committee = self.repository.create(
-            COMMITTEE,
+        destination_committee = create_committee_record(
+            self.db_path,
             {"name": "Weiteres Komitee", "occupation": "FI", "bootstrap_state": "ready"},
         )["id"]
         authorization_complete = Event()
@@ -430,26 +510,32 @@ class ResourceAccessTests(unittest.TestCase):
         writer_attempted_update = Event()
         writer_finished = Event()
         errors: list[BaseException] = []
-        original_authorize = self.repository._authorize_mutation
+        original_authorize = SQLiteIdentityUnitOfWork.require_membership_manager
 
         def track_competing_update(_connection, _cursor, statement, _parameters, _context, _many):
             if "update committee_member" in statement.lower():
                 writer_attempted_update.set()
 
-        def pause_after_authorization(*args, **kwargs):
-            result = original_authorize(*args, **kwargs)
-            if kwargs.get("scope") is self.scope or args[-1] is self.scope:
-                authorization_complete.set()
-                if not allow_mutation.wait(5):
-                    raise TimeoutError("timed out waiting to finish the authorized mutation")
+        def pause_after_authorization(
+            unit_of_work, member_id, payload, actor_memberships, actor_person_id
+        ):
+            result = original_authorize(
+                unit_of_work, member_id, payload, actor_memberships, actor_person_id
+            )
+            authorization_complete.set()
+            if not allow_mutation.wait(5):
+                raise TimeoutError("timed out waiting to finish the authorized mutation")
             return result
 
-        self.repository._authorize_mutation = pause_after_authorization
+        SQLiteIdentityUnitOfWork.require_membership_manager = pause_after_authorization
 
         def update_membership() -> None:
             try:
-                self.repository.update_membership(
-                    1, {"member_status": "ordinary"}, authorization_scope=self.scope
+                self.identity.update_membership(
+                    1,
+                    {"member_status": "ordinary"},
+                    actor_memberships=self.scope.member_by_committee,
+                    actor_person_id=self.scope.person_id,
                 )
             except BaseException as error:
                 errors.append(error)
@@ -482,6 +568,7 @@ class ResourceAccessTests(unittest.TestCase):
             mutation.join(5)
             move.join(5)
             event.remove(Engine, "before_cursor_execute", track_competing_update)
+            SQLiteIdentityUnitOfWork.require_membership_manager = original_authorize
 
         self.assertFalse(mutation.is_alive())
         self.assertFalse(move.is_alive())
@@ -525,8 +612,8 @@ class ResourceAccessTests(unittest.TestCase):
             member.authorize(ResourceKind.MEMBER_AVAILABILITY, self.own[MEMBER_AVAILABILITY], {})
 
     def test_owner_reads_use_one_snapshot_during_a_concurrent_commit(self) -> None:
-        target_committee = self.repository.create(
-            COMMITTEE, {"name": "Neue Zuständigkeit", "occupation": "FI"}
+        target_committee = create_committee_record(
+            self.db_path, {"name": "Neue Zuständigkeit", "occupation": "FI"}
         )["id"]
         changed = False
 

@@ -2004,6 +2004,10 @@ export type ExamVenueResponse = {
      */
     committee_id: number | null;
     /**
+     * Committee Name
+     */
+    committee_name?: string | null;
+    /**
      * Contacts
      */
     contacts: Array<ExamVenueContactResponse>;
@@ -2933,6 +2937,35 @@ export type PlanningRoundRequest = {
      * Round Id
      */
     round_id?: number;
+    [key: string]: unknown;
+};
+
+/**
+ * PlanningSettingsRequest
+ *
+ * Planning settings inputs with their legacy location alias.
+ */
+export type PlanningSettingsRequest = {
+    /**
+     * Default Location Id
+     *
+     * Compatibility alias for default_room_id.
+     *
+     * @deprecated
+     */
+    default_location_id?: number | null;
+    /**
+     * Default Room Id
+     */
+    default_room_id?: number | null;
+    /**
+     * Exclude Public Holidays
+     */
+    exclude_public_holidays?: boolean | number | null;
+    /**
+     * Lunch Break Enabled
+     */
+    lunch_break_enabled?: boolean | number | null;
     [key: string]: unknown;
 };
 
@@ -15584,7 +15617,7 @@ export type GetPlanningSettingsApiPlanningSettingsGetResponses = {
 };
 
 export type CreatePlanningSettingsApiPlanningSettingsPostData = {
-    body: DomainResourceWrite;
+    body: PlanningSettingsRequest;
     headers?: {
         /**
          * X-Csrf-Token
@@ -15797,7 +15830,7 @@ export type GetPlanningSettingsItemApiPlanningSettingsIdGetResponses = {
 };
 
 export type UpdatePlanningSettingsApiPlanningSettingsIdPatchData = {
-    body: DomainResourceWrite;
+    body: PlanningSettingsRequest;
     headers?: {
         /**
          * X-Csrf-Token

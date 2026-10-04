@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 from collections.abc import Callable, Mapping
+from dataclasses import replace
 from datetime import timedelta
 from pathlib import Path
 
@@ -13,7 +14,18 @@ from fastapi import FastAPI
 from .application import ApplicationServices, ReadApplication
 from .application.admin import AdminApplication, AdminServices
 from .application.resource_access import ResourceAccessQueryFactory
-from .composition import candidate_day_service as compose_candidate_day_service
+from .composition import authentication_repository as compose_authentication_repository
+from .composition import authorization_service as compose_authorization_service
+from .composition import (
+    candidate_day_service as compose_candidate_day_service,
+)
+from .composition import (
+    committee_admin_service as compose_committee_admin_service,
+)
+from .composition import identity_service as compose_identity_service
+from .composition import local_auth_service as compose_local_auth_service
+from .composition import notification_service as compose_notification_service
+from .composition import operator_auth_service as compose_operator_auth_service
 from .fastapi_app import (
     FastAPIConfig,
     register_application_routes,
@@ -27,12 +39,15 @@ from .fastapi_dependencies import (
 from .fastapi_http import APPLICATION_ERROR_RESPONSES
 from .fastapi_runtime import RuntimeAdmissionMiddleware
 from .identity.admin_service import OperatorAuthService
+from .identity.authorization import AuthorizationService
 from .identity.committee_admin import CommitteeAdminService
-from .integrations.notifications import NotificationService
+from .identity.people import IdentityService
+from .notifications.service import NotificationService
 from .operations.backup_recipients import BackupRecipientRepository
 from .operations.backup_restore import ArtifactService
 from .operations.diagnostics import run_diagnostics
 from .operations.lifecycle import LifecycleService
+from .persistence.auth import SQLiteAuthenticationRepository
 from .persistence.database import PersistencePaths, database_readiness, persistence_paths
 from .persistence.resource_access import SQLiteResourceAccessQueryFactory
 from .planning.candidate_days import CandidateDayService
@@ -82,21 +97,27 @@ def create_admin_application(
     services = AdminServices(
         diagnostics=lambda command, client: run_diagnostics(command, client),
         readiness_probe=ready,
-        operator_auth_factory=lambda db_path: service or OperatorAuthService(db_path),
-        notification_factory=lambda db_path: notifications
-        or NotificationService(db_path, settings=require_settings()),
-        committee_factory=lambda db_path: committee_service
-        or CommitteeAdminService(Path(service.db_path) if service is not None else db_path),
-        consequence_factory=lambda db_path, notification_service: consequences
-        or PlanConsequenceService(db_path, notification_service),
-        artifact_factory=lambda persistence: artifacts
-        or ArtifactService(persistence, settings=require_settings()),
+        operator_auth_factory=lambda db_path: service or compose_operator_auth_service(db_path),
+        notification_factory=lambda db_path: (
+            notifications or compose_notification_service(db_path, settings=require_settings())
+        ),
+        committee_factory=lambda db_path: (
+            committee_service or compose_committee_admin_service(db_path)
+        ),
+        consequence_factory=lambda db_path, notification_service: (
+            consequences
+            or PlanConsequenceService(db_path, notification_service=notification_service)
+        ),
+        artifact_factory=lambda persistence: (
+            artifacts or ArtifactService(persistence, settings=require_settings())
+        ),
         recipient_repository_factory=lambda artifact_service: BackupRecipientRepository(
             artifact_service.paths.database,
             environment=artifact_service.environment,
         ),
-        lifecycle_factory=lambda persistence: lifecycle
-        or LifecycleService(persistence, settings=require_settings()),
+        lifecycle_factory=lambda persistence: (
+            lifecycle or LifecycleService(persistence, settings=require_settings())
+        ),
     )
     return AdminApplication(resolved_paths, services, runtime=runtime)
 
@@ -108,12 +129,32 @@ def create_app(
     runtime: RuntimeCoordinator | None = None,
     candidate_day_service_factory: Callable[[Path], CandidateDayService] | None = None,
     resource_access_query_factory: Callable[[Path], ResourceAccessQueryFactory] | None = None,
+    identity_service_factory: Callable[[Path], IdentityService] | None = None,
+    authorization_service_factory: Callable[[Path], AuthorizationService] | None = None,
+    committee_admin_service_factory: Callable[[Path], CommitteeAdminService] | None = None,
 ) -> FastAPI:
     """Create the single FastAPI application used by product and demo images."""
     resolved = config or FastAPIConfig.from_environment()
     if runtime is not None and runtime.db_path != resolved.db_path.resolve():
         raise ValueError("HTTP and runtime must share persistence")
-    application = ReadApplication(resolved.db_path, services)
+    active_authorization_factory = (
+        authorization_service_factory
+        or (services.authorization_factory if services is not None else None)
+        or compose_authorization_service
+    )
+    application_services = services or ApplicationServices()
+    active_authentication_factory = (
+        application_services.authentication_factory or compose_authentication_repository
+    )
+    if application_services.authentication_factory is None:
+        application_services = replace(
+            application_services, authentication_factory=active_authentication_factory
+        )
+    if application_services.authorization_factory is None:
+        application_services = replace(
+            application_services, authorization_factory=active_authorization_factory
+        )
+    application = ReadApplication(resolved.db_path, application_services)
     if runtime is not None:
         application.runtime = runtime
     app = FastAPI(
@@ -131,6 +172,30 @@ def create_app(
     )
     app.state.resource_access_query_factory = (
         resource_access_query_factory or SQLiteResourceAccessQueryFactory
+    )
+    app.state.identity_service_factory = identity_service_factory or compose_identity_service
+    app.state.authorization_service_factory = active_authorization_factory
+    app.state.authentication_repository_factory = active_authentication_factory
+    app.state.committee_admin_service_factory = (
+        committee_admin_service_factory or compose_committee_admin_service
+    )
+    local_authentication_factory = application_services.local_authentication_factory
+    if local_authentication_factory is None:
+
+        def local_authentication_factory(db_path, **kwargs):
+            authentication = active_authentication_factory(db_path)
+            if not isinstance(authentication, SQLiteAuthenticationRepository):
+                raise ValueError(
+                    "A custom authentication repository must provide a matching "
+                    "local-authentication factory"
+                )
+            return compose_local_auth_service(db_path, **kwargs)
+
+    app.state.local_auth_service_factory = local_authentication_factory
+    app.state.notification_service_factory = lambda db_path: compose_notification_service(
+        db_path,
+        external_delivery_enabled=resolved.runtime_policy.external_notifications_enabled(),
+        settings=resolved.runtime_settings,
     )
     app.state.auth_rate_limiter = resolved.auth_rate_limiter or RequestRateLimiter(
         resolved.auth_rate_limit, resolved.auth_rate_window

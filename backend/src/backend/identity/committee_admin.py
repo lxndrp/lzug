@@ -7,26 +7,14 @@ import json
 import re
 import secrets
 from collections.abc import Mapping
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, Protocol
 
-from sqlalchemy import func, select, update
-from sqlalchemy.exc import IntegrityError, OperationalError
-from sqlalchemy.orm import Session
-
-from backend.identity.admin_service import AdminOperationError
-from backend.identity.auth import EMAIL_PATTERN
-from backend.persistence.database import DEFAULT_DB_PATH, session_scope
-from backend.persistence.models import (
-    AuthToken,
-    Committee,
-    CommitteeAdminOperation,
-    CommitteeMember,
-    Person,
-    UserAccount,
-)
+from backend.errors import TransactionConflictError, TransactionUnavailableError
+from backend.identity.errors import AdminOperationError
+from backend.identity.validation import EMAIL_PATTERN
 
 INVITATION_TTL = timedelta(hours=24)
 IDEMPOTENCY_KEY_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$")
@@ -34,6 +22,100 @@ MEMBER_STATUSES = frozenset({"ordinary", "deputy"})
 REPRESENTING_SIDES = frozenset({"employer", "employee", "school"})
 PLACEHOLDERS = frozenset({"-", "n/a", "nicht konfiguriert", "not configured", "tbd", "todo"})
 PersonMode = Literal["existing", "new"]
+
+
+class CommitteeAdminUnitOfWork(Protocol):
+    """Storage operations needed by Identity's committee admin use cases."""
+
+    def begin_write(self) -> None: ...
+    def flush(self) -> None: ...
+    def create_committee(self, values: Mapping[str, Any]) -> CommitteeRecord: ...
+    def get_committee(self, committee_id: int) -> CommitteeRecord | None: ...
+    def save_committee(self, committee: CommitteeRecord) -> None: ...
+    def delete_committee(self, committee_id: int) -> bool: ...
+    def require_committee_manager(
+        self,
+        committee_id: int,
+        actor_memberships: Mapping[int, int],
+        actor_person_id: int | None,
+    ) -> None: ...
+    def person_by_email(self, email: str) -> PersonRecord | None: ...
+    def account_by_email(self, email: str) -> AccountRecord | None: ...
+    def account_by_person(self, person_id: int) -> AccountRecord | None: ...
+    def create_person(self, values: Mapping[str, Any]) -> PersonRecord: ...
+    def create_account(self, values: Mapping[str, Any]) -> AccountRecord: ...
+    def membership_for_person(
+        self, committee_id: int, person_id: int
+    ) -> MembershipRecord | None: ...
+    def active_membership_for_person(
+        self, committee_id: int, person_id: int
+    ) -> MembershipRecord | None: ...
+    def create_membership(self, values: Mapping[str, Any]) -> MembershipRecord: ...
+    def save_membership(self, membership: MembershipRecord) -> None: ...
+    def active_memberships(self, committee_id: int) -> list[MembershipRecord]: ...
+    def accounts_for_people(self, person_ids: list[int]) -> list[AccountRecord]: ...
+    def count_active_role(self, committee_id: int, role: str) -> int: ...
+    def open_invitations(self, account_id: int) -> list[InvitationRecord]: ...
+    def consume_open_invitations(self, account_id: int, consumed_at: str) -> None: ...
+    def create_invitation(self, values: Mapping[str, Any]) -> None: ...
+    def operation_by_key(self, key: str) -> OperationRecord | None: ...
+    def create_operation(self, values: Mapping[str, Any]) -> OperationRecord: ...
+
+
+class CommitteeRecord(Protocol):
+    id: int
+    name: str
+    occupation: str
+    ihk: str
+    is_active: int
+    bootstrap_state: str
+    created_at: str
+    updated_at: str
+
+
+class PersonRecord(Protocol):
+    id: int
+    email: str
+
+
+class AccountRecord(Protocol):
+    id: int
+    is_operator: int
+    is_active: int
+    password_hash: str | None
+    last_login_at: str | None
+    totp_secret_encrypted: str | None
+    passkey_enabled: int
+    two_factor_enabled: int
+    totp_enabled: int
+
+
+class MembershipRecord(Protocol):
+    id: int
+    person_id: int
+    committee_id: int
+    is_active: int
+    committee_role: str
+    member_status: str
+    representing_side: str
+    updated_at: str
+
+
+class InvitationRecord(Protocol):
+    expires_at: str
+
+
+class OperationRecord(Protocol):
+    id: int
+    request_hash: str
+    response_json: str | None
+
+
+class CommitteeAdminUnitOfWorkFactory(Protocol):
+    """Open isolated committee admin read snapshots and write transactions."""
+
+    def snapshot(self) -> AbstractContextManager[CommitteeAdminUnitOfWork]: ...
+    def unit_of_work(self) -> AbstractContextManager[CommitteeAdminUnitOfWork]: ...
 
 
 @dataclass(frozen=True)
@@ -189,8 +271,57 @@ def _person_selection(value: object) -> PersonSelection:
 class CommitteeAdminService:
     """Local operator boundary for committee bootstrap and lifecycle writes."""
 
-    def __init__(self, db_path: Path = DEFAULT_DB_PATH):
-        self.db_path = db_path
+    def __init__(self, unit_of_work_factory: CommitteeAdminUnitOfWorkFactory):
+        self.unit_of_work_factory = unit_of_work_factory
+
+    def update_master_data(
+        self,
+        committee_id: int,
+        values: Mapping[str, Any],
+        *,
+        actor_memberships: Mapping[int, int],
+        actor_person_id: int | None,
+        now: datetime | None = None,
+    ) -> dict[str, Any] | None:
+        """Update committee master data inside an authorized Identity UoW."""
+        with self.unit_of_work_factory.unit_of_work() as session:
+            session.begin_write()
+            session.require_committee_manager(committee_id, actor_memberships, actor_person_id)
+            committee = session.get_committee(committee_id)
+            if committee is None:
+                return None
+            for field in ("name", "occupation", "ihk"):
+                if field in values:
+                    setattr(committee, field, values[field])
+            committee.updated_at = _timestamp(_now(now))
+            session.save_committee(committee)
+            return self._committee_view(committee)
+
+    def delete_master_data(
+        self,
+        committee_id: int,
+        *,
+        actor_memberships: Mapping[int, int],
+        actor_person_id: int | None,
+    ) -> bool:
+        """Delete a committee through the Identity-owned transaction boundary."""
+        with self.unit_of_work_factory.unit_of_work() as session:
+            session.begin_write()
+            session.require_committee_manager(committee_id, actor_memberships, actor_person_id)
+            return session.delete_committee(committee_id)
+
+    @staticmethod
+    def _committee_view(committee: CommitteeRecord) -> dict[str, Any]:
+        return {
+            "id": committee.id,
+            "name": committee.name,
+            "occupation": committee.occupation,
+            "ihk": committee.ihk,
+            "is_active": committee.is_active,
+            "bootstrap_state": committee.bootstrap_state,
+            "created_at": committee.created_at,
+            "updated_at": committee.updated_at,
+        }
 
     def bootstrap(
         self, arguments: Mapping[str, Any], *, now: datetime | None = None
@@ -229,20 +360,20 @@ class CommitteeAdminService:
 
         current = _now(now)
         try:
-            with session_scope(self.db_path) as session:
-                self._begin_write(session)
+            with self.unit_of_work_factory.unit_of_work() as session:
+                session.begin_write()
                 replay = self._replay_in_session(session, key, digest)
                 if replay is not None:
                     return replay
-                committee = Committee(
-                    **committee_data,
-                    is_active=1,
-                    bootstrap_state="needs_clarification",
-                    created_at=_timestamp(current),
-                    updated_at=_timestamp(current),
+                committee = session.create_committee(
+                    {
+                        **committee_data,
+                        "is_active": 1,
+                        "bootstrap_state": "needs_clarification",
+                        "created_at": _timestamp(current),
+                        "updated_at": _timestamp(current),
+                    }
                 )
-                session.add(committee)
-                session.flush()
                 return self._assign_leadership(
                     session,
                     operation="bootstrap",
@@ -254,14 +385,14 @@ class CommitteeAdminService:
                     current=current,
                     allow_incomplete_membership=False,
                 )
-        except IntegrityError as error:
+        except TransactionConflictError as error:
             replay = self._existing_replay(key, digest)
             if replay is not None:
                 return replay
             raise AdminOperationError(
                 "committee_conflict", "Committee bootstrap conflicts with existing data"
             ) from error
-        except OperationalError as error:
+        except TransactionUnavailableError as error:
             raise AdminOperationError(
                 "persistence_error", "Committee bootstrap could not be completed"
             ) from error
@@ -295,12 +426,12 @@ class CommitteeAdminService:
 
         current = _now(now)
         try:
-            with session_scope(self.db_path) as session:
-                self._begin_write(session)
+            with self.unit_of_work_factory.unit_of_work() as session:
+                session.begin_write()
                 replay = self._replay_in_session(session, key, digest)
                 if replay is not None:
                     return replay
-                committee = session.get(Committee, committee_id)
+                committee = session.get_committee(committee_id)
                 if committee is None:
                     raise AdminOperationError("committee_not_found", "Committee was not found")
                 active_chairs = self._active_role_count(session, committee.id, "chair")
@@ -325,14 +456,14 @@ class CommitteeAdminService:
                 )
         except AdminOperationError:
             raise
-        except IntegrityError as error:
+        except TransactionConflictError as error:
             replay = self._existing_replay(key, digest)
             if replay is not None:
                 return replay
             raise AdminOperationError(
                 "committee_conflict", "Committee completion conflicts with existing data"
             ) from error
-        except OperationalError as error:
+        except TransactionUnavailableError as error:
             raise AdminOperationError(
                 "persistence_error", "Committee completion could not be completed"
             ) from error
@@ -360,23 +491,15 @@ class CommitteeAdminService:
         current = _now(now)
         current_timestamp = _timestamp(current)
         try:
-            with session_scope(self.db_path) as session:
-                self._begin_write(session)
+            with self.unit_of_work_factory.unit_of_work() as session:
+                session.begin_write()
                 replay = self._replay_in_session(session, key, digest)
                 if replay is not None:
                     return replay
                 committee, person, membership, account = self._reinvitation_target(
                     session, committee_id, email, current_timestamp
                 )
-                session.execute(
-                    update(AuthToken)
-                    .where(
-                        AuthToken.account_id == account.id,
-                        AuthToken.kind == "invitation",
-                        AuthToken.consumed_at.is_(None),
-                    )
-                    .values(consumed_at=current_timestamp)
-                )
+                session.consume_open_invitations(account.id, current_timestamp)
                 invitation = self._issue_invitation(session, account, current)
                 return self._record_result(
                     session,
@@ -392,43 +515,39 @@ class CommitteeAdminService:
                 )
         except AdminOperationError:
             raise
-        except IntegrityError as error:
+        except TransactionConflictError as error:
             replay = self._existing_replay(key, digest)
             if replay is not None:
                 return replay
             raise AdminOperationError(
                 "invitation_not_eligible", "Invitation cannot be reissued"
             ) from error
+        except TransactionUnavailableError as error:
+            raise AdminOperationError(
+                "persistence_error", "Invitation could not be reissued"
+            ) from error
 
     def _reinvitation_target(
-        self, session: Session, committee_id: int, email: str, current_timestamp: str
-    ) -> tuple[Committee, Person, CommitteeMember, UserAccount]:
+        self,
+        session: CommitteeAdminUnitOfWork,
+        committee_id: int,
+        email: str,
+        current_timestamp: str,
+    ) -> tuple[CommitteeRecord, PersonRecord, MembershipRecord, AccountRecord]:
         """Resolve and validate eligibility before invalidating or issuing tokens."""
-        committee = session.get(Committee, committee_id)
+        committee = session.get_committee(committee_id)
         if committee is None or not committee.is_active or committee.bootstrap_state != "ready":
             raise AdminOperationError("committee_not_found", "Active committee was not found")
         person = self._person_by_email(session, email)
         if person is None:
             raise AdminOperationError("invitation_not_eligible", "Invitation cannot be reissued")
-        membership = session.scalars(
-            select(CommitteeMember).where(
-                CommitteeMember.committee_id == committee_id,
-                CommitteeMember.person_id == person.id,
-                CommitteeMember.is_active == 1,
-            )
-        ).first()
+        membership = session.active_membership_for_person(committee_id, person.id)
         if membership is None:
             raise AdminOperationError("invitation_not_eligible", "Invitation cannot be reissued")
         account = self._linked_account(session, person)
         if account is None or not self._never_activated(account):
             raise AdminOperationError("invitation_not_eligible", "Invitation cannot be reissued")
-        open_tokens = session.scalars(
-            select(AuthToken).where(
-                AuthToken.account_id == account.id,
-                AuthToken.kind == "invitation",
-                AuthToken.consumed_at.is_(None),
-            )
-        ).all()
+        open_tokens = session.open_invitations(account.id)
         if not open_tokens or any(token.expires_at > current_timestamp for token in open_tokens):
             raise AdminOperationError("invitation_not_eligible", "Invitation cannot be reissued")
         return committee, person, membership, account
@@ -470,12 +589,12 @@ class CommitteeAdminService:
 
         current = _now(now)
         try:
-            with session_scope(self.db_path) as session:
-                self._begin_write(session)
+            with self.unit_of_work_factory.unit_of_work() as session:
+                session.begin_write()
                 replay = self._replay_in_session(session, key, digest)
                 if replay is not None:
                     return replay
-                committee = session.get(Committee, committee_id)
+                committee = session.get_committee(committee_id)
                 if committee is None:
                     raise AdminOperationError("committee_not_found", "Committee was not found")
                 if bool(committee.is_active) == activate:
@@ -491,19 +610,10 @@ class CommitteeAdminService:
                     )
                 committee.is_active = int(activate)
                 committee.updated_at = _timestamp(current)
-                memberships = session.scalars(
-                    select(CommitteeMember).where(
-                        CommitteeMember.committee_id == committee.id,
-                        CommitteeMember.is_active == 1,
-                    )
-                ).all()
+                session.save_committee(committee)
+                memberships = session.active_memberships(committee.id)
                 person_ids = [membership.person_id for membership in memberships]
-                account_ids = [
-                    account.id
-                    for account in session.scalars(
-                        select(UserAccount).where(UserAccount.person_id.in_(person_ids))
-                    ).all()
-                ]
+                account_ids = [account.id for account in session.accounts_for_people(person_ids)]
                 return self._record_result(
                     session,
                     operation=operation,
@@ -519,20 +629,24 @@ class CommitteeAdminService:
                 )
         except AdminOperationError:
             raise
-        except IntegrityError as error:
+        except TransactionConflictError as error:
             replay = self._existing_replay(key, digest)
             if replay is not None:
                 return replay
             raise AdminOperationError(
                 "committee_conflict", "Committee lifecycle state conflicts"
             ) from error
+        except TransactionUnavailableError as error:
+            raise AdminOperationError(
+                "persistence_error", "Committee lifecycle change could not be completed"
+            ) from error
 
     def _assign_leadership(
         self,
-        session: Session,
+        session: CommitteeAdminUnitOfWork,
         *,
         operation: str,
-        committee: Committee,
+        committee: CommitteeRecord,
         chair: PersonSelection,
         deputy: PersonSelection | None,
         key: str,
@@ -549,7 +663,7 @@ class CommitteeAdminService:
 
         people = [chair_person, *([deputy_person] if deputy_person else [])]
         invitations: list[dict[str, object]] = []
-        accounts: list[UserAccount] = []
+        accounts: list[AccountRecord] = []
         for person in people:
             account, invitation = self._account_for_person(session, person, current)
             accounts.append(account)
@@ -581,6 +695,7 @@ class CommitteeAdminService:
             )
         committee.bootstrap_state = "ready"
         committee.updated_at = _timestamp(current)
+        session.save_committee(committee)
         session.flush()
         if self._active_role_count(session, committee.id, "chair") != 1:
             raise AdminOperationError(
@@ -600,12 +715,10 @@ class CommitteeAdminService:
         )
 
     def _resolve_person(
-        self, session: Session, selection: PersonSelection, current: datetime
-    ) -> Person:
+        self, session: CommitteeAdminUnitOfWork, selection: PersonSelection, current: datetime
+    ) -> PersonRecord:
         existing = self._person_by_email(session, selection.email)
-        account_with_email = session.scalars(
-            select(UserAccount).where(func.lower(UserAccount.email) == selection.email)
-        ).first()
+        account_with_email = session.account_by_email(selection.email)
         if selection.mode == "existing":
             if existing is None:
                 raise AdminOperationError("person_not_found", "Existing person was not found")
@@ -614,25 +727,23 @@ class CommitteeAdminService:
             raise AdminOperationError(
                 "person_conflict", "Person already exists; use the explicit reuse path"
             )
-        person = Person(
-            first_name=selection.first_name or "",
-            last_name=selection.last_name or "",
-            email=selection.email,
-            mobile=selection.mobile,
-            created_at=_timestamp(current),
-            updated_at=_timestamp(current),
+        person = session.create_person(
+            {
+                "first_name": selection.first_name or "",
+                "last_name": selection.last_name or "",
+                "email": selection.email,
+                "mobile": selection.mobile,
+                "created_at": _timestamp(current),
+                "updated_at": _timestamp(current),
+            }
         )
-        session.add(person)
-        session.flush()
         return person
 
     def _account_for_person(
-        self, session: Session, person: Person, current: datetime
-    ) -> tuple[UserAccount, dict[str, object] | None]:
+        self, session: CommitteeAdminUnitOfWork, person: PersonRecord, current: datetime
+    ) -> tuple[AccountRecord, dict[str, object] | None]:
         account = self._linked_account(session, person, required=False)
-        account_with_email = session.scalars(
-            select(UserAccount).where(func.lower(UserAccount.email) == person.email.lower())
-        ).first()
+        account_with_email = session.account_by_email(person.email.lower())
         if account is not None:
             if account_with_email is not None and account_with_email.id != account.id:
                 raise AdminOperationError(
@@ -643,24 +754,22 @@ class CommitteeAdminService:
             raise AdminOperationError(
                 "account_conflict", "A conflicting account requires clarification"
             )
-        account = UserAccount(
-            person_id=person.id,
-            email=person.email.lower(),
-            is_operator=0,
-            is_active=1,
-            created_at=_timestamp(current),
-            updated_at=_timestamp(current),
+        account = session.create_account(
+            {
+                "person_id": person.id,
+                "email": person.email.lower(),
+                "is_operator": 0,
+                "is_active": 1,
+                "created_at": _timestamp(current),
+                "updated_at": _timestamp(current),
+            }
         )
-        session.add(account)
-        session.flush()
         return account, self._issue_invitation(session, account, current)
 
     def _linked_account(
-        self, session: Session, person: Person, *, required: bool = True
-    ) -> UserAccount | None:
-        account = session.scalars(
-            select(UserAccount).where(UserAccount.person_id == person.id)
-        ).first()
+        self, session: CommitteeAdminUnitOfWork, person: PersonRecord, *, required: bool = True
+    ) -> AccountRecord | None:
+        account = session.account_by_person(person.id)
         if account is None:
             if required:
                 raise AdminOperationError(
@@ -675,21 +784,16 @@ class CommitteeAdminService:
 
     def _membership(
         self,
-        session: Session,
-        committee: Committee,
-        person: Person,
+        session: CommitteeAdminUnitOfWork,
+        committee: CommitteeRecord,
+        person: PersonRecord,
         selection: PersonSelection,
         role: str,
         current: datetime,
         *,
         allow_incomplete: bool,
-    ) -> CommitteeMember:
-        existing = session.scalars(
-            select(CommitteeMember).where(
-                CommitteeMember.committee_id == committee.id,
-                CommitteeMember.person_id == person.id,
-            )
-        ).first()
+    ) -> MembershipRecord:
+        existing = session.membership_for_person(committee.id, person.id)
         if existing is not None:
             exact_incomplete = (
                 allow_incomplete
@@ -704,45 +808,44 @@ class CommitteeAdminService:
                 )
             existing.is_active = 1
             existing.updated_at = _timestamp(current)
+            session.save_membership(existing)
             return existing
-        membership = CommitteeMember(
-            person_id=person.id,
-            committee_id=committee.id,
-            member_status=selection.member_status,
-            committee_role=role,
-            representing_side=selection.representing_side,
-            is_active=1,
-            created_at=_timestamp(current),
-            updated_at=_timestamp(current),
+        return session.create_membership(
+            {
+                "person_id": person.id,
+                "committee_id": committee.id,
+                "member_status": selection.member_status,
+                "committee_role": role,
+                "representing_side": selection.representing_side,
+                "is_active": 1,
+                "created_at": _timestamp(current),
+                "updated_at": _timestamp(current),
+            }
         )
-        session.add(membership)
-        session.flush()
-        return membership
 
     @staticmethod
     def _issue_invitation(
-        session: Session, account: UserAccount, current: datetime
+        session: CommitteeAdminUnitOfWork, account: AccountRecord, current: datetime
     ) -> dict[str, object]:
         token = secrets.token_urlsafe(32)
         expires_at = _timestamp(current + INVITATION_TTL)
-        session.add(
-            AuthToken(
-                account_id=account.id,
-                kind="invitation",
-                token_hash=_token_hash(token),
-                created_at=_timestamp(current),
-                expires_at=expires_at,
-            )
+        session.create_invitation(
+            {
+                "account_id": account.id,
+                "kind": "invitation",
+                "token_hash": _token_hash(token),
+                "created_at": _timestamp(current),
+                "expires_at": expires_at,
+            }
         )
-        session.flush()
         return {"account_id": account.id, "expires_at": expires_at, "token": token}
 
     def _record_result(
         self,
-        session: Session,
+        session: CommitteeAdminUnitOfWork,
         *,
         operation: str,
-        committee: Committee,
+        committee: CommitteeRecord,
         person_ids: list[int],
         membership_ids: list[int],
         account_ids: list[int],
@@ -766,36 +869,36 @@ class CommitteeAdminService:
             "invitations_issued": len(invitations),
             "replayed": False,
         }
-        evidence = CommitteeAdminOperation(
-            operation_type=operation,
-            committee_id=committee.id,
-            person_ids_json=_canonical_json(person_ids),
-            membership_ids_json=_canonical_json(membership_ids),
-            account_ids_json=_canonical_json(account_ids),
-            result="succeeded",
-            occurred_at=_timestamp(current),
-            technical_source="operator-cli",
-            idempotency_key=key,
-            request_hash=digest,
-            reason=reason,
-            response_json=_canonical_json(base_result),
+        evidence = session.create_operation(
+            {
+                "operation_type": operation,
+                "committee_id": committee.id,
+                "person_ids_json": _canonical_json(person_ids),
+                "membership_ids_json": _canonical_json(membership_ids),
+                "account_ids_json": _canonical_json(account_ids),
+                "result": "succeeded",
+                "occurred_at": _timestamp(current),
+                "technical_source": "operator-cli",
+                "idempotency_key": key,
+                "request_hash": digest,
+                "reason": reason,
+                "response_json": _canonical_json(base_result),
+            }
         )
-        session.add(evidence)
-        session.flush()
         result = dict(base_result)
         result["evidence_id"] = evidence.id
         result["invitations"] = invitations
         return result
 
     def _existing_replay(self, key: str, digest: str) -> dict[str, Any] | None:
-        with session_scope(self.db_path) as session:
+        with self.unit_of_work_factory.snapshot() as session:
             return self._replay_in_session(session, key, digest)
 
     @staticmethod
-    def _replay_in_session(session: Session, key: str, digest: str) -> dict[str, Any] | None:
-        operation = session.scalars(
-            select(CommitteeAdminOperation).where(CommitteeAdminOperation.idempotency_key == key)
-        ).first()
+    def _replay_in_session(
+        session: CommitteeAdminUnitOfWork, key: str, digest: str
+    ) -> dict[str, Any] | None:
+        operation = session.operation_by_key(key)
         if operation is None:
             return None
         if operation.request_hash != digest:
@@ -811,24 +914,15 @@ class CommitteeAdminService:
         return result
 
     @staticmethod
-    def _person_by_email(session: Session, email: str) -> Person | None:
-        return session.scalars(select(Person).where(func.lower(Person.email) == email)).first()
+    def _person_by_email(session: CommitteeAdminUnitOfWork, email: str) -> PersonRecord | None:
+        return session.person_by_email(email)
 
     @staticmethod
-    def _active_role_count(session: Session, committee_id: int, role: str) -> int:
-        return int(
-            session.scalar(
-                select(func.count(CommitteeMember.id)).where(
-                    CommitteeMember.committee_id == committee_id,
-                    CommitteeMember.committee_role == role,
-                    CommitteeMember.is_active == 1,
-                )
-            )
-            or 0
-        )
+    def _active_role_count(session: CommitteeAdminUnitOfWork, committee_id: int, role: str) -> int:
+        return session.count_active_role(committee_id, role)
 
     @staticmethod
-    def _never_activated(account: UserAccount) -> bool:
+    def _never_activated(account: AccountRecord) -> bool:
         return (
             account.password_hash is None
             and account.last_login_at is None
@@ -844,7 +938,3 @@ class CommitteeAdminService:
         if normalized.casefold() in PLACEHOLDERS:
             raise AdminOperationError("invalid_request", f"Argument {field} is a placeholder")
         return normalized
-
-    @staticmethod
-    def _begin_write(session: Session) -> None:
-        session.connection().exec_driver_sql("BEGIN IMMEDIATE")

@@ -16,6 +16,7 @@ export function toVenue(value: ApiVenue): Venue {
     id: value.id,
     scope: value.scope,
     committeeId: value.committee_id,
+    committeeName: value.committee_name ?? null,
     name: value.name,
     street: value.street,
     postalCode: value.postal_code,
@@ -69,11 +70,14 @@ export function toVenue(value: ApiVenue): Venue {
 }
 
 export function toLocationSnapshot(
-  value: Pick<MasterData, 'committees' | 'examVenues'>,
+  value: Pick<MasterData, 'committees' | 'examVenues' | 'examVenuesCanCreate'>,
 ): LocationSnapshot {
   return {
     committees: value.committees.map(({ id, name }) => ({ id, name })),
+    committeeLoadPending: false,
+    committeeLoadError: false,
     venues: value.examVenues.map(toVenue),
+    canCreateVenue: Boolean(value.examVenuesCanCreate),
   };
 }
 

@@ -146,6 +146,30 @@ Die Ausführung eines Fachbefehls bleibt eine eigene Servicetransaktion.
 Session, CSRF, Actor, Ausschuss-Scope und Fehlerübersetzung liegen am
 HTTP-Rand, während der synchrone Anwendungskern frameworkunabhängig bleibt.
 
+`identity.people` besitzt Ports für Personen- und Membership-Schreibvorgänge
+sowie Login- und Actor-Projektionen.
+`persistence.identity` implementiert sie für SQLite und projiziert
+Mitgliedschaften für Listen über die bestehende Query-Grenze aus #1072.
+`composition` wählt beide Identity-Adapter.
+Personen- und Membership-Änderungen öffnen ihren Schreib-UoW über Identity;
+die Membership-Autorisierung verwendet darin die Ownership-Abfragen aus #1072
+und prüft die gespeicherte Actor-Mitgliedschaft, ihre Managementrolle und die
+authentisierte Person erneut.
+Der HTTP-Rand übergibt Actor-Membership-IDs und die authentisierte Person-ID
+als Werte.
+`identity.committee_admin` verwendet ebenfalls einen Identity-eigenen UoW-Port
+für Ausschuss-Masterdaten und ihre PATCH-/DELETE-Routen sowie für Bootstrap,
+Abschluss, Wiedereinladung und Ausschuss-Lifecycle.
+Seine Committee-, Person-, Membership-, Account-, Invitation- und
+Operationsergebnisse sind strukturelle Werte; SQLAlchemy-Objekte verlassen
+Persistence nicht.
+`AuthorizationService` baut seinen serverseitigen Scope aus der Identity-
+Membership-Projektion auf.
+Die SQLite-Projektionen sind unveränderliche, strukturell kompatible Werte;
+Persistence importiert die Identity-Porttypen dafür nur unter
+`TYPE_CHECKING`.
+Planning behält Kandidaten- und Rundenregeln.
+
 Die Kandidatentage sind der erste Planning-Port-Pilot:
 `backend.planning.candidate_days` enthält den typisierten Generierungsbefehl,
 das Ergebnis, die Providerabstraktion und den Unit-of-Work-Vertrag ohne
@@ -192,6 +216,11 @@ Verwendung des zweiten Faktors.
 TOTP-Replay-Schutz, Recovery-Code-Verbrauch, Kennwort-Rehash und Sessionwechsel
 bleiben Teil einer gemeinsamen Transaktion mit generischen Anmeldefehlern und
 Dummy-Hash-Prüfung für unbekannte Konten oder Konten ohne Kennwort.
+Identity besitzt dafür typisierte Konto-, Token-, Faktor-, Session- und
+Schlüsselzugriffsverträge.
+`persistence.auth` und `persistence.local_auth` halten SQLAlchemy, SQLite und
+Dateizugriff am Adapterrand; der Composition Root wählt die konkreten Adapter.
+Backup und Restore beziehen denselben Instanzschlüssel über den Schlüsseladapter.
 
 `integrations.calendar` ist der heutige Legacy-Pfad für lokale Kalenderlogik:
 `CalendarService` materialisiert bestätigte Zuweisungen als `CalendarEvent`-
@@ -441,10 +470,17 @@ Sync noch Ausgabe.
 Zielverantwortung für Feed-Credentials, lokale Projektion und ICS-Ausgabe ist
 ein eigenständiges `calendar`-Modul.
 `integrations` bleibt konkreten externen Adaptern vorbehalten.
-`integrations.notifications` entscheidet terminale Zustellfälle vor dem
-Providerzugriff und bildet dessen Ergebnis auf den Retry- oder Bestätigungsstatus ab.
-Der Providerzugriff erfolgt nach dem Commit des Claims; nur der weiterhin
-gültige Claim darf Ergebnis und Abonnementinvalidierung speichern.
+`notifications.service` besitzt Empfänger-, Ereignis- und Inhaltsregeln sowie
+Retry-, Fallback- und Claim-Policy.
+Es spricht über typisierte Repository-/UoW-Ports mit der Persistenz und über
+einen Gateway-Port mit dem Provideradapter.
+`integrations.notification_delivery` übersetzt SMTP- und WebPush-Ergebnisse in
+ProviderOutcomes; der SQLite-Adapter liegt unter `persistence.notifications`.
+Der Claim wird vor Provider-I/O committet.
+Nur der weiterhin gültige, nicht abgelaufene Claim darf Ergebnis und
+Abonnementinvalidierung speichern.
+Ob Empfänger und fachliches Ereignis vor dem Versand erneut validiert werden,
+bleibt als Entscheidung in #1079 offen.
 
 `persistence.database` prüft Historienpräfix und Checksummen getrennt von
 Backup, migrationsspezifischer Vorbereitung, SQL-Ausführung und Historiennachweis.
@@ -714,17 +750,18 @@ Die folgende Tabelle ist die kanonische knappe Zuordnung der aktuellen
 Backend-Paketstruktur.
 Abhängigkeiten verlaufen nur in die genannten Zielpakete; der automatisierte
 Architekturtest verhindert nicht zugeordnete Module, unerlaubte Richtungen und
-Zyklen zwischen den acht Kernpaketen.
+Zyklen zwischen den zehn Kernpaketen.
 
 | Paket | Verantwortung | Darf abhängen von |
 | --- | --- | --- |
-| `application/` | frameworkneutrale Use-Case-Orchestrierung, Ressourcenfassade, Transportobjekte und HATEOAS | `assessment`, `execution`, `identity`, `integrations`, `operations`, `persistence`, `planning` |
-| `planning/` | Planaggregate, mögliche Prüfungstage, Prüfungsorte und Folgen bestätigter Änderungen; Kandidatentage beginnen mit einem adapterfreien Port-Pilot | `integrations`, `persistence` (Legacy-Aufrufe) |
-| `execution/` | Ausfall und Ersatz, Protokolle, Tagesabschluss und Rundenlebenszyklus | `identity`, `integrations`, `persistence` |
+| `application/` | frameworkneutrale Use-Case-Orchestrierung, Ressourcenfassade, Transportobjekte und HATEOAS | `assessment`, `execution`, `identity`, `integrations`, `notifications`, `operations`, `persistence`, `planning` |
+| `planning/` | Planaggregate, mögliche Prüfungstage, Prüfungsorte und Folgen bestätigter Änderungen; Kandidatentage beginnen mit einem adapterfreien Port-Pilot | `integrations`, `notifications`, `persistence` (Legacy-Aufrufe) |
+| `execution/` | Ausfall und Ersatz, Protokolle, Tagesabschluss und Rundenlebenszyklus | `identity`, `integrations`, `notifications`, `persistence` |
 | `assessment/` | individuelle Bewertungen und festgestellte Ergebnisse | `execution`, `identity`, `persistence` |
-| `identity/` | Authentisierung, Autorisierung, Mitgliedschaften und lokale Betreiberidentität | `persistence` |
-| `integrations/` | Kalender (Übergangspfad), Benachrichtigungen, Dokumentablage, Feiertage, Kartenanbieter und künftige externe Adapter | `identity`, `persistence` |
-| `persistence/` | Modelle, Datenbank, Migrationen und niedrige Store-Primitive | keine anderen Kernpakete |
+| `identity/` | Authentisierung, Autorisierung, Mitgliedschaften und lokale Betreiberidentität | keine anderen Kernpakete |
+| `integrations/` | Kalender (Übergangspfad), Dokumentablage, Feiertage, Kartenanbieter und künftige externe Adapter | `identity`, `notifications`, `persistence` |
+| `notifications/` | Benachrichtigungsregeln, Zustellpolicy sowie Provider- und Persistenzports | keine anderen Kernpakete |
+| `persistence/` | Modelle, Datenbank, Migrationen und niedrige Store-Primitive | `identity`, `notifications` |
 | `operations/` | Backup und Export, Empfängerverwaltung, Diagnose und Lifecycle | `identity`, `integrations`, `persistence` |
 
 Der Paketroot enthält ausschließlich gemeinsame Runtime-Verträge und die
@@ -812,6 +849,16 @@ in der Diagnose nur Anbieter und Fehlerklasse.
 
 ## Frontend
 
+### Frontend-Zielvertrag
+
+Datenbesitz, Schreibrechte, Featuregrenzen, Zustandslebensdauern und Übergänge
+sind im [Frontend-Architekturvertrag](frontend-architecture-contract.md)
+verbindlich beschrieben.
+Die langfristige Entscheidung steht in
+[ADR-0042](decisions/0042-frontend-zustandsbesitz-und-feature-lebensdauern.md).
+Die folgenden Abschnitte beschreiben weiterhin die vorhandene Angular- und
+REST-Komponentenstruktur.
+
 Das Angular-Frontend verwendet TypeScript, Angular Router und Taiga UI.
 Es ist ein ruhiges Arbeitswerkzeug für wiederkehrende Ausschussprozesse und
 keine Marketingoberfläche.
@@ -857,14 +904,83 @@ OpenAPI-generierte Typen und Transportdetails bleiben langfristig im jeweiligen
 HTTP-Adapter; die konkrete Bereinigung der vorhandenen API-Modelle und
 HTTP-Fehlergrenzen ist in #908 nachgewiesen.
 
-`ApplicationWorkspaceService` hält ausschließlich den fachübergreifenden
-Lesezustand des gewählten Prüfungskontexts und hängt dafür an
-`WorkspacePort` statt direkt am HTTP-Client.
-`HttpWorkspaceAdapter` übersetzt das Dashboard-Transportmodell in einen
-Snapshot ohne HAL-Links; die anwendungsweite Bindung liegt in
-`app.config.ts`.
-`PlanningWorkflowService` koordiniert Planungsbefehle über `PlanningPort`;
-`HttpPlanningAdapter` übersetzt diese Aufrufe in den vorhandenen API-Client.
+`DashboardProjectionService` besitzt den Dashboard-Read einschließlich seines
+Lade- und Fehlerzustands; `HttpDashboardProjectionAdapter` lädt nur Runde,
+Summary und Board.
+`ApplicationShellContextService` lädt Version sowie kompakte Halbjahr-,
+Runden- und Ausschusslabels separat.
+Kandidaten- und Ausschussansichten laden über eigene Methoden des
+`MasterDataPort`; deren Fehler und Invalidierung bleiben voneinander getrennt.
+`ApplicationWorkspaceService` hält befristet den Planungs-/Halbjahres-
+Kompatibilitätszustand hinter `WorkspacePort`.
+Die Prüfungshalbjahresroute bezieht die aktive Runde aus `RoundContextService`.
+Weicht sie von der Workspace-Runde ab, aktualisiert sie gezielt die
+rundenabhängigen Prüflingsreferenzen statt den vollständigen Workspace zu laden.
+Nach Venue-/Raumänderungen werden die Dashboard- und Legacy-Board-Ortsreferenzen
+mit gezielten `/api/locations`-Reads aktualisiert; die übrigen Workspace- und
+Dashboarddaten bleiben erhalten.
+Bestätigte Pläne und Prüfungstage lesen ihre Ortsangaben über eigene
+API-Projektionen, sobald ihre Route geöffnet wird; sie halten keine globale
+Ortskopie über einen Routenwechsel hinweg.
+Die Ortsroute lädt über `LOCATIONS_READ_PORT` und den
+`HttpLocationsReadAdapter` direkt `/api/exam-venues`.
+`LocationsWorkspaceFacade` hält Lade-, Fehler- und Snapshotzustand
+routegebunden; Ortscommands lösen keinen vollständigen Workspace-Refresh aus.
+Die Ortsantwort enthält den Namen des zuständigen Ausschusses als schmale
+Referenz, damit Operatoren für freigegebene Orte keinen Ausschuss-Read benötigen.
+Mitgliedsansichten laden die Liste für den Anlege-Selektor ergänzend und
+veröffentlichen Ortsdaten schon vor deren Abschluss.
+Ein später erfolgreicher Ortscommand aktualisiert die gerade aktive Ortsansicht;
+Draft-Effekte bleiben an ihre ursprüngliche Ansicht gebunden.
+`PlanningWorkflowService` besitzt den Planungs-Snapshot und koordiniert
+Planungsbefehle über das featureeigene `PlanningPort`.
+`HttpPlanningAdapter` übersetzt die Planning-Modelle in Aufrufe der
+vorhandenen API-Clients und bereinigt Transportlinks an der Grenze.
+`PlanningPort` und seine Konsumenten importieren keine API-/HAL-Modelle.
+Planning-Reads starten beim Eintritt mit der Runden-ID aus der URL.
+Jeder Command reicht die beim Start erfasste Runden-ID bis zum Adapter weiter;
+der API-Client liest dafür keinen veränderlichen globalen Rundenauswahlkontext.
+Vorschlagserzeugung und Vorschlagsspeicherung sind dabei persistierende
+Planning-Commands; die Leseoperation für den gespeicherten Vorschlag bleibt
+getrennt.
+Einstellungen, Verfügbarkeiten, Vorschauerzeugung und erstmalige Bestätigung
+nehmen keine Quellrevision entgegen.
+`savePlanningProposal()` erhält dagegen die Revision des geladenen Vorschlags
+und übermittelt sie unverändert für die optimistische Sperre.
+Routenwechsel bricht Planning-Reads und ansichtsgebundene Vorschlagsladung ab.
+Prüfungstag-Anwesenheit übergibt Slot-ID für Prüflinge beziehungsweise
+Assignment-ID für Ausschussmitglieder sowie die vom Befehl akzeptierte
+Tagesrevision.
+`ExamDayFacade` besitzt Tagesread, Lade-/Fehlerzustand, angenommene Commands
+und bestätigte Antworten für die Lebensdauer der Prüfungstagsansicht;
+die reine `ExamDayApplication`-Weiterleitung entfällt.
+Ein Tagesread setzt gültige Runden- und Tages-IDs voraus. Nach einem
+angenommenen Kindwrite hält die Facade dessen höchste bestätigte Tagesrevision
+über fehlgeschlagene Reads und manuelle Wiederholungen hinweg fest.
+Die Komponente behält ihre Formularentwürfe und Darstellung. Ein Refresh im
+gleichen Runden-/Tageskontext übernimmt neue Serverwerte in unveränderte Drafts,
+bewahrt davon abweichende lokale Drafts und löscht Drafts entfernter Einträge.
+Ein Wechsel von Runde oder Tag verwirft alle Tages-Drafts.
+Protokoll und Ergebnis erhalten Runde, Tag, Slot und Tagesrevision explizit;
+ihre erfolgreichen Änderungen melden Tagesrevisionen über Outputs zurück,
+damit Prüfungstag den bestätigten Tagesread und beide Kindreads gezielt
+aktualisiert.
+Während dieser Tagesrefresh läuft, bleibt der bestätigte Snapshot verborgen
+gemountet, damit bereits angenommene Kindcommands ihre verzögerten Antworten
+weiter an Protokoll oder Ergebnis zurückmelden können. Fehler dieser Commands
+werden währenddessen am Prüfungstag sichtbar gehalten. Neue Kindcommands bleiben
+bis zur geladenen Tagesrevision gesperrt.
+Die Fehlerdetails eines bestätigten Kindwrites bleiben außerdem in der
+Prüfungstags-Fehleransicht sichtbar, wenn der Folge-Read scheitert.
+Ein Wechsel nur der Tagesrevision lädt Protokoll und Ergebnis neu, ändert aber
+nicht die Fence eines bereits angenommenen Commands; dessen Antwort kann einen
+Versionskonflikt weiterhin im Ursprungskontext anzeigen. Ein Wechsel von Runde,
+Tag oder Slot invalidiert dagegen den Commandkontext. Ergebnisstimmen bleiben
+bei einer reinen Tagesrevision im lokalen Entwurf erhalten. Abweichende lokale
+Protokollentwürfe, Vorbehaltstexte und Ergebnis-Punkteentwürfe überstehen
+denselben Reload.
+Session- und Ansichtswechsel verhindern, dass verspätete Antworten geschützten
+Zustand einer neuen Ansicht verändern.
 Bestätigte Pläne verwenden denselben Schnitt: `ConfirmedPlansWorkflowService`
 ruft `ConfirmedPlansPort` auf, dessen HTTP-Adapter Plan- und Revisionsantworten
 von HAL-Links bereinigt.

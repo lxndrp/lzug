@@ -12,7 +12,15 @@ Diese Referenz entsteht beim Dokumentationsbuild aus Google-Style-Docstrings. Si
 
 ## Benachrichtigungen
 
-::: backend.integrations.notifications
+::: backend.notifications.service
+
+::: backend.notifications.delivery
+
+::: backend.notifications.repository
+
+::: backend.integrations.notification_delivery
+
+::: backend.persistence.notifications
 
 ## Folgen bestätigter Planänderungen
 

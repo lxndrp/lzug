@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { Subject } from 'rxjs';
+import { Subject, of } from 'rxjs';
 
 import { RoundContextService } from '../api/round-context.service';
 import { AuthService } from '../auth/auth.service';
@@ -8,10 +8,14 @@ import { SessionScopeService } from '../auth/session-scope.service';
 import { UiFeedbackService } from './ui-feedback.service';
 import { ApplicationWorkspaceService } from './application-workspace.service';
 import { WORKSPACE_PORT } from './workspace.port';
+import { locationsFixture } from '../testing/fixtures';
 
 describe('ApplicationWorkspaceService', () => {
   let requests: Subject<unknown>[];
   let loadDashboard: ReturnType<typeof vi.fn>;
+  let loadLocations: ReturnType<typeof vi.fn>;
+  let loadCandidateReferences: ReturnType<typeof vi.fn>;
+  let loadCommitteeMembers: ReturnType<typeof vi.fn>;
   let feedback: { notify: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
@@ -21,12 +25,18 @@ describe('ApplicationWorkspaceService', () => {
       requests.push(request);
       return request;
     });
+    loadLocations = vi.fn(() => of([]));
+    loadCandidateReferences = vi.fn(() => of({ candidates: [], candidateAssignments: [] }));
+    loadCommitteeMembers = vi.fn(() => of([]));
     feedback = { notify: vi.fn() };
 
     TestBed.configureTestingModule({
       providers: [
         provideRouter([]),
-        { provide: WORKSPACE_PORT, useValue: { loadDashboard } },
+        {
+          provide: WORKSPACE_PORT,
+          useValue: { loadDashboard, loadLocations, loadCandidateReferences, loadCommitteeMembers },
+        },
         {
           provide: AuthService,
           useValue: { state: () => 'authenticated', markAnonymous: vi.fn() },
@@ -88,6 +98,134 @@ describe('ApplicationWorkspaceService', () => {
     expect(workspace.loading()).toBe(false);
   });
 
+  it('updates cached location projections with a targeted read only', () => {
+    const workspace = TestBed.inject(ApplicationWorkspaceService);
+    workspace.refresh();
+    requests[0].next(dashboard(1, 'Runde A'));
+    requests[0].complete();
+
+    workspace.refreshLocations();
+
+    expect(loadDashboard).toHaveBeenCalledOnce();
+    expect(loadLocations).toHaveBeenCalledOnce();
+  });
+
+  it('preserves a newer targeted location read when an older full refresh finishes later', () => {
+    const workspace = TestBed.inject(ApplicationWorkspaceService);
+    const oldLocation = locationsFixture[0];
+    const updatedLocation = { ...oldLocation, name: 'Aktualisierter Prüfungsort' };
+    workspace.refresh();
+    requests[0].next({
+      ...dashboard(1, 'Runde A'),
+      board: { days: [], locations: [oldLocation] },
+      masterData: { committees: [], locations: [oldLocation] },
+    });
+    requests[0].complete();
+
+    workspace.refresh();
+    loadLocations.mockReturnValueOnce(of([updatedLocation]));
+    workspace.refreshLocations();
+    requests[1].next({
+      ...dashboard(1, 'Runde A'),
+      board: { days: [], locations: [oldLocation] },
+      masterData: { committees: [], locations: [oldLocation] },
+    });
+    requests[1].complete();
+
+    expect(workspace.board()?.locations[0].name).toBe('Aktualisierter Prüfungsort');
+    expect(workspace.masterData()?.locations[0].name).toBe('Aktualisierter Prüfungsort');
+  });
+
+  it('updates only the candidate references used by the transitional planning workspace', () => {
+    const workspace = TestBed.inject(ApplicationWorkspaceService);
+    workspace.refresh();
+    requests[0].next(dashboard(1, 'Runde A'));
+    requests[0].complete();
+    const candidates = [{ candidate: { id: 7 }, roundCandidate: null }];
+    const candidateAssignments = [{ id: 8 }];
+    loadCandidateReferences.mockReturnValueOnce(of({ candidates, candidateAssignments }));
+
+    workspace.refreshCandidateReferences();
+
+    expect(loadCandidateReferences).toHaveBeenCalledWith(1);
+    expect(workspace.board()?.candidates).toEqual(candidates);
+    expect(workspace.masterData()?.candidates).toEqual(candidates);
+    expect(workspace.masterData()?.candidateAssignments).toEqual(candidateAssignments);
+    expect(loadDashboard).toHaveBeenCalledOnce();
+  });
+
+  it('loads selected-round candidate references before the workspace snapshot exists', () => {
+    const workspace = TestBed.inject(ApplicationWorkspaceService);
+    const context = TestBed.inject(RoundContextService);
+    const candidates = [{ candidate: { id: 7 }, roundCandidate: null }];
+    const candidateAssignments = [{ id: 8 }];
+    context.select(2);
+    loadCandidateReferences.mockReturnValueOnce(of({ candidates, candidateAssignments }));
+
+    workspace.refreshCandidateReferences(2);
+
+    expect(loadCandidateReferences).toHaveBeenCalledWith(2);
+    expect(workspace.candidateReferenceSnapshot()).toEqual({
+      roundId: 2,
+      candidates,
+      candidateAssignments,
+    });
+    expect(workspace.masterData()).toBeNull();
+    expect(loadDashboard).not.toHaveBeenCalled();
+  });
+
+  it('keeps targeted references out of a workspace snapshot for another round', () => {
+    const workspace = TestBed.inject(ApplicationWorkspaceService);
+    const context = TestBed.inject(RoundContextService);
+    const roundOneCandidates = [{ candidate: { id: 1 }, roundCandidate: null }];
+    const roundOneAssignments = [{ id: 10 }];
+    const roundTwoCandidates = [{ candidate: { id: 2 }, roundCandidate: null }];
+    const roundTwoAssignments = [{ id: 20 }];
+    workspace.refresh();
+    requests[0].next({
+      ...dashboard(1, 'Runde A'),
+      board: { days: [], locations: [], candidates: roundOneCandidates },
+      masterData: {
+        committees: [],
+        locations: [],
+        candidates: roundOneCandidates,
+        candidateAssignments: roundOneAssignments,
+      },
+    });
+    requests[0].complete();
+    context.select(2);
+    loadCandidateReferences.mockReturnValueOnce(
+      of({ candidates: roundTwoCandidates, candidateAssignments: roundTwoAssignments }),
+    );
+
+    workspace.refreshCandidateReferences(2);
+
+    expect(workspace.candidateReferenceSnapshot()).toEqual({
+      roundId: 2,
+      candidates: roundTwoCandidates,
+      candidateAssignments: roundTwoAssignments,
+    });
+    expect(workspace.board()?.candidates).toEqual(roundOneCandidates);
+    expect(workspace.masterData()?.candidates).toEqual(roundOneCandidates);
+    expect(workspace.masterData()?.candidateAssignments).toEqual(roundOneAssignments);
+  });
+
+  it('updates only committee members in the transitional planning workspace', () => {
+    const workspace = TestBed.inject(ApplicationWorkspaceService);
+    workspace.refresh();
+    requests[0].next(dashboard(1, 'Runde A'));
+    requests[0].complete();
+    const members = [{ id: 9, committee_id: 3 }];
+    loadCommitteeMembers.mockReturnValueOnce(of(members));
+
+    workspace.refreshCommitteeReferences();
+
+    expect(loadCommitteeMembers).toHaveBeenCalledOnce();
+    expect(workspace.board()?.members).toEqual(members);
+    expect(workspace.masterData()?.members).toEqual(members);
+    expect(loadDashboard).toHaveBeenCalledOnce();
+  });
+
   it('clears cached workspace and ignores a response from the previous session', () => {
     const workspace = TestBed.inject(ApplicationWorkspaceService);
     const context = TestBed.inject(RoundContextService);
@@ -104,7 +242,6 @@ describe('ApplicationWorkspaceService', () => {
     requests[0].next(dashboard(1, 'Vorherige Runde'));
     requests[0].complete();
     context.select(8);
-    workspace.selectedCommitteeId.set(6);
     workspace.refresh();
 
     scope.clear();
@@ -113,9 +250,6 @@ describe('ApplicationWorkspaceService', () => {
 
     expect(workspace.round()).toBeNull();
     expect(workspace.masterData()).toBeNull();
-    expect(workspace.candidateWorkspace()).toBeNull();
-    expect(workspace.committeeWorkspace()).toBeNull();
-    expect(workspace.selectedCommitteeId()).toBeNull();
     expect(context.roundId()).toBe(1);
     expect(workspace.loading()).toBe(false);
   });
@@ -126,15 +260,7 @@ function dashboard(id: number, name: string) {
     applicationVersion: 'test',
     round: { id, name, status: 'planning' },
     summary: {},
-    board: {},
-    masterData: { committees: [] },
-    candidateWorkspace: {
-      candidates: [],
-      assignments: [],
-      examRounds: [],
-      committees: [],
-      activeRound: null,
-    },
-    committeeWorkspace: { committees: [], members: [], persons: [] },
+    board: { days: [], locations: [] },
+    masterData: { committees: [], locations: [] },
   };
 }
