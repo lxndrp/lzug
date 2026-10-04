@@ -111,6 +111,19 @@ describe('ExamDayFacade', () => {
     expect(facade.reopeningImpact()).toBeNull();
     expect(facade.savingKeys()).toEqual(new Set());
   });
+
+  it('discards a preview whose revision no longer matches the current day', () => {
+    const pendingPreview = new Subject<ExamDayReopeningImpact>();
+    vi.mocked(port.previewExamDayReopening).mockReturnValueOnce(pendingPreview.asObservable());
+    facade.bindContext(1, 7);
+    facade.previewReopening(7, []);
+
+    pendingPreview.next({ ...reopeningImpact(), revision: 2 });
+
+    expect(facade.reopeningImpact()).toBeNull();
+    expect(facade.actionError()).toContain('aktuellen Stand');
+    expect(facade.savingKeys()).toEqual(new Set());
+  });
 });
 
 function createPort(): ExamDayPort {
