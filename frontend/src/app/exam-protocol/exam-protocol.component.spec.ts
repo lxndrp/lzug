@@ -1,7 +1,8 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Observable, of, throwError } from 'rxjs';
+import { Observable, Subject, of, throwError } from 'rxjs';
 import { provideTaiga } from '@taiga-ui/core';
 
+import { ApplicationError } from '../application/application-error';
 import { AuthService } from '../auth/auth.service';
 import { EXAM_PROTOCOL_PORT, type ExamProtocolPort } from './exam-protocol.port';
 import type { ExamProtocol, ProtocolRevision, UpdateExamProtocol } from './exam-protocol.models';
@@ -132,6 +133,33 @@ describe('ExamProtocolComponent', () => {
     component.save();
 
     expect(changes).toEqual([{ roundId: 1, dayId: 7, revision: 5 }]);
+  });
+
+  it('keeps a pending command fenced to the same action context during a day refresh', () => {
+    const pending = new Subject<ExamProtocol>();
+    vi.mocked(port.update).mockReturnValueOnce(pending.asObservable());
+    fixture.detectChanges();
+    fixture.detectChanges();
+    const component = fixture.componentInstance as unknown as {
+      declaration: string;
+      busy: () => boolean;
+      error: () => string | null;
+      save(): void;
+    };
+    component.declaration = 'without_special_occurrences';
+    component.save();
+    expect(component.busy()).toBe(true);
+
+    fixture.componentRef.setInput('dayRevision', 5);
+    fixture.detectChanges();
+    expect(component.busy()).toBe(true);
+
+    pending.error(new ApplicationError('conflict', 'Die Tagesrevision wurde geändert.'));
+    fixture.detectChanges();
+
+    expect(component.busy()).toBe(false);
+    expect(component.error()).toBe('Die Tagesrevision wurde geändert.');
+    expect(port.get).toHaveBeenCalledTimes(2);
   });
 
   it('offers participant confirmation only for the active version', () => {

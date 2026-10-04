@@ -540,6 +540,81 @@ describe('ExamDayComponent', () => {
     expect(component.reopeningReason).toBe('Protokollangabe korrigieren');
   });
 
+  it('preserves dirty attendance and execution drafts across an embedded day refresh', () => {
+    fixture.detectChanges();
+    const component = fixture.componentInstance as unknown as {
+      attendanceDraft(
+        key: string,
+        attendance: ConfirmedPlanDayView['day']['assignments'][number]['attendance'],
+      ): {
+        status: string;
+        arrivedAt: string;
+      };
+      executionStatusDraft(slot: ConfirmedPlanDayView['day']['slots'][number]): {
+        status: string;
+        reason: string;
+        actualStartedAt: string;
+        actualCompletedAt: string;
+      };
+      refreshAfterProtocolChange(change: {
+        roundId: number;
+        dayId: number;
+        revision: number;
+      }): void;
+    };
+    const current = dayView();
+    const candidateDraft = component.attendanceDraft(
+      'candidate-7',
+      current.day.slots[0].candidateAttendance,
+    );
+    candidateDraft.status = 'late';
+    candidateDraft.arrivedAt = '2026-11-16T08:24';
+    const executionDraft = component.executionStatusDraft(current.day.slots[0]);
+    executionDraft.status = 'running';
+    executionDraft.actualStartedAt = '2026-11-16T08:30';
+    const refreshed = dayView();
+    refreshed.day.revision = 2;
+    refreshed.day.assignments[0].attendance = {
+      status: 'late',
+      arrivedAt: '2026-11-16T08:51:00+01:00',
+    };
+    vi.mocked(examDay.getConfirmedPlanDay).mockReturnValueOnce(of(refreshed));
+    component.refreshAfterProtocolChange({ roundId: 1, dayId: 7, revision: 2 });
+    fixture.detectChanges();
+
+    expect(candidateDraft).toEqual({ status: 'late', arrivedAt: '2026-11-16T08:24' });
+    expect(executionDraft.status).toBe('running');
+    expect(executionDraft.actualStartedAt).toBe('2026-11-16T08:30');
+    expect(
+      component.attendanceDraft('member-7', refreshed.day.assignments[0].attendance),
+    ).toEqual({ status: 'late', arrivedAt: '2026-11-16T08:51' });
+  });
+
+  it('clears attendance and execution drafts when the selected day changes', () => {
+    fixture.detectChanges();
+    const component = fixture.componentInstance as unknown as {
+      drafts: Map<string, { status: string; arrivedAt: string }>;
+      executionDrafts: Map<
+        number,
+        { status: string; reason: string; actualStartedAt: string; actualCompletedAt: string }
+      >;
+    };
+    component.drafts.set('candidate-7', { status: 'late', arrivedAt: '2026-11-16T08:24' });
+    component.executionDrafts.set(7, {
+      status: 'running',
+      reason: '',
+      actualStartedAt: '',
+      actualCompletedAt: '',
+    });
+
+    fixture.componentRef.setInput('dayId', 8);
+    fixture.detectChanges();
+
+    expect(component.drafts.has('candidate-7')).toBe(false);
+    expect(component.executionDrafts.has(7)).toBe(false);
+    expect(component.drafts.get('candidate-8')).toEqual({ status: 'open', arrivedAt: '' });
+  });
+
   it('applies a pending closure response after a same-day refresh', () => {
     const pending = new Subject<ExamDayClosure>();
     const staleRefresh = new Subject<ConfirmedPlanDayView>();

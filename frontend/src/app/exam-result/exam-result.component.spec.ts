@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Observable, of, throwError } from 'rxjs';
+import { Observable, Subject, of, throwError } from 'rxjs';
 import { provideTaiga } from '@taiga-ui/core';
 
 import { ApplicationError } from '../application/application-error';
@@ -130,6 +130,53 @@ describe('ExamResultComponent', () => {
     );
 
     expect(changes).toEqual([{ '7': 5 }]);
+  });
+
+  it('keeps a pending command and vote drafts across a day-only revision refresh', () => {
+    const pending = new Subject<ExamResult>();
+    vi.mocked(port.saveIndividualAssessment).mockReturnValueOnce(pending.asObservable());
+    fixture.detectChanges();
+    fixture.detectChanges();
+    const component = fixture.componentInstance as unknown as {
+      busy: () => boolean;
+      error: () => string | null;
+      componentVotes: Map<string, Map<number, 'yes' | 'no' | 'abstain'>>;
+      componentVoters: Map<string, Set<number>>;
+      examResultVotes: Map<number, 'yes' | 'no' | 'abstain'>;
+      examResultVoters: Set<number>;
+      saveAssessment(
+        model: ExamResult['modelVersion']['rules']['components'][number],
+        criterion: ExamResult['modelVersion']['rules']['components'][number]['criteria'][number],
+        submitted: boolean,
+      ): void;
+    };
+    component.componentVotes.set('documentation', new Map([[1, 'yes']]));
+    component.componentVoters.set('documentation', new Set([1]));
+    component.examResultVotes.set(1, 'no');
+    component.examResultVoters.add(1);
+    component.saveAssessment(
+      resultFixture().modelVersion.rules.components[0],
+      criterionFixture(),
+      true,
+    );
+    expect(component.busy()).toBe(true);
+
+    fixture.componentRef.setInput('dayRevision', 5);
+    fixture.detectChanges();
+    expect(component.busy()).toBe(true);
+    expect(component.componentVotes.get('documentation')?.get(1)).toBe('yes');
+    expect(component.componentVoters.get('documentation')?.has(1)).toBe(true);
+    expect(component.examResultVotes.get(1)).toBe('no');
+    expect(component.examResultVoters.has(1)).toBe(true);
+
+    pending.error(new ApplicationError('conflict', 'Die Tagesrevision wurde geändert.'));
+    fixture.detectChanges();
+
+    expect(component.busy()).toBe(false);
+    expect(component.error()).toBe('Die Tagesrevision wurde geändert.');
+    expect(component.componentVotes.get('documentation')?.get(1)).toBe('yes');
+    expect(component.examResultVotes.get(1)).toBe('no');
+    expect(port.get).toHaveBeenCalledTimes(2);
   });
 
   it('hides mutation and export controls without the matching capability', () => {

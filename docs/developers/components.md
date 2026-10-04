@@ -944,11 +944,19 @@ Tagesrevision.
 `ExamDayFacade` besitzt Tagesread, Lade-/Fehlerzustand, angenommene Commands
 und bestätigte Antworten für die Lebensdauer der Prüfungstagsansicht;
 die reine `ExamDayApplication`-Weiterleitung entfällt.
-Die Komponente behält ihre Formularentwürfe und Darstellung.
+Die Komponente behält ihre Formularentwürfe und Darstellung. Ein Refresh im
+gleichen Runden-/Tageskontext übernimmt neue Serverwerte in unveränderte Drafts,
+bewahrt davon abweichende lokale Drafts und löscht Drafts entfernter Einträge.
+Ein Wechsel von Runde oder Tag verwirft alle Tages-Drafts.
 Protokoll und Ergebnis erhalten Runde, Tag, Slot und Tagesrevision explizit;
 ihre erfolgreichen Änderungen melden Tagesrevisionen über Outputs zurück,
 damit Prüfungstag den bestätigten Tagesread und beide Kindreads gezielt
 aktualisiert.
+Ein Wechsel nur der Tagesrevision lädt Protokoll und Ergebnis neu, ändert aber
+nicht die Fence eines bereits angenommenen Commands; dessen Antwort kann einen
+Versionskonflikt weiterhin im Ursprungskontext anzeigen. Ein Wechsel von Runde,
+Tag oder Slot invalidiert dagegen den Commandkontext. Ergebnisstimmen bleiben
+bei einer reinen Tagesrevision im lokalen Entwurf erhalten.
 Session- und Ansichtswechsel verhindern, dass verspätete Antworten geschützten
 Zustand einer neuen Ansicht verändern.
 Bestätigte Pläne verwenden denselben Schnitt: `ConfirmedPlansWorkflowService`

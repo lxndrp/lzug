@@ -77,15 +77,16 @@ export class ExamResultComponent implements OnChanges {
   private contextSequence = 0;
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['roundId'] || changes['dayId'] || changes['slotId'] || changes['dayRevision']) {
+    const identityChanged = changes['roundId'] || changes['dayId'] || changes['slotId'];
+    if (identityChanged) {
       this.contextSequence += 1;
       this.busy.set(false);
       this.componentVotes.clear();
       this.componentVoters.clear();
       this.examResultVotes.clear();
       this.examResultVoters.clear();
-      this.load();
     }
+    if (identityChanged || changes['dayRevision']) this.load();
   }
 
   protected load(): void {

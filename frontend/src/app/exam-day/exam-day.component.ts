@@ -53,6 +53,9 @@ export class ExamDayComponent implements OnChanges {
   protected reopeningOccasion = '';
   protected reopeningSource = '';
   protected reopeningReason = '';
+  private draftContext: string | null = null;
+  private lastDraftView: ConfirmedPlanDayView | null = null;
+  private draftContextGeneration: number | null = null;
   protected readonly executionSummaryStatuses = [
     { value: 'open', label: 'Offen' },
     { value: 'running', label: 'Läuft' },
@@ -63,12 +66,17 @@ export class ExamDayComponent implements OnChanges {
 
   constructor() {
     effect(() => {
+      const contextGeneration = this.examDay.contextGeneration();
       const view = this.view();
+      if (this.draftContextGeneration !== contextGeneration) {
+        this.drafts.clear();
+        this.executionDrafts.clear();
+        this.draftContext = null;
+        this.lastDraftView = null;
+        this.draftContextGeneration = contextGeneration;
+        this.resetClosureDrafts();
+      }
       if (view) this.resetDrafts(view);
-    });
-    effect(() => {
-      this.examDay.contextGeneration();
-      this.resetClosureDrafts();
     });
   }
   ngOnChanges(changes: SimpleChanges): void {
@@ -78,6 +86,8 @@ export class ExamDayComponent implements OnChanges {
     if (contextChanged) {
       this.drafts.clear();
       this.executionDrafts.clear();
+      this.draftContext = null;
+      this.lastDraftView = null;
       this.resetClosureDrafts();
     }
     this.examDay.bindContext(this.roundId, this.dayId);
@@ -91,10 +101,7 @@ export class ExamDayComponent implements OnChanges {
     const existing = this.drafts.get(key);
     if (existing) return existing;
     const current = attendance ?? { status: 'open', arrivedAt: null };
-    const draft = {
-      status: current.status as AttendanceStatus,
-      arrivedAt: this.datetimeLocalValue(current.arrivedAt),
-    };
+    const draft = this.toAttendanceDraft(current);
     this.drafts.set(key, draft);
     return draft;
   }
@@ -173,12 +180,7 @@ export class ExamDayComponent implements OnChanges {
   protected executionStatusDraft(slot: ConfirmedPlanDay['slots'][number]): ExecutionStatusDraft {
     const existing = this.executionDrafts.get(slot.id);
     if (existing) return existing;
-    const draft = {
-      status: slot.executionStatus,
-      reason: slot.statusReason ?? '',
-      actualStartedAt: this.datetimeLocalValue(slot.actualStartedAt),
-      actualCompletedAt: this.datetimeLocalValue(slot.actualCompletedAt),
-    };
+    const draft = this.toExecutionStatusDraft(slot);
     this.executionDrafts.set(slot.id, draft);
     return draft;
   }
@@ -454,15 +456,112 @@ export class ExamDayComponent implements OnChanges {
   }
 
   private resetDrafts(view: ConfirmedPlanDayView): void {
-    this.drafts.clear();
-    this.executionDrafts.clear();
+    const context = `${view.plan.id}:${view.day.id}`;
+    const sameContext = context === this.draftContext;
+    const previousView = sameContext ? this.lastDraftView : null;
+    if (!sameContext) {
+      this.drafts.clear();
+      this.executionDrafts.clear();
+    }
+
+    const attendanceKeys = new Set<string>();
+    const executionKeys = new Set<number>();
     for (const slot of view.day.slots) {
-      this.attendanceDraft(`candidate-${slot.id}`, this.candidateAttendanceFor(slot));
-      this.executionStatusDraft(slot);
+      const key = `candidate-${slot.id}`;
+      attendanceKeys.add(key);
+      this.reconcileAttendanceDraft(
+        key,
+        this.candidateAttendanceFor(slot),
+        previousView?.day.slots.find((item) => item.id === slot.id)?.candidateAttendance,
+      );
+      executionKeys.add(slot.id);
+      this.reconcileExecutionDraft(
+        slot,
+        previousView?.day.slots.find((item) => item.id === slot.id),
+      );
     }
     for (const assignment of view.day.assignments) {
-      this.attendanceDraft(`member-${assignment.id}`, this.memberAttendanceFor(assignment));
+      const key = `member-${assignment.id}`;
+      attendanceKeys.add(key);
+      this.reconcileAttendanceDraft(
+        key,
+        this.memberAttendanceFor(assignment),
+        previousView?.day.assignments.find((item) => item.id === assignment.id)?.attendance,
+      );
     }
+    for (const key of this.drafts.keys()) if (!attendanceKeys.has(key)) this.drafts.delete(key);
+    for (const key of this.executionDrafts.keys())
+      if (!executionKeys.has(key)) this.executionDrafts.delete(key);
+    this.draftContext = context;
+    this.lastDraftView = view;
+  }
+
+  private reconcileAttendanceDraft(
+    key: string,
+    attendance: Attendance | undefined,
+    previousAttendance: Attendance | undefined,
+  ): void {
+    const incoming = this.toAttendanceDraft(attendance ?? { status: 'open', arrivedAt: null });
+    const current = this.drafts.get(key);
+    const previous = previousAttendance
+      ? this.toAttendanceDraft(previousAttendance)
+      : undefined;
+    if (
+      !current ||
+      !previous ||
+      this.sameAttendanceDraft(current, previous) ||
+      this.sameAttendanceDraft(current, incoming)
+    ) {
+      this.drafts.set(key, incoming);
+    }
+  }
+
+  private reconcileExecutionDraft(
+    slot: ConfirmedPlanDay['slots'][number],
+    previousSlot: ConfirmedPlanDay['slots'][number] | undefined,
+  ): void {
+    const incoming = this.toExecutionStatusDraft(slot);
+    const current = this.executionDrafts.get(slot.id);
+    const previous = previousSlot ? this.toExecutionStatusDraft(previousSlot) : undefined;
+    if (
+      !current ||
+      !previous ||
+      this.sameExecutionDraft(current, previous) ||
+      this.sameExecutionDraft(current, incoming)
+    ) {
+      this.executionDrafts.set(slot.id, incoming);
+    }
+  }
+
+  private toAttendanceDraft(attendance: Attendance): AttendanceDraft {
+    return {
+      status: attendance.status as AttendanceStatus,
+      arrivedAt: this.datetimeLocalValue(attendance.arrivedAt),
+    };
+  }
+
+  private sameAttendanceDraft(left: AttendanceDraft, right: AttendanceDraft): boolean {
+    return left.status === right.status && left.arrivedAt === right.arrivedAt;
+  }
+
+  private toExecutionStatusDraft(
+    slot: ConfirmedPlanDay['slots'][number],
+  ): ExecutionStatusDraft {
+    return {
+      status: slot.executionStatus,
+      reason: slot.statusReason ?? '',
+      actualStartedAt: this.datetimeLocalValue(slot.actualStartedAt),
+      actualCompletedAt: this.datetimeLocalValue(slot.actualCompletedAt),
+    };
+  }
+
+  private sameExecutionDraft(left: ExecutionStatusDraft, right: ExecutionStatusDraft): boolean {
+    return (
+      left.status === right.status &&
+      left.reason === right.reason &&
+      left.actualStartedAt === right.actualStartedAt &&
+      left.actualCompletedAt === right.actualCompletedAt
+    );
   }
 
   private datetimeLocalValue(value: string | null): string {

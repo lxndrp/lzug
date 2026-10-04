@@ -1,9 +1,10 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { Subject, of } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
+import { ApplicationError } from '../application/application-error';
 import { AuthService } from '../auth/auth.service';
 import type { AuthSession } from '../auth/auth.models';
 import { SessionScopeService } from '../auth/session-scope.service';
@@ -52,6 +53,13 @@ describe('ExamDayFacade', () => {
     secondRead.next(dayView(8, 2));
     expect(facade.state()).toBe('ready');
     expect(facade.view()?.day.id).toBe(8);
+  });
+
+  it('marks an initially unbound route as not found', () => {
+    facade.bindContext(null, null);
+
+    expect(facade.state()).toBe('not-found');
+    expect(facade.view()).toBeNull();
   });
 
   it('keeps a command response bound to its original day', () => {
@@ -123,6 +131,26 @@ describe('ExamDayFacade', () => {
     expect(facade.reopeningImpact()).toBeNull();
     expect(facade.actionError()).toContain('aktuellen Stand');
     expect(facade.savingKeys()).toEqual(new Set());
+  });
+
+  it('hides stale day data after an embedded refresh fails and allows retry', () => {
+    facade.bindContext(1, 7);
+    expect(facade.state()).toBe('ready');
+    vi.mocked(port.getConfirmedPlanDay).mockReturnValueOnce(
+      throwError(() => new ApplicationError('unavailable', 'Refresh fehlgeschlagen.')),
+    );
+
+    facade.refreshAfterEmbeddedMutation(7, 2);
+
+    expect(facade.state()).toBe('error');
+    expect(facade.view()).toBeNull();
+    expect(facade.actionError()).toContain('aktuelle Tagesansicht');
+
+    vi.mocked(port.getConfirmedPlanDay).mockReturnValueOnce(of(dayView(7, 1, 2)));
+    facade.load();
+
+    expect(facade.state()).toBe('ready');
+    expect(facade.view()?.day.revision).toBe(2);
   });
 });
 

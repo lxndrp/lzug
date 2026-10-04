@@ -605,6 +605,7 @@ assert.deepEqual(
   [
     '../application/application-error',
     '../auth/auth.service',
+    '../auth/session-scope.service',
     './exam-result.facade',
     './exam-result.models',
     './exam-result.voting',

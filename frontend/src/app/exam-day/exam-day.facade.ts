@@ -47,6 +47,7 @@ export class ExamDayFacade {
 
   private roundId: number | null = null;
   private dayId: number | null = null;
+  private hasBoundContext = false;
   private requestSequence = 0;
   private contextSequence = 0;
   private previewSequence = 0;
@@ -61,7 +62,8 @@ export class ExamDayFacade {
   }
 
   bindContext(roundId: number | null, dayId: number | null): void {
-    if (this.roundId === roundId && this.dayId === dayId) return;
+    if (this.hasBoundContext && this.roundId === roundId && this.dayId === dayId) return;
+    this.hasBoundContext = true;
     this.roundId = roundId;
     this.dayId = dayId;
     this.contextSequence += 1;
@@ -341,22 +343,40 @@ export class ExamDayFacade {
     const contextSequence = this.contextSequence;
     const sessionGeneration = this.sessionScope.generation();
     const roundId = this.roundId;
+    this.actionError.set(null);
+    this.view.set(null);
+    this.state.set('loading');
     this.sessionScope.forCurrentSession(this.port.getConfirmedPlanDay(dayId)).subscribe({
       next: (view) => {
         if (!this.isCurrent(requestSequence, contextSequence, sessionGeneration, dayId, roundId)) {
           return;
         }
-        if (
-          view.plan.id !== roundId ||
-          (minimumRevision !== undefined && view.day.revision < minimumRevision)
-        ) {
+        if (view.plan.id !== roundId) {
+          this.view.set(null);
+          this.state.set('not-found');
+          return;
+        }
+        if (minimumRevision !== undefined && view.day.revision < minimumRevision) {
+          this.view.set(null);
+          this.state.set('error');
+          this.actionError.set(
+            'Die aktualisierten Tagesdaten entsprechen nicht der akzeptierten Revision.',
+          );
           return;
         }
         this.view.set(view);
         this.state.set('ready');
       },
       error: () => {
-        // The child command already succeeded; retain the current view and allow a manual refresh.
+        if (!this.isCurrent(requestSequence, contextSequence, sessionGeneration, dayId, roundId)) {
+          return;
+        }
+        this.view.set(null);
+        this.state.set('error');
+        this.actionError.set(
+          'Die Änderung wurde gespeichert, aber die aktuelle Tagesansicht konnte ' +
+            'nicht geladen werden.',
+        );
       },
     });
   }

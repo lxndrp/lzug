@@ -67,11 +67,12 @@ export class ExamProtocolComponent implements OnChanges {
   ];
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['roundId'] || changes['dayId'] || changes['slotId'] || changes['dayRevision']) {
+    const identityChanged = changes['roundId'] || changes['dayId'] || changes['slotId'];
+    if (identityChanged) {
       this.contextSequence += 1;
       this.busy.set(false);
-      this.load();
     }
+    if (identityChanged || changes['dayRevision']) this.load();
   }
 
   protected load(): void {
