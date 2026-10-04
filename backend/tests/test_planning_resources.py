@@ -130,6 +130,10 @@ class PlanningResourcePortTests(unittest.TestCase):
                 events.append(f"delete:{round_candidate_id}")
                 return True
 
+            def round_candidate_is_in_use(self, round_candidate_id):
+                events.append(f"in_use:{round_candidate_id}")
+                return False
+
         @contextmanager
         def unit_of_work_factory(*, write=False):
             events.append(f"begin:{write}")
@@ -148,7 +152,7 @@ class PlanningResourcePortTests(unittest.TestCase):
             PlanningResourceService(unit_of_work_factory, authorize).delete_round_candidate(12)
         )
         self.assertEqual(
-            ["begin:True", "queries", "authorize", "delete:12", "commit"],
+            ["begin:True", "queries", "authorize", "in_use:12", "delete:12", "commit"],
             events,
         )
 

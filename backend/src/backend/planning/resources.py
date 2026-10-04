@@ -61,6 +61,10 @@ class PlanningRecordValue:
         return dict(self.values)
 
 
+class RoundCandidateInUseError(ValueError):
+    """A round candidate cannot be deleted while assignments or slots refer to it."""
+
+
 class PlanningRecord(Protocol):
     """Materialized values for one planning-owned master-data record."""
 
@@ -317,6 +321,8 @@ class PlanningResourceUnitOfWork(Protocol):
     ) -> tuple[PlanningRecord, ...]: ...
 
     def delete_round_candidate(self, round_candidate_id: int) -> bool: ...
+
+    def round_candidate_is_in_use(self, round_candidate_id: int) -> bool: ...
 
     def assign_candidate_to_round(
         self,
@@ -845,6 +851,10 @@ class PlanningResourceService:
     def delete_round_candidate(self, round_candidate_id: int) -> bool:
         with self._write_unit_of_work() as unit_of_work:
             self._authorized(unit_of_work, "round_candidate", round_candidate_id, {})
+            if unit_of_work.round_candidate_is_in_use(round_candidate_id):
+                raise RoundCandidateInUseError(
+                    "A round candidate with assignment history or scheduled slots cannot be deleted"
+                )
             return unit_of_work.delete_round_candidate(round_candidate_id)
 
     def list_candidate_assignments(

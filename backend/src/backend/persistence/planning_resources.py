@@ -22,6 +22,7 @@ from backend.persistence.models import (
     EXAM_HALF_YEAR,
     EXAM_ROOM,
     EXAM_ROUND,
+    EXAM_SLOT,
     EXAM_VENUE,
     MEMBER_AVAILABILITY,
     PLANNING_SETTINGS,
@@ -441,6 +442,12 @@ class SQLitePlanningResourceUnitOfWork:
 
     def delete_round_candidate(self, round_candidate_id: int) -> bool:
         return self._store.delete(ROUND_CANDIDATE, round_candidate_id)
+
+    def round_candidate_is_in_use(self, round_candidate_id: int) -> bool:
+        return any(
+            self._store.first(resource, round_candidate_id=round_candidate_id) is not None
+            for resource in (CANDIDATE_COMMITTEE_ASSIGNMENT, EXAM_SLOT)
+        )
 
     def assign_candidate_to_round(
         self,

@@ -15,6 +15,7 @@ from sqlalchemy.exc import SAWarning, SQLAlchemyError
 from backend.persistence.database import session_scope
 from backend.persistence.models import (
     CANDIDATE,
+    CANDIDATE_COMMITTEE_ASSIGNMENT,
     COMMITTEE,
     COMMITTEE_MEMBER,
     PERSON,
@@ -65,6 +66,46 @@ class ApiTests(unittest.TestCase):
 
             assert_status(status, HTTPStatus.NO_CONTENT)
             self.assertIsNone(body)
+
+    def test_round_candidate_delete_with_assignment_history_returns_conflict(self) -> None:
+        with TempDatabase() as db_path:
+            with session_scope(db_path, begin_immediate=True) as session:
+                store = Store(session)
+                candidate = store.create(
+                    CANDIDATE,
+                    {
+                        "first_name": "Assigned",
+                        "last_name": "Candidate",
+                        "ihk_exam_number": "API-DELETE-ASSIGNED-CANDIDATE",
+                        "specialization": "system_integration",
+                        "training_company": "API-Test",
+                    },
+                )
+                round_candidate = store.create(
+                    ROUND_CANDIDATE,
+                    {
+                        "exam_round_id": 1,
+                        "candidate_id": candidate["id"],
+                        "attempt_number": 1,
+                    },
+                )
+                store.create(
+                    CANDIDATE_COMMITTEE_ASSIGNMENT,
+                    {
+                        "candidate_id": candidate["id"],
+                        "exam_half_year_id": 1,
+                        "exam_round_id": 1,
+                        "round_candidate_id": round_candidate["id"],
+                    },
+                )
+
+            with ApiServer(db_path) as api:
+                status, body = api.request(
+                    "DELETE", f"/api/round-candidates/{round_candidate['id']}"
+                )
+
+            self.assertEqual(HTTPStatus.CONFLICT, status)
+            self.assertEqual("round_candidate_in_use", body["error"]["code"])
 
     def test_foreign_membership_cannot_be_moved_by_payload_scope(self) -> None:
         with TempDatabase() as db_path:
