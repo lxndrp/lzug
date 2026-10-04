@@ -257,7 +257,9 @@ class PlanningResourceUnitOfWork(Protocol):
     def authorization_queries(self) -> object:
         """Return materialized authorization queries bound to this UoW."""
 
-    def list_half_years(self) -> tuple[PlanningRecord, ...]: ...
+    def list_half_years(
+        self, visible_ids: frozenset[int] | None = None
+    ) -> tuple[PlanningRecord, ...]: ...
 
     def get_half_year(self, half_year_id: int) -> PlanningRecord | None: ...
 
@@ -267,7 +269,11 @@ class PlanningResourceUnitOfWork(Protocol):
         self, values: Mapping[str, PlanningValue]
     ) -> PlanningRoundCreationContext: ...
 
-    def list_rounds(self, filters: Mapping[str, PlanningValue]) -> tuple[PlanningRecord, ...]: ...
+    def list_rounds(
+        self,
+        filters: Mapping[str, PlanningValue],
+        visible_ids: frozenset[int] | None = None,
+    ) -> tuple[PlanningRecord, ...]: ...
 
     def get_round(self, round_id: int) -> PlanningRecord | None: ...
 
@@ -282,7 +288,9 @@ class PlanningResourceUnitOfWork(Protocol):
     ) -> PlanningRecord | None: ...
 
     def list_candidates(
-        self, filters: Mapping[str, PlanningValue]
+        self,
+        filters: Mapping[str, PlanningValue],
+        visible_ids: frozenset[int] | None = None,
     ) -> tuple[PlanningRecord, ...]: ...
 
     def get_candidate(self, candidate_id: int) -> PlanningRecord | None: ...
@@ -296,11 +304,15 @@ class PlanningResourceUnitOfWork(Protocol):
     def delete_candidate(self, candidate_id: int) -> bool: ...
 
     def list_candidate_assignments(
-        self, filters: Mapping[str, PlanningValue]
+        self,
+        filters: Mapping[str, PlanningValue],
+        visible_ids: frozenset[int] | None = None,
     ) -> tuple[PlanningRecord, ...]: ...
 
     def list_round_candidates(
-        self, filters: Mapping[str, PlanningValue]
+        self,
+        filters: Mapping[str, PlanningValue],
+        visible_ids: frozenset[int] | None = None,
     ) -> tuple[PlanningRecord, ...]: ...
 
     def assign_candidate_to_round(
@@ -309,7 +321,11 @@ class PlanningResourceUnitOfWork(Protocol):
         plan: PlanningCandidateAssignmentPlan,
     ) -> PlanningRecord: ...
 
-    def list_settings(self, filters: Mapping[str, PlanningValue]) -> tuple[PlanningRecord, ...]: ...
+    def list_settings(
+        self,
+        filters: Mapping[str, PlanningValue],
+        visible_ids: frozenset[int] | None = None,
+    ) -> tuple[PlanningRecord, ...]: ...
 
     def get_settings(self, settings_id: int) -> PlanningRecord | None: ...
 
@@ -326,7 +342,9 @@ class PlanningResourceUnitOfWork(Protocol):
     def delete_settings(self, settings_id: int) -> bool: ...
 
     def list_availabilities(
-        self, filters: Mapping[str, PlanningValue]
+        self,
+        filters: Mapping[str, PlanningValue],
+        visible_ids: frozenset[int] | None = None,
     ) -> tuple[PlanningRecord, ...]: ...
 
     def get_availability(self, availability_id: int) -> PlanningRecord | None: ...
@@ -963,8 +981,16 @@ class PlanningResourceService:
     ) -> tuple[PlanningRecord, ...]:
         normalized_filters = filters or {}
         with self._unit_of_work_factory() as unit_of_work:
+            visible_ids: frozenset[int] | None = None
+            if self._visible is not None:
+                collection_visibility = self._visible(
+                    unit_of_work.authorization_queries(), resource, None, normalized_filters
+                )
+                if isinstance(collection_visibility, bool):
+                    raise TypeError("Planning collection visibility must return record identifiers")
+                visible_ids = collection_visibility
             if resource == "exam_half_year":
-                records = unit_of_work.list_half_years()
+                records = unit_of_work.list_half_years(visible_ids)
             else:
                 list_method_name = {
                     "exam_round": "list_rounds",
@@ -977,17 +1003,10 @@ class PlanningResourceService:
                 if list_method_name is None:
                     raise ValueError(f"No Planning query for resource {resource}")
                 list_method = getattr(unit_of_work, list_method_name)
-                records = list_method(normalized_filters)
+                records = list_method(normalized_filters, visible_ids)
             if resource == "candidate":
                 records = self.present_candidates(records)
-            if self._visible is None:
-                return records
-            visible_ids = self._visible(
-                unit_of_work.authorization_queries(), resource, None, normalized_filters
-            )
-            if isinstance(visible_ids, bool):
-                raise TypeError("Planning collection visibility must return record identifiers")
-            return tuple(record for record in records if record.values.get("id") in visible_ids)
+            return records
 
     def get_visible_record(self, resource: str, resource_id: int) -> PlanningRecord | None:
         with self._unit_of_work_factory() as unit_of_work:

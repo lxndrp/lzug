@@ -131,9 +131,9 @@ class PlanningResourcePortTests(unittest.TestCase):
         active = False
 
         class FakeUnitOfWork:
-            def list_rounds(self, filters):
+            def list_rounds(self, filters, visible_ids=None):
                 self.assert_active()
-                events.append("planning-read")
+                events.append(f"planning-read:{sorted(visible_ids or ())}")
                 return (record,)
 
             def authorization_queries(self):
@@ -171,7 +171,13 @@ class PlanningResourcePortTests(unittest.TestCase):
 
         self.assertEqual([record], list(result))
         self.assertEqual(
-            ["begin:False", "planning-read", "authorization-queries", "visibility-read", "end"],
+            [
+                "begin:False",
+                "authorization-queries",
+                "visibility-read",
+                "planning-read:[12]",
+                "end",
+            ],
             events,
         )
 

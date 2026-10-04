@@ -26,6 +26,7 @@ from backend.persistence.models import (
     MEMBER_AVAILABILITY,
     PLANNING_SETTINGS,
     ROUND_CANDIDATE,
+    Resource,
 )
 from backend.persistence.resource_access import SQLiteResourceAccessQueryFactory
 from backend.persistence.store import Store
@@ -222,8 +223,23 @@ class SQLitePlanningResourceUnitOfWork:
         """Bind materialized access queries to the active planning transaction."""
         return SQLiteResourceAccessQueryFactory().for_transaction(self._store)
 
-    def list_half_years(self) -> tuple[PlanningRecord, ...]:
-        return tuple(map(_record, self._store.all(EXAM_HALF_YEAR)))
+    @staticmethod
+    def _visible_id_condition(resource: Resource, visible_ids: frozenset[int] | None):
+        if visible_ids is None:
+            return ()
+        return (resource.model.id.in_(visible_ids),)
+
+    def list_half_years(
+        self, visible_ids: frozenset[int] | None = None
+    ) -> tuple[PlanningRecord, ...]:
+        return tuple(
+            map(
+                _record,
+                self._store.where(
+                    EXAM_HALF_YEAR, *self._visible_id_condition(EXAM_HALF_YEAR, visible_ids)
+                ),
+            )
+        )
 
     def get_half_year(self, half_year_id: int) -> PlanningRecord | None:
         row = self._store.get(EXAM_HALF_YEAR, half_year_id)
@@ -278,8 +294,21 @@ class SQLitePlanningResourceUnitOfWork:
             ),
         )
 
-    def list_rounds(self, filters: Mapping[str, PlanningValue]) -> tuple[PlanningRecord, ...]:
-        return tuple(map(_record, self._store.where(EXAM_ROUND, **dict(filters))))
+    def list_rounds(
+        self,
+        filters: Mapping[str, PlanningValue],
+        visible_ids: frozenset[int] | None = None,
+    ) -> tuple[PlanningRecord, ...]:
+        return tuple(
+            map(
+                _record,
+                self._store.where(
+                    EXAM_ROUND,
+                    *self._visible_id_condition(EXAM_ROUND, visible_ids),
+                    **dict(filters),
+                ),
+            )
+        )
 
     def get_round(self, round_id: int) -> PlanningRecord | None:
         row = self._store.get(EXAM_ROUND, round_id)
@@ -344,8 +373,21 @@ class SQLitePlanningResourceUnitOfWork:
         row = self._store.update(EXAM_ROUND, round_id, changes)
         return _record(row or existing)
 
-    def list_candidates(self, filters: Mapping[str, PlanningValue]) -> tuple[PlanningRecord, ...]:
-        return tuple(map(_record, self._store.where(CANDIDATE, **dict(filters))))
+    def list_candidates(
+        self,
+        filters: Mapping[str, PlanningValue],
+        visible_ids: frozenset[int] | None = None,
+    ) -> tuple[PlanningRecord, ...]:
+        return tuple(
+            map(
+                _record,
+                self._store.where(
+                    CANDIDATE,
+                    *self._visible_id_condition(CANDIDATE, visible_ids),
+                    **dict(filters),
+                ),
+            )
+        )
 
     def get_candidate(self, candidate_id: int) -> PlanningRecord | None:
         row = self._store.get(CANDIDATE, candidate_id)
@@ -366,16 +408,36 @@ class SQLitePlanningResourceUnitOfWork:
         return self._store.delete(CANDIDATE, candidate_id)
 
     def list_candidate_assignments(
-        self, filters: Mapping[str, PlanningValue]
+        self,
+        filters: Mapping[str, PlanningValue],
+        visible_ids: frozenset[int] | None = None,
     ) -> tuple[PlanningRecord, ...]:
         return tuple(
-            map(_record, self._store.where(CANDIDATE_COMMITTEE_ASSIGNMENT, **dict(filters)))
+            map(
+                _record,
+                self._store.where(
+                    CANDIDATE_COMMITTEE_ASSIGNMENT,
+                    *self._visible_id_condition(CANDIDATE_COMMITTEE_ASSIGNMENT, visible_ids),
+                    **dict(filters),
+                ),
+            )
         )
 
     def list_round_candidates(
-        self, filters: Mapping[str, PlanningValue]
+        self,
+        filters: Mapping[str, PlanningValue],
+        visible_ids: frozenset[int] | None = None,
     ) -> tuple[PlanningRecord, ...]:
-        return tuple(map(_record, self._store.where(ROUND_CANDIDATE, **dict(filters))))
+        return tuple(
+            map(
+                _record,
+                self._store.where(
+                    ROUND_CANDIDATE,
+                    *self._visible_id_condition(ROUND_CANDIDATE, visible_ids),
+                    **dict(filters),
+                ),
+            )
+        )
 
     def assign_candidate_to_round(
         self,
@@ -438,8 +500,21 @@ class SQLitePlanningResourceUnitOfWork:
             raise ValueError("Round candidate assignment could not be created")
         return _record(row)
 
-    def list_settings(self, filters: Mapping[str, PlanningValue]) -> tuple[PlanningRecord, ...]:
-        return tuple(map(_record, self._store.where(PLANNING_SETTINGS, **dict(filters))))
+    def list_settings(
+        self,
+        filters: Mapping[str, PlanningValue],
+        visible_ids: frozenset[int] | None = None,
+    ) -> tuple[PlanningRecord, ...]:
+        return tuple(
+            map(
+                _record,
+                self._store.where(
+                    PLANNING_SETTINGS,
+                    *self._visible_id_condition(PLANNING_SETTINGS, visible_ids),
+                    **dict(filters),
+                ),
+            )
+        )
 
     def get_settings(self, settings_id: int) -> PlanningRecord | None:
         row = self._store.get(PLANNING_SETTINGS, settings_id)
@@ -500,9 +575,20 @@ class SQLitePlanningResourceUnitOfWork:
         return self._store.delete(PLANNING_SETTINGS, settings_id)
 
     def list_availabilities(
-        self, filters: Mapping[str, PlanningValue]
+        self,
+        filters: Mapping[str, PlanningValue],
+        visible_ids: frozenset[int] | None = None,
     ) -> tuple[PlanningRecord, ...]:
-        return tuple(map(_record, self._store.where(MEMBER_AVAILABILITY, **dict(filters))))
+        return tuple(
+            map(
+                _record,
+                self._store.where(
+                    MEMBER_AVAILABILITY,
+                    *self._visible_id_condition(MEMBER_AVAILABILITY, visible_ids),
+                    **dict(filters),
+                ),
+            )
+        )
 
     def get_availability(self, availability_id: int) -> PlanningRecord | None:
         row = self._store.get(MEMBER_AVAILABILITY, availability_id)

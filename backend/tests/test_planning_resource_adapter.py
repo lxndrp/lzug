@@ -4,12 +4,13 @@ import unittest
 from collections.abc import Mapping
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
+from unittest.mock import patch
 
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
 from backend.persistence.database import session_scope
-from backend.persistence.models import CANDIDATE_EXAM_DAY
+from backend.persistence.models import CANDIDATE, CANDIDATE_EXAM_DAY
 from backend.persistence.planning_resources import SQLitePlanningResourceUnitOfWorkFactory
 from backend.persistence.store import Store
 from backend.planning.resources import (
@@ -20,6 +21,52 @@ from backend.tests.helpers import TempDatabase
 
 
 class PlanningResourceAdapterTests(unittest.TestCase):
+    def test_visible_candidate_ids_bound_the_sqlite_list_query(self) -> None:
+        with TempDatabase() as db_path:
+            factory = SQLitePlanningResourceUnitOfWorkFactory(db_path)
+            planning = PlanningResourceService(factory)
+            first = planning.create_candidate(
+                {
+                    "first_name": "Visible",
+                    "last_name": "Candidate",
+                    "ihk_exam_number": "PORT-VISIBLE-1",
+                    "specialization": "system_integration",
+                    "training_company": "Port-Test",
+                }
+            )
+            planning.create_candidate(
+                {
+                    "first_name": "Hidden",
+                    "last_name": "Candidate",
+                    "ihk_exam_number": "PORT-HIDDEN-1",
+                    "specialization": "system_integration",
+                    "training_company": "Port-Test",
+                }
+            )
+            conditions = []
+            original_where = Store.where
+
+            def capture_where(store, resource, *predicates, **filters):
+                if resource is CANDIDATE:
+                    conditions.extend(predicates)
+                return original_where(store, resource, *predicates, **filters)
+
+            scoped_service = PlanningResourceService(
+                factory,
+                visible=lambda *_args: frozenset({int(first.values["id"])}),
+            )
+            with patch.object(Store, "where", capture_where):
+                visible = scoped_service.list_visible_records("candidate")
+
+        self.assertEqual([first.values["id"]], [record.values["id"] for record in visible])
+        self.assertTrue(conditions)
+        self.assertTrue(
+            any(
+                " IN (" in str(condition.compile(compile_kwargs={"literal_binds": True}))
+                for condition in conditions
+            )
+        )
+
     def test_half_year_is_created_only_as_part_of_round_command(self) -> None:
         with TempDatabase() as db_path:
             factory = SQLitePlanningResourceUnitOfWorkFactory(db_path)
