@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import set_committed_value
 
 from backend.identity.authorization import AuthorizationScope
-from backend.integrations.notifications import NotificationService
+from backend.notifications.service import NotificationService
 from backend.persistence.database import DEFAULT_DB_PATH, session_scope
 from backend.persistence.models import (
     AbsenceReport,
@@ -319,10 +319,11 @@ class ExamDayClosureService:
     def __init__(
         self,
         db_path: Path = DEFAULT_DB_PATH,
-        notification_service: NotificationService | None = None,
+        *,
+        notification_service: NotificationService,
     ) -> None:
         self.db_path = db_path
-        self.notification_service = notification_service or NotificationService(db_path)
+        self.notification_service = notification_service
 
     def get(self, scope: AuthorizationScope, day_id: int) -> dict[str, Any] | None:
         with session_scope(self.db_path) as session:

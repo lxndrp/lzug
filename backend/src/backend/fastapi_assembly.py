@@ -24,6 +24,7 @@ from .composition import (
 )
 from .composition import identity_service as compose_identity_service
 from .composition import local_auth_service as compose_local_auth_service
+from .composition import notification_service as compose_notification_service
 from .composition import operator_auth_service as compose_operator_auth_service
 from .fastapi_app import (
     FastAPIConfig,
@@ -41,7 +42,7 @@ from .identity.admin_service import OperatorAuthService
 from .identity.authorization import AuthorizationService
 from .identity.committee_admin import CommitteeAdminService
 from .identity.people import IdentityService
-from .integrations.notifications import NotificationService
+from .notifications.service import NotificationService
 from .operations.backup_recipients import BackupRecipientRepository
 from .operations.backup_restore import ArtifactService
 from .operations.diagnostics import run_diagnostics
@@ -98,13 +99,14 @@ def create_admin_application(
         readiness_probe=ready,
         operator_auth_factory=lambda db_path: service or compose_operator_auth_service(db_path),
         notification_factory=lambda db_path: (
-            notifications or NotificationService(db_path, settings=require_settings())
+            notifications or compose_notification_service(db_path, settings=require_settings())
         ),
         committee_factory=lambda db_path: (
             committee_service or compose_committee_admin_service(db_path)
         ),
         consequence_factory=lambda db_path, notification_service: (
-            consequences or PlanConsequenceService(db_path, notification_service)
+            consequences
+            or PlanConsequenceService(db_path, notification_service=notification_service)
         ),
         artifact_factory=lambda persistence: (
             artifacts or ArtifactService(persistence, settings=require_settings())
@@ -190,6 +192,11 @@ def create_app(
             return compose_local_auth_service(db_path, **kwargs)
 
     app.state.local_auth_service_factory = local_authentication_factory
+    app.state.notification_service_factory = lambda db_path: compose_notification_service(
+        db_path,
+        external_delivery_enabled=resolved.runtime_policy.external_notifications_enabled(),
+        settings=resolved.runtime_settings,
+    )
     app.state.auth_rate_limiter = resolved.auth_rate_limiter or RequestRateLimiter(
         resolved.auth_rate_limit, resolved.auth_rate_window
     )

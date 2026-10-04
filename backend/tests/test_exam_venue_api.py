@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import unittest
 
-from backend.application.exam_venue_api import ExamVenueApi
 from backend.identity.auth import AuthContext
 from backend.identity.authorization import AuthorizationScope
-from backend.planning.exam_venues import ExamVenueService
-from backend.tests.helpers import TempDatabase
+from backend.tests.helpers import (
+    TempDatabase,
+    exam_venue_api_for_test,
+    exam_venue_service_for_test,
+)
 
 
 def scope(*, management: bool) -> AuthorizationScope:
@@ -50,7 +52,7 @@ class ExamVenueApiTests(unittest.TestCase):
 
     def test_committee_management_boundary_and_legacy_read_projection(self) -> None:
         with TempDatabase() as db_path:
-            api = ExamVenueApi(db_path)
+            api = exam_venue_api_for_test(db_path)
             venue = api.create_venue(self._payload(), scope(management=True))
             room = api.create_room(
                 venue["id"], {"name": "A-101", "is_active": True}, scope(management=True)
@@ -93,9 +95,9 @@ class ExamVenueApiTests(unittest.TestCase):
 
     def test_scope_changes_are_reserved_for_the_promotion_workflow(self) -> None:
         with TempDatabase() as db_path:
-            service = ExamVenueService(db_path)
+            service = exam_venue_service_for_test(db_path)
             venue = service.create_venue(self._payload(), actor_member_id=1)
-            api = ExamVenueApi(db_path)
+            api = exam_venue_api_for_test(db_path)
 
             with self.assertRaises(PermissionError):
                 api.update_venue(
@@ -110,7 +112,7 @@ class ExamVenueApiTests(unittest.TestCase):
 
     def test_active_global_venues_are_visible_but_only_operators_manage_them(self) -> None:
         with TempDatabase() as db_path:
-            service = ExamVenueService(db_path)
+            service = exam_venue_service_for_test(db_path)
             venue = service.create_venue(
                 self._payload(scope="global", committee_id=None, name="Globaler Ort"),
                 actor_member_id=1,
@@ -122,7 +124,7 @@ class ExamVenueApiTests(unittest.TestCase):
                 actor_member_id=1,
             )
             assert venue is not None
-            api = ExamVenueApi(db_path)
+            api = exam_venue_api_for_test(db_path)
 
             member_view = api.get_venue(venue["id"], scope(management=False))
             operator_view = api.get_venue(venue["id"], scope(management=False), operator())
@@ -140,7 +142,7 @@ class ExamVenueApiTests(unittest.TestCase):
 
     def test_promotion_requires_committee_management_and_operator_decision(self) -> None:
         with TempDatabase() as db_path:
-            api = ExamVenueApi(db_path)
+            api = exam_venue_api_for_test(db_path)
             venue = api.create_venue(self._payload(), scope(management=True))
             api.create_room(
                 venue["id"], {"name": "A-101", "is_active": True}, scope(management=True)

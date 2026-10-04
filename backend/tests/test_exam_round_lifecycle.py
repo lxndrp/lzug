@@ -26,7 +26,12 @@ from backend.persistence.models import (
     RoundCandidate,
 )
 from backend.tests.fixture_data import prepare_exam_protocol_scenario
-from backend.tests.helpers import ApiServer, TempDatabase, assert_status
+from backend.tests.helpers import (
+    ApiServer,
+    TempDatabase,
+    assert_status,
+    notification_service_for_test,
+)
 
 
 class ExamRoundLifecycleTests(unittest.TestCase):
@@ -345,7 +350,9 @@ class ExamRoundLifecycleTests(unittest.TestCase):
 
     def test_decision_and_reopening_rollback_and_replay_preserve_all_evidence(self) -> None:
         self._make_round_closable()
-        service = ExamRoundLifecycleService(self.db_path)
+        service = ExamRoundLifecycleService(
+            self.db_path, notification_service=notification_service_for_test(self.db_path)
+        )
         context = SQLiteAuthenticationRepository(self.db_path).authenticate(self.chair.token)
         scope = authorization_service(self.db_path).scope(context)
         close = {"revision": 1, "confirmed": True}
@@ -403,7 +410,9 @@ class ExamRoundLifecycleTests(unittest.TestCase):
             self.assertEqual(3, session.query(ExamRoundAuditEvent).count())
 
     def test_terminal_candidate_evidence_and_revision_guard_precede_mutation(self) -> None:
-        service = ExamRoundLifecycleService(self.db_path)
+        service = ExamRoundLifecycleService(
+            self.db_path, notification_service=notification_service_for_test(self.db_path)
+        )
         context = SQLiteAuthenticationRepository(self.db_path).authenticate(self.chair.token)
         scope = authorization_service(self.db_path).scope(context)
         for details in (
@@ -490,7 +499,9 @@ class ExamRoundLifecycleTests(unittest.TestCase):
             )
 
     def test_transferred_status_requires_effective_assignment_in_the_target_round(self) -> None:
-        service = ExamRoundLifecycleService(self.db_path)
+        service = ExamRoundLifecycleService(
+            self.db_path, notification_service=notification_service_for_test(self.db_path)
+        )
         context = SQLiteAuthenticationRepository(self.db_path).authenticate(self.chair.token)
         scope = authorization_service(self.db_path).scope(context)
         with session_scope(self.db_path) as session:

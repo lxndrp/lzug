@@ -21,7 +21,12 @@ from backend.persistence.models import (
     Notification,
 )
 from backend.tests.fixture_data import prepare_exam_protocol_scenario
-from backend.tests.helpers import ApiServer, TempDatabase, assert_status
+from backend.tests.helpers import (
+    ApiServer,
+    TempDatabase,
+    assert_status,
+    notification_service_for_test,
+)
 
 
 class ExamDayClosureTests(unittest.TestCase):
@@ -48,7 +53,12 @@ class ExamDayClosureTests(unittest.TestCase):
     def test_closure_evaluation_keeps_finding_order(self) -> None:
         with session_scope(self.db_path) as session:
             evaluation = ExamDayClosureService._evaluate(
-                ExamDayClosureService(self.db_path), session, session.get(ExamDay, 2)
+                ExamDayClosureService(
+                    self.db_path,
+                    notification_service=notification_service_for_test(self.db_path),
+                ),
+                session,
+                session.get(ExamDay, 2),
             )
         self.assertEqual(
             [

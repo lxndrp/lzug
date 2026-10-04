@@ -14,6 +14,7 @@ from backend.api_contracts import (
 from backend.fastapi_app import MIGRATED_DOMAIN_RESOURCES, FastAPIConfig
 from backend.fastapi_master_data import MASTER_DATA_CONTRACTS, create_master_data_router
 from backend.fastapi_planning_router import PLANNING_DOMAIN_RESOURCES
+from backend.tests.helpers import notification_service_factory_for_test
 
 
 class FastAPIMasterDataRouterTests(unittest.TestCase):
@@ -22,6 +23,7 @@ class FastAPIMasterDataRouterTests(unittest.TestCase):
             FastAPIConfig(db_path=Path("master-data.sqlite"), session_cookie_name="session"),
             {},
             {},
+            notification_service_factory_for_test(Path("master-data.sqlite")),
         )
 
     def routes(self) -> dict[tuple[str, str], APIRoute]:
