@@ -25,7 +25,7 @@ import { PlanningWorkflowService } from '../planning/planning-workflow.service';
       @if (workflow.loadError()) {
         <section role="alert">
           <p>
-            Die Planungsdaten konnten nicht aktualisiert werden. Der angezeigte Stand kann veraltet
+            Die Planungsdaten konnten nicht aktualisiert werden. Angezeigte Werte können veraltet
             sein.
           </p>
           <button type="button" (click)="reloadPlanning()">Erneut versuchen</button>
@@ -36,7 +36,7 @@ import { PlanningWorkflowService } from '../planning/planning-workflow.service';
         [summary]="snapshot.summary"
         [board]="snapshot.board"
         [masterData]="snapshot.board"
-        [actionBusy]="workflow.actionBusy()"
+        [actionBusy]="workflow.actionBusy() || workflow.loadError()"
         [workflowEffects]="workflow.viewEffects()"
         [candidateDayGenerationResult]="workflow.candidateDayGeneration()"
         [planningResult]="workflow.lastResult()"
@@ -46,6 +46,8 @@ import { PlanningWorkflowService } from '../planning/planning-workflow.service';
         [canCreateCandidateDay]="workflow.canCreateCandidateDay()"
         [canToggleCandidateDay]="workflow.canToggleCandidateDay()"
         [planningProposal]="workflow.proposal()"
+        [proposalSaveAcknowledgement]="workflow.proposalSaveAcknowledgement()"
+        [proposalReloadAcknowledgement]="workflow.proposalReloadAcknowledgement()"
         [proposalEditorState]="workflow.editorState()"
         [proposalEditorError]="workflow.editorError()"
         [proposalEditorViolations]="workflow.editorViolations()"
@@ -83,11 +85,14 @@ export class PlanningRouteComponent implements OnDestroy {
   protected roundId: number | null = null;
   constructor() {
     this.route.data.pipe(takeUntilDestroyed()).subscribe((data) => {
-      const roundId = Number(data['roundId']);
-      if (!Number.isInteger(roundId) || roundId <= 0) return;
-      this.viewId = Symbol('planning-route-view');
+      const resolvedRoundId = data['roundId'];
+      const roundId = Number(resolvedRoundId);
+      if (resolvedRoundId === null || !Number.isInteger(roundId) || roundId <= 0) {
+        void this.router.navigateByUrl('/scheduling-overview', { replaceUrl: true });
+        return;
+      }
       this.roundId = roundId;
-      this.workflow.activateView(this.viewId, roundId);
+      this.activate(roundId);
     });
   }
 
@@ -159,5 +164,12 @@ export class PlanningRouteComponent implements OnDestroy {
 
   protected reloadPlanning(): void {
     if (this.roundId !== null) this.workflow.activateView(this.viewId, this.roundId);
+  }
+
+  private activate(roundId: number): void {
+    // A new token for every route activation prevents a delayed result from a
+    // previous A -> B -> A visit from being mistaken for the current A view.
+    this.viewId = Symbol('planning-route-activation');
+    this.workflow.activateView(this.viewId, roundId);
   }
 }

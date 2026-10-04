@@ -9,11 +9,11 @@ from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.persistence.database import session_scope
 from backend.persistence.models import (
     CANDIDATE_EXAM_DAY,
-    EXAM_ROUND,
     Committee,
 )
 from backend.planning import PlanningService
 from backend.tests.helpers import ApiServer, TempDatabase, assert_status, create_committee_record
+from backend.tests.planning_support import planning_resource_service
 
 
 class AuthorizationTests(unittest.TestCase):
@@ -21,6 +21,7 @@ class AuthorizationTests(unittest.TestCase):
         self.database = TempDatabase()
         self.db_path = self.database.__enter__()
         self.repository = ResourceRepository(self.db_path)
+        self.planning = planning_resource_service(self.db_path)
         self.authentication = SQLiteAuthenticationRepository(self.db_path)
 
         committee = create_committee_record(
@@ -62,17 +63,16 @@ class AuthorizationTests(unittest.TestCase):
             assert created_committee is not None
             created_committee.bootstrap_state = "ready"
 
-        exam_round = self.repository.create(
-            EXAM_ROUND,
+        exam_round = self.planning.create_round(
             {
                 "exam_half_year_id": 1,
                 "committee_id": self.committee_id,
                 "name": "Winter 2026/27 · Ausschuss 2",
                 "created_by_member_id": self.members[9],
             },
-        )
+        ).as_payload()
         self.round_id = exam_round["id"]
-        self.repository.create_candidate(
+        self.planning.create_candidate(
             {
                 "first_name": "Prüfling",
                 "last_name": "Ausschuss 2",
@@ -86,7 +86,7 @@ class AuthorizationTests(unittest.TestCase):
             CANDIDATE_EXAM_DAY,
             {"exam_round_id": self.round_id, "date": "2026-12-01", "is_active": 1},
         )
-        self.repository.save_planning_settings(
+        self.planning.save_settings(
             {
                 "exam_round_id": self.round_id,
                 "calendar_week_from": "2026-W49",
@@ -98,7 +98,7 @@ class AuthorizationTests(unittest.TestCase):
         )
         self.availability_ids = {}
         for person_number in (11, 12):
-            availability = self.repository.save_member_availability(
+            availability = self.planning.save_availability(
                 {
                     "exam_round_id": self.round_id,
                     "committee_member_id": self.members[person_number],
@@ -106,7 +106,7 @@ class AuthorizationTests(unittest.TestCase):
                     "availability": "pending",
                 }
             )
-            self.availability_ids[person_number] = availability["id"]
+            self.availability_ids[person_number] = availability.as_payload()["id"]
 
     def tearDown(self) -> None:
         self.database.__exit__(None, None, None)
@@ -133,6 +133,24 @@ class AuthorizationTests(unittest.TestCase):
             )
             assert_status(status, HTTPStatus.NOT_FOUND)
             self.assertNotIn("Prüfungsausschuss Teststadt 1", str(foreign))
+
+            hidden_candidate = api.request(
+                "GET", "/api/candidates/1", credentials=self.credentials(9)
+            )
+            missing_candidate = api.request(
+                "GET", "/api/candidates/999999", credentials=self.credentials(9)
+            )
+            self.assertEqual((HTTPStatus.NOT_FOUND, {"error": "Not found"}), hidden_candidate)
+            self.assertEqual(missing_candidate, hidden_candidate)
+
+            hidden_summary = api.request(
+                "GET", "/api/round-summary?round_id=1", credentials=self.credentials(9)
+            )
+            missing_summary = api.request(
+                "GET", "/api/round-summary?round_id=999999", credentials=self.credentials(9)
+            )
+            self.assertEqual((HTTPStatus.FORBIDDEN, {"error": "Forbidden."}), hidden_summary)
+            self.assertEqual(missing_summary, hidden_summary)
 
             status, candidates = api.request(
                 "GET", "/api/candidates", credentials=self.credentials(9)

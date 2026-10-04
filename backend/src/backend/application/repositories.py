@@ -17,7 +17,6 @@ from backend.application.resource_access import (
 from backend.execution.exam_day_closures import complete_day_mutation, guard_day_mutation
 from backend.execution.exam_protocols import create_protocol_for_started_slot
 from backend.identity.authorization import AuthorizationScope
-from backend.integrations.holiday_provider import GERMAN_SUBDIVISION_CODES
 from backend.persistence.database import DEFAULT_DB_PATH, session_scope
 from backend.persistence.models import (
     CANDIDATE,
@@ -41,17 +40,8 @@ from backend.persistence.models import (
     Resource,
 )
 from backend.persistence.resource_access import SQLiteResourceAccessQueryFactory
-from backend.persistence.sqlite_exam_venues import room_is_usable_for_committee
 from backend.persistence.store import Store
 
-SPECIALIZATION_LABELS = {
-    "application_development": "Anwendungsentwicklung",
-    "system_integration": "Systemintegration",
-    "data_and_process_analysis": "Daten- und Prozessanalyse",
-    "digital_networking": "Digitale Vernetzung",
-}
-
-AVAILABILITY_VALUES = {"full_day", "morning", "afternoon", "unavailable", "pending"}
 ATTENDANCE_VALUES = {"open", "present", "late", "absent"}
 REPRESENTING_SIDES = {"employer", "employee", "school"}
 EXECUTION_STATUS_VALUES = {"open", "running", "completed", "cancelled", "needs_follow_up"}
@@ -72,6 +62,18 @@ PLAN_AGGREGATE_STATUSES = {"plan_proposed", "plan_confirmed"}
 PLAN_AGGREGATE_WRITE_ERROR = (
     "Exam days, slots, and assignments must be changed through the planning aggregate"
 )
+PLANNING_RESOURCE_WRITE_ERROR = "Planning resources must be changed through Planning services"
+PLANNING_RESOURCE_WRITES = frozenset(
+    {
+        EXAM_HALF_YEAR,
+        EXAM_ROUND,
+        ROUND_CANDIDATE,
+        CANDIDATE,
+        CANDIDATE_COMMITTEE_ASSIGNMENT,
+        PLANNING_SETTINGS,
+        MEMBER_AVAILABILITY,
+    }
+)
 
 
 class ResourceRepository:
@@ -87,12 +89,9 @@ class ResourceRepository:
         self,
         db_path: Path = DEFAULT_DB_PATH,
         access_queries: ResourceAccessQueryFactory | None = None,
-        *,
-        require_confirmed_coordinates: bool = False,
     ):
         self.db_path = db_path
         self.access_queries = access_queries or SQLiteResourceAccessQueryFactory(db_path)
-        self.require_confirmed_coordinates = require_confirmed_coordinates
 
     def _authorize_mutation(
         self,
@@ -204,14 +203,10 @@ class ResourceRepository:
             if resource in {COMMITTEE, PERSON, COMMITTEE_MEMBER}:
                 raise ValueError("Identity resources must be changed through Identity services")
             payload = self._authorize_mutation(store, resource, None, payload, authorization_scope)
+            if resource in PLANNING_RESOURCE_WRITES:
+                raise ValueError(PLANNING_RESOURCE_WRITE_ERROR)
             if resource in PLAN_AGGREGATE_RESOURCES:
                 raise ValueError(PLAN_AGGREGATE_WRITE_ERROR)
-            if resource == EXAM_HALF_YEAR:
-                return store.create(EXAM_HALF_YEAR, self._exam_half_year_payload(payload))
-            if resource == EXAM_ROUND:
-                return self._create_exam_round(store, payload)
-            if resource == ROUND_CANDIDATE:
-                return self._create_round_candidate(store, payload)
             if resource == EXAM_DAY_ASSIGNMENT:
                 self._validate_assignment_conflict(store, payload)
             return store.create(resource, payload)
@@ -237,122 +232,16 @@ class ResourceRepository:
             payload = self._authorize_mutation(
                 store, resource, resource_id, payload, authorization_scope
             )
+            if resource in PLANNING_RESOURCE_WRITES:
+                raise ValueError(PLANNING_RESOURCE_WRITE_ERROR)
             if resource in PLAN_AGGREGATE_RESOURCES:
                 raise ValueError(PLAN_AGGREGATE_WRITE_ERROR)
-            if resource == EXAM_HALF_YEAR:
-                return store.update(
-                    EXAM_HALF_YEAR, resource_id, self._exam_half_year_payload(payload)
-                )
             if resource == EXAM_DAY_ASSIGNMENT:
                 existing = store.get(resource, resource_id)
                 if existing is None:
                     return None
                 self._validate_assignment_conflict(store, {**existing, **payload}, resource_id)
-            if resource == ROUND_CANDIDATE:
-                raise ValueError(
-                    "Round candidate assignments must be changed through the candidate endpoint"
-                )
             return store.update(resource, resource_id, payload)
-
-    def _exam_half_year_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
-        normalized = dict(payload)
-        season = normalized.get("season")
-        if season is not None and season not in {"summer", "winter"}:
-            raise ValueError("Season must be summer or winter")
-        if "year" in normalized:
-            try:
-                normalized["year"] = int(normalized["year"])
-            except (TypeError, ValueError) as error:
-                raise ValueError("Year must be a four-digit number") from error
-            if not 2000 <= normalized["year"] <= 2100:
-                raise ValueError("Year must be between 2000 and 2100")
-        if "status" in normalized and normalized["status"] not in {
-            "draft",
-            "active",
-            "archived",
-        }:
-            raise ValueError("Unknown exam half-year status")
-        return normalized
-
-    def _create_exam_round(self, store: Store, payload: dict[str, Any]) -> dict[str, Any]:
-        normalized = dict(payload)
-        self._resolve_exam_round_half_year(store, normalized)
-        self._validate_exam_round_references(store, normalized)
-        self._validate_exam_round_state(normalized)
-        normalized["revision"] = 1
-        normalized["lifecycle_status"] = "open"
-        return store.create(EXAM_ROUND, normalized)
-
-    def _resolve_exam_round_half_year(
-        self,
-        store: Store,
-        normalized: dict[str, Any],
-    ) -> None:
-        if normalized.get("exam_half_year_id") is not None:
-            normalized.pop("season", None)
-            normalized.pop("year", None)
-            return
-        half_year_payload = self._exam_half_year_payload(
-            {
-                "season": normalized.pop("season", None),
-                "year": normalized.pop("year", None),
-                "status": "active",
-            }
-        )
-        if half_year_payload.get("season") is None or half_year_payload.get("year") is None:
-            raise ValueError("Season and year are required")
-        half_year = store.first(
-            EXAM_HALF_YEAR,
-            season=half_year_payload["season"],
-            year=half_year_payload["year"],
-        )
-        if half_year is None:
-            half_year = store.create(EXAM_HALF_YEAR, half_year_payload)
-        normalized["exam_half_year_id"] = half_year["id"]
-
-    @staticmethod
-    def _validate_exam_round_references(store: Store, normalized: dict[str, Any]) -> None:
-        required = ("exam_half_year_id", "committee_id", "created_by_member_id")
-        for field in required:
-            if field not in normalized:
-                raise ValueError(f"Missing required field: {field}")
-        if store.get(EXAM_HALF_YEAR, normalized["exam_half_year_id"]) is None:
-            raise ValueError("Exam half-year not found")
-        committee = store.get(COMMITTEE, normalized["committee_id"])
-        if committee is None:
-            raise ValueError("Committee not found")
-        if not committee["is_active"] or committee["bootstrap_state"] != "ready":
-            raise ValueError("Committee is not ready for an exam round")
-        creator = store.get(COMMITTEE_MEMBER, normalized["created_by_member_id"])
-        if creator is None or creator["committee_id"] != normalized["committee_id"]:
-            raise ValueError("Creating member does not belong to the exam round committee")
-
-    @staticmethod
-    def _validate_exam_round_state(normalized: dict[str, Any]) -> None:
-        if not str(normalized.get("name", "")).strip():
-            raise ValueError("Exam round name is required")
-        if normalized.get("status") in PLAN_AGGREGATE_STATUSES:
-            raise ValueError("Planning proposal statuses require the planning aggregate")
-
-    def _create_round_candidate(self, store: Store, payload: dict[str, Any]) -> dict[str, Any]:
-        candidate_id = int(payload["candidate_id"])
-        exam_round_id = int(payload["exam_round_id"])
-        self._assign_candidate_to_round(
-            store,
-            candidate_id,
-            exam_round_id,
-            attempt_number=payload.get("attempt_number", 1),
-            requires_mep=payload.get("requires_mep", 0),
-            change_reason=payload.get("assignment_change_reason"),
-        )
-        round_candidate = store.first(
-            ROUND_CANDIDATE,
-            candidate_id=candidate_id,
-            exam_round_id=exam_round_id,
-        )
-        if round_candidate is None:
-            raise ValueError("Round candidate assignment could not be created")
-        return round_candidate
 
     def _validate_assignment_conflict(
         self,
@@ -414,349 +303,11 @@ class ResourceRepository:
             if resource in {COMMITTEE, PERSON, COMMITTEE_MEMBER}:
                 raise ValueError("Identity resources must be changed through Identity services")
             self._authorize_mutation(store, resource, resource_id, {}, authorization_scope)
+            if resource in PLANNING_RESOURCE_WRITES:
+                raise ValueError(PLANNING_RESOURCE_WRITE_ERROR)
             if resource in PLAN_AGGREGATE_RESOURCES:
                 raise ValueError(PLAN_AGGREGATE_WRITE_ERROR)
             return store.delete(resource, resource_id)
-
-    def candidate_list(self, scope: AuthorizationScope | None = None) -> list[dict[str, Any]]:
-        rows = self.list_visible(CANDIDATE, scope) if scope is not None else self.list(CANDIDATE)
-        for row in rows:
-            row["specialization_label"] = SPECIALIZATION_LABELS.get(
-                row["specialization"], row["specialization"]
-            )
-        return rows
-
-    def create_candidate(
-        self,
-        payload: dict[str, Any],
-        *,
-        authorization_scope: AuthorizationScope | None = None,
-    ) -> dict[str, Any]:
-        with self._authorization_session_scope(authorization_scope) as session:
-            store = Store(session)
-            payload = self._authorize_mutation(store, CANDIDATE, None, payload, authorization_scope)
-            candidate = store.create(CANDIDATE, payload)
-            if "exam_round_id" in payload:
-                self._assign_candidate_to_round(
-                    store,
-                    candidate["id"],
-                    int(payload["exam_round_id"]),
-                    attempt_number=payload.get("attempt_number", 1),
-                    requires_mep=payload.get("requires_mep", 0),
-                )
-            return candidate
-
-    def update_candidate(
-        self,
-        candidate_id: int,
-        payload: dict[str, Any],
-        *,
-        authorization_scope: AuthorizationScope | None = None,
-    ) -> dict[str, Any] | None:
-        with self._authorization_session_scope(authorization_scope) as session:
-            store = Store(session)
-            payload = self._authorize_mutation(
-                store, CANDIDATE, candidate_id, payload, authorization_scope
-            )
-            candidate = store.update(CANDIDATE, candidate_id, payload)
-            if candidate is None:
-                return None
-
-            round_fields = {"attempt_number", "requires_mep"}
-            exam_round_id = payload.get("exam_round_id")
-            if round_fields.intersection(payload) and exam_round_id is None:
-                raise ValueError("Missing required field: exam_round_id")
-            if exam_round_id is not None:
-                self._assign_candidate_to_round(
-                    store,
-                    candidate_id,
-                    int(exam_round_id),
-                    attempt_number=payload.get("attempt_number"),
-                    requires_mep=payload.get("requires_mep"),
-                    change_reason=payload.get("assignment_change_reason"),
-                )
-
-            return candidate
-
-    def candidate_committee_assignments(
-        self,
-        candidate_id: int | None = None,
-        scope: AuthorizationScope | None = None,
-    ) -> list[dict[str, Any]]:
-        filters = {"candidate_id": candidate_id} if candidate_id is not None else {}
-        if scope is not None:
-            return self.list_visible(CANDIDATE_COMMITTEE_ASSIGNMENT, scope, filters)
-        return self.list_filtered(CANDIDATE_COMMITTEE_ASSIGNMENT, filters)
-
-    def _assign_candidate_to_round(
-        self,
-        store: Store,
-        candidate_id: int,
-        exam_round_id: int,
-        *,
-        attempt_number: int | None,
-        requires_mep: int | None,
-        change_reason: str | None = None,
-    ) -> dict[str, Any]:
-        """Activate one committee-round assignment and preserve an earlier one."""
-        if store.get(CANDIDATE, candidate_id) is None:
-            raise ValueError("Candidate not found")
-        exam_round = store.get(EXAM_ROUND, exam_round_id)
-        if exam_round is None:
-            raise ValueError("Exam round not found")
-
-        exam_half_year_id = exam_round["exam_half_year_id"]
-        active_assignment = store.first(
-            CANDIDATE_COMMITTEE_ASSIGNMENT,
-            candidate_id=candidate_id,
-            exam_half_year_id=exam_half_year_id,
-            ended_at=None,
-        )
-        target_round_candidate = store.first(
-            ROUND_CANDIDATE,
-            candidate_id=candidate_id,
-            exam_round_id=exam_round_id,
-        )
-
-        if active_assignment and active_assignment["exam_round_id"] != exam_round_id:
-            reason = str(change_reason or "").strip()
-            if not reason:
-                raise ValueError("A reason is required for a committee change")
-            self._end_candidate_assignment(store, active_assignment, reason)
-            active_assignment = None
-
-        if target_round_candidate is None:
-            target_round_candidate = store.create(
-                ROUND_CANDIDATE,
-                {
-                    "exam_round_id": exam_round_id,
-                    "candidate_id": candidate_id,
-                    "attempt_number": attempt_number or 1,
-                    "requires_mep": requires_mep or 0,
-                    "is_active": 1,
-                },
-            )
-        else:
-            updated_values: dict[str, Any] = {"is_active": 1}
-            if attempt_number is not None:
-                updated_values["attempt_number"] = attempt_number
-            if requires_mep is not None:
-                updated_values["requires_mep"] = requires_mep
-            target_round_candidate = (
-                store.update(ROUND_CANDIDATE, target_round_candidate["id"], updated_values)
-                or target_round_candidate
-            )
-
-        if active_assignment is None:
-            return store.create(
-                CANDIDATE_COMMITTEE_ASSIGNMENT,
-                {
-                    "candidate_id": candidate_id,
-                    "exam_half_year_id": exam_half_year_id,
-                    "exam_round_id": exam_round_id,
-                    "round_candidate_id": target_round_candidate["id"],
-                },
-            )
-        return active_assignment
-
-    def _end_candidate_assignment(
-        self,
-        store: Store,
-        assignment: dict[str, Any],
-        change_reason: str,
-    ) -> None:
-        ended_at = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S.%f")
-        store.update(
-            CANDIDATE_COMMITTEE_ASSIGNMENT,
-            assignment["id"],
-            {"ended_at": ended_at, "change_reason": change_reason},
-        )
-        store.update(ROUND_CANDIDATE, assignment["round_candidate_id"], {"is_active": 0})
-
-    def save_planning_settings(
-        self,
-        payload: dict[str, Any],
-        *,
-        authorization_scope: AuthorizationScope | None = None,
-    ) -> dict[str, Any]:
-        with self._authorization_session_scope(authorization_scope) as session:
-            store = Store(session)
-            payload = self._authorize_mutation(
-                store, PLANNING_SETTINGS, None, payload, authorization_scope
-            )
-            self._validate_planning_settings(store, payload)
-            existing = store.first(
-                PLANNING_SETTINGS,
-                exam_round_id=payload["exam_round_id"],
-            )
-            if existing is None:
-                return store.create(PLANNING_SETTINGS, payload)
-            return store.update(PLANNING_SETTINGS, existing["id"], payload) or existing
-
-    def update_planning_settings(
-        self,
-        settings_id: int,
-        payload: dict[str, Any],
-        *,
-        authorization_scope: AuthorizationScope | None = None,
-    ) -> dict[str, Any] | None:
-        with self._authorization_session_scope(authorization_scope) as session:
-            store = Store(session)
-            payload = self._authorize_mutation(
-                store, PLANNING_SETTINGS, settings_id, payload, authorization_scope
-            )
-            existing = store.get(PLANNING_SETTINGS, settings_id)
-            if existing is None:
-                return None
-            merged = {**existing, **payload}
-            self._validate_planning_settings(store, merged)
-            return store.update(PLANNING_SETTINGS, settings_id, payload) or existing
-
-    def update_exam_round(
-        self,
-        round_id: int,
-        payload: dict[str, Any],
-        *,
-        authorization_scope: AuthorizationScope | None = None,
-    ) -> dict[str, Any] | None:
-        with self._authorization_session_scope(authorization_scope) as session:
-            store = Store(session)
-            payload = self._authorize_mutation(
-                store, EXAM_ROUND, round_id, payload, authorization_scope
-            )
-            existing = store.get(EXAM_ROUND, round_id)
-            if existing is None:
-                return None
-
-            merged = {**existing, **payload}
-            if any(
-                merged[field] != existing[field]
-                for field in ("exam_half_year_id", "committee_id")
-                if field in payload
-            ):
-                raise ValueError(
-                    "An exam round cannot be reassigned to another half-year or committee"
-                )
-            if not str(merged.get("name", "")).strip():
-                raise ValueError("Exam round name is required")
-            if (
-                "status" in payload
-                and merged["status"] != existing["status"]
-                and {merged["status"], existing["status"]}.intersection(PLAN_AGGREGATE_STATUSES)
-            ):
-                raise ValueError("Planning proposal statuses require the planning aggregate")
-            deadline = merged.get("availability_deadline")
-            reminder = merged.get("availability_reminder_at")
-            if deadline and reminder and reminder > deadline:
-                raise ValueError("Availability reminder must be before the deadline")
-
-            return store.update(EXAM_ROUND, round_id, payload) or existing
-
-    def save_member_availability(
-        self,
-        payload: dict[str, Any],
-        *,
-        authorization_scope: AuthorizationScope | None = None,
-    ) -> dict[str, Any]:
-        with self._authorization_session_scope(authorization_scope) as session:
-            store = Store(session)
-            payload = self._authorize_mutation(
-                store, MEMBER_AVAILABILITY, None, payload, authorization_scope
-            )
-            payload = self._availability_payload(store, payload)
-            existing = store.first(
-                MEMBER_AVAILABILITY,
-                exam_round_id=payload["exam_round_id"],
-                committee_member_id=payload["committee_member_id"],
-                candidate_exam_day_id=payload["candidate_exam_day_id"],
-            )
-            saved = (
-                store.create(MEMBER_AVAILABILITY, payload)
-                if existing is None
-                else store.update(MEMBER_AVAILABILITY, existing["id"], payload) or existing
-            )
-            self._propagate_person_availability(store, saved)
-            return saved
-
-    def update_member_availability(
-        self,
-        availability_id: int,
-        payload: dict[str, Any],
-        *,
-        authorization_scope: AuthorizationScope | None = None,
-    ) -> dict[str, Any] | None:
-        with self._authorization_session_scope(authorization_scope) as session:
-            store = Store(session)
-            payload = self._authorize_mutation(
-                store, MEMBER_AVAILABILITY, availability_id, payload, authorization_scope
-            )
-            existing = store.get(MEMBER_AVAILABILITY, availability_id)
-            if existing is None:
-                return None
-            normalized = self._availability_payload(store, {**existing, **payload})
-            saved = store.update(MEMBER_AVAILABILITY, availability_id, normalized) or existing
-            self._propagate_person_availability(store, saved)
-            return saved
-
-    def delete_candidate(
-        self,
-        candidate_id: int,
-        *,
-        authorization_scope: AuthorizationScope | None = None,
-    ) -> bool:
-        with self._authorization_session_scope(authorization_scope) as session:
-            store = Store(session)
-            self._authorize_mutation(store, CANDIDATE, candidate_id, {}, authorization_scope)
-            store.delete_where(CANDIDATE_COMMITTEE_ASSIGNMENT, candidate_id=candidate_id)
-            store.delete_where(ROUND_CANDIDATE, candidate_id=candidate_id)
-            return store.delete(CANDIDATE, candidate_id)
-
-    def round_summary(self, round_id: int) -> dict[str, Any] | None:
-        with session_scope(self.db_path) as session:
-            store = Store(session)
-            exam_round = store.get(EXAM_ROUND, round_id)
-            if exam_round is None:
-                return None
-
-            committee = store.get(COMMITTEE, exam_round["committee_id"])
-            exam_half_year = store.get(EXAM_HALF_YEAR, exam_round["exam_half_year_id"])
-            candidate_count = store.count(
-                ROUND_CANDIDATE,
-                exam_round_id=round_id,
-                is_active=1,
-            )
-            mep_count = store.count(
-                ROUND_CANDIDATE,
-                exam_round_id=round_id,
-                requires_mep=1,
-                is_active=1,
-            )
-            settings = self._first(
-                store,
-                PLANNING_SETTINGS,
-                exam_round_id=round_id,
-            )
-
-            return {
-                "round": {
-                    "id": exam_round["id"],
-                    "name": exam_round["name"],
-                    "status": exam_round["status"],
-                    "committee_name": committee["name"] if committee else None,
-                    "exam_half_year": exam_half_year,
-                },
-                "counts": {
-                    "candidates": candidate_count,
-                    "mep_count": mep_count,
-                    "required_exam_slots": candidate_count + mep_count,
-                },
-                "settings": settings,
-                "availability": store.grouped_counts(
-                    MEMBER_AVAILABILITY,
-                    "availability",
-                    exam_round_id=round_id,
-                ),
-            }
 
     def scheduling_overview(self, scope: AuthorizationScope | None = None) -> list[dict[str, Any]]:
         """Return only active planning work, enriched for the overview.
@@ -1547,124 +1098,6 @@ class ResourceRepository:
         **filters: Any,
     ) -> dict[str, Any] | None:
         return store.first(resource, **filters)
-
-    def _validate_planning_settings(
-        self,
-        store: Store,
-        payload: dict[str, Any],
-    ) -> None:
-        required_fields = ("exam_round_id", "updated_by_member_id")
-        for field in required_fields:
-            if field not in payload:
-                raise ValueError(f"Missing required field: {field}")
-
-        exam_round = store.get(EXAM_ROUND, payload["exam_round_id"])
-        if exam_round is None:
-            raise ValueError("Exam round not found")
-
-        updater = store.get(COMMITTEE_MEMBER, payload["updated_by_member_id"])
-        if updater is None or updater["committee_id"] != exam_round["committee_id"]:
-            raise ValueError("Updating member does not belong to the exam round committee")
-
-        if "default_room_id" in payload and payload["default_room_id"] is not None:
-            if not room_is_usable_for_committee(
-                store.session,
-                payload["default_room_id"],
-                exam_round["committee_id"],
-                require_confirmed_coordinates=self.require_confirmed_coordinates,
-            ):
-                raise ValueError("Default room is not active for the exam round committee")
-
-        subdivision_code = payload.get("holiday_subdivision_code")
-        if subdivision_code is not None and subdivision_code not in GERMAN_SUBDIVISION_CODES:
-            raise ValueError("Unknown German federal state")
-        if payload.get("exclude_public_holidays") and subdivision_code is None:
-            raise ValueError("Federal state is required when public holidays are excluded")
-
-    def _availability_payload(
-        self,
-        store: Store,
-        payload: dict[str, Any],
-    ) -> dict[str, Any]:
-        required_fields = (
-            "exam_round_id",
-            "committee_member_id",
-            "candidate_exam_day_id",
-            "availability",
-        )
-        for field in required_fields:
-            if field not in payload:
-                raise ValueError(f"Missing required field: {field}")
-
-        if payload["availability"] not in AVAILABILITY_VALUES:
-            raise ValueError("Unknown availability value")
-
-        exam_round = store.get(EXAM_ROUND, payload["exam_round_id"])
-        if exam_round is None:
-            raise ValueError("Exam round not found")
-
-        member = store.get(COMMITTEE_MEMBER, payload["committee_member_id"])
-        if (
-            member is None
-            or not member["is_active"]
-            or member["committee_id"] != exam_round["committee_id"]
-        ):
-            raise ValueError("Member does not belong to the exam round committee")
-
-        exam_day = store.get(CANDIDATE_EXAM_DAY, payload["candidate_exam_day_id"])
-        if exam_day is None or exam_day["exam_round_id"] != payload["exam_round_id"]:
-            raise ValueError("Candidate exam day does not belong to the exam round")
-
-        normalized = dict(payload)
-        if normalized["availability"] == "pending":
-            normalized["responded_at"] = None
-        else:
-            normalized["responded_at"] = (
-                normalized.get("responded_at")
-                or datetime.now(UTC).replace(microsecond=0).isoformat()
-            )
-        return normalized
-
-    def _propagate_person_availability(self, store: Store, saved: dict[str, Any]) -> None:
-        """Mirror one response to same-person memberships in the same half-year."""
-        member = store.get(COMMITTEE_MEMBER, saved["committee_member_id"])
-        source_day = store.get(CANDIDATE_EXAM_DAY, saved["candidate_exam_day_id"])
-        source_round = store.get(EXAM_ROUND, saved["exam_round_id"])
-        if member is None or source_day is None or source_round is None:
-            return
-        for other_member in store.all(COMMITTEE_MEMBER):
-            if (
-                other_member["id"] == member["id"]
-                or other_member["person_id"] != member["person_id"]
-            ):
-                continue
-            for other_day in store.all(CANDIDATE_EXAM_DAY):
-                if other_day["date"] != source_day["date"]:
-                    continue
-                other_round = store.get(EXAM_ROUND, other_day["exam_round_id"])
-                if (
-                    other_round is None
-                    or other_round["committee_id"] != other_member["committee_id"]
-                    or other_round["exam_half_year_id"] != source_round["exam_half_year_id"]
-                ):
-                    continue
-                existing = store.first(
-                    MEMBER_AVAILABILITY,
-                    exam_round_id=other_day["exam_round_id"],
-                    committee_member_id=other_member["id"],
-                    candidate_exam_day_id=other_day["id"],
-                )
-                values = {
-                    "exam_round_id": other_day["exam_round_id"],
-                    "committee_member_id": other_member["id"],
-                    "candidate_exam_day_id": other_day["id"],
-                    "availability": saved["availability"],
-                    "responded_at": saved["responded_at"],
-                }
-                if existing is None:
-                    store.create(MEMBER_AVAILABILITY, values)
-                else:
-                    store.update(MEMBER_AVAILABILITY, existing["id"], values)
 
     @staticmethod
     def _round_visible(

@@ -99,6 +99,8 @@ export class PlanningComponent implements OnChanges, OnDestroy {
   @Input() candidateDayGenerationResult: CandidateDayGenerationResult | null = null;
   @Input() planningResult: PlanningResult | null = null;
   @Input() planningProposal: EditablePlanningProposal | null = null;
+  @Input() proposalSaveAcknowledgement = 0;
+  @Input() proposalReloadAcknowledgement = 0;
   @Input() proposalEditorState: ProposalEditorState = 'idle';
   @Input() proposalEditorError: string | null = null;
   @Input() proposalEditorViolations: PlanningValidationViolation[] = [];
@@ -151,6 +153,8 @@ export class PlanningComponent implements OnChanges, OnDestroy {
     availability_deadline: '',
     availability_reminder_at: '',
   };
+  private settingsDraftBaseline: PlanningSettingsPayload | null = null;
+  private roundDraftBaseline: typeof this.roundDraft | null = null;
   protected readonly candidateDayDraft: CandidateExamDayPayload = {
     date: '',
     is_active: 1,
@@ -188,6 +192,7 @@ export class PlanningComponent implements OnChanges, OnDestroy {
       const currentRoundId = changes['round'].currentValue?.id;
       if (previousRoundId !== currentRoundId) {
         this.clearAvailabilityState();
+        this.roundDraftBaseline = null;
       }
       this.syncRoundDraft();
     }
@@ -647,22 +652,42 @@ export class PlanningComponent implements OnChanges, OnDestroy {
   }
 
   private syncDraft(): void {
+    const nextDraft = this.settingsDraftFromInputs();
+    if (
+      this.settingsDraftBaseline &&
+      !this.sameDraft(this.draft, this.settingsDraftBaseline) &&
+      !this.sameDraft(this.draft, nextDraft)
+    ) {
+      return;
+    }
+    Object.assign(this.draft, nextDraft);
+    this.settingsDraftBaseline = { ...nextDraft };
+  }
+
+  private settingsDraftFromInputs(): PlanningSettingsPayload {
     const settings = this.summary?.settings;
-    this.draft.calendar_week_from = settings?.calendar_week_from ?? this.draft.calendar_week_from;
-    this.draft.calendar_week_to = settings?.calendar_week_to ?? this.draft.calendar_week_to;
-    this.draft.exams_per_day = settings?.exams_per_day ?? this.draft.exams_per_day;
-    this.draft.max_exam_days_per_week =
-      settings?.max_exam_days_per_week ?? this.draft.max_exam_days_per_week;
-    this.draft.lunch_break_enabled =
-      settings?.lunch_break_enabled ?? this.draft.lunch_break_enabled ?? 1;
-    this.draft.exclude_public_holidays =
-      settings?.exclude_public_holidays ?? this.draft.exclude_public_holidays ?? 0;
-    this.draft.holiday_subdivision_code =
-      settings?.holiday_subdivision_code ?? this.draft.holiday_subdivision_code ?? null;
-    this.draft.default_location_id =
-      settings?.default_location_id ??
-      this.board?.locations.find((location) => location.is_active !== 0)?.id ??
-      null;
+    return {
+      calendar_week_from: settings?.calendar_week_from ?? this.draft.calendar_week_from,
+      calendar_week_to: settings?.calendar_week_to ?? this.draft.calendar_week_to,
+      exams_per_day: settings?.exams_per_day ?? this.draft.exams_per_day,
+      max_exam_days_per_week: settings?.max_exam_days_per_week ?? this.draft.max_exam_days_per_week,
+      lunch_break_enabled: settings?.lunch_break_enabled ?? this.draft.lunch_break_enabled ?? 1,
+      exclude_public_holidays:
+        settings?.exclude_public_holidays ?? this.draft.exclude_public_holidays ?? 0,
+      holiday_subdivision_code:
+        settings?.holiday_subdivision_code ?? this.draft.holiday_subdivision_code ?? null,
+      default_location_id:
+        settings?.default_location_id ??
+        this.board?.locations.find((location) => location.is_active !== 0)?.id ??
+        null,
+    };
+  }
+
+  private sameDraft(left: PlanningSettingsPayload, right: PlanningSettingsPayload): boolean {
+    return Object.keys(right).every(
+      (key) =>
+        left[key as keyof PlanningSettingsPayload] === right[key as keyof PlanningSettingsPayload],
+    );
   }
 
   private syncSelectOptions(): void {
@@ -677,14 +702,31 @@ export class PlanningComponent implements OnChanges, OnDestroy {
     if (!this.round) {
       return;
     }
-    this.roundDraft.name = this.round.name;
-    this.roundDraft.availability_deadline = this.toDateTimeLocal(this.round.availability_deadline);
-    this.roundDraft.availability_reminder_at = this.toDateTimeLocal(
-      this.round.availability_reminder_at,
-    );
+    const nextDraft = {
+      name: this.round.name,
+      availability_deadline: this.toDateTimeLocal(this.round.availability_deadline),
+      availability_reminder_at: this.toDateTimeLocal(this.round.availability_reminder_at),
+    };
+    if (
+      this.roundDraftBaseline &&
+      !this.sameRoundDraft(this.roundDraft, this.roundDraftBaseline) &&
+      !this.sameRoundDraft(this.roundDraft, nextDraft)
+    ) {
+      return;
+    }
+    Object.assign(this.roundDraft, nextDraft);
+    this.roundDraftBaseline = { ...nextDraft };
     this.availabilityDeadlineValue = this.roundDateTimeValue(this.roundDraft.availability_deadline);
     this.availabilityReminderValue = this.roundDateTimeValue(
       this.roundDraft.availability_reminder_at,
+    );
+  }
+
+  private sameRoundDraft(left: typeof this.roundDraft, right: typeof this.roundDraft): boolean {
+    return (
+      left.name === right.name &&
+      left.availability_deadline === right.availability_deadline &&
+      left.availability_reminder_at === right.availability_reminder_at
     );
   }
 

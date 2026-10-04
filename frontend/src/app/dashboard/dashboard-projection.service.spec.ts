@@ -5,6 +5,7 @@ import { Subject, of, throwError } from 'rxjs';
 import { AuthService } from '../auth/auth.service';
 import { SessionScopeService } from '../auth/session-scope.service';
 import { RoundContextService } from '../api/round-context.service';
+import { PlanningWriteEventsService } from '../application/planning-write-events.service';
 import {
   examRoundFixture,
   locationsFixture,
@@ -93,6 +94,49 @@ describe('DashboardProjectionService', () => {
 
     expect(service.projection()).toBeNull();
     expect(service.loading()).toBe(false);
+  });
+
+  it('reloads the active round after a planning commit and fences its older read', () => {
+    const staleRead = new Subject<never>();
+    load.mockReturnValueOnce(staleRead).mockReturnValueOnce(
+      of({
+        applicationVersion: 'after commit',
+        round: examRoundFixture,
+        summary: summaryFixture,
+        board: planningBoardFixture,
+      }),
+    );
+    const service = TestBed.inject(DashboardProjectionService);
+    service.activate();
+
+    TestBed.inject(PlanningWriteEventsService).notifyCommitted(examRoundFixture.id);
+
+    expect(load).toHaveBeenCalledTimes(2);
+    expect(staleRead.observed).toBe(false);
+    staleRead.next({} as never);
+    expect(service.projection()?.applicationVersion).toBe('after commit');
+  });
+
+  it('reloads the active dashboard when availability may mirror from another round', () => {
+    const roundTwo = { ...examRoundFixture, id: 2 };
+    load.mockImplementation((id: number) =>
+      of({
+        applicationVersion: 'test',
+        round: id === 2 ? roundTwo : examRoundFixture,
+        summary: summaryFixture,
+        board: planningBoardFixture,
+      }),
+    );
+    const service = TestBed.inject(DashboardProjectionService);
+    service.activate();
+    TestBed.inject(RoundContextService).select(2);
+    expect(load).toHaveBeenLastCalledWith(2);
+
+    TestBed.inject(PlanningWriteEventsService).notifyCommitted(1, 'related-rounds');
+
+    expect(load).toHaveBeenCalledTimes(3);
+    expect(load).toHaveBeenLastCalledWith(2);
+    expect(service.projection()?.round.id).toBe(2);
   });
 
   it('cancels all targeted dashboard GETs when its route closes', () => {

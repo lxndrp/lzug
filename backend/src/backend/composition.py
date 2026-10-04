@@ -37,6 +37,7 @@ from backend.persistence.notifications import (
     SQLiteNotificationUnitOfWorkFactory,
 )
 from backend.persistence.sqlite_exam_venues import SQLiteExamVenueRepository
+from backend.persistence.planning_resources import SQLitePlanningResourceUnitOfWorkFactory
 from backend.planning.candidate_days import CandidateDayService
 from backend.planning.exam_venues import ExamVenuePolicy, ExamVenueService
 from backend.planning.venue_consequences import VenueConsequenceService
@@ -49,6 +50,18 @@ def candidate_day_service(db_path: Path) -> CandidateDayService:
     return CandidateDayService(
         SQLiteCandidateDayUnitOfWorkFactory(db_path),
         PythonHolidaysProvider(),
+    )
+
+
+def planning_resource_unit_of_work_factory(
+    db_path: Path,
+    *,
+    require_confirmed_coordinates: bool,
+) -> SQLitePlanningResourceUnitOfWorkFactory:
+    """Wire Planning commands to SQLite using resolved room policy."""
+    return SQLitePlanningResourceUnitOfWorkFactory(
+        db_path,
+        require_confirmed_coordinates=require_confirmed_coordinates,
     )
 
 

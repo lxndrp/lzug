@@ -40,6 +40,7 @@ from backend.planning_ports import (
     ExamVenueConflictError,
     ExamVenueInUseError,
 )
+from backend.planning.resources import RoundCandidateInUseError
 
 from .api_contracts import (
     ApiRootResponse,
@@ -655,6 +656,15 @@ def _register_transaction_errors(app):
 
 
 def _register_request_errors(app, resolved, application, read_security, write_security):
+    @app.exception_handler(RoundCandidateInUseError)
+    def round_candidate_in_use(_request: Request, error: RoundCandidateInUseError):
+        return _json_response(
+            ApplicationResult(
+                {"error": {"code": "round_candidate_in_use", "message": str(error)}},
+                HTTPStatus.CONFLICT,
+            )
+        )
+
     @app.exception_handler(ExamVenueConflictError)
     def exam_venue_conflict(_request: Request, error: ExamVenueConflictError):
         return _json_response(

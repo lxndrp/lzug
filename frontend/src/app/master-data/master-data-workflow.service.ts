@@ -19,6 +19,7 @@ import { AuthService } from '../auth/auth.service';
 import { MASTER_DATA_PORT } from './master-data.port';
 import { ApplicationWorkspaceService } from '../shell/application-workspace.service';
 import { DashboardProjectionService } from '../dashboard/dashboard-projection.service';
+import { ReferenceDataWriteEventsService } from '../application/reference-data-write-events.service';
 import type {
   Candidate,
   CandidateCommand,
@@ -47,6 +48,7 @@ export class MasterDataWorkflowService {
   private readonly auth = inject(AuthService);
   private readonly workspace = inject(ApplicationWorkspaceService);
   private readonly dashboard = inject(DashboardProjectionService);
+  private readonly referenceDataWrites = inject(ReferenceDataWriteEventsService);
   private readonly requestCounter = signal(0);
   private readonly state = signal<MasterDataRequestState>({ status: 'idle' });
 
@@ -263,9 +265,11 @@ export class MasterDataWorkflowService {
         })),
         tap((result) => {
           if (contextKey.startsWith('candidate:')) {
+            this.referenceDataWrites.notifyCommitted('candidates');
             this.workspace.refreshCandidateReferences();
             this.dashboard.refreshCandidateReferences();
           } else if (contextKey.startsWith('committee:')) {
+            this.referenceDataWrites.notifyCommitted('committee-members');
             this.workspace.refreshCommitteeReferences();
             this.dashboard.refreshCommitteeMembers();
           }

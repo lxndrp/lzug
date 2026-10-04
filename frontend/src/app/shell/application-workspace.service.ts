@@ -63,22 +63,25 @@ export class ApplicationWorkspaceService {
 
   constructor() {
     this.sessionScope.changes$.subscribe(() => this.clear());
+    this.roundContext.changes$.subscribe(() => {
+      // A route resolver may select an explicit round without entering the
+      // planning editor. Keep shared dashboard consumers aligned only when
+      // the shell's actual round context changes; ordinary route navigation
+      // does not trigger another workspace read.
+      this.invalidateRoundProjection();
+      this.refresh();
+    });
   }
 
   refresh(): void {
-    if (this.auth.state() !== 'authenticated') return;
     const roundId = this.roundContext.roundId();
+    if (this.round() && this.round()?.id !== roundId) this.invalidateRoundProjection();
+    if (this.auth.state() !== 'authenticated') return;
     const generation = ++this.refreshGeneration;
     const sessionGeneration = this.sessionScope.generation();
     const locationRevision = this.locationRevision;
     const candidateReferenceRevision = this.candidateReferenceRevision;
     const committeeMemberRevision = this.committeeMemberRevision;
-    if (this.round() && this.round()?.id !== roundId) {
-      this.round.set(null);
-      this.summary.set(null);
-      this.board.set(null);
-      this.masterData.set(null);
-    }
     this.masterDataError.set(false);
     this.loading.set(true);
     this.sessionScope
@@ -309,9 +312,26 @@ export class ApplicationWorkspaceService {
   }
 
   selectExamRound(id: number): void {
+    const changed = this.roundContext.roundId() !== id;
     this.roundContext.select(id);
-    this.refresh();
+    if (!changed && this.round()?.id !== id) this.refresh();
     void this.router.navigateByUrl('/dashboard');
+  }
+
+  private invalidateRoundProjection(): void {
+    this.refreshGeneration += 1;
+    this.locationRefreshGeneration += 1;
+    this.candidateReferenceGeneration += 1;
+    this.committeeMemberGeneration += 1;
+    this.latestLocations = null;
+    this.latestCandidateReferences = null;
+    this.latestCommitteeMembers = null;
+    this.round.set(null);
+    this.summary.set(null);
+    this.board.set(null);
+    this.masterData.set(null);
+    this.loading.set(false);
+    this.masterDataError.set(false);
   }
 
   private clear(): void {

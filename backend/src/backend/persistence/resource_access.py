@@ -237,6 +237,25 @@ class SQLiteResourceAccessQueries:
             **dict(filters or {}),
         )
 
+    def list_visible_page(
+        self,
+        resource: _ResourceKind,
+        scope: _Scope,
+        filters: Mapping[str, object] | None = None,
+        *,
+        offset: int,
+        limit: int,
+    ) -> Sequence[dict[str, object]]:
+        """Return at most ``limit`` visible rows for bounded application reads."""
+        definition = _RESOURCES[resource]
+        return self._store.where_page(
+            definition,
+            conditions=(_visibility_condition(resource, scope),),
+            filters=dict(filters or {}),
+            offset=offset,
+            limit=limit,
+        )
+
     def get_visible(
         self, resource: _ResourceKind, resource_id: int, scope: _Scope
     ) -> dict[str, object] | None:
