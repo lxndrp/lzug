@@ -43,6 +43,7 @@ from backend.persistence.models import (
 from backend.persistence.resource_access import SQLiteResourceAccessQueryFactory
 from backend.persistence.store import Store
 from backend.tests.helpers import TempDatabase, create_committee_record
+from backend.tests.planning_support import planning_resource_service
 
 
 @contextmanager
@@ -109,16 +110,20 @@ class ResourceAccessTests(unittest.TestCase):
                     "created_by_member_id": self.foreign_member,
                 },
             )["id"]
-        self.foreign_candidate = self.repository.create_candidate(
-            {
-                "first_name": "Fremder",
-                "last_name": "Prüfling",
-                "ihk_exam_number": "ACCESS-FOREIGN",
-                "specialization": "application_development",
-                "training_company": "Synthetisch",
-                "exam_round_id": self.foreign_round,
-            }
-        )["id"]
+        self.foreign_candidate = (
+            planning_resource_service(self.db_path)
+            .create_candidate(
+                {
+                    "first_name": "Fremder",
+                    "last_name": "Prüfling",
+                    "ihk_exam_number": "ACCESS-FOREIGN",
+                    "specialization": "application_development",
+                    "training_company": "Synthetisch",
+                    "exam_round_id": self.foreign_round,
+                }
+            )
+            .values["id"]
+        )
         self.own = self.execution_rows(1, 1, 1)
         self.foreign = self.execution_rows(
             self.foreign_round, self.foreign_member, self.foreign_candidate
@@ -233,6 +238,22 @@ class ResourceAccessTests(unittest.TestCase):
         self.assertEqual([], self.repository.list_visible(EXAM_VENUE, self.scope))
         with self.assertRaisesRegex(ValueError, "Unknown field"):
             self.repository.list_visible(CANDIDATE, self.scope, {"unknown": 1})
+
+    def test_visible_pages_preserve_query_order_and_bound_each_read(self) -> None:
+        with self.access_queries.snapshot() as queries:
+            expected = queries.list_visible(ResourceKind.EXAM_ROUND, self.scope)
+            pages = [
+                queries.list_visible_page(
+                    ResourceKind.EXAM_ROUND,
+                    self.scope,
+                    offset=offset,
+                    limit=1,
+                )
+                for offset in range(len(expected) + 1)
+            ]
+
+        self.assertEqual(expected, [row for page in pages for row in page])
+        self.assertTrue(all(len(page) <= 1 for page in pages))
 
     def test_empty_multi_committee_and_person_scopes(self) -> None:
         empty = AuthorizationScope(None, frozenset(), frozenset(), frozenset(), frozenset(), {})
@@ -356,8 +377,13 @@ class ResourceAccessTests(unittest.TestCase):
                 sizes[resource] = len(rows)
             for call, count in (
                 (lambda: self.identity.members({}, self.scope), 2),
-                (lambda: self.repository.candidate_list(self.scope), 1),
-                (lambda: self.repository.candidate_committee_assignments(scope=self.scope), 1),
+                (lambda: self.repository.list_visible(CANDIDATE, self.scope), 1),
+                (
+                    lambda: self.repository.list_visible(
+                        CANDIDATE_COMMITTEE_ASSIGNMENT, self.scope
+                    ),
+                    1,
+                ),
             ):
                 with database_activity() as (queries, sessions):
                     call()
@@ -367,7 +393,7 @@ class ResourceAccessTests(unittest.TestCase):
 
         before = check_counts()
         for index in range(20):
-            self.repository.create_candidate(
+            planning_resource_service(self.db_path).create_candidate(
                 {
                     "first_name": "Query",
                     "last_name": str(index),
@@ -584,6 +610,30 @@ class ResourceAccessTests(unittest.TestCase):
                 1,
                 {"exam_round_id": self.foreign_round},
             )
+
+    def test_planning_candidate_write_rechecks_ownership_inside_its_uow(self) -> None:
+        planning = planning_resource_service(self.db_path, self.scope)
+        with self.assertRaisesRegex(ForbiddenRequestError, "^Forbidden\\.$"):
+            planning.create_candidate(
+                {
+                    "first_name": "Forbidden",
+                    "last_name": "Candidate",
+                    "ihk_exam_number": "ACCESS-FORBIDDEN-CREATE",
+                    "specialization": "application_development",
+                    "training_company": "Synthetisch",
+                    "exam_round_id": self.foreign_round,
+                }
+            )
+        with self.assertRaisesRegex(ForbiddenRequestError, "^Forbidden\\.$"):
+            planning.update_candidate(1, {"exam_round_id": self.foreign_round})
+
+        self.assertEqual(
+            [],
+            self.repository.list_filtered(
+                CANDIDATE, {"ihk_exam_number": "ACCESS-FORBIDDEN-CREATE"}
+            ),
+        )
+        self.assertEqual(1, self.repository.get(CANDIDATE, 1)["id"])
 
     def test_availability_binds_actor_and_preserves_existing_owner(self) -> None:
         member_scope = replace(self.scope, management_committee_ids=frozenset())

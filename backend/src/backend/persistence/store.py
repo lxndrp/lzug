@@ -40,6 +40,26 @@ class Store:
         rows = self.session.scalars(statement).all()
         return [model_to_dict(row, resource) for row in rows]
 
+    def where_page(
+        self,
+        resource: Resource,
+        *,
+        offset: int,
+        limit: int,
+        conditions: tuple[ColumnElement[bool], ...] = (),
+        filters: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Read a bounded ordered page with repository-owned SQL predicates."""
+        if offset < 0 or limit <= 0:
+            raise ValueError("Page offset must be non-negative and limit must be positive")
+        statement = select(resource.model).where(*conditions)
+        statement = self._filter(statement, resource, filters or {})
+        statement = self._order(statement, resource)
+        if conditions and not resource.order_by:
+            statement = statement.order_by(resource.model.id)
+        rows = self.session.scalars(statement.offset(offset).limit(limit)).all()
+        return [model_to_dict(row, resource) for row in rows]
+
     def first(self, resource: Resource, **filters: Any) -> dict[str, Any] | None:
         statement = select(resource.model)
         statement = self._filter(statement, resource, filters)

@@ -10,16 +10,13 @@ from backend.application.repositories import ResourceRepository
 from backend.composition import identity_service
 from backend.persistence.database import connect, session_scope
 from backend.persistence.models import (
-    CANDIDATE,
     CANDIDATE_EXAM_DAY,
     COMMITTEE_MEMBER,
     EXAM_DAY,
     EXAM_DAY_ASSIGNMENT,
     EXAM_ROUND,
     EXAM_SLOT,
-    MEMBER_AVAILABILITY,
     PLANNING_SETTINGS,
-    ROUND_CANDIDATE,
     Committee,
     ExamRoom,
     ExamVenue,
@@ -33,13 +30,15 @@ from backend.planning import (
     PlanValidationError,
 )
 from backend.tests.helpers import TempDatabase, create_committee_record
+from backend.tests.planning_support import planning_resource_service
 
 
 class PlanningTests(unittest.TestCase):
     def test_request_availabilities_moves_prepared_draft_into_coordination(self) -> None:
         with TempDatabase() as db_path:
             repository = ResourceRepository(db_path)
-            repository.update(EXAM_ROUND, 1, {"status": "draft"})
+            with session_scope(db_path) as session:
+                Store(session).update(EXAM_ROUND, 1, {"status": "draft"})
 
             requested = PlanningService(db_path).request_availabilities(1)
             persisted = repository.get(EXAM_ROUND, 1)
@@ -65,7 +64,9 @@ class PlanningTests(unittest.TestCase):
         with TempDatabase() as db_path:
             repository = ResourceRepository(db_path)
             settings = repository.list_filtered(PLANNING_SETTINGS, {"exam_round_id": 1})[0]
-            repository.update(PLANNING_SETTINGS, settings["id"], {"default_room_id": None})
+            planning_resource_service(db_path).update_settings(
+                settings["id"], {"default_room_id": None}
+            )
 
             with self.assertRaisesRegex(ValueError, "Planning settings need a default room"):
                 PlanningService(db_path).generate_proposal(1)
@@ -545,13 +546,11 @@ class PlanningTests(unittest.TestCase):
                 )
 
             settings = repository.list_filtered(PLANNING_SETTINGS, {"exam_round_id": 1})[0]
-            repository.update(PLANNING_SETTINGS, settings["id"], {"exams_per_day": 1})
+            planning_resource_service(db_path).update_settings(settings["id"], {"exams_per_day": 1})
             with self.assertRaises(PlanValidationError) as capacity_error:
                 service.save_proposal(proposal)
-            repository.update(
-                PLANNING_SETTINGS,
-                settings["id"],
-                {"exams_per_day": settings["exams_per_day"]},
+            planning_resource_service(db_path).update_settings(
+                settings["id"], {"exams_per_day": settings["exams_per_day"]}
             )
 
             candidate_day = repository.get(
@@ -584,7 +583,9 @@ class PlanningTests(unittest.TestCase):
             proposal = service.get_proposal(1)
             repository = ResourceRepository(db_path)
             settings = repository.list_filtered(PLANNING_SETTINGS, {"exam_round_id": 1})[0]
-            repository.update(PLANNING_SETTINGS, settings["id"], {"max_exam_days_per_week": 1})
+            planning_resource_service(db_path).update_settings(
+                settings["id"], {"max_exam_days_per_week": 1}
+            )
             round_candidate_id = proposal.days[0].slots[0].round_candidate_id
             with connect(db_path) as connection:
                 connection.execute(
@@ -770,8 +771,8 @@ class PlanningTests(unittest.TestCase):
             venue.is_active = 1
             session.flush()
             room_id = room.id
-        exam_round = repository.create(
-            EXAM_ROUND,
+        planning = planning_resource_service(repository.db_path)
+        exam_round = planning.create_round(
             {
                 "exam_half_year_id": 1,
                 "committee_id": committee["id"],
@@ -779,10 +780,9 @@ class PlanningTests(unittest.TestCase):
                 "availability_deadline": "2026-10-15 18:00:00",
                 "created_by_member_id": members[0]["id"],
             },
-        )
+        ).as_payload()
         for index in range(5):
-            candidate = repository.create(
-                CANDIDATE,
+            candidate = planning.create_candidate(
                 {
                     "first_name": "Prüfling",
                     "last_name": f"Konflikt-{index}",
@@ -790,9 +790,8 @@ class PlanningTests(unittest.TestCase):
                     "specialization": "system_integration",
                     "training_company": "Testbetrieb Konflikt",
                 },
-            )
-            repository.create(
-                ROUND_CANDIDATE,
+            ).as_payload()
+            planning.assign_candidate_to_round(
                 {
                     "exam_round_id": exam_round["id"],
                     "candidate_id": candidate["id"],
@@ -801,8 +800,7 @@ class PlanningTests(unittest.TestCase):
                     "is_active": 1,
                 },
             )
-        repository.create(
-            PLANNING_SETTINGS,
+        planning.save_settings(
             {
                 "exam_round_id": exam_round["id"],
                 "calendar_week_from": "2026-W47",
@@ -822,8 +820,7 @@ class PlanningTests(unittest.TestCase):
                 {"exam_round_id": exam_round["id"], "date": date, "is_active": 1},
             )
             for member in members:
-                repository.create(
-                    MEMBER_AVAILABILITY,
+                planning.save_availability(
                     {
                         "exam_round_id": exam_round["id"],
                         "committee_member_id": member["id"],

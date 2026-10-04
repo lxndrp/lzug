@@ -117,6 +117,16 @@ class ResourceAccessQueries(Protocol):
         filters: ResourceFilters | None = None,
     ) -> Sequence[ResourceProjection]: ...
 
+    def list_visible_page(
+        self,
+        resource: ResourceKind,
+        scope: AuthorizationScope,
+        filters: ResourceFilters | None = None,
+        *,
+        offset: int,
+        limit: int,
+    ) -> Sequence[ResourceProjection]: ...
+
     def get_visible(
         self, resource: ResourceKind, resource_id: int, scope: AuthorizationScope
     ) -> ResourceProjection | None: ...

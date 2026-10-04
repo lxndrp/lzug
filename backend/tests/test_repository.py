@@ -19,6 +19,7 @@ from backend.persistence.models import (
     Committee,
 )
 from backend.tests.helpers import TempDatabase, create_committee_record
+from backend.tests.planning_support import planning_resource_service
 
 
 class RepositoryTests(unittest.TestCase):
@@ -38,7 +39,9 @@ class RepositoryTests(unittest.TestCase):
 
     def test_candidate_list_adds_human_readable_specialization_labels(self) -> None:
         with TempDatabase() as db_path:
-            candidates = ResourceRepository(db_path).candidate_list()
+            candidates = [
+                row.as_payload() for row in planning_resource_service(db_path).list_candidates()
+            ]
 
         self.assertEqual(12, len(candidates))
         self.assertIn("specialization_label", candidates[0])
@@ -49,20 +52,23 @@ class RepositoryTests(unittest.TestCase):
 
     def test_create_candidate_can_attach_candidate_to_exam_round(self) -> None:
         with TempDatabase() as db_path:
-            repository = ResourceRepository(db_path)
-            created = repository.create_candidate(
-                {
-                    "first_name": "Prüfling",
-                    "last_name": "Repository",
-                    "ihk_exam_number": "TEST-2026-9001",
-                    "specialization": "system_integration",
-                    "training_company": "Testbetrieb Repository",
-                    "exam_round_id": 1,
-                    "attempt_number": 3,
-                    "requires_mep": 1,
-                }
+            created = (
+                planning_resource_service(db_path)
+                .create_candidate(
+                    {
+                        "first_name": "Prüfling",
+                        "last_name": "Repository",
+                        "ihk_exam_number": "TEST-2026-9001",
+                        "specialization": "system_integration",
+                        "training_company": "Testbetrieb Repository",
+                        "exam_round_id": 1,
+                        "attempt_number": 3,
+                        "requires_mep": 1,
+                    }
+                )
+                .as_payload()
             )
-            summary = repository.round_summary(1)
+            summary = planning_resource_service(db_path).round_summary(1).as_payload()
 
         self.assertEqual("Prüfling", created["first_name"])
         self.assertIsNotNone(summary)
@@ -73,8 +79,8 @@ class RepositoryTests(unittest.TestCase):
     def test_delete_candidate_removes_round_link_first(self) -> None:
         with TempDatabase() as db_path:
             repository = ResourceRepository(db_path)
-            self.assertTrue(repository.delete_candidate(1))
-            summary = repository.round_summary(1)
+            self.assertTrue(planning_resource_service(db_path).delete_candidate(1))
+            summary = planning_resource_service(db_path).round_summary(1).as_payload()
             candidate = repository.get(CANDIDATE, 1)
 
         self.assertIsNone(candidate)
@@ -83,7 +89,8 @@ class RepositoryTests(unittest.TestCase):
     def test_update_candidate_updates_round_data_atomically(self) -> None:
         with TempDatabase() as db_path:
             repository = ResourceRepository(db_path)
-            updated = repository.update_candidate(
+            planning = planning_resource_service(db_path)
+            updated = planning.update_candidate(
                 1,
                 {
                     "last_name": "Neu",
@@ -98,7 +105,7 @@ class RepositoryTests(unittest.TestCase):
             )[0]
 
             with self.assertRaises(ValueError):
-                repository.update_candidate(
+                planning.update_candidate(
                     1,
                     {
                         "last_name": "Nicht gespeichert",
@@ -109,7 +116,7 @@ class RepositoryTests(unittest.TestCase):
             after_failed_update = repository.get(CANDIDATE, 1)
 
         self.assertIsNotNone(updated)
-        self.assertEqual("Neu", updated["last_name"])
+        self.assertEqual("Neu", updated.as_payload()["last_name"])
         self.assertEqual(3, round_candidate["attempt_number"])
         self.assertEqual(1, round_candidate["requires_mep"])
         self.assertEqual("Neu", after_failed_update["last_name"])
@@ -117,6 +124,7 @@ class RepositoryTests(unittest.TestCase):
     def test_candidate_committee_change_preserves_history_and_deactivates_old_round(self) -> None:
         with TempDatabase() as db_path:
             repository = ResourceRepository(db_path)
+            planning = planning_resource_service(db_path)
             committee = create_committee_record(
                 db_path,
                 {
@@ -138,23 +146,22 @@ class RepositoryTests(unittest.TestCase):
                 committee_model = session.get(Committee, committee["id"])
                 assert committee_model is not None
                 committee_model.bootstrap_state = "ready"
-            target_round = repository.create(
-                EXAM_ROUND,
+            target_round = planning.create_round(
                 {
                     "exam_half_year_id": 1,
                     "committee_id": committee["id"],
                     "name": "Winter 2026/27 · Prüfungsausschuss Teststadt 2",
                     "created_by_member_id": member["id"],
                 },
-            )
+            ).as_payload()
 
             with self.assertRaisesRegex(ValueError, "reason is required"):
-                repository.update_candidate(
+                planning.update_candidate(
                     1,
                     {"exam_round_id": target_round["id"], "attempt_number": 2},
                 )
 
-            repository.update_candidate(
+            planning.update_candidate(
                 1,
                 {
                     "exam_round_id": target_round["id"],
@@ -163,7 +170,9 @@ class RepositoryTests(unittest.TestCase):
                     "assignment_change_reason": "Wechsel in den zuständigen Ausschuss",
                 },
             )
-            history = repository.candidate_committee_assignments(1)
+            history = [
+                row.as_payload() for row in planning.list_candidate_assignments({"candidate_id": 1})
+            ]
             old_round_candidate = repository.list_filtered(
                 ROUND_CANDIDATE,
                 {"candidate_id": 1, "exam_round_id": 1},
@@ -172,8 +181,9 @@ class RepositoryTests(unittest.TestCase):
                 ROUND_CANDIDATE,
                 {"candidate_id": 1, "exam_round_id": target_round["id"]},
             )[0]
-            old_summary = repository.round_summary(1)
-            new_summary = repository.round_summary(target_round["id"])
+            planning = planning_resource_service(db_path)
+            old_summary = planning.round_summary(1).as_payload()
+            new_summary = planning.round_summary(target_round["id"]).as_payload()
 
         self.assertEqual(2, len(history))
         historic = next(item for item in history if item["exam_round_id"] == 1)
@@ -189,8 +199,9 @@ class RepositoryTests(unittest.TestCase):
     def test_update_exam_round_updates_metadata_and_timestamp(self) -> None:
         with TempDatabase() as db_path:
             repository = ResourceRepository(db_path)
+            planning = planning_resource_service(db_path)
             before = repository.get(EXAM_ROUND, 1)
-            updated = repository.update_exam_round(
+            updated = planning.update_round(
                 1,
                 {
                     "name": "Sommer 2027",
@@ -200,27 +211,23 @@ class RepositoryTests(unittest.TestCase):
             )
 
         self.assertIsNotNone(updated)
-        self.assertEqual("Sommer 2027", updated["name"])
-        self.assertEqual("2027-04-15 18:00:00", updated["availability_deadline"])
-        self.assertNotEqual(before["updated_at"], updated["updated_at"])
+        self.assertEqual("Sommer 2027", updated.values["name"])
+        self.assertEqual("2027-04-15 18:00:00", updated.values["availability_deadline"])
+        self.assertNotEqual(before["updated_at"], updated.values["updated_at"])
 
     def test_exam_round_creation_records_deputy_chair_as_actor(self) -> None:
         with TempDatabase() as db_path:
-            repository = ResourceRepository(db_path)
+            planning = planning_resource_service(db_path)
             identity_service(db_path).update_membership(2, {"committee_role": "deputy_chair"})
-            half_year = repository.create(
-                EXAM_HALF_YEAR,
-                {"season": "summer", "year": 2027, "status": "active"},
-            )
-            created = repository.create(
-                EXAM_ROUND,
+            created = planning.create_round(
                 {
-                    "exam_half_year_id": half_year["id"],
+                    "season": "summer",
+                    "year": 2027,
                     "committee_id": 1,
                     "name": "Sommer 2027 · Prüfungsausschuss Teststadt 1",
                     "created_by_member_id": 2,
                 },
-            )
+            ).as_payload()
 
         self.assertEqual(2, created["created_by_member_id"])
 
@@ -228,10 +235,7 @@ class RepositoryTests(unittest.TestCase):
         for committee_state in ("unresolved", "inactive"):
             with self.subTest(committee_state=committee_state), TempDatabase() as db_path:
                 repository = ResourceRepository(db_path)
-                half_year = repository.create(
-                    EXAM_HALF_YEAR,
-                    {"season": "summer", "year": 2027, "status": "active"},
-                )
+                planning = planning_resource_service(db_path)
                 with session_scope(db_path) as session:
                     committee = session.get(Committee, 1)
                     assert committee is not None
@@ -241,10 +245,10 @@ class RepositoryTests(unittest.TestCase):
                         committee.is_active = 0
 
                 with self.assertRaisesRegex(ValueError, "not ready"):
-                    repository.create(
-                        EXAM_ROUND,
+                    planning.create_round(
                         {
-                            "exam_half_year_id": half_year["id"],
+                            "season": "summer",
+                            "year": 2027,
                             "committee_id": 1,
                             "name": f"Nicht zulässig: {committee_state}",
                             "created_by_member_id": 1,
@@ -253,16 +257,16 @@ class RepositoryTests(unittest.TestCase):
 
                 self.assertEqual(
                     [],
-                    repository.list_filtered(EXAM_ROUND, {"exam_half_year_id": half_year["id"]}),
+                    repository.list_filtered(EXAM_HALF_YEAR, {"season": "summer", "year": 2027}),
                 )
 
     def test_update_exam_round_rejects_invalid_metadata(self) -> None:
         with TempDatabase() as db_path:
-            repository = ResourceRepository(db_path)
+            planning = planning_resource_service(db_path)
             with self.assertRaisesRegex(ValueError, "name is required"):
-                repository.update_exam_round(1, {"name": "  "})
+                planning.update_round(1, {"name": "  "})
             with self.assertRaisesRegex(ValueError, "before the deadline"):
-                repository.update_exam_round(
+                planning.update_round(
                     1,
                     {
                         "availability_deadline": "2027-04-08 09:00:00",
@@ -273,52 +277,49 @@ class RepositoryTests(unittest.TestCase):
     def test_exam_round_requires_a_unique_committee_half_year_pair(self) -> None:
         with TempDatabase() as db_path:
             repository = ResourceRepository(db_path)
-            half_year = repository.create(
-                EXAM_HALF_YEAR,
-                {"season": "summer", "year": 2027, "status": "draft"},
-            )
-            created = repository.create(
-                EXAM_ROUND,
+            planning = planning_resource_service(db_path)
+            created = planning.create_round(
                 {
-                    "exam_half_year_id": half_year["id"],
+                    "season": "summer",
+                    "year": 2027,
                     "committee_id": 1,
                     "name": "Sommer 2027 · Prüfungsausschuss Teststadt 1",
                     "created_by_member_id": 1,
                 },
-            )
+            ).as_payload()
             with self.assertRaisesRegex(ValueError, "Creating member"):
-                invalid_half_year = repository.create(
-                    EXAM_HALF_YEAR,
-                    {"season": "winter", "year": 2027, "status": "draft"},
-                )
-                repository.create(
-                    EXAM_ROUND,
+                planning.create_round(
                     {
-                        "exam_half_year_id": invalid_half_year["id"],
+                        "season": "winter",
+                        "year": 2027,
                         "committee_id": 1,
                         "name": "Ungültige Runde",
                         "created_by_member_id": 999,
                     },
                 )
+            self.assertEqual(
+                [],
+                repository.list_filtered(EXAM_HALF_YEAR, {"season": "winter", "year": 2027}),
+            )
             with self.assertRaises(IntegrityError):
-                repository.create(
-                    EXAM_ROUND,
+                planning.create_round(
                     {
-                        "exam_half_year_id": half_year["id"],
+                        "season": "summer",
+                        "year": 2027,
                         "committee_id": 1,
                         "name": "Doppelte Runde",
                         "created_by_member_id": 1,
                     },
                 )
-            summary = repository.round_summary(created["id"])
+            summary = planning_resource_service(db_path).round_summary(created["id"]).as_payload()
 
-        self.assertEqual(half_year["id"], created["exam_half_year_id"])
-        self.assertEqual(half_year["id"], summary["round"]["exam_half_year"]["id"])
+        self.assertEqual(created["exam_half_year_id"], summary["round"]["exam_half_year"]["id"])
 
     def test_planning_settings_upsert_treats_deputy_chair_as_equal_actor(self) -> None:
         with TempDatabase() as db_path:
             repository = ResourceRepository(db_path)
-            updated = repository.save_planning_settings(
+            planning = planning_resource_service(db_path)
+            updated = planning.save_settings(
                 {
                     "exam_round_id": 1,
                     "calendar_week_from": "2026-W47",
@@ -331,13 +332,13 @@ class RepositoryTests(unittest.TestCase):
                     "default_room_id": 2,
                     "updated_by_member_id": 1,
                 }
-            )
+            ).as_payload()
 
             identity_service(db_path).update_membership(
                 2,
                 {"committee_role": "deputy_chair", "is_active": 1},
             )
-            updated_by_deputy = repository.save_planning_settings(
+            updated_by_deputy = planning.save_settings(
                 {
                     "exam_round_id": 1,
                     "calendar_week_from": "2026-W47",
@@ -350,7 +351,7 @@ class RepositoryTests(unittest.TestCase):
                     "default_room_id": 2,
                     "updated_by_member_id": 2,
                 }
-            )
+            ).as_payload()
 
             settings = repository.list_filtered(PLANNING_SETTINGS, {"exam_round_id": 1})
 
@@ -364,7 +365,7 @@ class RepositoryTests(unittest.TestCase):
 
     def test_planning_settings_require_valid_state_for_holiday_exclusion(self) -> None:
         with TempDatabase() as db_path:
-            repository = ResourceRepository(db_path)
+            planning = planning_resource_service(db_path)
             payload = {
                 "exam_round_id": 1,
                 "calendar_week_from": "2026-W47",
@@ -379,24 +380,25 @@ class RepositoryTests(unittest.TestCase):
             }
 
             with self.assertRaisesRegex(ValueError, "Federal state is required"):
-                repository.save_planning_settings(payload)
+                planning.save_settings(payload)
 
             payload["holiday_subdivision_code"] = "DE-XX"
             with self.assertRaisesRegex(ValueError, "Unknown German federal state"):
-                repository.save_planning_settings(payload)
+                planning.save_settings(payload)
 
     def test_availability_upsert_manages_response_timestamp(self) -> None:
         with TempDatabase() as db_path:
             repository = ResourceRepository(db_path)
-            answered = repository.save_member_availability(
+            planning = planning_resource_service(db_path)
+            answered = planning.save_availability(
                 {
                     "exam_round_id": 1,
                     "committee_member_id": 5,
                     "candidate_exam_day_id": 1,
                     "availability": "morning",
                 }
-            )
-            pending = repository.update_member_availability(
+            ).as_payload()
+            pending = planning.update_availability(
                 answered["id"],
                 {"availability": "pending"},
             )
@@ -411,12 +413,13 @@ class RepositoryTests(unittest.TestCase):
 
         self.assertIsNotNone(answered["responded_at"])
         self.assertIsNotNone(pending)
-        self.assertIsNone(pending["responded_at"])
+        self.assertIsNone(pending.values["responded_at"])
         self.assertEqual(1, len(rows))
 
     def test_availability_is_shared_by_person_only_within_the_same_half_year(self) -> None:
         with TempDatabase() as db_path:
             repository = ResourceRepository(db_path)
+            planning = planning_resource_service(db_path)
             committee = create_committee_record(db_path, {"name": "PA 2", "occupation": "FI"})
             membership = identity_service(db_path).create_membership(
                 {
@@ -432,38 +435,33 @@ class RepositoryTests(unittest.TestCase):
                 committee_model = session.get(Committee, committee["id"])
                 assert committee_model is not None
                 committee_model.bootstrap_state = "ready"
-            shared_round = repository.create(
-                EXAM_ROUND,
+            shared_round = planning.create_round(
                 {
                     "exam_half_year_id": 1,
                     "committee_id": committee["id"],
                     "name": "Winter PA 2",
                     "created_by_member_id": membership["id"],
                 },
-            )
+            ).as_payload()
             shared_day = repository.create(
                 CANDIDATE_EXAM_DAY,
                 {"exam_round_id": shared_round["id"], "date": "2026-11-16", "is_active": 1},
             )
-            next_half_year = repository.create(
-                EXAM_HALF_YEAR,
-                {"season": "summer", "year": 2027, "status": "active"},
-            )
-            separate_round = repository.create(
-                EXAM_ROUND,
+            separate_round = planning.create_round(
                 {
-                    "exam_half_year_id": next_half_year["id"],
+                    "season": "summer",
+                    "year": 2027,
                     "committee_id": committee["id"],
                     "name": "Sommer PA 2",
                     "created_by_member_id": membership["id"],
                 },
-            )
+            ).as_payload()
             separate_day = repository.create(
                 CANDIDATE_EXAM_DAY,
                 {"exam_round_id": separate_round["id"], "date": "2026-11-16", "is_active": 1},
             )
 
-            repository.save_member_availability(
+            planning.save_availability(
                 {
                     "exam_round_id": 1,
                     "committee_member_id": 1,
