@@ -21,6 +21,7 @@ from backend.application import (
     ForbiddenRequestError,
     ReadApplication,
 )
+from backend.application.calendar_ports import CalendarApplicationPort
 from backend.application.consequence_ports import ApplicationConsequenceStoreFactory
 from backend.application.exam_lifecycle import ExamLifecycleApplication
 from backend.application.exam_lifecycle_ports import ExamLifecycleUnitOfWorkFactory
@@ -36,7 +37,6 @@ from backend.application.resource_access import ResourceAccessQueryFactory, Reso
 from backend.application.resource_authorization import ResourceAuthorizer
 from backend.assessment.ports import AssessmentActorSnapshot
 from backend.assessment.service import ExamResultService
-from backend.calendar.ports import CalendarApplicationPort
 from backend.execution.absence import AbsenceService
 from backend.execution.exam_day_closures import ExamDayClosureService
 from backend.execution.exam_protocols import ExamProtocolService

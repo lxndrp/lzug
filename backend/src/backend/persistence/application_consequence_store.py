@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from pathlib import Path
+from typing import Any
 
 from sqlalchemy import or_, select, update
 from sqlalchemy.exc import IntegrityError
 
 from backend.persistence.application_consequence_ports import (
     ConsequenceBatchSnapshot,
-    ConsequenceTaskDraft,
     ConsequenceTaskSnapshot,
 )
 from backend.persistence.application_consequences import PlanConsequence, PlanConsequenceBatch
@@ -35,7 +36,7 @@ class SQLiteApplicationConsequenceStore:
                         PlanConsequence.next_attempt_at <= now,
                     ),
                 )
-                .values(next_attempt_at=lease_until, updated_at=now)
+                .values(status="pending", next_attempt_at=lease_until, updated_at=now)
             )
             return result.rowcount == 1
 
@@ -95,7 +96,7 @@ class SQLiteApplicationConsequenceStore:
         origin_key: str,
         confirmed_plan_revision_id: int | None,
         notification_scope: tuple[int, ...],
-        tasks: tuple[ConsequenceTaskDraft, ...],
+        tasks: tuple[Mapping[str, Any], ...],
         error_code: str | None,
         now: str,
     ) -> int:
@@ -131,9 +132,9 @@ class SQLiteApplicationConsequenceStore:
                     exists = session.scalar(
                         select(PlanConsequence.id).where(
                             PlanConsequence.batch_id == batch.id,
-                            PlanConsequence.recipient_member_id == task.recipient_member_id,
-                            PlanConsequence.consequence_type == task.consequence_type,
-                            PlanConsequence.identity_key == task.identity_key,
+                            PlanConsequence.recipient_member_id == task["recipient_member_id"],
+                            PlanConsequence.consequence_type == task["consequence_type"],
+                            PlanConsequence.identity_key == task["identity_key"],
                         )
                     )
                     if exists is not None:
@@ -143,11 +144,11 @@ class SQLiteApplicationConsequenceStore:
                             session.add(
                                 PlanConsequence(
                                     batch_id=batch.id,
-                                    recipient_member_id=task.recipient_member_id,
-                                    consequence_type=task.consequence_type,
-                                    action=task.action,
-                                    identity_key=task.identity_key,
-                                    details_json=task.details_json,
+                                    recipient_member_id=task["recipient_member_id"],
+                                    consequence_type=task["consequence_type"],
+                                    action=task["action"],
+                                    identity_key=task["identity_key"],
+                                    details_json=task["details_json"],
                                 )
                             )
                             session.flush()
@@ -244,18 +245,27 @@ class SQLiteApplicationConsequenceStore:
         calendar_event_id: int | None,
         calendar_event_version: int | None,
         updated_at: str,
-    ) -> None:
+        expected_claim_until: str | None = None,
+    ) -> bool:
         with session_scope(self.db_path) as session:
-            task = session.get(PlanConsequence, task_id)
-            if task is None:
-                return
-            task.status = status
-            task.attempt_count = attempt_count
-            task.next_attempt_at = next_attempt_at
-            task.error_code = error_code
-            task.calendar_event_id = calendar_event_id
-            task.calendar_event_version = calendar_event_version
-            task.updated_at = updated_at
+            statement = update(PlanConsequence).where(PlanConsequence.id == task_id)
+            if expected_claim_until is not None:
+                statement = statement.where(
+                    PlanConsequence.status == "pending",
+                    PlanConsequence.next_attempt_at == expected_claim_until,
+                )
+            result = session.execute(
+                statement.values(
+                    status=status,
+                    attempt_count=attempt_count,
+                    next_attempt_at=next_attempt_at,
+                    error_code=error_code,
+                    calendar_event_id=calendar_event_id,
+                    calendar_event_version=calendar_event_version,
+                    updated_at=updated_at,
+                )
+            )
+            return result.rowcount == 1
 
     @staticmethod
     def _batch_snapshot(batch: PlanConsequenceBatch) -> ConsequenceBatchSnapshot:

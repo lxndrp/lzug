@@ -834,8 +834,9 @@ nicht zu dieser Migration.
   consumer-eigenen Vertrag und orchestriert nach dem Domain-Commit.
   Der direkte `CalendarEvent`-Zugriff in `PlanConsequence` entfällt nach
   Einführung dieses Handoffs.
-- Kalenderwirkungen aus Abwesenheit, venuebezogenen Planfolgen und
-  Rundenstorno verwenden denselben `application`-Calendar-Port.
+- Plan- und Venuefolgen verwenden den Calendar-Port aus `application`;
+  Lifecycle-Syncs verwenden den engeren Execution-Port.
+  Beide Verträge werden strukturell vom Calendar-Service erfüllt.
   Kalenderprojektion und Taskabschluss haben getrennte UoWs; ein Fehler nach
   dem Fach-Commit lässt die Folgearbeit wiederholbar offen.
 - Fach-Commit und Application-Auftrag sind keine gemeinsame Transaktion.
@@ -846,6 +847,15 @@ nicht zu dieser Migration.
   und macht Ableitungs-/Queue-Lücken diagnostizierbar und wiederanlaufbar.
   Ein Startup-Hook oder Hintergrundworker ist nicht vorausgesetzt.
   Daraus folgt keine Exactly-once- oder Outbox-Garantie.
+- Die Taskmenge einer Ursprungsänderung wird beim ersten erfolgreichen
+  Ableiten gespeichert. Ein Replay verarbeitet diese gespeicherten Tasks und
+  erweitert einen historischen Ursprung nicht um später hinzugekommene
+  Memberships oder Zuweisungen.
+- Ein Claim verwendet den gespeicherten Leasewert als Besitznachweis.
+  Application prüft den Besitz unmittelbar vor jedem Kalender-/Notification-
+  Effekt erneut; Abschluss- und Fehlerübergänge schreiben nur bei passendem
+  Leasewert. Ein abgelöster Worker kann so keinen supersedierten Taskstatus
+  zurückschreiben. Externe Seiteneffekte bleiben nicht Exactly-once.
 - Notification-Claim committen vor Provider-I/O; Completion gehört nur dem
   noch gültigen Claim.
   Externe Zustellung ist nicht Exactly-once.

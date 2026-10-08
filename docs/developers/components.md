@@ -301,15 +301,18 @@ oder der Rundungsabsage gleichzusetzen.
 `_process_calendars` gruppiert sie pro Runde, aktualisiert die Projektion in
 einem separaten Datenbank-UoW und speichert danach Auftragsstatus, Event-ID
 und Eventversion in einem weiteren UoW.
-Heute ruft Planning dafür den konkreten `CalendarService` auf; künftig
-orchestriert Application die Projektion über einen typisierten Calendar-Port
-und verwaltet Taskstatus, Claim und Retry in seinem consumer-eigenen Vertrag.
+Application orchestriert die Projektion über den eigenen Calendar-Port und
+besitzt die Verbraucher-Ports für Taskzustand und Plan-/Venue-Fähigkeiten;
+`persistence.application_consequence_store` implementiert den Speichervertrag.
 `sync_round` verarbeitet die Eventänderungen einer Runde in einem UoW;
 ein Fehler bei einem späteren Payload rollt frühere Änderungen dieses Laufs
 zurück.
-Heute liest `_complete_calendar_task` anschließend `CalendarEvent` direkt in
-Planning, um Event-ID und Version zu übernehmen; dieser ORM-Zugriff und die
-Planning-eigene Taskpersistenz werden nach dem Handoff entfernt.
+`_complete_calendar_task` liest das typisierte Eventergebnis über den
+Calendar-Port; Application speichert Taskstatus, Event-ID und Eventversion
+getrennt vom Projektions-UoW.
+Die Taskmenge eines Venue-Audits wird beim ersten erfolgreichen Ableiten
+festgeschrieben; spätere Wiederanläufe erweitern den Ursprung nicht um neue
+Zuweisungen.
 `list_events`, `feed_ics` und `event_ics` synchronisieren über `sync_person`
 ebenfalls vor dem Lesen oder Rendern; Refresh und Read laufen in getrennten
 Session-Scopes.
@@ -327,16 +330,18 @@ Planungsdaten kommen über einen typisierten Snapshot aus einem
 calendar-eigenen Port, den der SQLite-Adapter erfüllt.
 Das Ziel aus #1081 lässt Planning die Folgen beschreiben und verlagert deren
 Ausführung in `application`.
-Application konsumiert dafür einen eigenen Calendar-Service-Port, erhält
+Application definiert dafür einen eigenen Calendar-Service-Port, erhält
 Event-ID und Eventversion als typisiertes Ergebnis und speichert den
-Folgeauftragsabschluss.
+Folgeauftragsabschluss. Execution besitzt einen engeren Port für seine
+Lifecycle-Syncs.
 Der Composition Root verdrahtet Calendar-Snapshot-Port, Planning-Adapter und
 Application-Port.
 Der direkte Planning-Aufruf von `CalendarService` und der ORM-Zugriff in
 `_complete_calendar_task` sind Übergangspfade und entfallen mit dieser
 Orchestrierung.
-Eine zusätzliche Generation-Fencing-Garantie für verspätete Task-Abschlüsse
-ist damit nicht festgelegt.
+Application revalidiert den Claim unmittelbar vor dem Seiteneffekt und
+schreibt den Abschluss nur unter dem gespeicherten Leasewert.
+Externe Seiteneffekte sind damit nicht Exactly-once.
 
 Weitere heutige Kalenderpfade liegen in `execution.absence`:
 `select_replacement` ermittelt über `_report_round_id` eine Runde nur für

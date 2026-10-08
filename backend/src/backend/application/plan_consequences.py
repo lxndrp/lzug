@@ -8,6 +8,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from backend.application.calendar_ports import CalendarApplicationPort
 from backend.application.consequence_ports import (
     ApplicationConsequenceStore,
     ConsequenceBatchSnapshot,
@@ -16,7 +17,6 @@ from backend.application.consequence_ports import (
     NotificationApplicationPort,
     PlanConsequencePlanningPort,
 )
-from backend.calendar.ports import CalendarApplicationPort
 from backend.persistence.database import DEFAULT_DB_PATH
 from backend.planning.plan_consequences import PlanConsequenceDescriptions
 from backend.planning.proposals import ConfirmedPlanRevision
@@ -124,7 +124,7 @@ class PlanConsequenceService:
             )
             for task in self.consequence_store.tasks_for_batch(
                 batch.id,
-                statuses=frozenset({"pending", "temporarily_failed", "permanently_failed"}),
+                statuses=frozenset({"temporarily_failed", "permanently_failed"}),
             ):
                 self.consequence_store.set_task_state(
                     task.id,
@@ -316,25 +316,28 @@ class PlanConsequenceService:
             self._process_calendars(calendar_ids, current)
 
     def _process_notification(self, task_id: int, current: datetime) -> None:
-        if not self._claim_task(task_id, current):
+        claim_until = self._claim_task(task_id, current)
+        if claim_until is None:
             return
         task = self.consequence_store.task(task_id)
-        if task is None:
+        if task is None or not self._owns_claim(task_id, claim_until):
             return
         try:
             revision_id = int(task.origin_key)
         except ValueError:
-            self._fail_task(task_id, "invalid_consequence_origin", current)
+            self._fail_task(task_id, "invalid_consequence_origin", current, claim_until)
             return
         source = self.planning.plan_consequence_source(revision_id)
         if source is None:
-            self._fail_task(task_id, "confirmed_revision_missing", current)
+            self._fail_task(task_id, "confirmed_revision_missing", current, claim_until)
             return
         categories = set(json.loads(task.details_json).get("categories", []))
         member_id = task.recipient_member_id
         round_id = source.exam_round_id
         committee_id = source.committee_id
         try:
+            if not self._owns_claim(task_id, claim_until):
+                return
             superseded_revision_ids = self.notifications.supersede_unsent_plan_changes(
                 round_id=round_id,
                 recipient_member_id=member_id,
@@ -344,6 +347,8 @@ class PlanConsequenceService:
                 superseded_revision_ids,
                 current,
             )
+            if not self._owns_claim(task_id, claim_until):
+                return
             self.notifications.create_direct(
                 committee_id=committee_id,
                 round_id=round_id,
@@ -355,7 +360,7 @@ class PlanConsequenceService:
                 origin_key=f"confirmed-plan-revision:{revision_id}",
             )
         except Exception:
-            self._fail_task(task_id, "notification_processing_failed", current)
+            self._fail_task(task_id, "notification_processing_failed", current, claim_until)
             return
         self.consequence_store.set_task_state(
             task_id,
@@ -366,6 +371,7 @@ class PlanConsequenceService:
             calendar_event_id=task.calendar_event_id,
             calendar_event_version=task.calendar_event_version,
             updated_at=_timestamp(current),
+            expected_claim_until=claim_until,
         )
 
     def _mark_superseded_notification_tasks(
@@ -398,43 +404,57 @@ class PlanConsequenceService:
 
     def _process_calendars(self, task_ids: list[int], current: datetime) -> None:
         by_round: dict[int, list[int]] = defaultdict(list)
-        claimed_task_ids = [task_id for task_id in task_ids if self._claim_task(task_id, current)]
-        for task_id in claimed_task_ids:
+        claims = {
+            task_id: claim_until
+            for task_id in task_ids
+            if (claim_until := self._claim_task(task_id, current)) is not None
+        }
+        for task_id, claim_until in claims.items():
             task = self.consequence_store.task(task_id)
-            if task is None:
+            if task is None or not self._owns_claim(task_id, claim_until):
                 continue
             try:
                 revision_id = int(task.origin_key)
             except ValueError:
-                self._fail_task(task_id, "invalid_consequence_origin", current)
+                self._fail_task(task_id, "invalid_consequence_origin", current, claim_until)
                 continue
             revision = self.planning.confirmed_plan_revision(revision_id)
             if revision is not None:
                 by_round[revision.exam_round_id].append(task_id)
         for round_id, round_task_ids in by_round.items():
+            round_task_ids = [
+                task_id for task_id in round_task_ids if self._owns_claim(task_id, claims[task_id])
+            ]
+            if not round_task_ids:
+                continue
             try:
                 self.calendar.sync_round(round_id)
             except Exception:
                 for task_id in round_task_ids:
-                    self._fail_task(task_id, "calendar_processing_failed", current)
+                    self._fail_task(task_id, "calendar_processing_failed", current, claims[task_id])
                 continue
             for task_id in round_task_ids:
-                self._complete_calendar_task(task_id, current)
+                self._complete_calendar_task(task_id, current, claims[task_id])
 
-    def _claim_task(self, task_id: int, current: datetime) -> bool:
+    def _claim_task(self, task_id: int, current: datetime) -> str | None:
         """Lease a due task in its existing status before cross-module work starts.
 
         `next_attempt_at` carries the lease expiry, so this remains compatible
         with the existing schema status constraint and recovers after a crash.
         """
         claim_until = _timestamp(current + CONSEQUENCE_CLAIM_LEASE)
-        return self.consequence_store.claim_task(
+        claimed = self.consequence_store.claim_task(
             task_id,
             now=_timestamp(current),
             lease_until=claim_until,
         )
+        return claim_until if claimed else None
 
-    def _complete_calendar_task(self, task_id: int, current: datetime) -> None:
+    def _owns_claim(self, task_id: int, claim_until: str) -> bool:
+        task = self.consequence_store.task(task_id)
+        return task is not None and task.status == "pending" and task.next_attempt_at == claim_until
+
+    def _complete_calendar_task(self, task_id: int, current: datetime, claim_until: str) -> None:
         task = self.consequence_store.task(task_id)
         if task is None:
             return
@@ -447,7 +467,7 @@ class PlanConsequenceService:
             and event.status != "cancelled"
         )
         if not valid:
-            self._fail_task(task_id, "calendar_state_missing", current)
+            self._fail_task(task_id, "calendar_state_missing", current, claim_until)
             return
         self.consequence_store.set_task_state(
             task_id,
@@ -458,9 +478,12 @@ class PlanConsequenceService:
             calendar_event_id=event.id if event is not None else None,
             calendar_event_version=event.version if event is not None else None,
             updated_at=_timestamp(current),
+            expected_claim_until=claim_until,
         )
 
-    def _fail_task(self, task_id: int, code: str, current: datetime) -> None:
+    def _fail_task(
+        self, task_id: int, code: str, current: datetime, claim_until: str | None = None
+    ) -> None:
         task = self.consequence_store.task(task_id)
         if task is None:
             return
@@ -479,6 +502,7 @@ class PlanConsequenceService:
             calendar_event_id=task.calendar_event_id,
             calendar_event_version=task.calendar_event_version,
             updated_at=_timestamp(current),
+            expected_claim_until=claim_until,
         )
 
     @staticmethod

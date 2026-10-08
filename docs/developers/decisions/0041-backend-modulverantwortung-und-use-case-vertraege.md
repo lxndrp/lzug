@@ -82,9 +82,10 @@ Snapshot-Port, den ein Planning-Adapter erfüllt.
 Das bestätigte Ziel aus [Issue #1081](https://github.com/lxndrp/lzug/issues/1081)
 belässt die Ableitung fachlicher Folgen in Planning und überträgt ihre
 Ausführung an `application`.
-Application konsumiert einen eigenen Calendar-Service-Port, der Event-ID und
-Eventversion als typisiertes Ergebnis liefert, und speichert Taskabschluss
-oder Retry im eigenen consumer-eigenen UoW.
+Application definiert den von seinen Folge-Use-Cases konsumierten
+Calendar-Service-Port und die Ports/Wertverträge für Taskzustand.
+Calendar und Persistence liefern strukturell passende Ergebnisse; Application
+speichert Taskabschluss oder Retry im eigenen consumer-eigenen UoW.
 Für einen Human-Export gibt Application einen vollständig autorisierten,
 materialisierten Snapshot zurück; der HTTP-Adapter ruft nach dem UoW den reinen
 Renderer `presentation.exam_exports` auf.
@@ -93,8 +94,10 @@ Der Composition Root verdrahtet Snapshot-Port, Planning-Adapter und
 Application-Port.
 Application liest abgeschlossene Eventgenerationen über den öffentlichen
 Calendar-Service-Port; die Orchestrierung liest keine `CalendarEvent`-Modelle.
-Eine zusätzliche Generation-Fencing-Garantie für verspätete Task-Abschlüsse
-ist durch #1078 nicht festgelegt.
+Application revalidiert den Task-Claim unmittelbar vor dem Seiteneffekt und
+schreibt Abschluss oder Fehlerstatus nur unter dem gespeicherten Leasewert.
+Externe Kalender-/Notification-Effekte bleiben nicht Exactly-once.
+Execution besitzt einen eigenen engeren Calendar-Port für Lifecycle-Syncs.
 Ein konsumierendes Modul definiert ein kleines strukturelles `Protocol` für
 die benötigte Fähigkeit.
 Ein zusätzliches Interface für lokale Services entsteht nur bei belegtem

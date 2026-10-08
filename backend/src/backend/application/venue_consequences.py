@@ -7,13 +7,13 @@ from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from backend.application.calendar_ports import CalendarApplicationPort
 from backend.application.consequence_ports import (
     ApplicationConsequenceStore,
     ConsequenceTaskDraft,
     NotificationApplicationPort,
     VenueConsequencePlanningPort,
 )
-from backend.calendar.ports import CalendarApplicationPort
 from backend.persistence.database import DEFAULT_DB_PATH
 from backend.planning.venue_consequences import VenueAuditConsequenceSource
 from backend.planning_ports import VenueAuditEventSnapshot
@@ -82,7 +82,7 @@ class VenueConsequenceService:
         batch_id = self._derive(audit_id, current)
         tasks = self.consequence_store.tasks_for_batch(
             batch_id,
-            statuses=frozenset({"pending", "temporarily_failed", "permanently_failed"}),
+            statuses=frozenset({"temporarily_failed", "permanently_failed"}),
         )
         for task in tasks:
             self.consequence_store.set_task_state(
@@ -133,6 +133,9 @@ class VenueConsequenceService:
         }
 
     def _derive(self, audit_id: int, current: datetime) -> int:
+        existing = self.consequence_store.batch_by_origin("exam_venue_audit_event", str(audit_id))
+        if existing is not None and existing.status == "succeeded":
+            return existing.id
         source = self.venue_planner.source_for_audit(audit_id, today=current.date())
         if source is None:
             raise ValueError("Venue change audit not found")
@@ -213,11 +216,12 @@ class VenueConsequenceService:
             self._process_task(task_id, current)
 
     def _process_task(self, task_id: int, current: datetime) -> None:
-        if not self._claim_task(task_id, current):
+        claim_until = self._claim_task(task_id, current)
+        if claim_until is None:
             return
         today = date.today()
         task = self.consequence_store.task(task_id)
-        if task is None:
+        if task is None or not self._owns_claim(task_id, claim_until):
             return
         details = json.loads(task.details_json)
         assignment_ids = [int(value) for value in details["assignment_ids"]]
@@ -228,6 +232,11 @@ class VenueConsequenceService:
             self._supersede(task, current)
             return
         try:
+            if not self._owns_claim(task_id, claim_until):
+                return
+            if not self._is_current(task.consequence_type, details, date.today()):
+                self._supersede(task, current)
+                return
             if consequence_type == "calendar":
                 event = self.calendar.sync_assignment(assignment_ids[0], future_from=today)
                 if event is None:
@@ -248,7 +257,7 @@ class VenueConsequenceService:
                     origin_key=f"exam-venue-change:{details['audit_id']}",
                 )
         except Exception:
-            self._fail(task_id, f"{consequence_type}_processing_failed", current)
+            self._fail(task_id, f"{consequence_type}_processing_failed", current, claim_until)
             return
         self.consequence_store.set_task_state(
             task.id,
@@ -263,19 +272,26 @@ class VenueConsequenceService:
                 event.version if consequence_type == "calendar" else task.calendar_event_version
             ),
             updated_at=_timestamp(current),
+            expected_claim_until=claim_until,
         )
 
-    def _claim_task(self, task_id: int, current: datetime) -> bool:
+    def _claim_task(self, task_id: int, current: datetime) -> str | None:
         """Lease a due task in its existing status before Calendar or Notification work.
 
         `next_attempt_at` carries the lease expiry without changing the existing
         schema status constraint; an expired lease can be claimed after restart.
         """
-        return self.consequence_store.claim_task(
+        claim_until = _timestamp(current + CONSEQUENCE_CLAIM_LEASE)
+        claimed = self.consequence_store.claim_task(
             task_id,
             now=_timestamp(current),
-            lease_until=_timestamp(current + CONSEQUENCE_CLAIM_LEASE),
+            lease_until=claim_until,
         )
+        return claim_until if claimed else None
+
+    def _owns_claim(self, task_id: int, claim_until: str) -> bool:
+        task = self.consequence_store.task(task_id)
+        return task is not None and task.status == "pending" and task.next_attempt_at == claim_until
 
     def _is_current(self, consequence_type: str, details, today: date) -> bool:
         return self.venue_planner.is_current(consequence_type, details, today=today)
@@ -311,7 +327,9 @@ class VenueConsequenceService:
                 if not is_current:
                     self._supersede(task, current)
 
-    def _fail(self, task_id: int, code: str, current: datetime) -> None:
+    def _fail(
+        self, task_id: int, code: str, current: datetime, claim_until: str | None = None
+    ) -> None:
         task = self.consequence_store.task(task_id)
         if task is None:
             return
@@ -330,6 +348,7 @@ class VenueConsequenceService:
             calendar_event_id=task.calendar_event_id,
             calendar_event_version=task.calendar_event_version,
             updated_at=_timestamp(current),
+            expected_claim_until=claim_until,
         )
 
     def _supersede(self, task, current: datetime) -> None:

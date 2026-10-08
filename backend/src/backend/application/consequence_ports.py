@@ -5,17 +5,108 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from datetime import date
 from pathlib import Path
-from typing import Protocol
+from typing import Protocol, TypedDict
 
-from backend.persistence.application_consequence_ports import (
-    ConsequenceBatchSnapshot,
-    ConsequenceTaskDraft,
-    ConsequenceTaskSnapshot,
-)
 from backend.planning.plan_consequences import PlanConsequenceSource
 from backend.planning.proposals import ConfirmedPlanRevision
 from backend.planning.venue_consequences import VenueAuditConsequenceSource
 from backend.planning_ports import VenueAuditEventSnapshot
+
+
+class ConsequenceTaskDraft(TypedDict):
+    """Application-owned description persisted by an outer storage adapter."""
+
+    recipient_member_id: int
+    consequence_type: str
+    action: str
+    identity_key: str
+    details_json: str
+
+
+class ConsequenceTaskSnapshot(Protocol):
+    """Detached task values the Application needs from its consequence store."""
+
+    @property
+    def id(self) -> int: ...
+
+    @property
+    def batch_id(self) -> int: ...
+
+    @property
+    def origin_type(self) -> str: ...
+
+    @property
+    def origin_key(self) -> str: ...
+
+    @property
+    def recipient_member_id(self) -> int: ...
+
+    @property
+    def consequence_type(self) -> str: ...
+
+    @property
+    def action(self) -> str: ...
+
+    @property
+    def identity_key(self) -> str: ...
+
+    @property
+    def details_json(self) -> str: ...
+
+    @property
+    def status(self) -> str: ...
+
+    @property
+    def attempt_count(self) -> int: ...
+
+    @property
+    def next_attempt_at(self) -> str | None: ...
+
+    @property
+    def error_code(self) -> str | None: ...
+
+    @property
+    def calendar_event_id(self) -> int | None: ...
+
+    @property
+    def calendar_event_version(self) -> int | None: ...
+
+    @property
+    def updated_at(self) -> str: ...
+
+
+class ConsequenceBatchSnapshot(Protocol):
+    """Detached batch values the Application needs from its consequence store."""
+
+    @property
+    def id(self) -> int: ...
+
+    @property
+    def origin_type(self) -> str: ...
+
+    @property
+    def origin_key(self) -> str: ...
+
+    @property
+    def confirmed_plan_revision_id(self) -> int | None: ...
+
+    @property
+    def notification_scope_json(self) -> str: ...
+
+    @property
+    def status(self) -> str: ...
+
+    @property
+    def attempt_count(self) -> int: ...
+
+    @property
+    def next_attempt_at(self) -> str | None: ...
+
+    @property
+    def error_code(self) -> str | None: ...
+
+    @property
+    def updated_at(self) -> str: ...
 
 
 class ApplicationConsequenceStore(Protocol):
@@ -81,7 +172,8 @@ class ApplicationConsequenceStore(Protocol):
         calendar_event_id: int | None,
         calendar_event_version: int | None,
         updated_at: str,
-    ) -> None: ...
+        expected_claim_until: str | None = None,
+    ) -> bool: ...
 
 
 ApplicationConsequenceStoreFactory = Callable[[Path], ApplicationConsequenceStore]

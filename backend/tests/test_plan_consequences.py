@@ -499,6 +499,84 @@ class PlanConsequenceServiceTests(unittest.TestCase):
         self.assertGreater(older["superseded"], 0)
         self.assertEqual(0, older["pending"])
 
+    def test_claimed_older_notice_is_not_created_after_newer_revision_supersedes_it(self) -> None:
+        with TempDatabase() as db_path:
+            planning, original = self._confirmed_plan(db_path)
+            day = original.days[0]
+            with session_scope(db_path) as session:
+                room_ids = [
+                    self._create_active_room(
+                        session,
+                        name=f"Konkurrierender Revisionsort {index}",
+                        street=f"Prüfweg {index}",
+                        room_name=f"{index}.01",
+                    )
+                    for index in (6, 7)
+                ]
+            first_change = replace(
+                original,
+                days=(replace(day, room_id=room_ids[0]), *original.days[1:]),
+            )
+            _first_saved, first_revision = planning.save_confirmed_plan(
+                ConfirmedPlanChange(first_change, "Erste konkurrierende Änderung"),
+                actor_member_id=1,
+            )
+            current = planning.get_confirmed_plan(1)
+            second_change = replace(
+                current,
+                days=(replace(current.days[0], room_id=room_ids[1]), *current.days[1:]),
+            )
+            _second_saved, second_revision = planning.save_confirmed_plan(
+                ConfirmedPlanChange(second_change, "Neuere konkurrierende Änderung"),
+                actor_member_id=1,
+            )
+            service = plan_consequence_service_for_test(db_path)
+            now = datetime.now(UTC)
+            original_supersede = service.notifications.supersede_unsent_plan_changes
+            newer_revision_processed = False
+            newer_summary = None
+
+            def process_newer_revision(**kwargs):
+                nonlocal newer_revision_processed, newer_summary
+                if not newer_revision_processed:
+                    newer_revision_processed = True
+                    service.notifications.supersede_unsent_plan_changes = original_supersede
+                    newer_summary = service.process_revision(second_revision.id, now=now)
+                return original_supersede(**kwargs)
+
+            with patch.object(
+                service.notifications,
+                "supersede_unsent_plan_changes",
+                side_effect=process_newer_revision,
+            ):
+                service.process_revision(first_revision.id, now=now)
+
+            with session_scope(db_path) as session:
+                stale_notices = list(
+                    session.scalars(
+                        select(Notification).where(
+                            Notification.origin_key.like(
+                                f"confirmed-plan-revision:{first_revision.id}:%"
+                            )
+                        )
+                    )
+                )
+                current_notices = list(
+                    session.scalars(
+                        select(Notification).where(
+                            Notification.origin_key.like(
+                                f"confirmed-plan-revision:{second_revision.id}:%"
+                            )
+                        )
+                    )
+                )
+
+        self.assertTrue(newer_revision_processed)
+        self.assertEqual([], stale_notices)
+        self.assertIsNotNone(newer_summary)
+        self.assertGreater(newer_summary["processed"], 0)
+        self.assertTrue(current_notices, newer_summary)
+
     def test_non_calendar_revision_keeps_a_still_relevant_older_retry(self) -> None:
         with TempDatabase() as db_path:
             planning, original = self._confirmed_plan(db_path)

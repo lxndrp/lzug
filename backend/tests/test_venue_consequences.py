@@ -404,7 +404,12 @@ class VenueConsequenceTests(unittest.TestCase):
             self.assertEqual([], member_view["consequence_problems"])
 
             retried = venue_consequence_service_for_test(db_path).retry_audit(audit_id)
-            repeated = venue_consequence_service_for_test(db_path).retry_audit(audit_id)
+            replay_service = venue_consequence_service_for_test(db_path)
+            with patch.object(
+                replay_service, "_tasks", wraps=replay_service._tasks
+            ) as derive_tasks:
+                repeated = replay_service.retry_audit(audit_id)
+            derive_tasks.assert_not_called()
             with session_scope(db_path) as session:
                 batch = session.scalar(
                     select(PlanConsequenceBatch).where(

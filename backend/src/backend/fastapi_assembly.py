@@ -14,11 +14,11 @@ from fastapi import FastAPI
 
 from .application import ApplicationServices, ReadApplication
 from .application.admin import AdminApplication, AdminServices
+from .application.calendar_ports import CalendarApplicationPort
 from .application.consequence_ports import ApplicationConsequenceStoreFactory
 from .application.plan_consequences import PlanConsequenceService
 from .application.resource_access import ResourceAccessQueryFactory
 from .assessment.service import ExamResultService
-from .calendar.ports import CalendarApplicationPort
 from .composition import SQLiteAssessmentLifecycleAdapter
 from .composition import application_consequence_store as compose_application_consequence_store
 from .composition import (
