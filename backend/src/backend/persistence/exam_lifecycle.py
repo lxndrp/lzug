@@ -130,6 +130,9 @@ class _SQLiteExamLifecycleExecution:
     def replay_round_decision(self, service, scope, intent, facts):
         return service.replay_decision_intent(self._session, scope, intent, facts)
 
+    def refresh_round_decision_snapshot(self, service, intent, facts):
+        return service.refresh_decision_snapshot(self._session, intent, facts)
+
     def apply_round_decision(self, service, scope, intent, facts, cancelled_recipients):
         return service.apply_decision_intent(
             self._session, scope, intent, facts, cancelled_recipients

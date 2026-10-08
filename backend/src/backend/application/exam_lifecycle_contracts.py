@@ -77,6 +77,9 @@ class RoundDecisionCommand:
     confirmed: bool
     reason: str | None = None
 
+    def __post_init__(self) -> None:
+        _require_round_revision(self.revision)
+
     def payload(self) -> dict[str, Any]:
         return {"revision": self.revision, "confirmed": self.confirmed, "reason": self.reason}
 
@@ -88,6 +91,9 @@ class RoundReopenCommand:
     source: str
     reason: str
     scope: tuple[ReopeningScopeItem, ...]
+
+    def __post_init__(self) -> None:
+        _require_round_revision(self.revision)
 
     def payload(self) -> dict[str, Any]:
         return {
@@ -111,6 +117,11 @@ class DayClosureFacts:
     management_member_ids: frozenset[int] = frozenset()
     assessment_results: tuple[Mapping[str, Any], ...] = ()
     assessment_impacts: tuple[Mapping[str, Any], ...] = ()
+
+
+def _require_round_revision(revision: object) -> None:
+    if not isinstance(revision, int) or isinstance(revision, bool) or revision < 1:
+        raise ValueError("Eine aktuelle Rundenrevision ist erforderlich")
 
 
 @dataclass(frozen=True)
@@ -158,11 +169,7 @@ class RoundLifecycleFacts:
         return self.candidates if round_id == self.round.id else ()
 
     def lifecycle_candidate_ids(self, round_id: int) -> set[int]:
-        return (
-            {int(item["candidate_id"]) for item in self.candidates}
-            if round_id == self.round.id
-            else set()
-        )
+        return {int(item["id"]) for item in self.candidates} if round_id == self.round.id else set()
 
     def candidate_details_for(self, candidate_ids: Sequence[int]):
         requested = set(candidate_ids)

@@ -264,6 +264,15 @@ class ExamRoundLifecycleService:
     ) -> ExamRoundDecisionOutcome:
         return ExamRoundDecisionOutcome(self._view(session, facts.round, scope, facts=facts))
 
+    def refresh_decision_snapshot(
+        self,
+        session: Session,
+        intent: ExamRoundDecisionIntent,
+        facts: RoundLifecycleFacts,
+    ) -> ExamRoundDecisionIntent:
+        """Rebuild the persisted decision snapshot from post-Planning mutation facts."""
+        return replace(intent, snapshot=self._snapshot(session, facts.round, facts=facts))
+
     def evaluate_reopen_intent(
         self,
         session: Session,

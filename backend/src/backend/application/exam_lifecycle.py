@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import replace
 from typing import Any
 
 from backend.application.exam_lifecycle_contracts import (
@@ -172,6 +173,10 @@ class ExamLifecycleApplication:
                     )
                     for result_id in intent.impact["impacts"]["exam_result_ids"]
                 }
+                facts = replace(
+                    facts,
+                    assessment_completion=unit_of_work.assessment_lifecycle.day_completion(day_id),
+                )
                 outcome = unit_of_work.execution.complete_day_reopen(
                     service, scope, handle, facts, corrections
                 )
@@ -223,6 +228,10 @@ class ExamLifecycleApplication:
                 recipients: set[int] = set()
                 if decision_type == "cancel":
                     unit_of_work.planning_lifecycle.cancel_exam_day_slots(facts.day_ids, intent.now)
+                    facts = self._round_facts(unit_of_work, round_id)
+                    intent = unit_of_work.execution.refresh_round_decision_snapshot(
+                        service, intent, facts
+                    )
                     recipients.update(facts.management_member_ids)
                     recipients.update(item.committee_member_id for item in facts.assignments)
                     recipients.update(

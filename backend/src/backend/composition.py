@@ -182,21 +182,13 @@ class SQLiteAssessmentLifecycleAdapter:
         return ExamResultService().completion_from_snapshot(snapshot)
 
     def results_for_day_slots(self, work, day_id: int, slot_ids) -> list[dict]:
-        queries = work.queries
-        results = []
-        for slot_id in slot_ids:
-            result = queries.result_by_slot(slot_id, day_id)
-            if result is not None:
-                results.append(
-                    {"id": result["id"], "round_candidate_id": result["round_candidate_id"]}
-                )
-        return results
+        return list(work.queries.lifecycle_results_for_day_slots(day_id, slot_ids))
 
     def result_by_id(self, work, result_id: int) -> dict | None:
-        return work.queries.result_by_id(result_id)
+        return work.queries.lifecycle_result_by_id(result_id)
 
     def results_for_round(self, work, round_id: int) -> list[dict]:
-        return list(work.queries.results_for_round(round_id))
+        return list(work.queries.lifecycle_results_for_round(round_id))
 
     def result_for_round_candidate(self, work, candidate_id: int) -> dict | None:
         return work.queries.result_for_round_candidate(candidate_id)
@@ -204,7 +196,7 @@ class SQLiteAssessmentLifecycleAdapter:
     def result_reopening_impacts(self, work, result_ids: set[int]) -> list[dict]:
         impacts = []
         for result_id in sorted(result_ids):
-            result = work.queries.result_by_id(result_id)
+            result = work.queries.lifecycle_result_by_id(result_id)
             if result is None:
                 continue
             determination = next(
@@ -232,9 +224,21 @@ class SQLiteAssessmentLifecycleAdapter:
         reason: str,
         requested_at: str,
     ) -> dict:
-        result = work.queries.result_by_id(result_id)
+        result = work.queries.lifecycle_result_by_id(result_id)
         if result is None:
             raise ValueError("Assessment result not found")
+        current_determination = next(
+            (item for item in result["determinations"] if item["status"] == "current"), None
+        )
+        if not result["has_assessment_binding"] or current_determination is None:
+            return {
+                "result_id": result_id,
+                "result_version": result["version"],
+                "determination_id": None,
+                "participant_member_ids": [],
+                "communicated": False,
+                "ihk_processed": False,
+            }
         return ExamResultService().reopen_result_for_day(
             work,
             result_id=result_id,

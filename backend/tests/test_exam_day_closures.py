@@ -4,7 +4,7 @@ import unittest
 from http import HTTPStatus
 from unittest.mock import patch
 
-from sqlalchemy import event, text
+from sqlalchemy import event, select, text
 
 from backend.application.exam_lifecycle import ExamLifecycleApplication
 from backend.application.exam_lifecycle_commands import day_close_command, day_reopen_command
@@ -33,6 +33,7 @@ from backend.persistence.models import (
     ExamDayTask,
     ExamResult,
     ExamRoundAssessmentBinding,
+    ExamSlot,
     MemberExamAttendance,
     Notification,
     ResultCalculation,
@@ -822,6 +823,16 @@ class ExamDayClosureTests(unittest.TestCase):
                 task_count, transaction.query(ExamDayTask).filter_by(exam_day_id=3).count()
             )
             self.assertEqual(1, args[4][2]["determination_id"])
+            updated_completion = next(
+                (
+                    item
+                    for item in args[3].assessment_completion["slots"]
+                    if item["exam_result_id"] == 2
+                ),
+                None,
+            )
+            self.assertIsNotNone(updated_completion)
+            self.assertTrue(updated_completion["correction_open"])
             raise RuntimeError("synthetic failure after assessment correction")
 
         with (
@@ -862,6 +873,37 @@ class ExamDayClosureTests(unittest.TestCase):
                 session.query(ExamDayAuditEvent).filter_by(exam_day_id=3).count(),
             )
             self.assertEqual(0, session.query(ExamDayReopening).filter_by(exam_day_id=3).count())
+
+    def test_lifecycle_assessment_projection_accepts_unbound_legacy_results(self) -> None:
+        with session_scope(self.db_path) as session:
+            day = session.get(ExamDay, 3)
+            slot = session.scalar(select(ExamSlot).where(ExamSlot.exam_day_id == day.id))
+            result = session.scalar(
+                select(ExamResult).where(ExamResult.round_candidate_id == slot.round_candidate_id)
+            )
+            if result is None:
+                result = ExamResult(
+                    round_candidate_id=slot.round_candidate_id,
+                    source="migration",
+                    legacy_status="no_result_data_in_lzug",
+                )
+                session.add(result)
+                session.flush()
+            session.query(ExamRoundAssessmentBinding).filter_by(
+                exam_round_id=day.exam_round_id
+            ).delete()
+            lifecycle = SQLiteAssessmentLifecycleAdapter(
+                SQLiteAssessmentUnitOfWorkFactory(self.db_path)
+            )(session)
+            day_results = lifecycle.results_for_day_slots(day.id, [slot.id])
+            round_results = lifecycle.results_for_round(day.exam_round_id)
+            impacts = lifecycle.result_reopening_impacts({result.id})
+            result_id = result.id
+
+        self.assertEqual([result_id], [item["id"] for item in day_results])
+        self.assertFalse(day_results[0]["has_assessment_binding"])
+        self.assertIn(result_id, {item["id"] for item in round_results})
+        self.assertEqual([None], [item["current_determination"] for item in impacts])
 
     def _assert_reopen_result_follow_up(self, external_document_status: str | None, expected: str):
         service = ExamDayClosureService(

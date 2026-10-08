@@ -326,6 +326,32 @@ class SQLiteAssessmentQueries:
         row = self.session.get(ExamResult, result_id)
         return self._result(row) if row else None
 
+    def lifecycle_result_by_id(self, result_id: int) -> dict[str, Any] | None:
+        row = self.session.get(ExamResult, result_id)
+        return self._lifecycle_result(row) if row else None
+
+    def lifecycle_results_for_round(self, round_id: int) -> Sequence[dict[str, Any]]:
+        rows = self.session.scalars(
+            select(ExamResult)
+            .join(RoundCandidate, RoundCandidate.id == ExamResult.round_candidate_id)
+            .where(RoundCandidate.exam_round_id == round_id)
+            .order_by(ExamResult.id)
+        )
+        return [self._lifecycle_result(row) for row in rows]
+
+    def lifecycle_results_for_day_slots(
+        self, day_id: int, slot_ids: Sequence[int]
+    ) -> Sequence[dict[str, Any]]:
+        if not slot_ids:
+            return ()
+        rows = self.session.scalars(
+            select(ExamResult)
+            .join(ExamSlot, ExamSlot.round_candidate_id == ExamResult.round_candidate_id)
+            .where(ExamSlot.exam_day_id == day_id, ExamSlot.id.in_(slot_ids))
+            .order_by(ExamResult.id)
+        )
+        return [self._lifecycle_result(row) for row in rows]
+
     def results_for_round(self, round_id: int) -> Sequence[dict[str, Any]]:
         rows = self.session.scalars(
             select(ExamResult)
@@ -647,6 +673,40 @@ class SQLiteAssessmentQueries:
             ],
             "created_at": row.created_at,
             "updated_at": row.updated_at,
+        }
+
+    def _lifecycle_result(self, row: ExamResult) -> dict[str, Any]:
+        """Return lifecycle evidence while preserving migration-era unbound results."""
+        candidate = self.session.get(RoundCandidate, row.round_candidate_id)
+        if candidate is None:
+            raise ValueError("Assessment result references a missing round candidate")
+        binding = self.session.scalar(
+            select(ExamRoundAssessmentBinding).where(
+                ExamRoundAssessmentBinding.exam_round_id == candidate.exam_round_id
+            )
+        )
+        if binding is not None:
+            return {**self._result(row), "has_assessment_binding": True}
+        round_ = self.session.get(ExamRound, candidate.exam_round_id)
+        if round_ is None:
+            raise ValueError("Assessment result references a missing exam round")
+        return {
+            "id": row.id,
+            "round_id": round_.id,
+            "committee_id": round_.committee_id,
+            "round_candidate_id": row.round_candidate_id,
+            "version": row.version,
+            "state": row.current_state,
+            "correction_open": bool(row.correction_open),
+            "legacy_status": row.legacy_status,
+            "has_assessment_binding": False,
+            "corrections": (),
+            "determinations": (),
+            "communications": (),
+            "retention": None,
+            "individual_assessments": (),
+            "component_assessments": (),
+            "external_results": (),
         }
 
 

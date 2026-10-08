@@ -117,6 +117,13 @@ class ExamLifecycleExecutionUnitOfWork(ExecutionUnitOfWork, Protocol):
         facts: RoundLifecycleFacts,
     ) -> ExamRoundDecisionOutcome: ...
 
+    def refresh_round_decision_snapshot(
+        self,
+        service: ExamRoundLifecycleService,
+        intent: ExamRoundDecisionIntent,
+        facts: RoundLifecycleFacts,
+    ) -> ExamRoundDecisionIntent: ...
+
     def apply_round_decision(
         self,
         service: ExamRoundLifecycleService,

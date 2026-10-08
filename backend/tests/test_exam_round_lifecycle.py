@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import unittest
 from http import HTTPStatus
 from unittest.mock import patch
@@ -8,6 +9,7 @@ from sqlalchemy import select, text
 
 from backend.application.exam_lifecycle import ExamLifecycleApplication
 from backend.application.exam_lifecycle_commands import round_decision_command, round_reopen_command
+from backend.application.exam_lifecycle_contracts import RoundLifecycleFacts
 from backend.composition import (
     SQLiteAssessmentLifecycleAdapter,
     authorization_service,
@@ -62,6 +64,48 @@ class ExamRoundLifecycleTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         self.database.__exit__(None, None, None)
+
+    def test_round_lifecycle_facts_use_round_candidate_ids_for_scope(self) -> None:
+        facts = RoundLifecycleFacts(
+            round=type("Round", (), {"id": 7})(),
+            day_ids=(),
+            candidates=({"id": 61, "candidate_id": 12}, {"id": 62, "candidate_id": 13}),
+            candidate_details=(),
+            planning_context={},
+            slots=(),
+            assignments=(),
+            assessment_results=(),
+            committee=type("Committee", (), {"id": 3})(),
+            members=(),
+            management_member_ids=frozenset(),
+        )
+        self.assertEqual({61, 62}, facts.lifecycle_candidate_ids(7))
+
+    def test_round_commands_reject_invalid_revision_values(self) -> None:
+        for revision in (True, "1", None, 0, -1):
+            with self.subTest(revision=revision), self.assertRaises(ValueError):
+                round_decision_command({"revision": revision, "confirmed": True})
+            with self.subTest(reopen_revision=revision), self.assertRaises(ValueError):
+                round_reopen_command(
+                    {
+                        "revision": revision,
+                        "occasion": "Berichtigung",
+                        "source": "IHK",
+                        "reason": "Korrektur",
+                        "scope": [],
+                    }
+                )
+        with self.assertRaises(ValueError):
+            round_decision_command({"confirmed": True})
+        with self.assertRaises(ValueError):
+            round_reopen_command(
+                {
+                    "occasion": "Berichtigung",
+                    "source": "IHK",
+                    "reason": "Korrektur",
+                    "scope": [],
+                }
+            )
 
     def test_closure_matrix_equal_management_lock_reopening_and_exports(self) -> None:
         with ApiServer(self.db_path) as api:
@@ -278,6 +322,11 @@ class ExamRoundLifecycleTests(unittest.TestCase):
             )
             assert_status(status, HTTPStatus.OK)
             self.assertEqual(("cancelled", 2), (cancelled["status"], cancelled["revision"]))
+            cancelled_slots = cancelled["current_decision"]["snapshot"]["slots"]
+            self.assertTrue(cancelled_slots)
+            self.assertTrue(
+                all(item["execution_status"] == "cancelled" for item in cancelled_slots)
+            )
 
             status, repeated = api.request(
                 "POST",
@@ -296,6 +345,14 @@ class ExamRoundLifecycleTests(unittest.TestCase):
             )
             self.assertEqual("cancelled", day.status)
             self.assertEqual(("cancelled", "cancelled"), (slot.status, slot.execution_status))
+            decision = session.scalar(
+                select(ExamRoundDecision).where(
+                    ExamRoundDecision.exam_round_id == 1,
+                    ExamRoundDecision.decision_type == "cancel",
+                )
+            )
+            snapshot = json.loads(decision.snapshot_json)
+            self.assertEqual("cancelled", snapshot["slots"][0]["execution_status"])
             self.assertEqual(("cancelled", 2), (event.status, event.version))
             self.assertEqual(
                 1,
