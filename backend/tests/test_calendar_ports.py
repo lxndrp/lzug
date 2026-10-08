@@ -21,6 +21,7 @@ class _FakeCalendarStore:
     def __init__(self) -> None:
         self.feeds: dict[int, CalendarFeedSnapshot] = {}
         self.events: dict[int, CalendarEventSnapshot] = {}
+        self.member_ids_by_person: dict[int, frozenset[int]] = {8: frozenset({12})}
         self._next_event_id = 1
 
     @contextmanager
@@ -63,7 +64,15 @@ class _FakeCalendarStore:
         )
 
     def events_for_round(self, round_id: int, *, person_id: int | None = None):
-        return tuple(event for event in self.events.values() if event.exam_round_id == round_id)
+        member_ids = (
+            self.member_ids_by_person.get(person_id, frozenset()) if person_id is not None else None
+        )
+        return tuple(
+            event
+            for event in self.events.values()
+            if event.exam_round_id == round_id
+            and (member_ids is None or event.recipient_member_id in member_ids)
+        )
 
     def events_for_members_in_period(self, member_ids: frozenset[int], half_year_id: int):
         return tuple(
@@ -87,6 +96,7 @@ class _FakeCalendarStore:
 class _FakePlanning:
     def __init__(self, snapshot: CalendarRoundSnapshot) -> None:
         self.snapshot = snapshot
+        self.round_snapshot_calls: list[tuple[int, frozenset[int] | None]] = []
 
     def current_half_year_id(self):
         return self.snapshot.half_year_id
@@ -94,8 +104,18 @@ class _FakePlanning:
     def confirmed_round_ids(self, half_year_id: int):
         return (self.snapshot.id,) if half_year_id == self.snapshot.half_year_id else ()
 
-    def round_snapshot(self, round_id: int):
-        return self.snapshot if round_id == self.snapshot.id else None
+    def round_snapshot(self, round_id: int, *, member_ids: frozenset[int] | None = None):
+        self.round_snapshot_calls.append((round_id, member_ids))
+        if round_id != self.snapshot.id:
+            return None
+        if member_ids is None:
+            return self.snapshot
+        return replace(
+            self.snapshot,
+            assignments=tuple(
+                item for item in self.snapshot.assignments if item.member_id in member_ids
+            ),
+        )
 
     def assignment_snapshot(self, assignment_id: int):
         return next(
@@ -210,3 +230,30 @@ class CalendarPortTests(unittest.TestCase):
         self.assertIsNone(
             service.event_ics(99, CalendarScope(person_id=8, member_ids=frozenset({12})))
         )
+
+    def test_person_sync_requests_planning_snapshots_for_active_members_only(self) -> None:
+        snapshot = _round_snapshot()
+        other_assignment = replace(snapshot.assignments[0], id=42, member_id=13)
+        planning = _FakePlanning(
+            replace(snapshot, assignments=(*snapshot.assignments, other_assignment))
+        )
+        store = _FakeCalendarStore()
+        service = CalendarService(store, planning, _FakeIdentity())
+
+        self.assertEqual(1, service.sync_person(8))
+
+        self.assertEqual([(4, frozenset({12}))], planning.round_snapshot_calls)
+        self.assertEqual({12}, {event.recipient_member_id for event in store.events.values()})
+
+    def test_person_sync_with_no_active_members_still_cancels_old_events(self) -> None:
+        planning = _FakePlanning(_round_snapshot())
+        store = _FakeCalendarStore()
+        service = CalendarService(store, planning, _FakeIdentity())
+        service.sync_round(4)
+        store.member_ids_by_person[9] = frozenset({12})
+        planning.round_snapshot_calls.clear()
+
+        self.assertEqual(1, service.sync_person(9))
+
+        self.assertEqual([(4, frozenset())], planning.round_snapshot_calls)
+        self.assertEqual("cancelled", next(iter(store.events.values())).status)

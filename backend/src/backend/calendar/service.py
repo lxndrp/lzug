@@ -130,13 +130,14 @@ class CalendarService:
         half_year_id = self._planning.current_half_year_id()
         if half_year_id is None:
             return 0
+        active_members = self._active_member_ids(person_id)
         rounds = tuple(
             snapshot
             for round_id in self._planning.confirmed_round_ids(half_year_id)
-            if (snapshot := self._planning.round_snapshot(round_id)) is not None
+            if (snapshot := self._planning.round_snapshot(round_id, member_ids=active_members))
+            is not None
             and snapshot.status == "plan_confirmed"
         )
-        active_members = self._active_member_ids(person_id)
         with self._unit_of_work_factory() as work:
             return sum(
                 self._sync_round(work, item, person_id=person_id, member_ids=active_members)

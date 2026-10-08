@@ -34,7 +34,9 @@ def render_calendar(events: Iterable[CalendarEventSnapshot], name: str) -> str:
         zone = ZoneInfo(event.time_zone)
         start = _parse_local(event.starts_at, zone)
         end = _parse_local(event.ends_at, zone)
-        description = f"Rolle: {event.role}\nDetails: /api/confirmed-plan-days/{event.exam_day_id}"
+        description = f"Rolle: {event.role}"
+        if event.exam_day_id is not None:
+            description += f"\nDetails: /api/confirmed-plan-days/{event.exam_day_id}"
         component = Event()
         component.add("UID", f"{event.external_event_id}@lzug")
         component.add("SEQUENCE", event.version)

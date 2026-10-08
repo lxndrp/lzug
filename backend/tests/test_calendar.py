@@ -122,6 +122,30 @@ class CalendarServiceTests(unittest.TestCase):
         finally:
             database.__exit__(None, None, None)
 
+    def test_deleted_exam_day_does_not_leave_an_invalid_ics_detail_reference(self) -> None:
+        database, db_path = self._confirmed_database()
+        try:
+            service = create_calendar_service(db_path)
+            scope = self._scope(db_path)
+            service.sync_round(1)
+            with session_scope(db_path) as session:
+                event = session.scalars(select(CalendarEvent).order_by(CalendarEvent.id)).first()
+                assert event is not None and event.exam_day_id is not None
+                event_id = event.id
+                day = session.get(ExamDay, event.exam_day_id)
+                assert day is not None
+                session.delete(day)
+
+            ics = service.event_ics(event_id, scope)
+            assert ics is not None
+            component = Calendar.from_ical(ics).walk("VEVENT")[0]
+
+            self.assertTrue(str(component["DESCRIPTION"]).startswith("Rolle: "))
+            self.assertNotIn("/None", str(component["DESCRIPTION"]))
+            self.assertNotIn("Details:", str(component["DESCRIPTION"]))
+        finally:
+            database.__exit__(None, None, None)
+
     def test_time_change_keeps_uid_and_increments_version(self) -> None:
         database, db_path = self._confirmed_database()
         try:

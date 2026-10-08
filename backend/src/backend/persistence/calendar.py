@@ -234,7 +234,9 @@ class SQLiteCalendarPersistence:
                 ).all()
             )
 
-    def round_snapshot(self, round_id: int) -> CalendarRoundSnapshot | None:
+    def round_snapshot(
+        self, round_id: int, *, member_ids: frozenset[int] | None = None
+    ) -> CalendarRoundSnapshot | None:
         with read_session_scope(self.db_path) as session:
             exam_round = session.get(ExamRound, round_id)
             if exam_round is None:
@@ -242,12 +244,16 @@ class SQLiteCalendarPersistence:
             half_year = session.get(ExamHalfYear, exam_round.exam_half_year_id)
             if half_year is None:
                 return None
-            assignments = session.scalars(
-                select(ExamDayAssignment)
-                .join(ExamDay, ExamDay.id == ExamDayAssignment.exam_day_id)
-                .where(ExamDay.exam_round_id == exam_round.id)
-                .order_by(ExamDayAssignment.id)
-            ).all()
+            assignments = ()
+            if member_ids is None or member_ids:
+                query = (
+                    select(ExamDayAssignment)
+                    .join(ExamDay, ExamDay.id == ExamDayAssignment.exam_day_id)
+                    .where(ExamDay.exam_round_id == exam_round.id)
+                )
+                if member_ids is not None:
+                    query = query.where(ExamDayAssignment.committee_member_id.in_(member_ids))
+                assignments = session.scalars(query.order_by(ExamDayAssignment.id)).all()
             return CalendarRoundSnapshot(
                 id=exam_round.id,
                 half_year_id=half_year.id,
