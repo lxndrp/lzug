@@ -10,6 +10,7 @@ from backend.application.exam_lifecycle import ExamLifecycleApplication
 from backend.assessment.service import ExamResultService
 from backend.composition import (
     SQLiteAssessmentLifecycleAdapter,
+    identity_lifecycle_work_factory,
     planning_lifecycle_work_factory,
 )
 from backend.execution.exam_day_closures import (
@@ -24,13 +25,16 @@ from backend.persistence.execution import SQLiteExecutionUnitOfWorkFactory
 from backend.persistence.identity import SQLiteIdentityExecutionSnapshotFactory
 from backend.persistence.models import (
     ExamDay,
+    ExamDayAuditEvent,
     ExamDayClosure,
     ExamDayExport,
+    ExamDayReopening,
     ExamDayTask,
     ExamResult,
     ExamRoundAssessmentBinding,
     MemberExamAttendance,
     Notification,
+    ResultCorrection,
 )
 from backend.tests.fixture_data import prepare_exam_protocol_scenario
 from backend.tests.helpers import (
@@ -97,6 +101,7 @@ class ExamDayClosureTests(unittest.TestCase):
                     notification_service=notification_service_for_test(self.db_path),
                     assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(),
                     planning_lifecycle_work_factory=planning_lifecycle_work_factory(),
+                    identity_lifecycle_work_factory=identity_lifecycle_work_factory(),
                 ),
                 session,
                 session.get(ExamDay, 2),
@@ -129,13 +134,14 @@ class ExamDayClosureTests(unittest.TestCase):
             event.listen(connection, "before_cursor_execute", count_statement)
             try:
                 snapshot = ExamDayClosureService._load_closure_snapshot(
-                    session, day, planning_lifecycle_work_factory()(session)
+                    session, day, planning_lifecycle_work_factory()(session),
+                    identity_lifecycle_work_factory()(session),
                 )
             finally:
                 event.remove(connection, "before_cursor_execute", count_statement)
 
         self.assertEqual(1, len(snapshot.slots))
-        self.assertEqual(6, len(statements))
+        self.assertEqual(5, len(statements))
 
     def test_result_without_determination_is_not_mutated_by_reopening(self) -> None:
         with session_scope(self.db_path) as session:
@@ -622,6 +628,7 @@ class ExamDayClosureTests(unittest.TestCase):
             notification_service=notification_service_for_test(self.db_path),
             assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(),
             planning_lifecycle_work_factory=planning_lifecycle_work_factory(),
+            identity_lifecycle_work_factory=identity_lifecycle_work_factory(),
         )
         scope = AuthorizationScope(
             person_id=1,
@@ -658,6 +665,7 @@ class ExamDayClosureTests(unittest.TestCase):
             notification_service=notification_service_for_test(self.db_path),
             assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(),
             planning_lifecycle_work_factory=planning_lifecycle_work_factory(),
+            identity_lifecycle_work_factory=identity_lifecycle_work_factory(),
         )
         application = ExamLifecycleApplication(
             SQLiteExamLifecycleUnitOfWorkFactory(
@@ -704,6 +712,111 @@ class ExamDayClosureTests(unittest.TestCase):
             self.assertIsNone(
                 session.query(ExamDayClosure).filter(ExamDayClosure.exam_day_id == 3).one_or_none()
             )
+
+    def test_reopen_rolls_back_assessment_correction_and_execution_evidence(self) -> None:
+        service = ExamDayClosureService(
+            self.db_path,
+            notification_service=notification_service_for_test(self.db_path),
+            assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(),
+            planning_lifecycle_work_factory=planning_lifecycle_work_factory(),
+            identity_lifecycle_work_factory=identity_lifecycle_work_factory(),
+        )
+        application = ExamLifecycleApplication(
+            SQLiteExamLifecycleUnitOfWorkFactory(
+                SQLiteExecutionUnitOfWorkFactory(
+                    self.db_path,
+                    identity_snapshot_factory=SQLiteIdentityExecutionSnapshotFactory(),
+                ),
+                SQLiteAssessmentUnitOfWorkFactory(self.db_path),
+                self.db_path,
+                SQLiteAssessmentLifecycleAdapter(SQLiteAssessmentUnitOfWorkFactory(self.db_path)),
+            ),
+            lambda: service,
+        )
+        scope = AuthorizationScope(
+            person_id=1,
+            person_ids=frozenset({1}),
+            committee_ids=frozenset({1}),
+            member_ids=frozenset({1}),
+            management_committee_ids=frozenset({1}),
+            member_by_committee={1: 1},
+        )
+        application.close_exam_day(
+            scope,
+            3,
+            {
+                "revision": 1,
+                "closure_type": "exception",
+                "confirmed": True,
+                "reason": "Synthetischer Ausnahmegrund",
+                "clarification_attempts": "Synthetischer Klärungsversuch",
+            },
+        )
+        with session_scope(self.db_path) as session:
+            result_before = session.get(ExamResult, 2)
+            result_state = (result_before.version, result_before.correction_open)
+            correction_count = session.query(ResultCorrection).count()
+            task_count = session.query(ExamDayTask).filter_by(exam_day_id=3).count()
+            audit_count = session.query(ExamDayAuditEvent).filter_by(exam_day_id=3).count()
+
+        original_open = service._open_dependent_corrections
+
+        def fail_after_assessment_mutation(*args, **kwargs):
+            original_open(*args, **kwargs)
+            self.assertTrue(args[0].get(ExamResult, 2).correction_open)
+            raise RuntimeError("synthetic failure after assessment correction")
+
+        def mutate_assessment(work, **command):
+            result = work.repository.session.get(ExamResult, command["result_id"])
+            result.correction_open = 1
+            result.version += 1
+            return {
+                "determination_id": None,
+                "participant_member_ids": [],
+                "communicated": False,
+                "ihk_processed": False,
+            }
+
+        with (
+            patch(
+                "backend.assessment.service.ExamResultService.reopen_result_for_day",
+                side_effect=mutate_assessment,
+            ),
+            patch.object(
+                service,
+                "_open_dependent_corrections",
+                side_effect=fail_after_assessment_mutation,
+            ),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "after assessment correction"):
+                application.reopen_exam_day(
+                    scope,
+                    3,
+                    {
+                        "revision": 2,
+                        "occasion": "Korrekturanlass",
+                        "source": "Prüfungsausschuss",
+                        "reason": "Korrektur erforderlich",
+                        "scope": [{"kind": "exam_result", "entity_id": 2}],
+                    },
+                )
+
+        with session_scope(self.db_path) as session:
+            self.assertEqual(
+                ("closed_exception", 2),
+                (session.get(ExamDay, 3).closure_status, session.get(ExamDay, 3).revision),
+            )
+            result_after = session.get(ExamResult, 2)
+            self.assertEqual(result_state, (result_after.version, result_after.correction_open))
+            self.assertEqual(correction_count, session.query(ResultCorrection).count())
+            self.assertEqual(
+                task_count, session.query(ExamDayTask).filter_by(exam_day_id=3).count()
+            )
+            self.assertEqual(
+                audit_count,
+                session.query(ExamDayAuditEvent).filter_by(exam_day_id=3).count(),
+            )
+            self.assertEqual(0, session.query(ExamDayReopening).filter_by(exam_day_id=3).count())
 
     def test_each_material_failed_prerequisite_is_reported_and_blocks_exception_close(
         self,

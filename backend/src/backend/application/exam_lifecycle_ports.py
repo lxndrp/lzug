@@ -13,7 +13,12 @@ from backend.execution.exam_round_lifecycle import (
 )
 from backend.execution.slot_ports import ExecutionUnitOfWork
 from backend.identity.authorization import AuthorizationScope
-from backend.lifecycle_ports import AssessmentLifecycleWork, PlanningLifecycleWork
+from backend.lifecycle_ports import (
+    AssessmentLifecycleWork,
+    CalendarLifecycleWork,
+    IdentityLifecycleWork,
+    PlanningLifecycleWork,
+)
 
 
 class ExamLifecycleExecutionUnitOfWork(ExecutionUnitOfWork, Protocol):
@@ -24,6 +29,7 @@ class ExamLifecycleExecutionUnitOfWork(ExecutionUnitOfWork, Protocol):
         service: ExamDayClosureService,
         assessment_lifecycle: AssessmentLifecycleWork,
         planning_lifecycle: PlanningLifecycleWork,
+        identity_lifecycle: IdentityLifecycleWork,
         scope: AuthorizationScope,
         day_id: int,
         payload: dict,
@@ -34,6 +40,7 @@ class ExamLifecycleExecutionUnitOfWork(ExecutionUnitOfWork, Protocol):
         service: ExamDayClosureService,
         assessment_lifecycle: AssessmentLifecycleWork,
         planning_lifecycle: PlanningLifecycleWork,
+        identity_lifecycle: IdentityLifecycleWork,
         scope: AuthorizationScope,
         day_id: int,
         payload: dict,
@@ -44,6 +51,8 @@ class ExamLifecycleExecutionUnitOfWork(ExecutionUnitOfWork, Protocol):
         service: ExamRoundLifecycleService,
         assessment_lifecycle: AssessmentLifecycleWork,
         planning_lifecycle: PlanningLifecycleWork,
+        identity_lifecycle: IdentityLifecycleWork,
+        calendar_lifecycle: CalendarLifecycleWork,
         scope: AuthorizationScope,
         round_id: int,
         payload: dict,
@@ -54,6 +63,8 @@ class ExamLifecycleExecutionUnitOfWork(ExecutionUnitOfWork, Protocol):
         service: ExamRoundLifecycleService,
         assessment_lifecycle: AssessmentLifecycleWork,
         planning_lifecycle: PlanningLifecycleWork,
+        identity_lifecycle: IdentityLifecycleWork,
+        calendar_lifecycle: CalendarLifecycleWork,
         scope: AuthorizationScope,
         round_id: int,
         payload: dict,
@@ -64,6 +75,8 @@ class ExamLifecycleExecutionUnitOfWork(ExecutionUnitOfWork, Protocol):
         service: ExamRoundLifecycleService,
         assessment_lifecycle: AssessmentLifecycleWork,
         planning_lifecycle: PlanningLifecycleWork,
+        identity_lifecycle: IdentityLifecycleWork,
+        calendar_lifecycle: CalendarLifecycleWork,
         scope: AuthorizationScope,
         round_id: int,
         payload: dict,
@@ -84,6 +97,12 @@ class ExamLifecycleUnitOfWork(Protocol):
 
     @property
     def planning_lifecycle(self) -> PlanningLifecycleWork: ...
+
+    @property
+    def identity_lifecycle(self) -> IdentityLifecycleWork: ...
+
+    @property
+    def calendar_lifecycle(self) -> CalendarLifecycleWork: ...
 
 
 class ExamLifecycleUnitOfWorkFactory(Protocol):

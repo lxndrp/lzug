@@ -10,6 +10,8 @@ from backend.application.exam_lifecycle import ExamLifecycleApplication
 from backend.composition import (
     SQLiteAssessmentLifecycleAdapter,
     authorization_service,
+    calendar_lifecycle_work_factory,
+    identity_lifecycle_work_factory,
     planning_lifecycle_work_factory,
 )
 from backend.execution.exam_day_closures import ExamDayClosureService
@@ -365,6 +367,8 @@ class ExamRoundLifecycleTests(unittest.TestCase):
             notification_service=notification_service_for_test(self.db_path),
             assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(),
             planning_lifecycle_work_factory=planning_lifecycle_work_factory(),
+            identity_lifecycle_work_factory=identity_lifecycle_work_factory(),
+            calendar_lifecycle_work_factory=calendar_lifecycle_work_factory(),
         )
         context = SQLiteAuthenticationRepository(self.db_path).authenticate(self.chair.token)
         scope = authorization_service(self.db_path).scope(context)
@@ -385,6 +389,7 @@ class ExamRoundLifecycleTests(unittest.TestCase):
                 notification_service=notification_service_for_test(self.db_path),
                 assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(),
                 planning_lifecycle_work_factory=planning_lifecycle_work_factory(),
+                identity_lifecycle_work_factory=identity_lifecycle_work_factory(),
             ),
             lambda: service,
         )
@@ -448,6 +453,8 @@ class ExamRoundLifecycleTests(unittest.TestCase):
             notification_service=notification_service_for_test(self.db_path),
             assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(),
             planning_lifecycle_work_factory=planning_lifecycle_work_factory(),
+            identity_lifecycle_work_factory=identity_lifecycle_work_factory(),
+            calendar_lifecycle_work_factory=calendar_lifecycle_work_factory(),
         )
         context = SQLiteAuthenticationRepository(self.db_path).authenticate(self.chair.token)
         scope = authorization_service(self.db_path).scope(context)
@@ -540,6 +547,8 @@ class ExamRoundLifecycleTests(unittest.TestCase):
             notification_service=notification_service_for_test(self.db_path),
             assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(),
             planning_lifecycle_work_factory=planning_lifecycle_work_factory(),
+            identity_lifecycle_work_factory=identity_lifecycle_work_factory(),
+            calendar_lifecycle_work_factory=calendar_lifecycle_work_factory(),
         )
         context = SQLiteAuthenticationRepository(self.db_path).authenticate(self.chair.token)
         scope = authorization_service(self.db_path).scope(context)

@@ -29,6 +29,7 @@ from backend.persistence.auth import (
     SQLiteAuthenticationRepository,
     SQLiteOperatorAuthUnitOfWorkFactory,
 )
+from backend.persistence.calendar_lifecycle import SQLiteCalendarLifecycleWork
 from backend.persistence.candidate_days import SQLiteCandidateDayUnitOfWorkFactory
 from backend.persistence.committee_admin import SQLiteCommitteeAdminUnitOfWorkFactory
 from backend.persistence.database import DEFAULT_DB_PATH
@@ -40,6 +41,7 @@ from backend.persistence.identity import (
     SQLiteIdentityQueryFactory,
     SQLiteIdentityUnitOfWorkFactory,
 )
+from backend.persistence.identity_lifecycle import SQLiteIdentityLifecycleWork
 from backend.persistence.local_auth import (
     SQLiteLocalAuthenticationKey,
     SQLiteLocalAuthUnitOfWorkFactory,
@@ -130,6 +132,16 @@ def exam_lifecycle_unit_of_work_factory(db_path: Path) -> SQLiteExamLifecycleUni
 def planning_lifecycle_work_factory():
     """Create Planning lifecycle queries over an existing transaction."""
     return SQLitePlanningLifecycleWork
+
+
+def identity_lifecycle_work_factory():
+    """Create Identity lifecycle projections over an existing transaction."""
+    return SQLiteIdentityLifecycleWork
+
+
+def calendar_lifecycle_work_factory():
+    """Create Calendar lifecycle commands over an existing transaction."""
+    return SQLiteCalendarLifecycleWork
 
 
 def exam_protocol_service(db_path: Path) -> ExamProtocolService:

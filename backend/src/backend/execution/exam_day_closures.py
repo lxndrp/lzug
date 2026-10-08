@@ -17,6 +17,9 @@ from backend.identity.authorization import AuthorizationScope
 from backend.lifecycle_ports import (
     AssessmentLifecycleWork,
     AssessmentLifecycleWorkFactory,
+    IdentityLifecycleWork,
+    IdentityLifecycleWorkFactory,
+    IdentityMemberLifecycleSnapshot,
     PlanAssignmentLifecycleSnapshot,
     PlanningLifecycleWork,
     PlanningLifecycleWorkFactory,
@@ -27,7 +30,6 @@ from backend.persistence.database import DEFAULT_DB_PATH, session_scope
 from backend.persistence.models import (
     AbsenceReport,
     CandidateExamAttendance,
-    CommitteeMember,
     ExamDay,
     ExamDayAuditEvent,
     ExamDayClosure,
@@ -40,7 +42,6 @@ from backend.persistence.models import (
     ExamProtocolParticipant,
     ExamProtocolResponse,
     ExamProtocolRevision,
-    ExamRound,
     MemberExamAttendance,
 )
 from backend.presentation.exam_exports import render_day_closure_export
@@ -121,7 +122,7 @@ class ExamDayClosureSnapshot:
     candidate_attendance: dict[int, CandidateExamAttendance]
     assignments: tuple[PlanAssignmentLifecycleSnapshot, ...]
     member_attendance: dict[int, MemberExamAttendance]
-    members: dict[int, CommitteeMember]
+    members: dict[int, IdentityMemberLifecycleSnapshot]
     absences: tuple[AbsenceReport, ...]
 
 
@@ -305,19 +306,23 @@ class ExamDayClosureService:
         notification_service: NotificationService,
         assessment_lifecycle_factory: AssessmentLifecycleWorkFactory,
         planning_lifecycle_work_factory: PlanningLifecycleWorkFactory,
+        identity_lifecycle_work_factory: IdentityLifecycleWorkFactory,
     ) -> None:
         self.db_path = db_path
         self.notification_service = notification_service
         self.assessment_lifecycle_factory = assessment_lifecycle_factory
         self.planning_lifecycle_work_factory = planning_lifecycle_work_factory
+        self.identity_lifecycle_work_factory = identity_lifecycle_work_factory
 
     def get(self, scope: AuthorizationScope, day_id: int) -> dict[str, Any] | None:
         with session_scope(self.db_path) as session:
             day = session.get(ExamDay, day_id)
             if day is None:
                 return None
-            self._require_access(session, day, scope)
-            return self._view(session, day, scope)
+            planning = self.planning_lifecycle_work_factory(session)
+            identity = self.identity_lifecycle_work_factory(session)
+            self._require_access(session, day, scope, planning)
+            return self._view(session, day, scope, planning_work=planning, identity_work=identity)
 
     def close_in_transaction(
         self,
@@ -327,19 +332,22 @@ class ExamDayClosureService:
         payload: dict[str, Any],
         assessment_work: AssessmentLifecycleWork | None = None,
         planning_work: PlanningLifecycleWork | None = None,
+        identity_work: IdentityLifecycleWork | None = None,
     ) -> ExamDayClosureOutcome:
         """Apply the close command in the caller's transaction without committing or notifying."""
         expected_revision, closure_type, reason, attempts, fingerprint = self._close_command(
             payload
         )
         day = self._required_day(session, day_id)
-        actor_id, committee_id, round_id = self._require_management(session, day, scope)
+        planning = planning_work or self.planning_lifecycle_work_factory(session)
+        identity = identity_work or self.identity_lifecycle_work_factory(session)
+        actor_id, committee_id, round_id = self._require_management(session, day, scope, planning)
         if self._repeated_closure(session, day.id, fingerprint):
             return ExamDayClosureOutcome(
-                self._view(session, day, scope, assessment_work, planning_work)
+                self._view(session, day, scope, assessment_work, planning, identity)
             )
         reopening = self._prepare_closure(session, day, expected_revision)
-        evaluation = self._evaluate(session, day, assessment_work, planning_work)
+        evaluation = self._evaluate(session, day, assessment_work, planning, identity)
         ready_key = "regular_close_ready" if closure_type == "regular" else "exception_close_ready"
         if not evaluation[ready_key]:
             raise ExamDayValidationError(
@@ -358,7 +366,7 @@ class ExamDayClosureService:
             fingerprint,
         )
         return ExamDayClosureOutcome(
-            response=self._view(session, day, scope, assessment_work, planning_work),
+            response=self._view(session, day, scope, assessment_work, planning, identity),
             committee_id=committee_id,
             round_id=round_id,
             day_id=day_id,
@@ -631,14 +639,14 @@ class ExamDayClosureService:
     ) -> dict[str, Any]:
         with session_scope(self.db_path) as session:
             day = self._required_day(session, day_id)
-            self._require_management(session, day, scope)
+            planning = self.planning_lifecycle_work_factory(session)
+            self._require_management(session, day, scope, planning)
             if day.closure_status not in CLOSED_STATUSES:
                 raise ExamDayConflictError(
                     "Nur ein geschlossener Prüfungstag kann wieder geöffnet werden"
                 )
             if self._active_reopening(session, day.id) is not None:
                 raise ExamDayConflictError("Für den Prüfungstag läuft bereits eine Wiederöffnung")
-            planning = self.planning_lifecycle_work_factory(session)
             return self._impact(session, day, payload.get("scope"), planning_work=planning)
 
     def reopen_in_transaction(
@@ -649,6 +657,7 @@ class ExamDayClosureService:
         payload: dict[str, Any],
         assessment_work: AssessmentLifecycleWork | None = None,
         planning_work: PlanningLifecycleWork | None = None,
+        identity_work: IdentityLifecycleWork | None = None,
     ) -> ExamDayClosureOutcome:
         """Apply a targeted reopening in the caller's transaction without publishing effects."""
         expected_revision = self._required_revision(payload)
@@ -664,7 +673,9 @@ class ExamDayClosureService:
         }
         fingerprint = _fingerprint(command)
         day = self._required_day(session, day_id)
-        actor_id, committee_id, round_id = self._require_management(session, day, scope)
+        planning = planning_work or self.planning_lifecycle_work_factory(session)
+        identity = identity_work or self.identity_lifecycle_work_factory(session)
+        actor_id, committee_id, round_id = self._require_management(session, day, scope, planning)
         repeated = session.scalar(
             select(ExamDayReopening).where(
                 ExamDayReopening.exam_day_id == day.id,
@@ -673,7 +684,7 @@ class ExamDayClosureService:
         )
         if repeated is not None:
             return ExamDayClosureOutcome(
-                self._view(session, day, scope, assessment_work, planning_work)
+                self._view(session, day, scope, assessment_work, planning, identity)
             )
         if day.revision != expected_revision:
             raise ExamDayConflictError("Der Prüfungstag wurde zwischenzeitlich geändert")
@@ -684,7 +695,7 @@ class ExamDayClosureService:
         if self._active_reopening(session, day.id) is not None:
             raise ExamDayConflictError("Für den Prüfungstag läuft bereits eine Wiederöffnung")
         impact = self._impact(
-            session, day, payload.get("scope"), assessment_work, planning_work
+            session, day, payload.get("scope"), assessment_work, planning
         )
         now = _now()
         previous = self._current_or_latest_closure(session, day.id)
@@ -741,7 +752,7 @@ class ExamDayClosureService:
                 )
             )
         return ExamDayClosureOutcome(
-            response=self._view(session, day, scope, assessment_work, planning_work),
+            response=self._view(session, day, scope, assessment_work, planning, identity),
             committee_id=committee_id,
             round_id=round_id,
             day_id=day_id,
@@ -765,7 +776,9 @@ class ExamDayClosureService:
     def _export(self, scope: AuthorizationScope, day_id: int, export_kind: str) -> dict[str, Any]:
         with session_scope(self.db_path) as session:
             day = self._required_day(session, day_id)
-            actor_id, _committee_id, _round_id = self._require_access(session, day, scope)
+            planning = self.planning_lifecycle_work_factory(session)
+            identity = self.identity_lifecycle_work_factory(session)
+            actor_id, _committee_id, _round_id = self._require_access(session, day, scope, planning)
             if actor_id is None:
                 raise PermissionError("Forbidden.")
             closure = self._current_or_latest_closure(session, day.id)
@@ -783,7 +796,9 @@ class ExamDayClosureService:
             return {
                 "export_version": 1,
                 "exam_day": {"id": day.id, "date": day.date, "exam_round_id": day.exam_round_id},
-                "closure": self._view(session, day, scope),
+                "closure": self._view(
+                    session, day, scope, planning_work=planning, identity_work=identity
+                ),
             }
 
     def human_export(self, scope: AuthorizationScope, day_id: int) -> str:
@@ -799,9 +814,12 @@ class ExamDayClosureService:
         scope: AuthorizationScope,
         assessment_work: AssessmentLifecycleWork | None = None,
         planning_work: PlanningLifecycleWork | None = None,
+        identity_work: IdentityLifecycleWork | None = None,
     ) -> dict[str, Any]:
-        actor_id, _committee_id, _round_id = self._require_access(session, day, scope)
-        evaluation = self._evaluate(session, day, assessment_work, planning_work)
+        planning = planning_work or self.planning_lifecycle_work_factory(session)
+        identity = identity_work or self.identity_lifecycle_work_factory(session)
+        actor_id, _committee_id, _round_id = self._require_access(session, day, scope, planning)
+        evaluation = self._evaluate(session, day, assessment_work, planning, identity)
         closures = list(
             session.scalars(
                 select(ExamDayClosure)
@@ -950,9 +968,11 @@ class ExamDayClosureService:
         day: ExamDay,
         assessment_work: AssessmentLifecycleWork | None = None,
         planning_work: PlanningLifecycleWork | None = None,
+        identity_work: IdentityLifecycleWork | None = None,
     ) -> dict[str, Any]:
         planning = planning_work or self.planning_lifecycle_work_factory(session)
-        snapshot = self._load_closure_snapshot(session, day, planning)
+        identity = identity_work or self.identity_lifecycle_work_factory(session)
+        snapshot = self._load_closure_snapshot(session, day, planning, identity)
         items: list[dict[str, Any]] = []
         warnings: list[dict[str, Any]] = []
         protocol_references: list[dict[str, Any]] = []
@@ -984,7 +1004,8 @@ class ExamDayClosureService:
 
     @staticmethod
     def _load_closure_snapshot(
-        session: Session, day: ExamDay, planning: PlanningLifecycleWork
+        session: Session, day: ExamDay, planning: PlanningLifecycleWork,
+        identity: IdentityLifecycleWork,
     ) -> ExamDayClosureSnapshot:
         slots, plan_assignments = planning.exam_day_plan(day.id)
         slots = tuple(slots)
@@ -1012,9 +1033,7 @@ class ExamDayClosureService:
         }
         members = {
             member.id: member
-            for member in session.scalars(
-                select(CommitteeMember).where(CommitteeMember.id.in_(member_ids))
-            )
+            for member in identity.committee_members_by_ids(sorted(member_ids))
         }
         absences = tuple(
             session.scalars(select(AbsenceReport).where(AbsenceReport.exam_day_id == day.id))
@@ -1131,8 +1150,8 @@ class ExamDayClosureService:
         snapshot: ExamDayClosureSnapshot,
         slot: PlanSlotLifecycleSnapshot,
         open_attendance: list[dict[str, int]],
-    ) -> list[CommitteeMember]:
-        present_members: list[CommitteeMember] = []
+    ) -> list[IdentityMemberLifecycleSnapshot]:
+        present_members: list[IdentityMemberLifecycleSnapshot] = []
         for assignment in snapshot.assignments:
             if not self._assignment_applies_to_slot(assignment, slot):
                 continue
@@ -1705,7 +1724,10 @@ class ExamDayClosureService:
         reason: str,
         now: str,
     ) -> None:
-        chairs = self._management_member_ids(session, day)
+        chairs = self._management_member_ids(
+            session, day, self.planning_lifecycle_work_factory(session),
+            self.identity_lifecycle_work_factory(session),
+        )
         if correction["communicated"]:
             self._add_reopening_tasks(
                 session,
@@ -1877,21 +1899,25 @@ class ExamDayClosureService:
         return sorted(tokens)
 
     def _require_access(
-        self, session: Session, day: ExamDay, scope: AuthorizationScope
+        self, session: Session, day: ExamDay, scope: AuthorizationScope,
+        planning: PlanningLifecycleWork | None = None,
     ) -> tuple[int | None, int, int]:
-        exam_round = session.get(ExamRound, day.exam_round_id)
-        if exam_round is None or not scope.can_read_committee(exam_round.committee_id):
+        round_id = day.exam_round_id
+        planning_work = planning or self.planning_lifecycle_work_factory(session)
+        committee_id = planning_work.round_committee_id(round_id)
+        if committee_id is None or not scope.can_read_committee(committee_id):
             raise PermissionError("Forbidden.")
         return (
-            scope.member_for_committee(exam_round.committee_id),
-            exam_round.committee_id,
-            exam_round.id,
+            scope.member_for_committee(committee_id),
+            committee_id,
+            round_id,
         )
 
     def _require_management(
-        self, session: Session, day: ExamDay, scope: AuthorizationScope
+        self, session: Session, day: ExamDay, scope: AuthorizationScope,
+        planning: PlanningLifecycleWork | None = None,
     ) -> tuple[int, int, int]:
-        actor_id, committee_id, round_id = self._require_access(session, day, scope)
+        actor_id, committee_id, round_id = self._require_access(session, day, scope, planning)
         if actor_id is None or not scope.can_manage_committee(committee_id):
             raise PermissionError("Forbidden.")
         return actor_id, committee_id, round_id
@@ -1917,17 +1943,12 @@ class ExamDayClosureService:
         )
 
     @staticmethod
-    def _management_member_ids(session: Session, day: ExamDay) -> set[int]:
-        exam_round = session.get(ExamRound, day.exam_round_id)
-        return set(
-            session.scalars(
-                select(CommitteeMember.id).where(
-                    CommitteeMember.committee_id == exam_round.committee_id,
-                    CommitteeMember.is_active == 1,
-                    CommitteeMember.committee_role.in_({"chair", "deputy_chair"}),
-                )
-            )
-        )
+    def _management_member_ids(
+        session: Session, day: ExamDay, planning: PlanningLifecycleWork,
+        identity: IdentityLifecycleWork,
+    ) -> set[int]:
+        committee_id = planning.round_committee_id(day.exam_round_id)
+        return identity.management_member_ids(committee_id) if committee_id is not None else set()
 
     @staticmethod
     def _affected_recipient_ids(session: Session, reopening: ExamDayReopening) -> set[int]:

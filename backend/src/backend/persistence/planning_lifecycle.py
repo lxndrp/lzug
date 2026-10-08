@@ -9,9 +9,11 @@ from sqlalchemy.orm import Session
 
 from backend.lifecycle_ports import (
     PlanAssignmentLifecycleSnapshot,
+    PlanningCandidateLifecycleSnapshot,
     PlanSlotLifecycleSnapshot,
 )
 from backend.persistence.models import (
+    Candidate,
     CandidateCommitteeAssignment,
     CandidateExamDay,
     ConfirmedPlanRevision,
@@ -41,6 +43,21 @@ class SQLitePlanningLifecycleWork:
             .order_by(RoundCandidate.id)
         )
         return tuple(self._candidate(row) for row in rows)
+
+    def candidate_details(self, candidate_ids):
+        if not candidate_ids:
+            return ()
+        return tuple(
+            PlanningCandidateLifecycleSnapshot(
+                id=row.id,
+                first_name=row.first_name,
+                last_name=row.last_name,
+                ihk_exam_number=row.ihk_exam_number,
+            )
+            for row in self._session.scalars(
+                select(Candidate).where(Candidate.id.in_(candidate_ids)).order_by(Candidate.id)
+            )
+        )
 
     def round_candidate(self, round_id: int, candidate_id: int) -> dict[str, Any] | None:
         row = self._session.get(RoundCandidate, candidate_id)
@@ -305,6 +322,11 @@ class SQLitePlanningLifecycleWork:
             select(ExamDay.exam_round_id)
             .join(ExamSlot, ExamSlot.exam_day_id == ExamDay.id)
             .where(ExamSlot.id == slot_id)
+        )
+
+    def round_committee_id(self, round_id):
+        return self._session.scalar(
+            select(ExamRound.committee_id).where(ExamRound.id == round_id)
         )
 
     def cancel_exam_day_slots(self, day_ids, now):

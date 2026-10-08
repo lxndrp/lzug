@@ -47,6 +47,8 @@ from backend.identity.people import IdentityService
 from backend.integrations.calendar import CalendarService
 from backend.lifecycle_ports import (
     AssessmentLifecycleWorkFactory,
+    CalendarLifecycleWorkFactory,
+    IdentityLifecycleWorkFactory,
     PlanningLifecycleWorkFactory,
 )
 from backend.notifications.service import NotificationService
@@ -91,6 +93,8 @@ class RequestContext:
     exam_protocol_service_factory: Callable[[Path], ExamProtocolService]
     exam_result_service_factory: Callable[[Path], ExamResultService]
     planning_lifecycle_work_factory: PlanningLifecycleWorkFactory
+    identity_lifecycle_work_factory: IdentityLifecycleWorkFactory
+    calendar_lifecycle_work_factory: CalendarLifecycleWorkFactory
     assessment_lifecycle: AssessmentLifecycleWorkFactory
     assessment_round_queries: AssessmentLifecycleWorkFactory
     exam_lifecycle_unit_of_work_factory: ExamLifecycleUnitOfWorkFactory
@@ -265,6 +269,7 @@ class RequestContext:
             notification_service=self.notification_service,
             assessment_lifecycle_factory=self.assessment_lifecycle,
             planning_lifecycle_work_factory=self.planning_lifecycle_work_factory,
+            identity_lifecycle_work_factory=self.identity_lifecycle_work_factory,
         )
 
     @property
@@ -282,6 +287,8 @@ class RequestContext:
             notification_service=self.notification_service,
             assessment_lifecycle_factory=self.assessment_round_queries,
             planning_lifecycle_work_factory=self.planning_lifecycle_work_factory,
+            identity_lifecycle_work_factory=self.identity_lifecycle_work_factory,
+            calendar_lifecycle_work_factory=self.calendar_lifecycle_work_factory,
         )
 
     @property

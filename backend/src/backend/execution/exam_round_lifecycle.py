@@ -16,6 +16,10 @@ from backend.identity.authorization import AuthorizationScope
 from backend.lifecycle_ports import (
     AssessmentLifecycleWork,
     AssessmentLifecycleWorkFactory,
+    CalendarLifecycleWork,
+    CalendarLifecycleWorkFactory,
+    IdentityLifecycleWork,
+    IdentityLifecycleWorkFactory,
     PlanningLifecycleWork,
     PlanningLifecycleWorkFactory,
 )
@@ -23,10 +27,6 @@ from backend.notifications.service import NotificationService
 from backend.persistence.database import DEFAULT_DB_PATH, session_scope
 from backend.persistence.models import (
     AbsenceReport,
-    CalendarEvent,
-    Candidate,
-    Committee,
-    CommitteeMember,
     ExamDay,
     ExamDayClosure,
     ExamDayTask,
@@ -41,7 +41,6 @@ from backend.persistence.models import (
     ExamRoundIhkStatus,
     ExamRoundReopening,
     ExamRoundTask,
-    Person,
 )
 from backend.presentation.exam_exports import render_round_lifecycle_export
 
@@ -120,11 +119,15 @@ class ExamRoundLifecycleService:
         notification_service: NotificationService,
         assessment_lifecycle_factory: AssessmentLifecycleWorkFactory,
         planning_lifecycle_work_factory: PlanningLifecycleWorkFactory,
+        identity_lifecycle_work_factory: IdentityLifecycleWorkFactory,
+        calendar_lifecycle_work_factory: CalendarLifecycleWorkFactory,
     ) -> None:
         self.db_path = db_path
         self.notification_service = notification_service
         self.assessment_lifecycle_factory = assessment_lifecycle_factory
         self.planning_lifecycle_work_factory = planning_lifecycle_work_factory
+        self.identity_lifecycle_work_factory = identity_lifecycle_work_factory
+        self.calendar_lifecycle_work_factory = calendar_lifecycle_work_factory
 
     def get(self, scope: AuthorizationScope, round_id: int) -> dict[str, Any] | None:
         with session_scope(self.db_path) as session:
@@ -144,10 +147,14 @@ class ExamRoundLifecycleService:
         decision_type: str,
         assessment_work: AssessmentLifecycleWork | None = None,
         planning_work: PlanningLifecycleWork | None = None,
+        identity_work: IdentityLifecycleWork | None = None,
+        calendar_work: CalendarLifecycleWork | None = None,
     ) -> ExamRoundDecisionOutcome:
         """Apply close/cancel rules in the caller's transaction without notifying."""
         expected_revision = self._required_revision(payload)
         planning = planning_work or self.planning_lifecycle_work_factory(session)
+        identity = identity_work or self.identity_lifecycle_work_factory(session)
+        calendar = calendar_work or self.calendar_lifecycle_work_factory(session)
         if payload.get("confirmed") is not True:
             raise ValueError("Die angezeigten Voraussetzungen müssen bestätigt werden")
         reason = (
@@ -183,11 +190,13 @@ class ExamRoundLifecycleService:
 
         now = _now()
         if decision_type == "cancel":
-            notify_cancelled = self._apply_cancellation(session, exam_round, now, planning)
+            notify_cancelled = self._apply_cancellation(
+                session, exam_round, now, planning, identity, calendar
+            )
         previous = self._current_or_latest_decision(session, exam_round.id)
         if previous is not None:
             previous.status = "superseded"
-        snapshot = self._snapshot(session, exam_round, assessment_work, planning)
+        snapshot = self._snapshot(session, exam_round, assessment_work, planning, identity)
         decision = ExamRoundDecision(
             exam_round_id=exam_round.id,
             decision_type=decision_type,
@@ -328,10 +337,12 @@ class ExamRoundLifecycleService:
         payload: dict[str, Any],
         assessment_work: AssessmentLifecycleWork | None = None,
         planning_work: PlanningLifecycleWork | None = None,
+        identity_work: IdentityLifecycleWork | None = None,
     ) -> ExamRoundDecisionOutcome:
         """Apply reopening rules in the caller's transaction without notifying."""
         expected_revision = self._required_revision(payload)
         planning = planning_work or self.planning_lifecycle_work_factory(session)
+        identity = identity_work or self.identity_lifecycle_work_factory(session)
         occasion = self._required_text(payload.get("occasion"), "occasion", 1000)
         source = self._required_text(payload.get("source"), "source", 1000)
         reason = self._required_text(payload.get("reason"), "reason", 3000)
@@ -386,7 +397,9 @@ class ExamRoundLifecycleService:
         exam_round.lifecycle_status = "reopening"
         exam_round.updated_at = now
         self._supersede_exports(session, exam_round, now)
-        recipients = self._create_reopening_tasks(session, exam_round, reopening, impact, now)
+        recipients = self._create_reopening_tasks(
+            session, exam_round, reopening, impact, now, identity
+        )
         session.add(
             ExamRoundAuditEvent(
                 exam_round_id=round_id,
@@ -441,6 +454,7 @@ class ExamRoundLifecycleService:
         reopening: ExamRoundReopening,
         impact: dict[str, Any],
         now: str,
+        identity: IdentityLifecycleWork,
     ) -> set[int]:
         """Persist reconfirmation and IHK follow-up work with the reopening audit."""
         round_id = exam_round.id
@@ -460,7 +474,7 @@ class ExamRoundLifecycleService:
                 )
             )
         for result_id in impact["impacts"]["ihk_processed_result_ids"]:
-            for recipient_id in self._management_member_ids(session, exam_round):
+            for recipient_id in self._management_member_ids(session, exam_round, identity):
                 session.add(
                     ExamRoundTask(
                         exam_round_id=round_id,
@@ -1110,26 +1124,27 @@ class ExamRoundLifecycleService:
         exam_round: ExamRound,
         assessment_work: AssessmentLifecycleWork | None = None,
         planning_work: PlanningLifecycleWork | None = None,
+        identity_work: IdentityLifecycleWork | None = None,
     ) -> dict[str, Any]:
         planning = planning_work or self.planning_lifecycle_work_factory(session)
+        identity = identity_work or self.identity_lifecycle_work_factory(session)
         planning_context = planning.lifecycle_context(
             exam_round.id, exam_round.exam_half_year_id,
             tuple(item["candidate_id"] for item in planning.round_candidates(exam_round.id)),
         )
         half_year = planning_context["half_year"]
-        committee = session.get(Committee, exam_round.committee_id)
-        members = list(
-            session.scalars(
-                select(CommitteeMember)
-                .where(CommitteeMember.committee_id == exam_round.committee_id)
-                .order_by(CommitteeMember.id)
-            )
-        )
-        people = {item.id: item for item in session.scalars(select(Person))}
+        committee = identity.committee(exam_round.committee_id)
+        members = list(identity.committee_members(exam_round.committee_id))
         candidates = []
         round_candidates = planning.round_candidates(exam_round.id)
+        candidate_details = {
+            item.id: item
+            for item in planning.candidate_details(
+                [row["candidate_id"] for row in round_candidates]
+            )
+        }
         for item in round_candidates:
-            person = session.get(Candidate, item["candidate_id"])
+            person = candidate_details[item["candidate_id"]]
             candidates.append(
                 {
                     "round_candidate_id": item["id"],
@@ -1204,8 +1219,8 @@ class ExamRoundLifecycleService:
                 {
                     "member_id": member.id,
                     "person_id": member.person_id,
-                    "first_name": people[member.person_id].first_name,
-                    "last_name": people[member.person_id].last_name,
+                    "first_name": member.first_name,
+                    "last_name": member.last_name,
                     "committee_role": member.committee_role,
                     "representing_side": member.representing_side,
                     "is_active": bool(member.is_active),
@@ -1401,8 +1416,10 @@ class ExamRoundLifecycleService:
         raw_scope: Any,
         assessment_work: AssessmentLifecycleWork | None = None,
         planning_work: PlanningLifecycleWork | None = None,
+        identity_work: IdentityLifecycleWork | None = None,
     ) -> dict[str, Any]:
         planning = planning_work or self.planning_lifecycle_work_factory(session)
+        identity = identity_work or self.identity_lifecycle_work_factory(session)
         requested = self._normalize_scope(raw_scope)
         day_ids = set(
             session.scalars(select(ExamDay.id).where(ExamDay.exam_round_id == exam_round.id))
@@ -1466,7 +1483,7 @@ class ExamRoundLifecycleService:
         impacted_result_ids = sorted(
             int(item.split(":", 1)[1]) for item in expanded if item.startswith("exam_result:")
         )
-        recipients = self._management_member_ids(session, exam_round)
+        recipients = self._management_member_ids(session, exam_round, identity)
         results_by_id = {item["id"]: item for item in round_results}
         for result_id in impacted_result_ids:
             result = results_by_id[result_id]
@@ -1502,8 +1519,10 @@ class ExamRoundLifecycleService:
         exam_round: ExamRound,
         now: str,
         planning: PlanningLifecycleWork,
+        identity: IdentityLifecycleWork,
+        calendar: CalendarLifecycleWork,
     ) -> set[int]:
-        recipients = self._management_member_ids(session, exam_round)
+        recipients = self._management_member_ids(session, exam_round, identity)
         days = list(session.scalars(select(ExamDay).where(ExamDay.exam_round_id == exam_round.id)))
         day_ids = [item.id for item in days]
         for day in days:
@@ -1514,17 +1533,7 @@ class ExamRoundLifecycleService:
             recipients.update(
                 item.committee_member_id for item in planning.exam_day_assignments(day_ids)
             )
-        for event in session.scalars(
-            select(CalendarEvent).where(
-                CalendarEvent.exam_round_id == exam_round.id,
-                CalendarEvent.date >= now[:10],
-                CalendarEvent.status != "cancelled",
-            )
-        ):
-            event.status = "cancelled"
-            event.version += 1
-            event.updated_at = now
-            recipients.add(event.recipient_member_id)
+        recipients.update(calendar.cancel_future_round_events(exam_round.id, now[:10], now))
         return recipients
 
     def _candidate_terminal_valid(
@@ -1733,16 +1742,10 @@ class ExamRoundLifecycleService:
         )
 
     @staticmethod
-    def _management_member_ids(session: Session, exam_round: ExamRound) -> set[int]:
-        return set(
-            session.scalars(
-                select(CommitteeMember.id).where(
-                    CommitteeMember.committee_id == exam_round.committee_id,
-                    CommitteeMember.is_active == 1,
-                    CommitteeMember.committee_role.in_({"chair", "deputy_chair"}),
-                )
-            )
-        )
+    def _management_member_ids(
+        session: Session, exam_round: ExamRound, identity: IdentityLifecycleWork
+    ) -> set[int]:
+        return identity.management_member_ids(exam_round.committee_id)
 
     @staticmethod
     def _decision_view(item: ExamRoundDecision) -> dict[str, Any]:

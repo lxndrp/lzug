@@ -46,8 +46,11 @@ Sie ergänzt auch die HTTP-Links in API-Antworten und JSON-Exports.
 `ExamDayClosureService` behält die Execution-Regeln für Tagesabschluss und
 gezielte Wiederöffnung. Die FastAPI-Schreibbefehle laufen über
 `ExamLifecycleApplication` und den gemeinsamen Execution-/Planning-/Assessment-UoW.
-Die Planning- und Assessment-Fähigkeiten sind an dessen Session gebunden;
-Lifecycle-Regeln lesen Planning-Fakten ausschließlich über detached Ports.
+Planning-, Assessment- und Identity-Fähigkeiten sind frameworkfreie, an den
+UoW gebundene Ports. Tageszugriff, Mitgliederprojektionen und Planungsscope
+werden über diese Eigentümerfähigkeiten aufgelöst. Rundeabsage verwendet
+zusätzlich den Calendar-Port, um künftige Ereignisse in derselben Transaktion
+zu stornieren und Empfänger für die Benachrichtigung nach dem Commit zu sammeln.
 Rundenabschluss und Rundenwiederöffnung verwenden dieselbe Application-Grenze.
 Der getrennte Ersatzbesetzungs-HTTP-Ablauf in `execution.absence` behält noch
 direkte Planning-Zugriffe und ist für die Boundary-/Transition-Fortsetzung #1085
@@ -57,16 +60,17 @@ abgegrenzt. Schema, Datenformat und öffentliche API-Verträge bleiben unveränd
 
 | Use Case | Aktuelle Transaktionsgrenze | Eigentümergrenze |
 | --- | --- | --- |
-| Prüfungstag schließen | `ExamLifecycleApplication` öffnet den gemeinsamen Execution-/Planning-/Assessment-UoW. Execution prüft Readiness über Assessment- und Plan-/Besetzungsprojektionen über Planning-Fähigkeiten, die beide an derselben Session gebunden sind; Tagesabschluss, Revision, Audit und Wiedereröffnungsabschluss committen gemeinsam. Benachrichtigungen folgen danach. | Gemeinsame Application-Grenze; keine zweite Lifecycle-Transaktion |
-| Prüfungstag wiederöffnen | `ExamLifecycleApplication` öffnet den gemeinsamen Execution-/Planning-/Assessment-UoW. Assessment-Korrektur, Planning-Auswirkungsprojektionen, Tagesrevision, Aufgaben und Audit teilen die Transaktion. Benachrichtigungen folgen nach dem Commit. | Gemeinsame Application-Grenze; keine zweite Lifecycle-Transaktion |
-| Prüfungsrunde schließen oder absagen | `ExamLifecycleApplication` öffnet den gemeinsamen Execution-/Planning-/Assessment-UoW. Planning-Zustände und -Zuweisungen, Assessment-Projektionen, Rundenentscheidung, abgeleitete Tages-/Slotzustände, Aufgaben und Audit teilen die Session. Application committet atomar und stößt Benachrichtigungen danach an. | Gemeinsame Application-Grenze; Planning- und Assessment-Fähigkeiten kommen als gebundene Ports |
-| Prüfungsrunde wiederöffnen | `ExamLifecycleApplication` öffnet den gemeinsamen Execution-/Planning-/Assessment-UoW. Planning-Scope und Slot-/Besetzungsfakten, Assessment-Auswirkungsprojektionen, Runden-/Tageszustände, Aufgaben und Audit teilen die Transaktion. Benachrichtigungen folgen nach dem Commit. | Gemeinsame Application-Grenze; Planning- und Assessment-Fähigkeiten kommen als gebundene Ports |
+| Prüfungstag schließen | `ExamLifecycleApplication` öffnet den gemeinsamen Execution-/Planning-/Assessment-/Identity-UoW. Execution prüft Readiness über Assessment-, Planning- und Identity-Projektionen; Tagesabschluss, Revision, Audit und Wiedereröffnungsabschluss committen gemeinsam. Benachrichtigungen folgen danach. | Gemeinsame Application-Grenze; keine zweite Lifecycle-Transaktion |
+| Prüfungstag wiederöffnen | `ExamLifecycleApplication` öffnet den gemeinsamen Execution-/Planning-/Assessment-/Identity-UoW. Assessment-Korrektur, Planning-Auswirkungsprojektionen, Identity-Empfänger, Tagesrevision, Aufgaben und Audit teilen die Transaktion. Benachrichtigungen folgen nach dem Commit. | Gemeinsame Application-Grenze; keine zweite Lifecycle-Transaktion |
+| Prüfungsrunde schließen oder absagen | `ExamLifecycleApplication` öffnet den gemeinsamen Execution-/Planning-/Assessment-/Identity-/Calendar-UoW. Planning-Zustände und -Zuweisungen, Assessment-Projektionen, Identity-Snapshots, Calendar-Event-Storno, Rundenentscheidung, abgeleitete Tages-/Slotzustände, Aufgaben und Audit teilen die Transaktion. Application committet atomar und stößt Benachrichtigungen danach an. | Gemeinsame Application-Grenze; fachliche Fähigkeiten kommen als gebundene Ports |
+| Prüfungsrunde wiederöffnen | `ExamLifecycleApplication` öffnet den gemeinsamen Execution-/Planning-/Assessment-/Identity-UoW. Planning-Scope und Slot-/Besetzungsfakten, Assessment-Auswirkungsprojektionen, Identity-Empfänger, Runden-/Tageszustände, Aufgaben und Audit teilen die Transaktion. Benachrichtigungen folgen nach dem Commit. | Gemeinsame Application-Grenze; fachliche Fähigkeiten kommen als gebundene Ports |
 
 Alle Close-/Cancel-/Reopen-Routen verwenden die gemeinsame Application-Grenze.
 Die öffentlichen Service-eigenen Übergänge sind entfernt.
-Assessment- und Planning-Fähigkeiten werden als frameworkfreie, bereits an den
-UoW gebundene Ports bereitgestellt; Execution bindet keine fremde Session an
-Assessment und liest keine Planning-ORM-Modelle. Der Persistence-Adapter übergibt
+Assessment-, Planning-, Identity- und Calendar-Fähigkeiten werden als frameworkfreie,
+bereits an den UoW gebundene Ports bereitgestellt; Execution bindet keine fremde
+Session an Fachports und liest im beschriebenen Lifecycle-Scope keine fremden
+ORM-Modelle. Der Persistence-Adapter übergibt
 für Execution-eigene ORM-Regeln weiterhin die gemeinsame Session. Der getrennte
 Abwesenheits-/Ersatzbesetzungsablauf bleibt eine nachgelagerte Boundary-Arbeit
 #1085.

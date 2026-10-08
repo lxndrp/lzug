@@ -68,10 +68,22 @@ class PlanAssignmentLifecycleSnapshot:
     fallback_status: str | None
 
 
+@dataclass(frozen=True)
+class PlanningCandidateLifecycleSnapshot:
+    id: int
+    first_name: str
+    last_name: str
+    ihk_exam_number: str
+
+
 class PlanningLifecycleWork(Protocol):
     """Planning-owned facts and commands participating in an outer UoW."""
 
     def round_candidates(self, round_id: int) -> Sequence[Mapping[str, Any]]: ...
+
+    def candidate_details(
+        self, candidate_ids: Sequence[int]
+    ) -> Sequence[PlanningCandidateLifecycleSnapshot]: ...
 
     def round_candidate(self, round_id: int, candidate_id: int) -> Mapping[str, Any] | None: ...
 
@@ -123,8 +135,62 @@ class PlanningLifecycleWork(Protocol):
 
     def cancel_exam_day_slots(self, day_ids: Sequence[int], now: str) -> None: ...
 
+    def round_committee_id(self, round_id: int) -> int | None: ...
+
 
 class PlanningLifecycleWorkFactory(Protocol):
     """Persistence factory for a bound Planning capability over an opaque UoW."""
 
     def __call__(self, transaction: object) -> PlanningLifecycleWork: ...
+
+
+@dataclass(frozen=True)
+class IdentityMemberLifecycleSnapshot:
+    """Detached Identity data needed by lifecycle authorization and findings."""
+
+    id: int
+    committee_id: int
+    person_id: int
+    first_name: str
+    last_name: str
+    committee_role: str
+    representing_side: str
+    is_active: int
+
+
+@dataclass(frozen=True)
+class IdentityCommitteeLifecycleSnapshot:
+    id: int
+    name: str
+    occupation: str
+    ihk: str
+
+
+class IdentityLifecycleWork(Protocol):
+    """Identity-owned authorization and member projections within an outer UoW."""
+
+    def committee_members(
+        self, committee_id: int
+    ) -> Sequence[IdentityMemberLifecycleSnapshot]: ...
+
+    def committee_members_by_ids(
+        self, member_ids: Sequence[int]
+    ) -> Sequence[IdentityMemberLifecycleSnapshot]: ...
+
+    def committee(self, committee_id: int) -> IdentityCommitteeLifecycleSnapshot | None: ...
+
+    def management_member_ids(self, committee_id: int) -> set[int]: ...
+
+
+class IdentityLifecycleWorkFactory(Protocol):
+    def __call__(self, transaction: object) -> IdentityLifecycleWork: ...
+
+
+class CalendarLifecycleWork(Protocol):
+    """Calendar-owned persisted projection operations in the caller's UoW."""
+
+    def cancel_future_round_events(self, round_id: int, cutoff_date: str, now: str) -> set[int]: ...
+
+
+class CalendarLifecycleWorkFactory(Protocol):
+    def __call__(self, transaction: object) -> CalendarLifecycleWork: ...

@@ -23,6 +23,9 @@ from .composition import (
 from .composition import authentication_repository as compose_authentication_repository
 from .composition import authorization_service as compose_authorization_service
 from .composition import (
+    calendar_lifecycle_work_factory as compose_calendar_lifecycle_work_factory,
+)
+from .composition import (
     candidate_day_service as compose_candidate_day_service,
 )
 from .composition import committee_admin_service as compose_committee_admin_service
@@ -32,6 +35,9 @@ from .composition import (
 from .composition import exam_protocol_service as compose_exam_protocol_service
 from .composition import exam_result_service as compose_exam_result_service
 from .composition import execution_service as compose_execution_service
+from .composition import (
+    identity_lifecycle_work_factory as compose_identity_lifecycle_work_factory,
+)
 from .composition import identity_service as compose_identity_service
 from .composition import local_auth_service as compose_local_auth_service
 from .composition import notification_service as compose_notification_service
@@ -211,6 +217,8 @@ def create_app(
         resolved.db_path
     )
     app.state.planning_lifecycle_work_factory = compose_planning_lifecycle_work_factory()
+    app.state.identity_lifecycle_work_factory = compose_identity_lifecycle_work_factory()
+    app.state.calendar_lifecycle_work_factory = compose_calendar_lifecycle_work_factory()
     app.state.assessment_lifecycle = assessment_lifecycle or SQLiteAssessmentLifecycleAdapter(
         compose_assessment_unit_of_work_factory(resolved.db_path)
     )
