@@ -34,6 +34,7 @@ from backend.integrations.map_provider import (
 )
 from backend.integrations.notification_delivery import NotificationProviderConfigurationError
 from backend.persistence.database import persistence_paths
+from backend.persistence.day_mutations import ExecutionDayMutationConflictError
 from backend.planning import ConfirmedPlanConflictError, PlanConflictError, PlanValidationError
 from backend.planning.resources import RoundCandidateInUseError
 from backend.planning_ports import (
@@ -587,6 +588,17 @@ def _register_execution_errors(app, resolved, application, read_security, write_
 
     @app.exception_handler(ExamDayConflictError)
     def exam_day_conflict(_request: Request, error: ExamDayConflictError):
+        return _json_response(
+            ApplicationResult(
+                {"error": {"code": "exam_day_conflict", "message": str(error)}},
+                HTTPStatus.CONFLICT,
+            )
+        )
+
+    @app.exception_handler(ExecutionDayMutationConflictError)
+    def execution_day_mutation_conflict(
+        _request: Request, error: ExecutionDayMutationConflictError
+    ):
         return _json_response(
             ApplicationResult(
                 {"error": {"code": "exam_day_conflict", "message": str(error)}},

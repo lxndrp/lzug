@@ -10,17 +10,19 @@ from unittest.mock import patch
 from sqlalchemy import select
 
 from backend.composition import authorization_service
-from backend.execution.exam_day_closures import complete_day_mutation, guard_day_mutation
 from backend.execution.exam_protocols import (
     ENTRY_CATEGORIES,
     ExamProtocolConflictError,
     ExamProtocolService,
-    create_protocol_for_started_slot,
 )
 from backend.execution.slot_service import ExecutionService
 from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.persistence.database import initialize, session_scope
-from backend.persistence.execution import SQLiteExecutionUnitOfWorkFactory
+from backend.persistence.day_mutations import ExecutionDayMutationConflictError
+from backend.persistence.execution import (
+    SQLiteExecutionUnitOfWorkFactory,
+    create_started_protocol,
+)
 from backend.persistence.identity import SQLiteIdentityExecutionSnapshotFactory
 from backend.persistence.models import (
     CandidateExamAttendance,
@@ -119,7 +121,7 @@ class ExamProtocolTests(unittest.TestCase):
                     ),
                 )
             )
-            protocol = create_protocol_for_started_slot(
+            protocol_id = create_started_protocol(
                 session,
                 slot_id=slot.id,
                 participant_member_ids={1, 3},
@@ -128,7 +130,7 @@ class ExamProtocolTests(unittest.TestCase):
             )
             self.day_id = day.id
             self.slot_id = slot.id
-            self.protocol_id = protocol.id
+            self.protocol_id = protocol_id
 
     def tearDown(self) -> None:
         self.database.__exit__(None, None, None)
@@ -150,6 +152,18 @@ class ExamProtocolTests(unittest.TestCase):
         )
         assert_status(status, HTTPStatus.OK)
         return protocol
+
+    def test_stale_execution_day_revision_remains_an_http_conflict(self) -> None:
+        with ApiServer(self.db_path) as api:
+            status, result = api.request(
+                "PATCH",
+                f"/api/confirmed-plan-days/{self.day_id}/slots/{self.slot_id}/attendance",
+                {"status": "absent", "day_revision": 0},
+                credentials=self.chair,
+            )
+
+        assert_status(status, HTTPStatus.CONFLICT)
+        self.assertEqual("exam_day_conflict", result["error"]["code"])
 
     def complete_normal(self, api: ApiServer):
         protocol = self.save_normal(api)
@@ -592,9 +606,6 @@ class ExecutionPortTests(unittest.TestCase):
         self.execution_factory = SQLiteExecutionUnitOfWorkFactory(
             self.db_path,
             identity_snapshot_factory=SQLiteIdentityExecutionSnapshotFactory(),
-            guard_day_mutation=guard_day_mutation,
-            complete_day_mutation=complete_day_mutation,
-            create_started_protocol=create_protocol_for_started_slot,
         )
         self.service = ExecutionService(
             self.execution_factory,
@@ -666,9 +677,8 @@ class ExecutionPortTests(unittest.TestCase):
 
     def test_protocol_failure_rolls_back_slot_mutation_and_revision(self) -> None:
         self._mark_quorum_present()
-        with patch.object(
-            self.execution_factory,
-            "create_started_protocol",
+        with patch(
+            "backend.persistence.execution.create_started_protocol",
             side_effect=RuntimeError("protocol write failed"),
         ):
             with self.assertRaisesRegex(RuntimeError, "protocol write failed"):
@@ -757,6 +767,24 @@ class ExecutionPortTests(unittest.TestCase):
 
         with session_scope(self.db_path) as session:
             self.assertEqual(2, session.get(ExamDay, self.day_id).revision)
+
+    def test_stale_day_mutation_is_rejected_by_the_execution_adapter(self) -> None:
+        request = {
+            "day_id": self.day_id,
+            "kind": "slot_status",
+            "entity_id": self.slot_id,
+            "payload": {"day_revision": 0},
+            "actor_member_id": 1,
+            "protocol_revision_id": None,
+        }
+        with self.assertRaisesRegex(
+            ExecutionDayMutationConflictError, "Prüfungstag wurde zwischenzeitlich geändert"
+        ):
+            with self.execution_factory(write=True) as work:
+                work.guard_day_mutation(request)
+
+        with session_scope(self.db_path) as session:
+            self.assertEqual(1, session.get(ExamDay, self.day_id).revision)
 
     def test_day_mutation_operations_roll_back_with_the_enclosing_uow(self) -> None:
         request = {

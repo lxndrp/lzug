@@ -2,12 +2,19 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterator, Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from contextlib import AbstractContextManager, contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
+from sqlalchemy import select
+
 from backend.persistence.database import DEFAULT_DB_PATH, read_session_scope, session_scope
+from backend.persistence.day_mutations import (
+    DayMutationGuard,
+    complete_day_mutation,
+    guard_day_mutation,
+)
 from backend.persistence.models import (
     CANDIDATE_EXAM_ATTENDANCE,
     EXAM_DAY,
@@ -16,6 +23,9 @@ from backend.persistence.models import (
     EXAM_SLOT,
     MEMBER_EXAM_ATTENDANCE,
     ExamDay,
+    ExamProtocol,
+    ExamProtocolParticipant,
+    ExamProtocolRevision,
     ExamSlot,
 )
 from backend.persistence.store import Store
@@ -37,6 +47,54 @@ if TYPE_CHECKING:
     )
 
 
+def create_started_protocol(
+    session: Session,
+    *,
+    slot_id: int,
+    participant_member_ids: set[int],
+    created_by_member_id: int | None,
+    created_at: str,
+) -> int:
+    """Persist one protocol and its participant snapshot inside the caller's UoW."""
+    existing_id = session.scalar(
+        select(ExamProtocol.id).where(ExamProtocol.exam_slot_id == slot_id)
+    )
+    if existing_id is not None:
+        return int(existing_id)
+    if not participant_member_ids:
+        raise ValueError("Ein Prüfungsprotokoll benötigt tatsächlich beteiligte Prüfer")
+    protocol = ExamProtocol(
+        exam_slot_id=slot_id,
+        current_version=1,
+        created_by_member_id=created_by_member_id,
+        source="application",
+        created_at=created_at,
+        updated_at=created_at,
+    )
+    session.add(protocol)
+    session.flush()
+    session.add_all(
+        ExamProtocolParticipant(
+            exam_protocol_id=protocol.id,
+            committee_member_id=member_id,
+            created_at=created_at,
+        )
+        for member_id in sorted(participant_member_ids)
+    )
+    session.add(
+        ExamProtocolRevision(
+            exam_protocol_id=protocol.id,
+            version=1,
+            workflow_state="draft",
+            changed_by_member_id=created_by_member_id,
+            change_reason="exam_started",
+            created_at=created_at,
+        )
+    )
+    session.flush()
+    return int(protocol.id)
+
+
 class SQLiteExecutionUnitOfWorkFactory:
     """Open one SQLite transaction and bind identity reads to that session."""
 
@@ -45,15 +103,9 @@ class SQLiteExecutionUnitOfWorkFactory:
         db_path: Path = DEFAULT_DB_PATH,
         *,
         identity_snapshot_factory: ExecutionIdentitySnapshotFactory,
-        guard_day_mutation: Callable[..., object],
-        complete_day_mutation: Callable[..., None],
-        create_started_protocol: Callable[..., object],
     ) -> None:
         self.db_path = Path(db_path)
         self.identity_snapshot_factory = identity_snapshot_factory
-        self.guard_day_mutation = guard_day_mutation
-        self.complete_day_mutation = complete_day_mutation
-        self.create_started_protocol = create_started_protocol
 
     def __call__(self, *, write: bool = False) -> AbstractContextManager[ExecutionUnitOfWork]:
         return self._unit_of_work(write=write)
@@ -70,9 +122,6 @@ class SQLiteExecutionUnitOfWorkFactory:
                 session,
                 Store(session),
                 self.identity_snapshot_factory(session),
-                self.guard_day_mutation,
-                self.complete_day_mutation,
-                self.create_started_protocol,
             )
 
 
@@ -84,17 +133,11 @@ class SQLiteExecutionUnitOfWork:
         session: Session,
         store: Store,
         identity_snapshots: ExecutionIdentitySnapshots,
-        guard_day_mutation: Callable[..., object],
-        complete_day_mutation: Callable[..., None],
-        create_started_protocol: Callable[..., object],
     ) -> None:
         self._session = session
         self._store = store
         self._identity_snapshots = identity_snapshots
-        self._guard_day_mutation = guard_day_mutation
-        self._complete_day_mutation = complete_day_mutation
-        self._create_started_protocol = create_started_protocol
-        self._day_mutation_guards: dict[int, object] = {}
+        self._day_mutation_guards: dict[int, DayMutationGuard] = {}
         self._next_day_mutation_handle = 1
 
     def confirmed_slot(self, day_id: int, slot_id: int) -> SlotSnapshot:
@@ -125,7 +168,7 @@ class SQLiteExecutionUnitOfWork:
 
     def guard_day_mutation(self, request: DayMutationRequest) -> DayMutationHandle:
         """Guard a mutation inside this UoW without opening or committing a transaction."""
-        guard = self._guard_day_mutation(
+        guard = guard_day_mutation(
             self._session,
             day=self._required_day(request["day_id"]),
             kind=request["kind"],
@@ -154,7 +197,7 @@ class SQLiteExecutionUnitOfWork:
             raise ValueError(
                 "Tagesänderungs-Guard ist unbekannt oder bereits abgeschlossen"
             ) from exc
-        self._complete_day_mutation(
+        complete_day_mutation(
             self._session,
             guard,
             actor_member_id=actor_member_id,
@@ -171,7 +214,7 @@ class SQLiteExecutionUnitOfWork:
         payload: Mapping[str, object],
     ) -> None:
         self.confirmed_slot(day_id, slot_id)
-        self._guard_day_mutation(
+        guard_day_mutation(
             self._session,
             day=self._required_day(day_id),
             kind="slot_status",
@@ -327,7 +370,7 @@ class SQLiteExecutionUnitOfWork:
         model.actual_started_at = started_at
         model.execution_status = "running"
         model.status_changed_at = started_at
-        self._create_started_protocol(
+        create_started_protocol(
             self._session,
             slot_id=slot_id,
             participant_member_ids=set(participant_member_ids),
@@ -354,7 +397,7 @@ class SQLiteExecutionUnitOfWork:
         actor_member_id: int,
         started_at: str,
     ) -> None:
-        self._create_started_protocol(
+        create_started_protocol(
             self._session,
             slot_id=slot_id,
             participant_member_ids=set(participant_member_ids),

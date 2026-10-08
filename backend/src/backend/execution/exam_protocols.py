@@ -65,53 +65,6 @@ def _now() -> str:
     return datetime.now(UTC).replace(microsecond=0).isoformat()
 
 
-def create_protocol_for_started_slot(
-    session: Session,
-    *,
-    slot_id: int,
-    participant_member_ids: set[int],
-    created_by_member_id: int | None,
-    created_at: str,
-    source: str = "application",
-) -> ExamProtocol:
-    """Create the protocol and participant snapshot in the slot-start transaction."""
-    existing = session.scalar(select(ExamProtocol).where(ExamProtocol.exam_slot_id == slot_id))
-    if existing is not None:
-        return existing
-    if not participant_member_ids:
-        raise ValueError("Ein Prüfungsprotokoll benötigt tatsächlich beteiligte Prüfer")
-    protocol = ExamProtocol(
-        exam_slot_id=slot_id,
-        current_version=1,
-        created_by_member_id=created_by_member_id,
-        source=source,
-        created_at=created_at,
-        updated_at=created_at,
-    )
-    session.add(protocol)
-    session.flush()
-    session.add_all(
-        ExamProtocolParticipant(
-            exam_protocol_id=protocol.id,
-            committee_member_id=member_id,
-            created_at=created_at,
-        )
-        for member_id in sorted(participant_member_ids)
-    )
-    session.add(
-        ExamProtocolRevision(
-            exam_protocol_id=protocol.id,
-            version=1,
-            workflow_state="draft",
-            changed_by_member_id=created_by_member_id,
-            change_reason="exam_started",
-            created_at=created_at,
-        )
-    )
-    session.flush()
-    return protocol
-
-
 class ExamProtocolService:
     """Apply protocol state, access, history, retention, and export contracts."""
 
