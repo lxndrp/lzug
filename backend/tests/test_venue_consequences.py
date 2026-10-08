@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 from sqlalchemy import func, select
 
+from backend.composition import planning_service
 from backend.identity.authorization import AuthorizationScope
 from backend.integrations.calendar import CalendarService
 from backend.persistence.auth import SQLiteAuthenticationRepository
@@ -19,7 +20,6 @@ from backend.persistence.models import (
     PlanConsequence,
     PlanConsequenceBatch,
 )
-from backend.planning import PlanningService
 from backend.planning.exam_venues import ExamVenueConfirmationRequiredError
 from backend.tests.fixture_data import FIXTURE_IDS, FIXTURE_ROOT
 from backend.tests.helpers import (
@@ -37,8 +37,8 @@ class VenueConsequenceTests(unittest.TestCase):
     def _confirmed_database():
         database = TempDatabase()
         db_path = database.__enter__()
-        PlanningService(db_path).generate_proposal(1)
-        PlanningService(db_path).confirm_plan(1)
+        planning_service(db_path).generate_proposal(1)
+        planning_service(db_path).confirm_plan(1)
         CalendarService(db_path).sync_round(1)
         return database, db_path
 
@@ -385,8 +385,8 @@ class VenueConsequenceTests(unittest.TestCase):
 class VenueConsequenceApiTests(unittest.TestCase):
     def test_preview_failure_visibility_and_controlled_retry(self) -> None:
         with TempDatabase() as db_path:
-            PlanningService(db_path).generate_proposal(1)
-            PlanningService(db_path).confirm_plan(1)
+            planning_service(db_path).generate_proposal(1)
+            planning_service(db_path).confirm_plan(1)
             CalendarService(db_path).sync_round(1)
             venues = exam_venue_service_for_test(db_path)
             venue = venues.get_venue(1)

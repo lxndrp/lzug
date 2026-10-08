@@ -28,6 +28,7 @@ from .composition import operator_auth_service as compose_operator_auth_service
 from .composition import (
     planning_resource_unit_of_work_factory as compose_planning_resource_unit_of_work_factory,
 )
+from .composition import planning_service as compose_planning_service
 from .fastapi_app import (
     FastAPIConfig,
     register_application_routes,
@@ -52,6 +53,7 @@ from .operations.lifecycle import LifecycleService
 from .persistence.auth import SQLiteAuthenticationRepository
 from .persistence.database import PersistencePaths, database_readiness, persistence_paths
 from .persistence.resource_access import SQLiteResourceAccessQueryFactory
+from .planning import PlanningService
 from .planning.candidate_days import CandidateDayService
 from .planning.plan_consequences import PlanConsequenceService
 from .planning.resources import PlanningResourceUnitOfWorkFactory
@@ -130,6 +132,7 @@ def create_app(
     services: ApplicationServices | None = None,
     *,
     runtime: RuntimeCoordinator | None = None,
+    planning_service_factory: Callable[[Path], PlanningService] | None = None,
     candidate_day_service_factory: Callable[[Path], CandidateDayService] | None = None,
     planning_resource_unit_of_work_factory: (
         Callable[[Path], PlanningResourceUnitOfWorkFactory] | None
@@ -173,6 +176,10 @@ def create_app(
     app.router.route_class = BoundedBodyRoute
     app.state.lzug_config = resolved
     app.state.runtime = runtime
+    app.state.planning_service_factory = planning_service_factory or partial(
+        compose_planning_service,
+        require_confirmed_coordinates=resolved.map_provider.active,
+    )
     app.state.candidate_day_service_factory = (
         candidate_day_service_factory or compose_candidate_day_service
     )

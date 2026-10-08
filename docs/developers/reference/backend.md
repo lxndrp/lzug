@@ -4,7 +4,7 @@ Diese Referenz entsteht beim Dokumentationsbuild aus Google-Style-Docstrings. Si
 
 ## Planungsservice
 
-::: backend.planning._legacy_service
+::: backend.planning.proposals
 
 ## Mögliche Prüfungstage
 

@@ -227,6 +227,17 @@ Providerverhalten und dem pro Runtime-Policy ausgewählten Datenbankpfad.
 Ein bestätigter Venue-Commit liefert eine typisierte `VenueChange`.
 Die bisherige Auditverarbeitung läuft als injizierter Post-Commit-Übergang.
 
+Vorschlagsgenerierung, Validierung, Bestätigung und bestätigte Revisionierung
+laufen über `backend.planning.proposals` und den Planning-eigenen
+`PlanningUnitOfWork`. Die Ports liefern materialisierte Snapshots; Proposal-CAS,
+Aggregatänderung und unveränderlicher Vorher-/Nachher-Auditstand committen im
+selben UoW. `backend.persistence.planning` implementiert den SQLite-Vertrag,
+`backend.composition.planning_service` verdrahtet den Adapter samt der
+konfigurierten Koordinatenregel, und `RequestContext` übergibt pro Request den
+Runtime-Datenbankpfad. Der Service enthält keine Persistenz-, Provider- oder
+HTTP-Imports; weitere Planning-Services behalten ihre separat dokumentierten
+Übergangspfade.
+
 In `execution.absence` und `execution.exam_protocols` bleiben die öffentlichen
 Servicebefehle die autoritative Grenze für Zustandsübergänge.
 Der Runden-Lifecycle ist im Ist-Zustand noch nicht in diese Modulgrenzen

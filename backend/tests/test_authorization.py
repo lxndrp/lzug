@@ -4,14 +4,13 @@ import unittest
 from http import HTTPStatus
 
 from backend.application.repositories import ResourceRepository
-from backend.composition import identity_service
+from backend.composition import identity_service, planning_service
 from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.persistence.database import session_scope
 from backend.persistence.models import (
     CANDIDATE_EXAM_DAY,
     Committee,
 )
-from backend.planning import PlanningService
 from backend.tests.helpers import ApiServer, TempDatabase, assert_status, create_committee_record
 from backend.tests.planning_support import planning_resource_service
 
@@ -174,7 +173,7 @@ class AuthorizationTests(unittest.TestCase):
     def test_planning_proposal_is_restricted_to_chair_and_deputy_without_disclosure(
         self,
     ) -> None:
-        PlanningService(self.db_path).generate_proposal(1)
+        planning_service(self.db_path).generate_proposal(1)
         chair_credentials = self.authentication.create_session(1)
         deputy_credentials = self.authentication.create_session(3)
         member_credentials = self.authentication.create_session(2)

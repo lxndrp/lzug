@@ -13,6 +13,7 @@ from unittest.mock import patch
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
+from backend.composition import planning_service
 from backend.integrations.calendar import CalendarService
 from backend.persistence.database import (
     BUSY_TIMEOUT_MS,
@@ -29,7 +30,7 @@ from backend.persistence.database import (
     migration_status,
     sqlite_settings,
 )
-from backend.planning import ConfirmedPlanChange, PlanningService
+from backend.planning import ConfirmedPlanChange
 from backend.tests.fixture_data import (
     ADAPTER_COUNTS,
     CANDIDATE_EXAM_NUMBERS,
@@ -1193,7 +1194,7 @@ class DatabaseTests(unittest.TestCase):
         self,
     ) -> None:
         with TempDatabase() as db_path:
-            planning = PlanningService(db_path)
+            planning = planning_service(db_path)
             planning.generate_proposal(1)
             planning.confirm_plan(1)
             plan = planning.get_confirmed_plan(1)

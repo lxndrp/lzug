@@ -6,7 +6,7 @@ from unittest.mock import patch
 from icalendar import Calendar
 from sqlalchemy import select, text
 
-from backend.composition import authorization_service
+from backend.composition import authorization_service, planning_service
 from backend.integrations.calendar import CalendarService
 from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.persistence.database import connect, session_scope
@@ -17,7 +17,6 @@ from backend.persistence.models import (
     ExamDayAssignment,
     ExamSlot,
 )
-from backend.planning import PlanningService
 from backend.tests.helpers import ApiServer, TempDatabase, assert_status
 
 
@@ -32,8 +31,8 @@ class CalendarServiceTests(unittest.TestCase):
     def _confirmed_database(self):
         database = TempDatabase()
         db_path = database.__enter__()
-        PlanningService(db_path).generate_proposal(1)
-        PlanningService(db_path).confirm_plan(1)
+        planning_service(db_path).generate_proposal(1)
+        planning_service(db_path).confirm_plan(1)
         return database, db_path
 
     def test_activation_is_opaque_and_repeated_sync_is_idempotent(self) -> None:
@@ -310,7 +309,7 @@ class CalendarServiceTests(unittest.TestCase):
 class CalendarApiTests(unittest.TestCase):
     def test_authenticated_lifecycle_and_public_feed_are_personal(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:
-            PlanningService(db_path).generate_proposal(1)
+            planning_service(db_path).generate_proposal(1)
             status, confirmed = api.request("POST", "/api/exam-rounds/1/confirm-plan", {})
             assert_status(status, 200)
             self.assertEqual("plan_confirmed", confirmed["status"])
@@ -344,8 +343,8 @@ class CalendarApiTests(unittest.TestCase):
 
     def test_other_member_cannot_download_an_event(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:
-            PlanningService(db_path).generate_proposal(1)
-            PlanningService(db_path).confirm_plan(1)
+            planning_service(db_path).generate_proposal(1)
+            planning_service(db_path).confirm_plan(1)
             status, events = api.request("GET", "/api/calendar/events")
             assert_status(status, 200)
             event_id = events["items"][0]["id"]

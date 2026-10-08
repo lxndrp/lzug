@@ -104,6 +104,7 @@ def request_context(request: Request) -> RequestContext:
         session_ttl=config.session_ttl,
         max_request_bytes=config.max_request_bytes,
         runtime_policy=config.runtime_policy,
+        planning_service_factory=request.app.state.planning_service_factory,
         candidate_day_service_factory=request.app.state.candidate_day_service_factory,
         planning_resource_unit_of_work_factory=(
             request.app.state.planning_resource_unit_of_work_factory

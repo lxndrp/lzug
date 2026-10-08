@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 from sqlalchemy import select
 
+from backend.composition import planning_service
 from backend.integrations.calendar import CalendarService
 from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.persistence.database import session_scope
@@ -23,7 +24,7 @@ from backend.persistence.models import (
     PlanConsequence,
     PlanConsequenceBatch,
 )
-from backend.planning import ConfirmedPlanChange, PlanningService
+from backend.planning import ConfirmedPlanChange
 from backend.planning.plan_consequences import PlanConsequenceService
 from backend.tests.helpers import (
     ApiServer,
@@ -70,7 +71,7 @@ class PlanConsequenceServiceTests(unittest.TestCase):
         return room.id
 
     def _confirmed_plan(self, db_path):
-        planning = PlanningService(db_path)
+        planning = planning_service(db_path)
         planning.generate_proposal(1)
         planning.confirm_plan(1)
         CalendarService(db_path).sync_round(1)
@@ -488,7 +489,7 @@ class PlanConsequenceServiceTests(unittest.TestCase):
 class PlanConsequenceApiTests(unittest.TestCase):
     def test_only_committee_management_can_inspect_and_restart_revision_effects(self) -> None:
         with TempDatabase() as db_path:
-            planning = PlanningService(db_path)
+            planning = planning_service(db_path)
             planning.generate_proposal(1)
             planning.confirm_plan(1)
             original = planning.get_confirmed_plan(1)
