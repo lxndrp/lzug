@@ -34,7 +34,9 @@ from backend.persistence.models import (
     ExamRoundAssessmentBinding,
     MemberExamAttendance,
     Notification,
+    ResultCalculation,
     ResultCorrection,
+    ResultDetermination,
 )
 from backend.tests.fixture_data import prepare_exam_protocol_scenario
 from backend.tests.helpers import (
@@ -753,6 +755,33 @@ class ExamDayClosureTests(unittest.TestCase):
             },
         )
         with session_scope(self.db_path) as session:
+            calculation = ResultCalculation(
+                exam_result_id=2,
+                version=1,
+                input_fingerprint="f" * 64,
+                total_points="80",
+                grade="1",
+                passed=1,
+                calculation_path_json="{}",
+                created_at="2026-10-08T12:00:00+00:00",
+            )
+            session.add(calculation)
+            session.flush()
+            session.add(
+                ResultDetermination(
+                    exam_result_id=2,
+                    revision=1,
+                    result_calculation_id=calculation.id,
+                    participant_member_ids_json="[1,2,3]",
+                    vote_json='{"yes":[1,2,3],"no":[],"abstain":[]}',
+                    dissent_json="[]",
+                    status="current",
+                    determined_by_member_id=1,
+                    determined_at="2026-10-08T12:00:00+00:00",
+                )
+            )
+
+        with session_scope(self.db_path) as session:
             result_before = session.get(ExamResult, 2)
             result_state = (result_before.version, result_before.correction_open)
             correction_count = session.query(ResultCorrection).count()
@@ -763,25 +792,20 @@ class ExamDayClosureTests(unittest.TestCase):
 
         def fail_after_assessment_mutation(*args, **kwargs):
             original_open(*args, **kwargs)
-            self.assertTrue(args[0].get(ExamResult, 2).correction_open)
+            transaction = args[0]
+            self.assertTrue(transaction.get(ExamResult, 2).correction_open)
+            self.assertEqual(1, transaction.query(ResultCorrection).count())
+            self.assertEqual("reopening", transaction.get(ExamDay, 3).closure_status)
+            self.assertEqual(
+                1,
+                transaction.query(ExamDayReopening).filter_by(exam_day_id=3).count(),
+            )
+            self.assertGreater(
+                transaction.query(ExamDayTask).filter_by(exam_day_id=3).count(), task_count
+            )
             raise RuntimeError("synthetic failure after assessment correction")
 
-        def mutate_assessment(work, **command):
-            result = work.repository.session.get(ExamResult, command["result_id"])
-            result.correction_open = 1
-            result.version += 1
-            return {
-                "determination_id": None,
-                "participant_member_ids": [],
-                "communicated": False,
-                "ihk_processed": False,
-            }
-
         with (
-            patch(
-                "backend.assessment.service.ExamResultService.reopen_result_for_day",
-                side_effect=mutate_assessment,
-            ),
             patch.object(
                 service,
                 "_open_dependent_corrections",
