@@ -52,6 +52,7 @@ ROOT_MODULE_OWNERS = {
     "fastapi_planning_router.py": "api",
     "fastapi_runtime.py": "api",
     "healthcheck.py": "operations-adapter",
+    "lifecycle_ports.py": "shared-lifecycle-contracts",
     "observability.py": "runtime-foundation",
     "planning_ports.py": "planning-owned-contracts",
     "public_lifecycle.py": "runtime-contract",

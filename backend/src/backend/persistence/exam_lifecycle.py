@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from backend.persistence.assessment import SQLiteAssessmentUnitOfWorkFactory
 from backend.persistence.database import DEFAULT_DB_PATH, session_scope
 from backend.persistence.execution import SQLiteExecutionUnitOfWorkFactory
+from backend.persistence.planning_lifecycle import SQLitePlanningLifecycleWork
 
 
 class SQLiteExamLifecycleUnitOfWorkFactory:
@@ -42,6 +43,7 @@ class SQLiteExamLifecycleUnitOfWorkFactory:
                 if self._assessment_lifecycle_factory is not None
                 else None
             ),
+            SQLitePlanningLifecycleWork(session),
         )
 
     @contextmanager
@@ -53,10 +55,13 @@ class SQLiteExamLifecycleUnitOfWorkFactory:
 class _SQLiteExamLifecycleUnitOfWork:
     """Provide detached domain capabilities without exposing the SQLAlchemy session."""
 
-    def __init__(self, execution, assessment, session: Session, assessment_lifecycle) -> None:
+    def __init__(
+        self, execution, assessment, session: Session, assessment_lifecycle, planning_lifecycle
+    ) -> None:
         self._execution = _SQLiteExamLifecycleExecution(execution, session)
         self._assessment = assessment
         self._assessment_lifecycle = assessment_lifecycle
+        self._planning_lifecycle = planning_lifecycle
 
     @property
     def execution(self):
@@ -70,6 +75,10 @@ class _SQLiteExamLifecycleUnitOfWork:
     def assessment_lifecycle(self):
         return self._assessment_lifecycle
 
+    @property
+    def planning_lifecycle(self):
+        return self._planning_lifecycle
+
 
 class _SQLiteExamLifecycleExecution:
     """Add explicit lifecycle commands to the ordinary Execution UoW port."""
@@ -81,32 +90,54 @@ class _SQLiteExamLifecycleExecution:
     def __getattr__(self, name):
         return getattr(self._execution, name)
 
-    def close_exam_day(self, service, assessment_lifecycle, scope, day_id: int, payload: dict):
+    def close_exam_day(
+        self, service, assessment_lifecycle, planning_lifecycle, scope, day_id: int, payload: dict
+    ):
         """Run the Execution-owned close rule inside this composed UoW."""
         return service.close_in_transaction(
-            self._session, scope, day_id, payload, assessment_lifecycle
+            self._session, scope, day_id, payload, assessment_lifecycle, planning_lifecycle
         )
 
-    def reopen_exam_day(self, service, assessment_lifecycle, scope, day_id: int, payload: dict):
+    def reopen_exam_day(
+        self, service, assessment_lifecycle, planning_lifecycle, scope, day_id: int, payload: dict
+    ):
         """Run the Execution-owned reopening rule inside this composed UoW."""
         return service.reopen_in_transaction(
-            self._session, scope, day_id, payload, assessment_lifecycle
+            self._session, scope, day_id, payload, assessment_lifecycle, planning_lifecycle
         )
 
-    def close_exam_round(self, service, assessment_lifecycle, scope, round_id: int, payload: dict):
+    def close_exam_round(
+        self, service, assessment_lifecycle, planning_lifecycle, scope, round_id: int, payload: dict
+    ):
         """Run the Execution-owned close rule inside this composed UoW."""
         return service.decide_in_transaction(
-            self._session, scope, round_id, payload, "close", assessment_lifecycle
+            self._session,
+            scope,
+            round_id,
+            payload,
+            "close",
+            assessment_lifecycle,
+            planning_lifecycle,
         )
 
-    def cancel_exam_round(self, service, assessment_lifecycle, scope, round_id: int, payload: dict):
+    def cancel_exam_round(
+        self, service, assessment_lifecycle, planning_lifecycle, scope, round_id: int, payload: dict
+    ):
         """Run the Execution-owned cancellation rule inside this composed UoW."""
         return service.decide_in_transaction(
-            self._session, scope, round_id, payload, "cancel", assessment_lifecycle
+            self._session,
+            scope,
+            round_id,
+            payload,
+            "cancel",
+            assessment_lifecycle,
+            planning_lifecycle,
         )
 
-    def reopen_exam_round(self, service, assessment_lifecycle, scope, round_id: int, payload: dict):
+    def reopen_exam_round(
+        self, service, assessment_lifecycle, planning_lifecycle, scope, round_id: int, payload: dict
+    ):
         """Run the Execution-owned round reopening rule inside this composed UoW."""
         return service.reopen_in_transaction(
-            self._session, scope, round_id, payload, assessment_lifecycle
+            self._session, scope, round_id, payload, assessment_lifecycle, planning_lifecycle
         )

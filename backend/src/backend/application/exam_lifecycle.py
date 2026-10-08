@@ -30,7 +30,12 @@ class ExamLifecycleApplication:
         service = self._day_closure_service_factory()
         with self._unit_of_work_factory() as unit_of_work:
             outcome = unit_of_work.execution.close_exam_day(
-                service, unit_of_work.assessment_lifecycle, scope, day_id, payload
+                service,
+                unit_of_work.assessment_lifecycle,
+                unit_of_work.planning_lifecycle,
+                scope,
+                day_id,
+                payload,
             )
         service.publish_close_notifications(outcome)
         return outcome.response
@@ -41,7 +46,12 @@ class ExamLifecycleApplication:
         service = self._day_closure_service_factory()
         with self._unit_of_work_factory() as unit_of_work:
             outcome = unit_of_work.execution.reopen_exam_day(
-                service, unit_of_work.assessment_lifecycle, scope, day_id, payload
+                service,
+                unit_of_work.assessment_lifecycle,
+                unit_of_work.planning_lifecycle,
+                scope,
+                day_id,
+                payload,
             )
         service.publish_reopening_notifications(outcome)
         return outcome.response
@@ -71,7 +81,14 @@ class ExamLifecycleApplication:
                 if decision_type == "close"
                 else unit_of_work.execution.cancel_exam_round
             )
-            outcome = decision(service, unit_of_work.assessment_lifecycle, scope, round_id, payload)
+            outcome = decision(
+                service,
+                unit_of_work.assessment_lifecycle,
+                unit_of_work.planning_lifecycle,
+                scope,
+                round_id,
+                payload,
+            )
         service.publish_decision_notifications(outcome)
         return outcome.response
 
@@ -83,7 +100,12 @@ class ExamLifecycleApplication:
         service = self._round_lifecycle_service_factory()
         with self._unit_of_work_factory() as unit_of_work:
             outcome = unit_of_work.execution.reopen_exam_round(
-                service, unit_of_work.assessment_lifecycle, scope, round_id, payload
+                service,
+                unit_of_work.assessment_lifecycle,
+                unit_of_work.planning_lifecycle,
+                scope,
+                round_id,
+                payload,
             )
         service.publish_decision_notifications(outcome)
         return outcome.response

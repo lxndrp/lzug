@@ -37,6 +37,9 @@ from .composition import local_auth_service as compose_local_auth_service
 from .composition import notification_service as compose_notification_service
 from .composition import operator_auth_service as compose_operator_auth_service
 from .composition import (
+    planning_lifecycle_work_factory as compose_planning_lifecycle_work_factory,
+)
+from .composition import (
     planning_resource_unit_of_work_factory as compose_planning_resource_unit_of_work_factory,
 )
 from .composition import planning_service as compose_planning_service
@@ -207,6 +210,7 @@ def create_app(
     app.state.exam_lifecycle_unit_of_work_factory = compose_exam_lifecycle_unit_of_work_factory(
         resolved.db_path
     )
+    app.state.planning_lifecycle_work_factory = compose_planning_lifecycle_work_factory()
     app.state.assessment_lifecycle = assessment_lifecycle or SQLiteAssessmentLifecycleAdapter(
         compose_assessment_unit_of_work_factory(resolved.db_path)
     )

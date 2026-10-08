@@ -8,7 +8,10 @@ from sqlalchemy import event, text
 
 from backend.application.exam_lifecycle import ExamLifecycleApplication
 from backend.assessment.service import ExamResultService
-from backend.composition import SQLiteAssessmentLifecycleAdapter
+from backend.composition import (
+    SQLiteAssessmentLifecycleAdapter,
+    planning_lifecycle_work_factory,
+)
 from backend.execution.exam_day_closures import (
     ExamDayClosureService,
 )
@@ -67,7 +70,7 @@ class ExamDayClosureTests(unittest.TestCase):
             ),
             SQLiteAssessmentUnitOfWorkFactory(self.db_path),
             self.db_path,
-            SQLiteAssessmentLifecycleAdapter(SQLiteAssessmentUnitOfWorkFactory(self.db_path)).bind,
+            SQLiteAssessmentLifecycleAdapter(SQLiteAssessmentUnitOfWorkFactory(self.db_path)),
         )
 
         with self.assertRaisesRegex(RuntimeError, "synthetic lifecycle failpoint"):
@@ -92,7 +95,8 @@ class ExamDayClosureTests(unittest.TestCase):
                 ExamDayClosureService(
                     self.db_path,
                     notification_service=notification_service_for_test(self.db_path),
-                    assessment_lifecycle=SQLiteAssessmentLifecycleAdapter(),
+                    assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(),
+                    planning_lifecycle_work_factory=planning_lifecycle_work_factory(),
                 ),
                 session,
                 session.get(ExamDay, 2),
@@ -124,7 +128,9 @@ class ExamDayClosureTests(unittest.TestCase):
 
             event.listen(connection, "before_cursor_execute", count_statement)
             try:
-                snapshot = ExamDayClosureService._load_closure_snapshot(session, day)
+                snapshot = ExamDayClosureService._load_closure_snapshot(
+                    session, day, planning_lifecycle_work_factory()(session)
+                )
             finally:
                 event.remove(connection, "before_cursor_execute", count_statement)
 
@@ -141,7 +147,7 @@ class ExamDayClosureTests(unittest.TestCase):
                     text("UPDATE exam_result SET version = version + 1 WHERE id = 2")
                 )
 
-            assessment = SQLiteAssessmentLifecycleAdapter().bind(session)
+            assessment = SQLiteAssessmentLifecycleAdapter()(session)
             receipt = assessment.open_result_correction(
                 result_id=result.id,
                 reopening_id=1,
@@ -614,7 +620,8 @@ class ExamDayClosureTests(unittest.TestCase):
         service = ExamDayClosureService(
             self.db_path,
             notification_service=notification_service_for_test(self.db_path),
-            assessment_lifecycle=SQLiteAssessmentLifecycleAdapter(),
+            assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(),
+            planning_lifecycle_work_factory=planning_lifecycle_work_factory(),
         )
         scope = AuthorizationScope(
             person_id=1,
@@ -649,7 +656,8 @@ class ExamDayClosureTests(unittest.TestCase):
         service = ExamDayClosureService(
             self.db_path,
             notification_service=notification_service_for_test(self.db_path),
-            assessment_lifecycle=SQLiteAssessmentLifecycleAdapter(),
+            assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(),
+            planning_lifecycle_work_factory=planning_lifecycle_work_factory(),
         )
         application = ExamLifecycleApplication(
             SQLiteExamLifecycleUnitOfWorkFactory(
@@ -661,7 +669,7 @@ class ExamDayClosureTests(unittest.TestCase):
                 self.db_path,
                 SQLiteAssessmentLifecycleAdapter(
                     SQLiteAssessmentUnitOfWorkFactory(self.db_path)
-                ).bind,
+                ),
             ),
             lambda: service,
         )

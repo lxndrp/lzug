@@ -216,6 +216,25 @@ class ExamResultRuleTests(unittest.TestCase):
         self.assertFalse(completion["closing_ready"])
         self.assertEqual("model_missing", completion["slots"][0]["state"])
 
+    def test_day_completion_does_not_require_results_for_cancelled_slots(self) -> None:
+        completion = self.service.completion_from_snapshot(
+            {
+                "day_id": 41,
+                "committee_id": 7,
+                "slots": [
+                    {
+                        "slot_id": 1,
+                        "execution_status": "cancelled",
+                        "result": {"id": 12, "legacy_status": None, "model": None},
+                    }
+                ],
+            }
+        )
+
+        self.assertTrue(completion["closing_ready"])
+        self.assertEqual("not_required", completion["slots"][0]["state"])
+        self.assertTrue(completion["slots"][0]["regular_close_ready"])
+
     def test_day_readiness_keeps_the_existing_minimum_assessor_rule(self) -> None:
         component = assessment_rules()["components"][0]
         result = {

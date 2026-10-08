@@ -50,6 +50,7 @@ from backend.persistence.notifications import (
     SQLiteNotificationUnitOfWorkFactory,
 )
 from backend.persistence.planning import SQLitePlanningUnitOfWorkFactory
+from backend.persistence.planning_lifecycle import SQLitePlanningLifecycleWork
 from backend.persistence.planning_resources import SQLitePlanningResourceUnitOfWorkFactory
 from backend.persistence.sqlite_exam_venues import SQLiteExamVenueRepository
 from backend.planning import PlanningService
@@ -122,8 +123,13 @@ def exam_lifecycle_unit_of_work_factory(db_path: Path) -> SQLiteExamLifecycleUni
         ),
         assessment_factory,
         db_path,
-        SQLiteAssessmentLifecycleAdapter(assessment_factory).bind,
+        SQLiteAssessmentLifecycleAdapter(assessment_factory),
     )
+
+
+def planning_lifecycle_work_factory():
+    """Create Planning lifecycle queries over an existing transaction."""
+    return SQLitePlanningLifecycleWork
 
 
 def exam_protocol_service(db_path: Path) -> ExamProtocolService:
@@ -153,7 +159,7 @@ class SQLiteAssessmentLifecycleAdapter:
             DEFAULT_DB_PATH
         )
 
-    def bind(self, session):
+    def __call__(self, session):
         work = self._unit_of_work_factory.in_session(session)
         return _SQLiteAssessmentLifecycleWork(self, work)
 

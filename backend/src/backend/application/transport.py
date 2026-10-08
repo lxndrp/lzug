@@ -36,7 +36,6 @@ from backend.assessment.ports import AssessmentActorSnapshot
 from backend.assessment.service import ExamResultService
 from backend.execution.absence import AbsenceService
 from backend.execution.exam_day_closures import ExamDayClosureService
-from backend.execution.exam_lifecycle_ports import AssessmentLifecyclePort
 from backend.execution.exam_protocols import ExamProtocolService
 from backend.execution.exam_round_lifecycle import ExamRoundLifecycleService
 from backend.execution.slot_service import ExecutionService
@@ -46,6 +45,10 @@ from backend.identity.committee_admin import CommitteeAdminService
 from backend.identity.local_auth import LocalAuthService
 from backend.identity.people import IdentityService
 from backend.integrations.calendar import CalendarService
+from backend.lifecycle_ports import (
+    AssessmentLifecycleWorkFactory,
+    PlanningLifecycleWorkFactory,
+)
 from backend.notifications.service import NotificationService
 from backend.observability import emit_event
 from backend.persistence.models import Resource
@@ -87,8 +90,9 @@ class RequestContext:
     execution_service_factory: Callable[[Path], ExecutionService]
     exam_protocol_service_factory: Callable[[Path], ExamProtocolService]
     exam_result_service_factory: Callable[[Path], ExamResultService]
-    assessment_lifecycle: AssessmentLifecyclePort
-    assessment_round_queries: AssessmentLifecyclePort
+    planning_lifecycle_work_factory: PlanningLifecycleWorkFactory
+    assessment_lifecycle: AssessmentLifecycleWorkFactory
+    assessment_round_queries: AssessmentLifecycleWorkFactory
     exam_lifecycle_unit_of_work_factory: ExamLifecycleUnitOfWorkFactory
     candidate_day_service_factory: Callable[[Path], CandidateDayService]
     planning_resource_unit_of_work_factory: Callable[[Path], PlanningResourceUnitOfWorkFactory]
@@ -237,7 +241,10 @@ class RequestContext:
 
     @property
     def absence_service(self) -> AbsenceService:
-        return AbsenceService(self.db_path, notification_service=self.notification_service)
+        return AbsenceService(
+            self.db_path,
+            notification_service=self.notification_service,
+        )
 
     @property
     def exam_protocol_service(self) -> ExamProtocolService:
@@ -256,7 +263,8 @@ class RequestContext:
         return ExamDayClosureService(
             self.db_path,
             notification_service=self.notification_service,
-            assessment_lifecycle=self.assessment_lifecycle,
+            assessment_lifecycle_factory=self.assessment_lifecycle,
+            planning_lifecycle_work_factory=self.planning_lifecycle_work_factory,
         )
 
     @property
@@ -272,7 +280,8 @@ class RequestContext:
         return ExamRoundLifecycleService(
             self.db_path,
             notification_service=self.notification_service,
-            assessment_queries=self.assessment_round_queries,
+            assessment_lifecycle_factory=self.assessment_round_queries,
+            planning_lifecycle_work_factory=self.planning_lifecycle_work_factory,
         )
 
     @property

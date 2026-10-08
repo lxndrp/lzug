@@ -45,28 +45,28 @@ Die API-Kante rendert autorisierte Export-Snapshots über Presentation.
 Sie ergänzt auch die HTTP-Links in API-Antworten und JSON-Exports.
 `ExamDayClosureService` behält die Execution-Regeln für Tagesabschluss und
 gezielte Wiederöffnung. Die FastAPI-Schreibbefehle laufen über
-`ExamLifecycleApplication` und den gemeinsamen Execution-/Assessment-UoW;
-der direkte Service-Aufruf bleibt vorübergehend für interne Aufrufer bestehen.
-Rundenabschluss und Rundenwiederöffnung werden noch im Teilissue #1077 in
-Application-Orchestrierung und Planning-, Execution- sowie Assessment-Ports
-überführt. Schema, Datenformat und öffentliche API-Verträge bleiben dabei
-unverändert.
+`ExamLifecycleApplication` und den gemeinsamen Execution-/Planning-/Assessment-UoW.
+Die Planning- und Assessment-Fähigkeiten sind an dessen Session gebunden;
+Lifecycle-Regeln lesen Planning-Fakten ausschließlich über detached Ports.
+Rundenabschluss und Rundenwiederöffnung verwenden dieselbe Application-Grenze.
+Der getrennte Ersatzbesetzungs-HTTP-Ablauf in `execution.absence` behält noch
+direkte Planning-Zugriffe und ist für die Boundary-/Transition-Fortsetzung #1085
+abgegrenzt. Schema, Datenformat und öffentliche API-Verträge bleiben unverändert.
 
 ## Transaktionsmatrix für den Prüfungs-Lifecycle
 
-| Use Case | Aktuelle Transaktionsgrenze | Zielgrenze aus #1077 |
+| Use Case | Aktuelle Transaktionsgrenze | Eigentümergrenze |
 | --- | --- | --- |
-| Prüfungstag schließen | Der FastAPI-Befehl läuft über `ExamLifecycleApplication` und öffnet den gemeinsamen Execution-/Assessment-UoW. Execution validiert und schreibt Abschluss, Tagesrevision, Audit und Wiederöffnungsabschluss in dessen Session; die Assessment-Readiness wird über die vom UoW gelieferte getypte Lifecycle-Fähigkeit gelesen. Application committet atomar und stößt Benachrichtigungen danach an. Der Service besitzt keinen eigenen öffentlichen Close-Befehl mehr | Gemeinsame Application-Grenze; keine weitere Lifecycle-Transaktion erforderlich |
-| Prüfungstag wiederöffnen | Der FastAPI-Befehl läuft über `ExamLifecycleApplication` und öffnet den gemeinsamen Execution-/Assessment-UoW. Assessment-Korrektur, Tagesrevision, Umfang, Aufgaben und Audit verwenden dessen Session; Assessment wird über die vom UoW gelieferte getypte Lifecycle-Fähigkeit aufgerufen. Benachrichtigungen folgen nach dem Commit. Der Service besitzt keinen eigenen öffentlichen Reopen-Befehl mehr | Gemeinsame Application-Grenze; keine weitere Lifecycle-Transaktion erforderlich |
-| Prüfungsrunde schließen oder absagen | Die FastAPI-Befehle laufen über `ExamLifecycleApplication` und den gemeinsamen Execution-/Assessment-UoW. Rundenentscheidung, Aufgaben, Audit und abgeleitete Tageszustände teilen dessen Session; Assessment-Projektionen kommen über die vom UoW gelieferte getypte Lifecycle-Fähigkeit. Application committet atomar und stößt Benachrichtigungen danach an. Der Service besitzt keine eigenen öffentlichen Close-/Cancel-Befehle mehr | Gemeinsame Application-Grenze; erforderliche Planning-Fähigkeiten direkt aus dem komponierten UoW beziehen |
-| Prüfungsrunde wiederöffnen | Der FastAPI-Befehl läuft über `ExamLifecycleApplication` und den gemeinsamen Execution-/Assessment-UoW. Runden-, Tages-, Aufgaben- und Auditänderungen teilen dessen Session; Assessment-Auswirkungsprojektionen kommen über die vom UoW gelieferte getypte Lifecycle-Fähigkeit. Benachrichtigungen folgen nach dem Commit. Der Service besitzt keinen eigenen öffentlichen Reopen-Befehl mehr | Gemeinsame Application-Grenze; erforderliche Planning-Fähigkeiten direkt aus dem komponierten UoW beziehen |
+| Prüfungstag schließen | `ExamLifecycleApplication` öffnet den gemeinsamen Execution-/Planning-/Assessment-UoW. Execution prüft Readiness über Assessment- und Plan-/Besetzungsprojektionen über Planning-Fähigkeiten, die beide an derselben Session gebunden sind; Tagesabschluss, Revision, Audit und Wiedereröffnungsabschluss committen gemeinsam. Benachrichtigungen folgen danach. | Gemeinsame Application-Grenze; keine zweite Lifecycle-Transaktion |
+| Prüfungstag wiederöffnen | `ExamLifecycleApplication` öffnet den gemeinsamen Execution-/Planning-/Assessment-UoW. Assessment-Korrektur, Planning-Auswirkungsprojektionen, Tagesrevision, Aufgaben und Audit teilen die Transaktion. Benachrichtigungen folgen nach dem Commit. | Gemeinsame Application-Grenze; keine zweite Lifecycle-Transaktion |
+| Prüfungsrunde schließen oder absagen | `ExamLifecycleApplication` öffnet den gemeinsamen Execution-/Planning-/Assessment-UoW. Planning-Zustände und -Zuweisungen, Assessment-Projektionen, Rundenentscheidung, abgeleitete Tages-/Slotzustände, Aufgaben und Audit teilen die Session. Application committet atomar und stößt Benachrichtigungen danach an. | Gemeinsame Application-Grenze; Planning- und Assessment-Fähigkeiten kommen als gebundene Ports |
+| Prüfungsrunde wiederöffnen | `ExamLifecycleApplication` öffnet den gemeinsamen Execution-/Planning-/Assessment-UoW. Planning-Scope und Slot-/Besetzungsfakten, Assessment-Auswirkungsprojektionen, Runden-/Tageszustände, Aufgaben und Audit teilen die Transaktion. Benachrichtigungen folgen nach dem Commit. | Gemeinsame Application-Grenze; Planning- und Assessment-Fähigkeiten kommen als gebundene Ports |
 
-Die vier mutierenden Close-/Cancel-/Reopen-Routen verwenden die gemeinsame
-Application-Grenze. Die öffentlichen Service-eigenen Close-/Cancel-/Reopen-
-Übergänge sind entfernt. Die Lifecycle-Services erhalten die bereits
-sessiongebundene Assessment-Fähigkeit vom komponierten UoW, statt sie mit einer
-rohen Session zu binden. Der Persistence-Adapter übergibt die gemeinsame
-Session für Execution-eigene ORM-Zugriffe noch an diese Services; dieser
-Übergang muss für die vollständige Portmigration weiter aufgelöst werden.
-Planning-Fähigkeiten, die der Runden-Lifecycle benötigt, sind noch nicht
-vollständig über den gemeinsamen UoW komponiert.
+Alle Close-/Cancel-/Reopen-Routen verwenden die gemeinsame Application-Grenze.
+Die öffentlichen Service-eigenen Übergänge sind entfernt.
+Assessment- und Planning-Fähigkeiten werden als frameworkfreie, bereits an den
+UoW gebundene Ports bereitgestellt; Execution bindet keine fremde Session an
+Assessment und liest keine Planning-ORM-Modelle. Der Persistence-Adapter übergibt
+für Execution-eigene ORM-Regeln weiterhin die gemeinsame Session. Der getrennte
+Abwesenheits-/Ersatzbesetzungsablauf bleibt eine nachgelagerte Boundary-Arbeit
+#1085.

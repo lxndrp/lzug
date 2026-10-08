@@ -969,6 +969,21 @@ class ExamResultService:
         rows = []
         for slot in day["slots"]:
             result = slot["result"]
+            if slot["execution_status"] == "cancelled":
+                rows.append(
+                    {
+                        "exam_slot_id": slot["slot_id"],
+                        "exam_result_id": result["id"] if result is not None else None,
+                        "state": "not_required",
+                        "day_assessments": [],
+                        "day_assessments_complete": True,
+                        "external_inputs_pending": [],
+                        "overall_determination_pending": False,
+                        "record_confirmations_complete": True,
+                        "regular_close_ready": True,
+                    }
+                )
+                continue
             if result is None:
                 rows.append(
                     {

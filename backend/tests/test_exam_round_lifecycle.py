@@ -7,7 +7,11 @@ from unittest.mock import patch
 from sqlalchemy import select, text
 
 from backend.application.exam_lifecycle import ExamLifecycleApplication
-from backend.composition import SQLiteAssessmentLifecycleAdapter, authorization_service
+from backend.composition import (
+    SQLiteAssessmentLifecycleAdapter,
+    authorization_service,
+    planning_lifecycle_work_factory,
+)
 from backend.execution.exam_day_closures import ExamDayClosureService
 from backend.execution.exam_round_lifecycle import ExamRoundConflictError, ExamRoundLifecycleService
 from backend.persistence.assessment import SQLiteAssessmentUnitOfWorkFactory
@@ -359,7 +363,8 @@ class ExamRoundLifecycleTests(unittest.TestCase):
         service = ExamRoundLifecycleService(
             self.db_path,
             notification_service=notification_service_for_test(self.db_path),
-            assessment_queries=SQLiteAssessmentLifecycleAdapter(),
+            assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(),
+            planning_lifecycle_work_factory=planning_lifecycle_work_factory(),
         )
         context = SQLiteAuthenticationRepository(self.db_path).authenticate(self.chair.token)
         scope = authorization_service(self.db_path).scope(context)
@@ -373,12 +378,13 @@ class ExamRoundLifecycleTests(unittest.TestCase):
                 self.db_path,
                 SQLiteAssessmentLifecycleAdapter(
                     SQLiteAssessmentUnitOfWorkFactory(self.db_path)
-                ).bind,
+                ),
             ),
             lambda: ExamDayClosureService(
                 self.db_path,
                 notification_service=notification_service_for_test(self.db_path),
-                assessment_lifecycle=SQLiteAssessmentLifecycleAdapter(),
+                assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(),
+                planning_lifecycle_work_factory=planning_lifecycle_work_factory(),
             ),
             lambda: service,
         )
@@ -440,7 +446,8 @@ class ExamRoundLifecycleTests(unittest.TestCase):
         service = ExamRoundLifecycleService(
             self.db_path,
             notification_service=notification_service_for_test(self.db_path),
-            assessment_queries=SQLiteAssessmentLifecycleAdapter(),
+            assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(),
+            planning_lifecycle_work_factory=planning_lifecycle_work_factory(),
         )
         context = SQLiteAuthenticationRepository(self.db_path).authenticate(self.chair.token)
         scope = authorization_service(self.db_path).scope(context)
@@ -531,7 +538,8 @@ class ExamRoundLifecycleTests(unittest.TestCase):
         service = ExamRoundLifecycleService(
             self.db_path,
             notification_service=notification_service_for_test(self.db_path),
-            assessment_queries=SQLiteAssessmentLifecycleAdapter(),
+            assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(),
+            planning_lifecycle_work_factory=planning_lifecycle_work_factory(),
         )
         context = SQLiteAuthenticationRepository(self.db_path).authenticate(self.chair.token)
         scope = authorization_service(self.db_path).scope(context)

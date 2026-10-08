@@ -247,15 +247,12 @@ Serviceantworten enthalten keine HTTP-Links; FastAPI ergänzt die Links an der
 Transportkante und übergibt den autorisierten Export-Snapshot an den
 Presentation-Renderer.
 FastAPI übergibt Rundenabschluss, Absage und Wiedereröffnung an
-`ExamLifecycleApplication`, das einen gemeinsamen Execution-/Assessment-UoW
+`ExamLifecycleApplication`, das einen gemeinsamen Execution-/Planning-/Assessment-UoW
 öffnet und Benachrichtigungen erst nach dessen Commit ausführt.
-`ExamRoundLifecycleService` enthält weiterhin Execution-Regeln und liest
-Planning-Fakten direkt; die gemeinsame Orchestrierung zieht diese Reads noch
-nicht vollständig hinter Planning-Ports.
-Der gemeinsame Application-UoW mit Planning-, Execution- und Assessment-Ports
-ist der Zielvertrag aus
-[Backend-Vertrag](backend-architecture-contract.md#port-inventar), keine
-bereits umgesetzte Laufzeitarchitektur.
+`ExamRoundLifecycleService` und `ExamDayClosureService` verwenden gebundene,
+frameworkfreie Planning- und Assessment-Ports für fremde Planungs-/Ergebnisfakten.
+Der Persistence-Adapter bindet beide Fähigkeiten an die UoW-Session; die Services
+behalten ihre Execution-eigenen Regeln und ORM-Zugriffe.
 Die Ergebnisänderung auf einem geschlossenen Prüfungstag verwendet heute
 `ExamResultService` mit Execution-Prüfung und -Abschluss im selben
 Session-Kontext; die Ziel-Orchestrierung über Application-Ports steht separat
