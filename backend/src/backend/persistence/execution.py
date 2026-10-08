@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import AbstractContextManager, contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
@@ -39,7 +39,6 @@ if TYPE_CHECKING:
         DayExecutionSnapshot,
         DayMutationHandle,
         DayMutationRequest,
-        ExecutionIdentitySnapshotFactory,
         ExecutionIdentitySnapshots,
         ExecutionUnitOfWork,
         MemberExecutionSnapshot,
@@ -102,7 +101,7 @@ class SQLiteExecutionUnitOfWorkFactory:
         self,
         db_path: Path = DEFAULT_DB_PATH,
         *,
-        identity_snapshot_factory: ExecutionIdentitySnapshotFactory,
+        identity_snapshot_factory: Callable[[Session], ExecutionIdentitySnapshots],
     ) -> None:
         self.db_path = Path(db_path)
         self.identity_snapshot_factory = identity_snapshot_factory

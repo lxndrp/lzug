@@ -63,12 +63,6 @@ class ExecutionIdentitySnapshots(Protocol):
     def members_by_id(self, member_ids: Sequence[int]) -> Mapping[int, MemberExecutionSnapshot]: ...
 
 
-class ExecutionIdentitySnapshotFactory(Protocol):
-    """Build identity projections on the caller's transaction session."""
-
-    def __call__(self, session: object) -> ExecutionIdentitySnapshots: ...
-
-
 class ExecutionUnitOfWork(Protocol):
     """One transaction for execution reads, state changes, and day revision."""
 
