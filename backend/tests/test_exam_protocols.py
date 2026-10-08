@@ -9,11 +9,10 @@ from unittest.mock import patch
 
 from sqlalchemy import select
 
-from backend.composition import authorization_service
+from backend.composition import authorization_service, exam_protocol_service
 from backend.execution.exam_protocols import (
     ENTRY_CATEGORIES,
     ExamProtocolConflictError,
-    ExamProtocolService,
 )
 from backend.execution.slot_service import ExecutionService
 from backend.persistence.auth import SQLiteAuthenticationRepository
@@ -418,7 +417,7 @@ class ExamProtocolTests(unittest.TestCase):
             assert_status(status, HTTPStatus.BAD_REQUEST)
 
     def test_response_validation_and_failed_day_completion_leave_no_partial_response(self) -> None:
-        service = ExamProtocolService(self.db_path)
+        service = exam_protocol_service(self.db_path)
         context = self.authentication.authenticate(self.chair.token)
         scope = authorization_service(self.db_path).scope(context)
         protocol = service.update_content(
@@ -447,7 +446,7 @@ class ExamProtocolTests(unittest.TestCase):
         }
         with (
             patch(
-                "backend.execution.exam_protocols.complete_day_mutation",
+                "backend.persistence.execution.complete_day_mutation",
                 side_effect=RuntimeError("test day failure"),
             ),
             self.assertRaisesRegex(RuntimeError, "test day failure"),

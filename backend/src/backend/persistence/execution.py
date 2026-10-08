@@ -15,6 +15,7 @@ from backend.persistence.day_mutations import (
     complete_day_mutation,
     guard_day_mutation,
 )
+from backend.persistence.execution_protocols import SQLiteExecutionProtocolStore
 from backend.persistence.models import (
     CANDIDATE_EXAM_ATTENDANCE,
     EXAM_DAY,
@@ -33,6 +34,16 @@ from backend.persistence.store import Store
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
+    from backend.execution.protocol_ports import (
+        ExecutionProtocolSnapshot,
+        ProtocolCorrectionOpenWrite,
+        ProtocolCorrectionRequestWrite,
+        ProtocolDaySnapshot,
+        ProtocolResponseWrite,
+        ProtocolRetentionWrite,
+        ProtocolRevisionWrite,
+        ProtocolSubmissionWrite,
+    )
     from backend.execution.slot_ports import (
         AssignmentSnapshot,
         AttendanceSnapshot,
@@ -40,7 +51,6 @@ if TYPE_CHECKING:
         DayMutationHandle,
         DayMutationRequest,
         ExecutionIdentitySnapshots,
-        ExecutionUnitOfWork,
         MemberExecutionSnapshot,
         SlotSnapshot,
     )
@@ -106,11 +116,11 @@ class SQLiteExecutionUnitOfWorkFactory:
         self.db_path = Path(db_path)
         self.identity_snapshot_factory = identity_snapshot_factory
 
-    def __call__(self, *, write: bool = False) -> AbstractContextManager[ExecutionUnitOfWork]:
+    def __call__(self, *, write: bool = False) -> AbstractContextManager[SQLiteExecutionUnitOfWork]:
         return self._unit_of_work(write=write)
 
     @contextmanager
-    def _unit_of_work(self, *, write: bool) -> Iterator[ExecutionUnitOfWork]:
+    def _unit_of_work(self, *, write: bool) -> Iterator[SQLiteExecutionUnitOfWork]:
         scope = (
             session_scope(self.db_path, begin_immediate=True)
             if write
@@ -136,8 +146,39 @@ class SQLiteExecutionUnitOfWork:
         self._session = session
         self._store = store
         self._identity_snapshots = identity_snapshots
+        self._protocols = SQLiteExecutionProtocolStore(session)
         self._day_mutation_guards: dict[int, DayMutationGuard] = {}
         self._next_day_mutation_handle = 1
+
+    def protocol_by_id(self, protocol_id: int) -> ExecutionProtocolSnapshot | None:
+        return self._protocols.protocol_by_id(protocol_id)
+
+    def protocol_by_slot(self, slot_id: int) -> ExecutionProtocolSnapshot | None:
+        return self._protocols.protocol_by_slot(slot_id)
+
+    def protocol_references(self, protocol_id: int) -> Mapping[str, object]:
+        return self._protocols.protocol_references(protocol_id)
+
+    def protocol_day_snapshot(self, day_id: int) -> ProtocolDaySnapshot | None:
+        return self._protocols.protocol_day_snapshot(day_id)
+
+    def write_protocol_revision(self, command: ProtocolRevisionWrite) -> None:
+        self._protocols.write_protocol_revision(command)
+
+    def submit_protocol_revision(self, command: ProtocolSubmissionWrite) -> None:
+        self._protocols.submit_protocol_revision(command)
+
+    def write_protocol_response(self, command: ProtocolResponseWrite) -> None:
+        self._protocols.write_protocol_response(command)
+
+    def write_protocol_correction_request(self, command: ProtocolCorrectionRequestWrite) -> None:
+        self._protocols.write_protocol_correction_request(command)
+
+    def open_protocol_correction(self, command: ProtocolCorrectionOpenWrite) -> None:
+        self._protocols.open_protocol_correction(command)
+
+    def save_protocol_retention(self, command: ProtocolRetentionWrite) -> None:
+        self._protocols.save_protocol_retention(command)
 
     def confirmed_slot(self, day_id: int, slot_id: int) -> SlotSnapshot:
         slot = self._store.get(EXAM_SLOT, slot_id)

@@ -31,10 +31,15 @@ Begründung, tatsächliche Zeitangaben, erlaubte Übergänge und der Schutz
 bestätigter beziehungsweise wiedergeöffneter Tage behalten den vorhandenen
 Fachvertrag.
 
-Die Protokollinhalte und Reaktionen werden weiterhin von
-`ExamProtocolService` verwaltet. Auch Tagesabschluss und gezielte
-Wiederöffnung bleiben in `ExamDayClosureService`; deren bestehende
-fachübergreifende Orchestrierung wird in dem dafür vorgesehenen Teilissue in
-Planning-, Execution- und Assessment-Ports mit einem gemeinsamen UoW
-überführt. Bis dahin bleibt der vorhandene Dienst der Übergangspfad. Dieser
-Schritt ändert weder Schema und Datenformat noch öffentliche API-Verträge.
+`ExamProtocolService` verwaltet Inhalt, Teilnehmende, Versionierung,
+Reaktionen, Korrekturen, Berechtigungen und Aufbewahrung über einen
+Execution-eigenen Port und materialisierte Snapshots.
+Der SQLite-Adapter führt diese Operationen im selben UoW wie die zugehörigen
+Tagesmutationen aus.
+Die API-Kante rendert autorisierte Export-Snapshots über Presentation.
+Auch Tagesabschluss und gezielte Wiederöffnung bleiben in
+`ExamDayClosureService`; deren fachübergreifende Orchestrierung wird im
+dafür vorgesehenen Teilissue #1077 in Planning-, Execution- und
+Assessment-Ports mit einem gemeinsamen UoW überführt.
+Dieser Schritt ändert weder Schema und Datenformat noch öffentliche
+API-Verträge.

@@ -335,6 +335,36 @@ class BackendPackageBoundaryTests(unittest.TestCase):
                 f"{path.relative_to(BACKEND_ROOT)} imports provider or persistence details",
             )
 
+    def test_execution_protocol_use_case_and_port_are_framework_and_orm_free(self) -> None:
+        forbidden = {
+            "backend.persistence",
+            "backend.presentation",
+            "backend.fastapi",
+            "sqlalchemy",
+            "fastapi",
+        }
+        for relative in (
+            "execution/exam_protocols.py",
+            "execution/protocol_ports.py",
+        ):
+            path = BACKEND_ROOT / relative
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            imports = {
+                alias.name
+                for node in ast.walk(tree)
+                if isinstance(node, ast.Import)
+                for alias in node.names
+            }
+            imports.update(
+                node.module
+                for node in ast.walk(tree)
+                if isinstance(node, ast.ImportFrom) and node.module is not None
+            )
+            self.assertFalse(
+                forbidden & imports,
+                f"{relative} imports transport, presentation, or persistence details",
+            )
+
     def test_committee_identity_use_case_has_no_transitive_transport_or_persistence_imports(
         self,
     ) -> None:

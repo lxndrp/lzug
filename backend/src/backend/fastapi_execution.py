@@ -8,6 +8,7 @@ from fastapi.responses import Response
 from backend.application import hateoas
 from backend.application.transport import RequestContext
 from backend.persistence.models import EXAM_DAY, EXAM_DAY_ASSIGNMENT, EXAM_SLOT
+from backend.presentation.exam_exports import render_protocol_export
 
 from .api_contracts import (
     DomainResourceWrite,
@@ -219,9 +220,10 @@ def _add_protocol_export_routes(router, *, finish, plain_text, read_security):
         openapi_extra=read_security,
     )
     def export_exam_protocol_text(context: ReadContext, protocol_id: int):
-        result = context.exam_protocol_service.human_export(
+        snapshot = context.exam_protocol_service.machine_export(
             context.authorization_scope, protocol_id
         )
+        result = render_protocol_export(snapshot["protocol"], snapshot["references"])
         return plain_text(context, result, f"pruefungsprotokoll-{protocol_id}.txt")
 
 

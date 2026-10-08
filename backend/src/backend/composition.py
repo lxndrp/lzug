@@ -7,6 +7,7 @@ from datetime import timedelta
 from pathlib import Path
 
 from backend.application.exam_venue_api import ExamVenueApi
+from backend.execution.exam_protocols import ExamProtocolService
 from backend.execution.slot_service import ExecutionService
 from backend.identity.admin_service import OperatorAuthService
 from backend.identity.auth import AuthenticationRepository
@@ -89,6 +90,16 @@ def planning_service(
 def execution_service(db_path: Path) -> ExecutionService:
     """Wire Execution commands to a shared SQLite UoW and Identity projection."""
     return ExecutionService(
+        SQLiteExecutionUnitOfWorkFactory(
+            db_path,
+            identity_snapshot_factory=SQLiteIdentityExecutionSnapshotFactory(),
+        )
+    )
+
+
+def exam_protocol_service(db_path: Path) -> ExamProtocolService:
+    """Wire Execution protocol commands to the transaction-bound SQLite adapter."""
+    return ExamProtocolService(
         SQLiteExecutionUnitOfWorkFactory(
             db_path,
             identity_snapshot_factory=SQLiteIdentityExecutionSnapshotFactory(),

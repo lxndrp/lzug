@@ -81,6 +81,7 @@ class RequestContext:
     runtime_policy: RuntimePolicy
     planning_service_factory: Callable[[Path], PlanningService]
     execution_service_factory: Callable[[Path], ExecutionService]
+    exam_protocol_service_factory: Callable[[Path], ExamProtocolService]
     candidate_day_service_factory: Callable[[Path], CandidateDayService]
     planning_resource_unit_of_work_factory: Callable[[Path], PlanningResourceUnitOfWorkFactory]
     resource_access_query_factory: Callable[[Path], ResourceAccessQueryFactory]
@@ -219,7 +220,7 @@ class RequestContext:
 
     @property
     def exam_protocol_service(self) -> ExamProtocolService:
-        return ExamProtocolService(self.db_path)
+        return self.exam_protocol_service_factory(self.db_path)
 
     @property
     def execution_service(self) -> ExecutionService:
