@@ -13,10 +13,7 @@ from backend.application.consequence_ports import (
     NotificationApplicationPort,
     VenueConsequencePlanningPort,
 )
-from backend.planning.venue_consequences import (
-    VenueAuditConsequenceSource,
-    is_valid_venue_consequence_snapshot,
-)
+from backend.planning.venue_consequences import VenueAuditConsequenceSource
 from backend.planning_ports import VenueAuditEventSnapshot
 
 MAX_CONSEQUENCE_ATTEMPTS = 4
@@ -464,8 +461,7 @@ class VenueConsequenceService:
             expected_claim_until=claim_until,
         )
 
-    @classmethod
-    def _audit_details(cls, audit: VenueAuditEventSnapshot) -> dict[str, Any]:
+    def _audit_details(self, audit: VenueAuditEventSnapshot) -> dict[str, Any]:
         try:
             value = json.loads(audit.details_json)
         except TypeError, json.JSONDecodeError:
@@ -475,7 +471,7 @@ class VenueConsequenceService:
         if audit.entity_type not in {"room", "venue"}:
             return value
         if value.get("consequence_version") == 1:
-            if not cls._is_valid_legacy_snapshot(value):
+            if not self._is_valid_legacy_snapshot(value):
                 return {"_invalid_audit_details": True}
             return value
         # Legacy audits omit retry-contract keys; partial presence signals damaged metadata.
@@ -487,28 +483,23 @@ class VenueConsequenceService:
             "meaningful_change",
             "consequence_version",
         }
-        if snapshot_keys.intersection(value) and not cls._is_valid_snapshot(
+        if snapshot_keys.intersection(value) and not self.venue_planner.is_valid_audit_snapshot(
             value, audit.entity_type
         ):
             return {"_invalid_audit_details": True}
         return value
 
-    @classmethod
-    def _is_recoverable_audit(cls, audit: VenueAuditEventSnapshot) -> bool:
-        details = cls._audit_details(audit)
+    def _is_recoverable_audit(self, audit: VenueAuditEventSnapshot) -> bool:
+        details = self._audit_details(audit)
         return (
             details.get("consequence_version") == 2
-            or cls._is_valid_legacy_snapshot(details)
-            or (audit.entity_type in {"room", "venue"} and cls._has_invalid_details(details))
+            or self._is_valid_legacy_snapshot(details)
+            or (audit.entity_type in {"room", "venue"} and self._has_invalid_details(details))
         )
 
     @staticmethod
     def _has_invalid_details(details: dict[str, Any]) -> bool:
         return details.get("_invalid_audit_details") is True
-
-    @staticmethod
-    def _is_valid_snapshot(details: dict[str, Any], entity_type: str) -> bool:
-        return is_valid_venue_consequence_snapshot(details, entity_type)
 
     @staticmethod
     def _is_valid_legacy_snapshot(details: dict[str, Any]) -> bool:

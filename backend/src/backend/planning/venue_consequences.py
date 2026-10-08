@@ -131,6 +131,8 @@ def is_valid_venue_consequence_snapshot(details: object, entity_type: str) -> bo
     ):
         return False
     supported_fields = ROOM_FIELDS if entity_type == "room" else VENUE_FIELDS
+    if set(before) != supported_fields or set(after) != supported_fields:
+        return False
     if any(
         field not in supported_fields
         or field not in before
@@ -138,6 +140,12 @@ def is_valid_venue_consequence_snapshot(details: object, entity_type: str) -> bo
         or before[field] == after[field]
         for field in changed_fields
     ):
+        return False
+    changed_field_set = set(changed_fields)
+    if len(changed_fields) != len(changed_field_set):
+        return False
+    actual_changes = {field for field in supported_fields if before[field] != after[field]}
+    if changed_field_set != actual_changes:
         return False
     if not isinstance(details.get("meaningful_change"), bool):
         return False
@@ -207,6 +215,9 @@ class PlanningVenueConsequencePlanner:
     def consequence_audits(self) -> tuple[VenueAuditEventSnapshot, ...]:
         return self.repository.consequence_audits()
 
+    def is_valid_audit_snapshot(self, details: object, entity_type: str) -> bool:
+        return is_valid_venue_consequence_snapshot(details, entity_type)
+
     def source_for_audit(self, audit_id: int, *, today: date | None = None):
         audit = self.repository.consequence_audit(audit_id)
         if audit is None:
@@ -219,7 +230,7 @@ class PlanningVenueConsequencePlanner:
             details = {}
         if details.get("consequence_version") != 2:
             raise ValueError("Venue change has no audit-time assignment snapshot")
-        if not is_valid_venue_consequence_snapshot(details, audit.entity_type):
+        if not self.is_valid_audit_snapshot(details, audit.entity_type):
             raise ValueError("Venue change has an invalid audit-time consequence snapshot")
         raw_assignments = details.get("assignments")
         if not isinstance(raw_assignments, list):

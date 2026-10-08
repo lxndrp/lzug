@@ -36,7 +36,7 @@ from backend.planning.venue_consequences import (
     VenueNotificationConsequence,
     describe_venue_change,
 )
-from backend.planning_ports import VenueAuditEventSnapshot
+from backend.planning_ports import VENUE_FIELDS, VenueAuditEventSnapshot
 from backend.tests.fixture_data import FIXTURE_IDS, FIXTURE_ROOT
 from backend.tests.helpers import (
     ApiServer,
@@ -708,21 +708,28 @@ class VenueConsequenceTests(unittest.TestCase):
         database, db_path = self._confirmed_database()
         try:
             service = venue_consequence_service_for_test(db_path)
+            before = dict.fromkeys(VENUE_FIELDS)
+            after = dict(before, site_name="New", entrance="North")
             invalid_snapshots = (
                 {
-                    "before": {"site_name": "Old"},
-                    "after": {"site_name": "New"},
+                    "before": before,
+                    "after": after,
                     "changed_fields": ["site_nam"],
                 },
                 {
-                    "before": {},
-                    "after": {"site_name": "New"},
+                    "before": before,
+                    "after": after,
                     "changed_fields": ["site_name"],
                 },
                 {
-                    "before": {"site_name": "Same"},
-                    "after": {"site_name": "Same"},
+                    "before": before,
+                    "after": before,
                     "changed_fields": ["site_name"],
+                },
+                {
+                    "before": {key: value for key, value in before.items() if key != "city"},
+                    "after": after,
+                    "changed_fields": ["site_name", "entrance"],
                 },
             )
             for index, snapshot in enumerate(invalid_snapshots):
@@ -774,6 +781,8 @@ class VenueConsequenceTests(unittest.TestCase):
             )
             for index, assignment in enumerate(invalid_assignments):
                 with self.subTest(assignment=assignment):
+                    before = dict.fromkeys(VENUE_FIELDS)
+                    after = dict(before, site_name="New")
                     audit = VenueAuditEventSnapshot(
                         id=1100 + index,
                         venue_id=1,
@@ -782,8 +791,8 @@ class VenueConsequenceTests(unittest.TestCase):
                         details_json=json.dumps(
                             {
                                 "consequence_version": 2,
-                                "before": {},
-                                "after": {},
+                                "before": before,
+                                "after": after,
                                 "changed_fields": ["site_name"],
                                 "meaningful_change": True,
                                 "assignments": [assignment],
