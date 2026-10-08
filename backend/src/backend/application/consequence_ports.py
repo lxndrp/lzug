@@ -258,7 +258,14 @@ class NotificationApplicationPort(Protocol):
         message: str,
         action_path: str,
         origin_key: str,
-    ) -> bool: ...
+    ) -> bool:
+        """Write only if a read-only source check passes inside the notice UoW.
+
+        Implementations hold SQLite write intent while invoking the guard so
+        the source cannot change between validation and notice persistence.
+        The guard may read its owning domain but must not write or dispatch.
+        """
+        ...
 
 
 __all__ = [

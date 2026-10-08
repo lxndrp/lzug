@@ -198,8 +198,9 @@ class NotificationService:
     ) -> bool:
         """Persist a targeted notice only while its source still matches.
 
-        The guard runs under SQLite write intent so a concurrent domain write
-        cannot commit between source validation and notice persistence.
+        The read-only guard runs under SQLite write intent so a concurrent
+        domain write cannot commit between source validation and notice
+        persistence. It must not perform writes or external effects.
         """
         with self._notification_unit_of_work_factory(begin_immediate=True) as unit_of_work:
             if not is_current():
