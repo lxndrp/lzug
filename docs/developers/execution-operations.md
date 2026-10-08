@@ -42,6 +42,7 @@ Protokoll-Exports verwenden einen strukturierten
 Der SQLite-Adapter führt diese Operationen im selben UoW wie die zugehörigen
 Tagesmutationen aus.
 Die API-Kante rendert autorisierte Export-Snapshots über Presentation.
+Sie ergänzt auch die HTTP-Links in API-Antworten und JSON-Exports.
 Auch Tagesabschluss und gezielte Wiederöffnung bleiben in
 `ExamDayClosureService`; deren fachübergreifende Orchestrierung wird im
 dafür vorgesehenen Teilissue #1077 in Planning-, Execution- und

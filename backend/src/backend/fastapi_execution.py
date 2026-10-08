@@ -109,7 +109,19 @@ def _protocol_write(
     payload: dict,
 ):
     result = _protocol_action(context, protocol_id, action, payload)
-    return finish(context, context.respond(result))
+    return finish(context, context.respond(_protocol_http_view(result)))
+
+
+def _protocol_http_view(protocol: dict) -> dict:
+    protocol_id = protocol["id"]
+    return {
+        **protocol,
+        "_links": {
+            "self": {"href": f"/api/exam-protocols/{protocol_id}"},
+            "machine_export": {"href": f"/api/exam-protocols/{protocol_id}/export.json"},
+            "human_export": {"href": f"/api/exam-protocols/{protocol_id}/export.txt"},
+        },
+    }
 
 
 def _protocol_version_command(payload: dict) -> ProtocolVersionCommand:
@@ -196,7 +208,11 @@ def _add_protocol_read_routes(router, *, finish, not_found, read_security):
         if slot is None or slot["exam_day_id"] != day_id:
             return not_found()
         protocol = context.exam_protocol_service.get_by_slot(context.authorization_scope, slot_id)
-        return not_found() if protocol is None else finish(context, context.respond(protocol))
+        return (
+            not_found()
+            if protocol is None
+            else finish(context, context.respond(_protocol_http_view(protocol)))
+        )
 
     @router.get(
         "/api/exam-protocols/{protocol_id}",
@@ -205,7 +221,11 @@ def _add_protocol_read_routes(router, *, finish, not_found, read_security):
     )
     def exam_protocol(context: ReadContext, protocol_id: int):
         protocol = context.exam_protocol_service.get(context.authorization_scope, protocol_id)
-        return not_found() if protocol is None else finish(context, context.respond(protocol))
+        return (
+            not_found()
+            if protocol is None
+            else finish(context, context.respond(_protocol_http_view(protocol)))
+        )
 
 
 def _add_protocol_write_routes(router, *, finish, write_security):
@@ -300,6 +320,7 @@ def _add_protocol_export_routes(router, *, finish, plain_text, read_security):
         result = context.exam_protocol_service.machine_export(
             context.authorization_scope, protocol_id
         )
+        result["protocol"] = _protocol_http_view(result["protocol"])
         return finish(context, context.respond(result))
 
     @router.get(

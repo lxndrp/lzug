@@ -150,6 +150,10 @@ class ExamProtocolTests(unittest.TestCase):
             {"version": version, "declaration": "without_special_occurrences", "entries": []},
         )
         assert_status(status, HTTPStatus.OK)
+        self.assertEqual(
+            f"/api/exam-protocols/{self.protocol_id}",
+            protocol["_links"]["self"]["href"],
+        )
         return protocol
 
     def test_stale_execution_day_revision_remains_an_http_conflict(self) -> None:
@@ -200,6 +204,10 @@ class ExamProtocolTests(unittest.TestCase):
             assert_status(status, HTTPStatus.OK)
             self.assertEqual({1, 3}, set(protocol["participants"]))
             self.assertEqual("in_progress", protocol["state"])
+            self.assertEqual(
+                f"/api/exam-protocols/{self.protocol_id}",
+                protocol["_links"]["self"]["href"],
+            )
 
             status, error = self.request(
                 api,
@@ -295,6 +303,10 @@ class ExamProtocolTests(unittest.TestCase):
             assert_status(status, HTTPStatus.OK)
             self.assertTrue(exported["complete"])
             self.assertEqual(len(ENTRY_CATEGORIES) + 1, len(exported["protocol"]["history"]))
+            self.assertEqual(
+                f"/api/exam-protocols/{self.protocol_id}/export.json",
+                exported["protocol"]["_links"]["machine_export"]["href"],
+            )
             self.assertEqual(False, exported["references"]["assessment"]["available"])
             status, headers, content = api.request_raw(
                 "GET",
@@ -460,6 +472,14 @@ class ExamProtocolTests(unittest.TestCase):
             service.respond(scope, self.protocol_id, {**command, "statement": "Anderer Vorbehalt"})
         with session_scope(self.db_path) as session:
             self.assertEqual(1, session.query(ExamProtocolResponse).count())
+
+    def test_protocol_service_views_and_exports_are_http_neutral(self) -> None:
+        service = exam_protocol_service(self.db_path)
+        context = self.authentication.authenticate(self.chair.token)
+        scope = authorization_service(self.db_path).scope(context)
+
+        self.assertNotIn("_links", service.get(scope, self.protocol_id))
+        self.assertNotIn("_links", service.machine_export(scope, self.protocol_id)["protocol"])
 
     def test_completion_contract_distinguishes_not_started_and_legacy_completed(self) -> None:
         with session_scope(self.db_path) as session:

@@ -480,11 +480,6 @@ class ExamProtocolService:
             },
             "created_at": protocol["created_at"],
             "updated_at": protocol["updated_at"],
-            "_links": {
-                "self": {"href": f"/api/exam-protocols/{protocol['id']}"},
-                "machine_export": {"href": f"/api/exam-protocols/{protocol['id']}/export.json"},
-                "human_export": {"href": f"/api/exam-protocols/{protocol['id']}/export.txt"},
-            },
         }
 
     @staticmethod

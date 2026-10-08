@@ -243,7 +243,8 @@ Der SQLite-Adapter materialisiert typisierte Snapshots und führt die
 Mutationen innerhalb derselben Transaktion aus.
 Protokollreferenzen für Exporte sind ein benannter, verschachtelter Snapshot.
 Der Service und seine Ports importieren weder ORM noch HTTP oder Presentation;
-die FastAPI-Kante übergibt den autorisierten Export-Snapshot an den
+Serviceantworten enthalten keine HTTP-Links; FastAPI ergänzt die Links an der
+Transportkante und übergibt den autorisierten Export-Snapshot an den
 Presentation-Renderer.
 Der Runden-Lifecycle ist im Ist-Zustand noch nicht in diese Modulgrenzen
 aufgeteilt: FastAPI ruft `context.exam_round_lifecycle_service` auf, und der
