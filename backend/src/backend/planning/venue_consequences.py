@@ -7,7 +7,12 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date
 
-from backend.planning_ports import VenueAuditEventSnapshot, VenueRepository
+from backend.planning_ports import (
+    ROOM_FIELDS,
+    VENUE_FIELDS,
+    VenueAuditEventSnapshot,
+    VenueRepository,
+)
 
 CALENDAR_VENUE_FIELDS = frozenset(
     {
@@ -109,6 +114,48 @@ def _snapshot_id(value: object) -> int:
     return value
 
 
+def is_valid_venue_consequence_snapshot(details: object, entity_type: str) -> bool:
+    if not isinstance(details, dict) or entity_type not in {"room", "venue"}:
+        return False
+    if details.get("consequence_version") != 2:
+        return False
+    before = details.get("before")
+    after = details.get("after")
+    if not isinstance(before, dict) or not isinstance(after, dict):
+        return False
+    changed_fields = details.get("changed_fields")
+    if (
+        not isinstance(changed_fields, list)
+        or not changed_fields
+        or not all(isinstance(field, str) for field in changed_fields)
+    ):
+        return False
+    supported_fields = ROOM_FIELDS if entity_type == "room" else VENUE_FIELDS
+    if any(
+        field not in supported_fields
+        or field not in before
+        or field not in after
+        or before[field] == after[field]
+        for field in changed_fields
+    ):
+        return False
+    if not isinstance(details.get("meaningful_change"), bool):
+        return False
+    assignments = details.get("assignments")
+    if not isinstance(assignments, list):
+        return False
+    return all(
+        isinstance(assignment, dict)
+        and all(
+            isinstance(assignment.get(key), int)
+            and not isinstance(assignment.get(key), bool)
+            and assignment[key] > 0
+            for key in ("assignment_id", "recipient_member_id", "committee_id")
+        )
+        for assignment in assignments
+    )
+
+
 class PlanningVenueConsequencePlanner:
     """Read Planning facts and derive typed, deterministic venue consequences."""
 
@@ -172,6 +219,8 @@ class PlanningVenueConsequencePlanner:
             details = {}
         if details.get("consequence_version") != 2:
             raise ValueError("Venue change has no audit-time assignment snapshot")
+        if not is_valid_venue_consequence_snapshot(details, audit.entity_type):
+            raise ValueError("Venue change has an invalid audit-time consequence snapshot")
         raw_assignments = details.get("assignments")
         if not isinstance(raw_assignments, list):
             raise ValueError("Venue change has an invalid audit-time assignment snapshot")

@@ -284,8 +284,8 @@
             <section class="locations-consequence-problems">
               <h2>Folgen unvollständig</h2>
               <p>
-                Die Stammdaten sind gespeichert. Aktuelle Kalender- oder Benachrichtigungsfolgen
-                benötigen einen erneuten Versuch.
+                Die Stammdaten sind gespeichert. Prüfen Sie die offenen Kalender- oder
+                Benachrichtigungsfolgen und starten Sie einen erneuten Versuch, sofern verfügbar.
               </p>
               @for (
                 problem of venue.consequenceProblems;
@@ -299,7 +299,7 @@
                         ? 'Benachrichtigung'
                         : 'Ableitung'
                   }}</span>
-                  @if (venue.capabilities.retryConsequences) {
+                  @if (venue.capabilities.retryConsequences && problem.retryable) {
                     <button
                       tuiButton
                       type="button"
@@ -309,6 +309,10 @@
                     >
                       Erneut versuchen
                     </button>
+                  } @else if (!problem.retryable) {
+                    <span
+                      >Erneuter Versuch nicht verfügbar; bitte die Änderung manuell prüfen.</span
+                    >
                   }
                 </div>
               }

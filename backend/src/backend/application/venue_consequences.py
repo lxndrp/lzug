@@ -13,7 +13,10 @@ from backend.application.consequence_ports import (
     NotificationApplicationPort,
     VenueConsequencePlanningPort,
 )
-from backend.planning.venue_consequences import VenueAuditConsequenceSource
+from backend.planning.venue_consequences import (
+    VenueAuditConsequenceSource,
+    is_valid_venue_consequence_snapshot,
+)
 from backend.planning_ports import VenueAuditEventSnapshot
 
 MAX_CONSEQUENCE_ATTEMPTS = 4
@@ -484,7 +487,9 @@ class VenueConsequenceService:
             "meaningful_change",
             "consequence_version",
         }
-        if snapshot_keys.intersection(value) and not cls._is_valid_snapshot(value):
+        if snapshot_keys.intersection(value) and not cls._is_valid_snapshot(
+            value, audit.entity_type
+        ):
             return {"_invalid_audit_details": True}
         return value
 
@@ -502,33 +507,8 @@ class VenueConsequenceService:
         return details.get("_invalid_audit_details") is True
 
     @staticmethod
-    def _is_valid_snapshot(details: dict[str, Any]) -> bool:
-        if details.get("consequence_version") != 2:
-            return False
-        if not isinstance(details.get("before"), dict) or not isinstance(
-            details.get("after"), dict
-        ):
-            return False
-        changed_fields = details.get("changed_fields")
-        if (
-            not isinstance(changed_fields, list)
-            or not changed_fields
-            or not all(isinstance(field, str) for field in changed_fields)
-        ):
-            return False
-        if not isinstance(details.get("meaningful_change"), bool):
-            return False
-        assignments = details.get("assignments")
-        if not isinstance(assignments, list):
-            return False
-        for assignment in assignments:
-            if not isinstance(assignment, dict):
-                return False
-            for key in ("assignment_id", "recipient_member_id", "committee_id"):
-                value = assignment.get(key)
-                if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
-                    return False
-        return True
+    def _is_valid_snapshot(details: dict[str, Any], entity_type: str) -> bool:
+        return is_valid_venue_consequence_snapshot(details, entity_type)
 
     @staticmethod
     def _is_valid_legacy_snapshot(details: dict[str, Any]) -> bool:
@@ -557,4 +537,5 @@ class VenueConsequenceService:
             "attempt_count": task.attempt_count if task else 0,
             "error_code": error_code,
             "updated_at": task.updated_at if task else audit.created_at,
+            "retryable": task is not None or error_code == "derivation_missing",
         }

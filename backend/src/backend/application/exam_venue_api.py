@@ -60,7 +60,7 @@ class ExamVenueApi:
                 item
                 for venue in self.service.list_venues()
                 for item in self.consequences.problems_for_venue(venue["id"])
-                if item["audit_id"] == audit_id
+                if item["audit_id"] == audit_id and item["retryable"]
             ),
             None,
         )

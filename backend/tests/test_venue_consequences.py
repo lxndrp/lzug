@@ -700,6 +700,67 @@ class VenueConsequenceTests(unittest.TestCase):
             self.assertEqual(1, len(problems))
             self.assertEqual("legacy_audit_snapshot_missing", problems[0]["error_code"])
             self.assertEqual(legacy_without_batch.id, problems[0]["audit_id"])
+            self.assertFalse(problems[0]["retryable"])
+        finally:
+            database.__exit__(None, None, None)
+
+    def test_v2_snapshot_rejects_unknown_or_inconsistent_changed_fields(self) -> None:
+        database, db_path = self._confirmed_database()
+        try:
+            service = venue_consequence_service_for_test(db_path)
+            invalid_snapshots = (
+                {
+                    "before": {"site_name": "Old"},
+                    "after": {"site_name": "New"},
+                    "changed_fields": ["site_nam"],
+                },
+                {
+                    "before": {},
+                    "after": {"site_name": "New"},
+                    "changed_fields": ["site_name"],
+                },
+                {
+                    "before": {"site_name": "Same"},
+                    "after": {"site_name": "Same"},
+                    "changed_fields": ["site_name"],
+                },
+            )
+            for index, snapshot in enumerate(invalid_snapshots):
+                with self.subTest(snapshot=snapshot):
+                    audit = VenueAuditEventSnapshot(
+                        id=1010 + index,
+                        venue_id=1,
+                        entity_type="venue",
+                        entity_id=1,
+                        details_json=json.dumps(
+                            {
+                                "consequence_version": 2,
+                                **snapshot,
+                                "meaningful_change": True,
+                                "assignments": [],
+                            }
+                        ),
+                        created_at="2026-10-09T00:00:00+00:00",
+                    )
+                    with patch.object(
+                        service.venue_planner.repository,
+                        "consequence_audit",
+                        return_value=audit,
+                    ):
+                        with self.assertRaisesRegex(
+                            ValueError, "invalid audit-time consequence snapshot"
+                        ):
+                            service.process_audit(audit.id)
+                        with self.assertRaisesRegex(
+                            ValueError, "invalid audit-time consequence snapshot"
+                        ):
+                            service.retry_audit(audit.id)
+                    self.assertIsNone(
+                        service.consequence_store.batch_by_origin(
+                            "exam_venue_audit_event", str(audit.id)
+                        )
+                    )
+                    self.assertTrue(service._has_invalid_details(service._audit_details(audit)))
         finally:
             database.__exit__(None, None, None)
 
@@ -735,7 +796,9 @@ class VenueConsequenceTests(unittest.TestCase):
                         "consequence_audit",
                         return_value=audit,
                     ):
-                        with self.assertRaisesRegex(ValueError, "invalid audit-time assignment"):
+                        with self.assertRaisesRegex(
+                            ValueError, "invalid audit-time consequence snapshot"
+                        ):
                             service.venue_planner.source_for_audit(audit.id)
                     self.assertTrue(service._has_invalid_details(service._audit_details(audit)))
         finally:
@@ -936,6 +999,32 @@ class VenueConsequenceTests(unittest.TestCase):
 
 
 class VenueConsequenceApiTests(unittest.TestCase):
+    def test_nonretryable_audit_problem_does_not_allow_manual_retry(self) -> None:
+        database, db_path = VenueConsequenceTests._confirmed_database()
+        try:
+            api = exam_venue_api_for_test(db_path)
+            with patch.object(
+                api.consequences,
+                "problems_for_venue",
+                return_value=[
+                    {
+                        "audit_id": 123,
+                        "venue_id": 1,
+                        "retryable": False,
+                    }
+                ],
+            ):
+                self.assertIsNone(
+                    api.retry_consequences(
+                        123,
+                        AuthorizationScope(
+                            None, frozenset(), frozenset(), frozenset(), frozenset(), {}
+                        ),
+                    )
+                )
+        finally:
+            database.__exit__(None, None, None)
+
     def test_preview_failure_visibility_and_controlled_retry(self) -> None:
         with TempDatabase() as db_path:
             planning_service(db_path).generate_proposal(1)
