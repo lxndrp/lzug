@@ -30,7 +30,8 @@ from backend.application.planning_payloads import (
 from backend.application.repositories import REST_RESOURCES, ResourceRepository
 from backend.application.resource_access import ResourceAccessQueryFactory, ResourceKind
 from backend.application.resource_authorization import ResourceAuthorizer
-from backend.assessment.exam_results import ExamResultService
+from backend.assessment.ports import AssessmentActorSnapshot
+from backend.assessment.service import ExamResultService
 from backend.execution.absence import AbsenceService
 from backend.execution.exam_day_closures import ExamDayClosureService
 from backend.execution.exam_protocols import ExamProtocolService
@@ -82,6 +83,7 @@ class RequestContext:
     planning_service_factory: Callable[[Path], PlanningService]
     execution_service_factory: Callable[[Path], ExecutionService]
     exam_protocol_service_factory: Callable[[Path], ExamProtocolService]
+    exam_result_service_factory: Callable[[Path], ExamResultService]
     candidate_day_service_factory: Callable[[Path], CandidateDayService]
     planning_resource_unit_of_work_factory: Callable[[Path], PlanningResourceUnitOfWorkFactory]
     resource_access_query_factory: Callable[[Path], ResourceAccessQueryFactory]
@@ -104,6 +106,19 @@ class RequestContext:
     )
     response_result: ApplicationResult | None = None
     response_headers: list[tuple[str, str]] = field(default_factory=list)
+
+    @property
+    def assessment_actor(self) -> AssessmentActorSnapshot:
+        """Project the detached request authorization scope into Assessment's contract."""
+        scope = self.authorization_scope
+        return {
+            "person_id": scope.person_id,
+            "person_ids": tuple(sorted(scope.person_ids)),
+            "committee_ids": tuple(sorted(scope.committee_ids)),
+            "member_ids": tuple(sorted(scope.member_ids)),
+            "management_committee_ids": tuple(sorted(scope.management_committee_ids)),
+            "member_by_committee": dict(scope.member_by_committee),
+        }
 
     @property
     def repository(self) -> ResourceRepository:
@@ -228,7 +243,7 @@ class RequestContext:
 
     @property
     def exam_result_service(self) -> ExamResultService:
-        return ExamResultService(self.db_path)
+        return self.exam_result_service_factory(self.db_path)
 
     @property
     def exam_day_closure_service(self) -> ExamDayClosureService:

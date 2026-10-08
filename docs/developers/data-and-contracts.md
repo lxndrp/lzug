@@ -128,6 +128,19 @@ erDiagram
   Fachabläufe dürfen die Berechnung weiterhin verwenden.
   Ein berechneter Vorschlag wird erst durch den vorgesehenen Beschluss zum
   festgestellten Ergebnis.
+- Assessment-Ergebnis- und Disclosure-Projektionen setzen diese Offenlegung
+  vor der Ausgabe durch und enthalten keine verborgenen aktuellen oder
+  historischen Werte. Datei- und Maschinenexporte wenden denselben Vertrag
+  an. Ein Renderer erhält ausschließlich freigegebene, typisierte Exportdaten;
+  er fragt weder Daten ab noch entscheidet er über Berechtigung oder
+  Offenlegung.
+- Assessment liest gespeicherte Modell-, Protokoll-, Identity- und
+  Planning-Fakten als materialisierte Snapshots über fachliche Ports; ORM-
+  Objekte bleiben in Persistence. Ein GET darf bestehende Berechnung oder
+  Materialisierung fortführen. Diese Schreibwirkung und alle betroffenen
+  Kinddatensätze teilen das Assessment-UoW und seine erwartete Versions-CAS;
+  ein innerer Commit darf keinen gemeinsamen Application-UoW vorzeitig
+  abschließen.
 - Personenbezogene Inhalte werden auf Zweck und Empfänger begrenzt.
   Kalender, Benachrichtigungen, Diagnosen und Logs enthalten keine unnötigen
   Fach- oder Geheimnisdaten.

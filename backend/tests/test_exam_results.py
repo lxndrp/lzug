@@ -5,10 +5,9 @@ from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
 from http import HTTPStatus
 from threading import Barrier
-from unittest.mock import patch
 
 from backend.assessment.exam_results import ExamResultConflictError, ExamResultService
-from backend.composition import authorization_service
+from backend.composition import authorization_service, exam_result_service
 from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.persistence.database import session_scope
 from backend.persistence.execution import create_started_protocol
@@ -393,21 +392,25 @@ class ExamResultTests(unittest.TestCase):
         context = SQLiteAuthenticationRepository(self.db_path).authenticate(self.chair.token)
         self.assertIsNotNone(context)
         scope = authorization_service(self.db_path).scope(context)
+        actor = {
+            "person_id": scope.person_id,
+            "person_ids": tuple(scope.person_ids),
+            "committee_ids": tuple(scope.committee_ids),
+            "member_ids": tuple(scope.member_ids),
+            "management_committee_ids": tuple(scope.management_committee_ids),
+            "member_by_committee": dict(scope.member_by_committee),
+        }
         initial_version = result["version"]
         with session_scope(self.db_path) as session:
             initial_day_revision = session.get(ExamDay, self.day_id).revision
 
         barrier = Barrier(2)
-        original_claim = ExamResultService._claim_version
-
-        def synchronized_claim(session, aggregate, expected_version):
-            barrier.wait(timeout=10)
-            original_claim(session, aggregate, expected_version)
 
         def update_retention(retain_until: str) -> str:
             try:
-                ExamResultService(self.db_path).set_retention(
-                    scope,
+                barrier.wait(timeout=10)
+                exam_result_service(self.db_path).set_retention(
+                    actor,
                     result["id"],
                     {
                         "version": initial_version,
@@ -420,9 +423,8 @@ class ExamResultTests(unittest.TestCase):
                 return "conflict"
             return "committed"
 
-        with patch.object(ExamResultService, "_claim_version", staticmethod(synchronized_claim)):
-            with ThreadPoolExecutor(max_workers=2) as executor:
-                outcomes = list(executor.map(update_retention, ("2041-11-16", "2042-11-16")))
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            outcomes = list(executor.map(update_retention, ("2041-11-16", "2042-11-16")))
 
         self.assertCountEqual(["committed", "conflict"], outcomes)
         with session_scope(self.db_path) as session:
