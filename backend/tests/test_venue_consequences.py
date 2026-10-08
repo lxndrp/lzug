@@ -591,11 +591,11 @@ class VenueConsequenceTests(unittest.TestCase):
         finally:
             database.__exit__(None, None, None)
 
-    def test_malformed_audit_details_are_reported_as_recovery_problems(self) -> None:
+    def test_invalid_audit_details_are_reported_even_if_batch_exists(self) -> None:
         database, db_path = self._confirmed_database()
         try:
             service = venue_consequence_service_for_test(db_path)
-            audit = VenueAuditEventSnapshot(
+            malformed_audit = VenueAuditEventSnapshot(
                 id=999,
                 venue_id=1,
                 entity_type="venue",
@@ -603,20 +603,50 @@ class VenueConsequenceTests(unittest.TestCase):
                 details_json="{invalid-json",
                 created_at="2026-10-09T00:00:00+00:00",
             )
+            incomplete_audit = VenueAuditEventSnapshot(
+                id=1000,
+                venue_id=1,
+                entity_type="room",
+                entity_id=2,
+                details_json=json.dumps(
+                    {
+                        "consequence_version": 2,
+                        "before": {},
+                        "after": {},
+                        "changed_fields": [],
+                        "meaningful_change": True,
+                    }
+                ),
+                created_at="2026-10-09T00:00:01+00:00",
+            )
+            service.consequence_store.record_batch(
+                origin_type="exam_venue_audit_event",
+                origin_key=str(incomplete_audit.id),
+                confirmed_plan_revision_id=None,
+                notification_scope=(),
+                tasks=(),
+                error_code=None,
+                now="2026-10-09T00:00:01+00:00",
+            )
+            audits = (malformed_audit, incomplete_audit)
             with (
-                patch.object(service.venue_planner, "consequence_audits", return_value=(audit,)),
-                patch.object(service.venue_planner, "audits_for_venue", return_value=(audit,)),
+                patch.object(service.venue_planner, "consequence_audits", return_value=audits),
+                patch.object(service.venue_planner, "audits_for_venue", return_value=audits),
                 patch.object(
-                    service.venue_planner.repository, "consequence_audit", return_value=audit
+                    service.venue_planner.repository,
+                    "consequence_audit",
+                    side_effect=audits,
                 ),
             ):
                 recovered = service.process_due()
                 problems = service.problems_for_venue(1)
 
-            self.assertEqual(1, recovered["audits"])
-            self.assertEqual(1, recovered["problems"])
-            self.assertEqual(1, len(problems))
-            self.assertEqual("invalid_audit_details", problems[0]["error_code"])
+            self.assertEqual(2, recovered["audits"])
+            self.assertEqual(2, recovered["problems"])
+            self.assertEqual(2, len(problems))
+            self.assertEqual(
+                {"invalid_audit_details"}, {problem["error_code"] for problem in problems}
+            )
         finally:
             database.__exit__(None, None, None)
 

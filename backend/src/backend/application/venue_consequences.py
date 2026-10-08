@@ -82,11 +82,14 @@ class VenueConsequenceService:
             if self._is_recoverable_audit(audit)
         )
         audit_ids = {audit.id for audit in audits}
-        derivation_problems = 0
+        invalid_audit_ids = {
+            audit.id for audit in audits if self._has_invalid_details(self._audit_details(audit))
+        }
+        derivation_problems = len(invalid_audit_ids)
         existing_batches = self.consequence_store.batches_by_origin("exam_venue_audit_event")
         existing_origins = {batch.origin_key for batch in existing_batches}
         for audit in audits:
-            if str(audit.id) in existing_origins:
+            if audit.id in invalid_audit_ids or str(audit.id) in existing_origins:
                 continue
             try:
                 self._derive(audit.id, current)
@@ -144,10 +147,12 @@ class VenueConsequenceService:
             }
             if details.get("consequence_version") != 2 and not invalid_details:
                 continue
+            if invalid_details:
+                result.append(self._problem_view(audit, None, "invalid_audit_details"))
             batch = self.consequence_store.batch_by_origin("exam_venue_audit_event", str(audit.id))
             if batch is None:
-                error_code = "invalid_audit_details" if invalid_details else "derivation_missing"
-                result.append(self._problem_view(audit, None, error_code))
+                if not invalid_details:
+                    result.append(self._problem_view(audit, None, "derivation_missing"))
                 continue
             for task in self.consequence_store.tasks_for_batch(batch.id):
                 expired_claim = (
@@ -436,13 +441,28 @@ class VenueConsequenceService:
             expected_claim_until=claim_until,
         )
 
-    @staticmethod
-    def _audit_details(audit: VenueAuditEventSnapshot) -> dict[str, Any]:
+    @classmethod
+    def _audit_details(cls, audit: VenueAuditEventSnapshot) -> dict[str, Any]:
         try:
             value = json.loads(audit.details_json)
         except TypeError, json.JSONDecodeError:
             return {"_invalid_audit_details": True}
-        return value if isinstance(value, dict) else {"_invalid_audit_details": True}
+        if not isinstance(value, dict):
+            return {"_invalid_audit_details": True}
+        if audit.entity_type not in {"room", "venue"}:
+            return value
+        # Legacy audits omit retry-contract keys; partial presence signals damaged metadata.
+        snapshot_keys = {
+            "assignments",
+            "before",
+            "after",
+            "changed_fields",
+            "meaningful_change",
+            "consequence_version",
+        }
+        if snapshot_keys.intersection(value) and not cls._is_valid_snapshot(value):
+            return {"_invalid_audit_details": True}
+        return value
 
     @classmethod
     def _is_recoverable_audit(cls, audit: VenueAuditEventSnapshot) -> bool:
@@ -454,6 +474,35 @@ class VenueConsequenceService:
     @staticmethod
     def _has_invalid_details(details: dict[str, Any]) -> bool:
         return details.get("_invalid_audit_details") is True
+
+    @staticmethod
+    def _is_valid_snapshot(details: dict[str, Any]) -> bool:
+        if details.get("consequence_version") != 2:
+            return False
+        if not isinstance(details.get("before"), dict) or not isinstance(
+            details.get("after"), dict
+        ):
+            return False
+        changed_fields = details.get("changed_fields")
+        if not isinstance(changed_fields, list) or not all(
+            isinstance(field, str) for field in changed_fields
+        ):
+            return False
+        if not isinstance(details.get("meaningful_change"), bool):
+            return False
+        assignments = details.get("assignments")
+        if not isinstance(assignments, list):
+            return False
+        for assignment in assignments:
+            if not isinstance(assignment, dict):
+                return False
+            try:
+                int(assignment["assignment_id"])
+                int(assignment["recipient_member_id"])
+                int(assignment["committee_id"])
+            except KeyError, TypeError, ValueError:
+                return False
+        return True
 
     @staticmethod
     def _problem_view(audit: VenueAuditEventSnapshot, task, error_code):
