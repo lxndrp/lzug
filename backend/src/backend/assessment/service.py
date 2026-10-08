@@ -215,6 +215,7 @@ class ExamResultService:
             result = lookup(work.queries)
             if result is None:
                 return None
+            self._assert_projection_access(result, actor)
             if self._calculation_command(result) is None:
                 return self._project_and_materialize(work, result, actor)
 
@@ -222,6 +223,7 @@ class ExamResultService:
             result = lookup(work.queries)
             if result is None:
                 return None
+            self._assert_projection_access(result, actor)
             result = self._ensure_calculation(work, result)
             return self._project_and_materialize(work, result, actor)
 
@@ -1066,14 +1068,22 @@ class ExamResultService:
             "passed": passed,
         }
 
+    @staticmethod
+    def _assert_projection_access(
+        result: AssessmentResultSnapshot, actor: AssessmentActorSnapshot
+    ) -> None:
+        actor_id = actor["member_by_committee"].get(result["committee_id"])
+        can_manage = result["committee_id"] in actor["management_committee_ids"]
+        if actor_id not in result["participant_member_ids"] and not can_manage:
+            raise PermissionError("Forbidden.")
+
     def _project_and_materialize(
         self, work, result: AssessmentResultSnapshot, actor: AssessmentActorSnapshot
     ) -> dict[str, Any]:
+        self._assert_projection_access(result, actor)
         actor_id = actor["member_by_committee"].get(result["committee_id"])
         participants = set(result["participant_member_ids"])
         can_manage = result["committee_id"] in actor["management_committee_ids"]
-        if actor_id not in participants and not can_manage:
-            raise PermissionError("Forbidden.")
         rules = result["model"]["rules"]
         disclosed = {item["component_key"] for item in result["disclosures"]}
         visible = [
