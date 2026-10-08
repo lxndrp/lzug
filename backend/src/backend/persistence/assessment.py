@@ -301,9 +301,11 @@ class SQLiteAssessmentQueries:
         )
         return self._result(row) if row else None
 
-    def result_by_slot(self, slot_id: int) -> dict[str, Any] | None:
+    def result_by_slot(self, slot_id: int, day_id: int | None = None) -> dict[str, Any] | None:
         slot = self.session.get(ExamSlot, slot_id)
-        return self.result_for_round_candidate(slot.round_candidate_id) if slot else None
+        if slot is None or (day_id is not None and slot.exam_day_id != day_id):
+            return None
+        return self.result_for_round_candidate(slot.round_candidate_id)
 
     def _result_days(self, result_id: int) -> list[ExamDay]:
         return list(

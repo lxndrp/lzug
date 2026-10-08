@@ -816,7 +816,7 @@ Zyklen zwischen den zehn Kernpaketen.
 | `application/` | frameworkneutrale Use-Case-Orchestrierung, Ressourcenfassade, Transportobjekte und HATEOAS | `assessment`, `execution`, `identity`, `integrations`, `notifications`, `operations`, `persistence`, `planning` |
 | `planning/` | Planaggregate, mögliche Prüfungstage, Prüfungsorte und Folgen bestätigter Änderungen; Kandidatentage beginnen mit einem adapterfreien Port-Pilot | `integrations`, `notifications`, `persistence` (Legacy-Aufrufe) |
 | `execution/` | Ausfall und Ersatz, Protokolle, Tagesabschluss und Rundenlebenszyklus | `identity`, `integrations`, `notifications`, `persistence` |
-| `assessment/` | individuelle Bewertungen und festgestellte Ergebnisse | `execution`, `identity`, `persistence` |
+| `assessment/` | individuelle Bewertungen und festgestellte Ergebnisse über eigene Use Cases und Ports | keine anderen Kernpakete |
 | `identity/` | Authentisierung, Autorisierung, Mitgliedschaften und lokale Betreiberidentität | keine anderen Kernpakete |
 | `integrations/` | Kalender (Übergangspfad), Dokumentablage, Feiertage, Kartenanbieter und künftige externe Adapter | `identity`, `notifications`, `persistence` |
 | `notifications/` | Benachrichtigungsregeln, Zustellpolicy sowie Provider- und Persistenzports | keine anderen Kernpakete |

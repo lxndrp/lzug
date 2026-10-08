@@ -609,7 +609,9 @@ class ResultQueryPort(Protocol):
 
     def result_by_id(self, result_id: int) -> AssessmentResultSnapshot | None: ...
 
-    def result_by_slot(self, slot_id: int) -> AssessmentResultSnapshot | None: ...
+    def result_by_slot(
+        self, slot_id: int, day_id: int | None = None
+    ) -> AssessmentResultSnapshot | None: ...
 
     def result_for_round_candidate(
         self, round_candidate_id: int

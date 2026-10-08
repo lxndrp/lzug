@@ -385,6 +385,41 @@ class ExamResultTests(unittest.TestCase):
         assert_status(status, HTTPStatus.OK)
         return result
 
+    def test_slot_result_rejects_slot_from_another_day_of_same_candidate(self) -> None:
+        with ApiServer(self.db_path) as api:
+            self.prepare_result(api)
+            with session_scope(self.db_path) as session:
+                other_day = ExamDay(
+                    exam_round_id=1,
+                    room_id=1,
+                    date="2026-11-17",
+                    status="confirmed",
+                    lunch_break_enabled=1,
+                    created_from_proposal=1,
+                )
+                session.add(other_day)
+                session.flush()
+                session.add(
+                    ExamSlot(
+                        exam_day_id=other_day.id,
+                        round_candidate_id=1,
+                        slot_type="mep",
+                        starts_at="2026-11-17T09:00:00+01:00",
+                        ends_at="2026-11-17T10:00:00+01:00",
+                        sequence_number=1,
+                        status="confirmed",
+                    )
+                )
+                other_day_id = other_day.id
+
+            status, _ = api.request(
+                "GET",
+                f"/api/confirmed-plan-days/{other_day_id}/slots/{self.slot_id}/result",
+                credentials=self.chair,
+            )
+
+        assert_status(status, HTTPStatus.NOT_FOUND)
+
     def test_parallel_retention_changes_claim_one_result_version_atomically(self) -> None:
         with ApiServer(self.db_path) as api:
             result = self.prepare_result(api)

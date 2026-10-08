@@ -205,18 +205,21 @@ class ExamResultService:
         slot_id: int,
         day_id: int | None = None,
     ) -> dict[str, Any] | None:
-        with self._unit_of_work_factory(write=True) as work:
-            result = work.queries.result_by_slot(slot_id)
-            if result is None or (
-                day_id is not None and day_id not in {d["day_id"] for d in result["days"]}
-            ):
-                return None
-            result = self._ensure_calculation(work, result)
-            return self._project_and_materialize(work, result, actor)
+        return self._read_result(actor, lambda queries: queries.result_by_slot(slot_id, day_id))
 
     def get(self, actor: AssessmentActorSnapshot, result_id: int) -> dict[str, Any] | None:
+        return self._read_result(actor, lambda queries: queries.result_by_id(result_id))
+
+    def _read_result(self, actor, lookup):
+        with self._unit_of_work_factory(write=False) as work:
+            result = lookup(work.queries)
+            if result is None:
+                return None
+            if self._calculation_command(result) is None:
+                return self._project_and_materialize(work, result, actor)
+
         with self._unit_of_work_factory(write=True) as work:
-            result = work.queries.result_by_id(result_id)
+            result = lookup(work.queries)
             if result is None:
                 return None
             result = self._ensure_calculation(work, result)
@@ -1440,7 +1443,7 @@ class ExamResultService:
             return value
         return value.quantize(Decimal(1).scaleb(-int(rule["digits"])), rounding=ROUND_HALF_UP)
 
-    def _ensure_calculation(self, work, result: AssessmentResultSnapshot):
+    def _calculation_command(self, result: AssessmentResultSnapshot) -> CalculationCommand | None:
         rules = result["model"]["rules"]
         inputs = []
         scores = {}
@@ -1448,7 +1451,7 @@ class ExamResultService:
         for component in rules["components"]:
             score = self._component_score(result, component, strict=True)
             if score is None:
-                return result
+                return None
             weighted_total += score * Decimal(str(component["weight"])) / Decimal(100)
             scores[component["key"]] = score
             inputs.append(
@@ -1469,7 +1472,7 @@ class ExamResultService:
                 None,
             )
             if area["required"] and (external is None or external["status"] != "confirmed"):
-                return result
+                return None
             if external is None or external["status"] != "confirmed":
                 continue
             score = Decimal(external["points"])
@@ -1516,7 +1519,7 @@ class ExamResultService:
             json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
         ).hexdigest()
         if any(x["input_fingerprint"] == fingerprint for x in result["calculations"]):
-            return result
+            return None
         command: CalculationCommand = {
             "result_id": result["id"],
             "expected_result_version": result["version"],
@@ -1533,6 +1536,12 @@ class ExamResultService:
             "path": path,
             "created_at": _now(),
         }
+        return command
+
+    def _ensure_calculation(self, work, result: AssessmentResultSnapshot):
+        command = self._calculation_command(result)
+        if command is None:
+            return result
         work.repository.save_calculation(command)
         updated = work.queries.result_by_id(result["id"])
         return updated or result
