@@ -6,6 +6,9 @@ import ast
 import unittest
 from pathlib import Path
 
+from backend.execution.protocol_ports import ProtocolReferencesSnapshot
+from backend.execution.slot_ports import DayMutationRequest
+
 BACKEND_ROOT = Path(__file__).resolve().parents[1] / "src" / "backend"
 TEST_ROOT = Path(__file__).resolve().parent
 
@@ -364,6 +367,23 @@ class BackendPackageBoundaryTests(unittest.TestCase):
                 forbidden & imports,
                 f"{relative} imports transport, presentation, or persistence details",
             )
+
+    def test_execution_day_guard_and_protocol_export_use_named_typed_contracts(self) -> None:
+        self.assertNotIn("payload", DayMutationRequest.__annotations__)
+        self.assertIn("expected_day_revision", DayMutationRequest.__annotations__)
+        self.assertEqual(
+            {
+                "candidate",
+                "round",
+                "day",
+                "slot",
+                "candidate_attendance",
+                "location",
+                "participants",
+                "assessment",
+            },
+            set(ProtocolReferencesSnapshot.__annotations__),
+        )
 
     def test_committee_identity_use_case_has_no_transitive_transport_or_persistence_imports(
         self,

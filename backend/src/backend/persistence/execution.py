@@ -39,6 +39,7 @@ if TYPE_CHECKING:
         ProtocolCorrectionOpenWrite,
         ProtocolCorrectionRequestWrite,
         ProtocolDaySnapshot,
+        ProtocolReferencesSnapshot,
         ProtocolResponseWrite,
         ProtocolRetentionWrite,
         ProtocolRevisionWrite,
@@ -47,6 +48,7 @@ if TYPE_CHECKING:
     from backend.execution.slot_ports import (
         AssignmentSnapshot,
         AttendanceSnapshot,
+        AttendanceValues,
         DayExecutionSnapshot,
         DayMutationHandle,
         DayMutationRequest,
@@ -156,7 +158,7 @@ class SQLiteExecutionUnitOfWork:
     def protocol_by_slot(self, slot_id: int) -> ExecutionProtocolSnapshot | None:
         return self._protocols.protocol_by_slot(slot_id)
 
-    def protocol_references(self, protocol_id: int) -> Mapping[str, object]:
+    def protocol_references(self, protocol_id: int) -> ProtocolReferencesSnapshot:
         return self._protocols.protocol_references(protocol_id)
 
     def protocol_day_snapshot(self, day_id: int) -> ProtocolDaySnapshot | None:
@@ -213,7 +215,7 @@ class SQLiteExecutionUnitOfWork:
             day=self._required_day(request["day_id"]),
             kind=request["kind"],
             entity_id=request["entity_id"],
-            payload=dict(request["payload"]),
+            expected_day_revision=request["expected_day_revision"],
             actor_member_id=request["actor_member_id"],
             protocol_revision_id=request["protocol_revision_id"],
         )
@@ -251,7 +253,7 @@ class SQLiteExecutionUnitOfWork:
         slot_id: int,
         *,
         actor_member_id: int,
-        payload: Mapping[str, object],
+        expected_day_revision: object | None,
     ) -> None:
         self.confirmed_slot(day_id, slot_id)
         guard_day_mutation(
@@ -259,7 +261,7 @@ class SQLiteExecutionUnitOfWork:
             day=self._required_day(day_id),
             kind="slot_status",
             entity_id=slot_id,
-            payload=dict(payload),
+            expected_day_revision=expected_day_revision,
             actor_member_id=actor_member_id,
         )
 
@@ -310,10 +312,10 @@ class SQLiteExecutionUnitOfWork:
         self,
         day_id: int,
         slot_id: int,
-        values: Mapping[str, object],
+        values: AttendanceValues,
         *,
         actor_member_id: int,
-        payload: Mapping[str, object],
+        expected_day_revision: object | None,
     ) -> AttendanceSnapshot:
         existing = self.candidate_attendance(slot_id)
         guard = self.guard_day_mutation(
@@ -321,7 +323,7 @@ class SQLiteExecutionUnitOfWork:
                 "day_id": day_id,
                 "kind": "candidate_attendance",
                 "entity_id": slot_id,
-                "payload": payload,
+                "expected_day_revision": expected_day_revision,
                 "actor_member_id": actor_member_id,
                 "protocol_revision_id": None,
             }
@@ -340,10 +342,10 @@ class SQLiteExecutionUnitOfWork:
         day_id: int,
         assignment_id: int,
         member_id: int,
-        values: Mapping[str, object],
+        values: AttendanceValues,
         *,
         actor_member_id: int,
-        payload: Mapping[str, object],
+        expected_day_revision: object | None,
     ) -> AttendanceSnapshot:
         assignment = self._store.get(EXAM_DAY_ASSIGNMENT, assignment_id)
         if assignment is None or assignment["exam_day_id"] != day_id:
@@ -368,7 +370,7 @@ class SQLiteExecutionUnitOfWork:
                 "day_id": day_id,
                 "kind": "member_attendance",
                 "entity_id": assignment_id,
-                "payload": payload,
+                "expected_day_revision": expected_day_revision,
                 "actor_member_id": actor_member_id,
                 "protocol_revision_id": None,
             }
@@ -391,7 +393,7 @@ class SQLiteExecutionUnitOfWork:
         started_at: str,
         participant_member_ids: frozenset[int],
         actor_member_id: int,
-        payload: Mapping[str, object],
+        expected_day_revision: object | None,
     ) -> SlotSnapshot:
         slot = self.confirmed_slot(day_id, slot_id)
         guard = self.guard_day_mutation(
@@ -399,7 +401,7 @@ class SQLiteExecutionUnitOfWork:
                 "day_id": day_id,
                 "kind": "slot_status",
                 "entity_id": slot_id,
-                "payload": payload,
+                "expected_day_revision": expected_day_revision,
                 "actor_member_id": actor_member_id,
                 "protocol_revision_id": None,
             }
@@ -456,7 +458,7 @@ class SQLiteExecutionUnitOfWork:
         actual_started_at: str | None,
         actual_completed_at: str | None,
         actor_member_id: int,
-        payload: Mapping[str, object],
+        expected_day_revision: object | None,
     ) -> SlotSnapshot:
         slot = self.confirmed_slot(day_id, slot_id)
         guard = self.guard_day_mutation(
@@ -464,7 +466,7 @@ class SQLiteExecutionUnitOfWork:
                 "day_id": day_id,
                 "kind": "slot_status",
                 "entity_id": slot_id,
-                "payload": payload,
+                "expected_day_revision": expected_day_revision,
                 "actor_member_id": actor_member_id,
                 "protocol_revision_id": None,
             }

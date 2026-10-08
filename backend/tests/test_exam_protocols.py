@@ -630,7 +630,7 @@ class ExecutionPortTests(unittest.TestCase):
         result = self.service.start_slot(
             self.day_id,
             self.slot_id,
-            {"day_revision": 1},
+            {"expected_day_revision": 1},
             actor_member_id=1,
         )
         self.assertEqual("running", result["execution_status"])
@@ -663,7 +663,7 @@ class ExecutionPortTests(unittest.TestCase):
             self.service.start_slot(
                 self.day_id,
                 self.slot_id,
-                {"day_revision": 1},
+                {"expected_day_revision": 1},
                 actor_member_id=1,
             )
         with session_scope(self.db_path) as session:
@@ -684,7 +684,7 @@ class ExecutionPortTests(unittest.TestCase):
                 self.service.start_slot(
                     self.day_id,
                     self.slot_id,
-                    {"day_revision": 1},
+                    {"expected_day_revision": 1},
                     actor_member_id=1,
                 )
         with session_scope(self.db_path) as session:
@@ -708,7 +708,7 @@ class ExecutionPortTests(unittest.TestCase):
                     self.service.start_slot(
                         self.day_id,
                         self.slot_id,
-                        {"day_revision": 1},
+                        {"expected_day_revision": 1},
                         actor_member_id=1,
                     )
                 )
@@ -756,7 +756,7 @@ class ExecutionPortTests(unittest.TestCase):
             "day_id": self.day_id,
             "kind": "slot_status",
             "entity_id": self.slot_id,
-            "payload": {"day_revision": 1},
+            "expected_day_revision": 1,
             "actor_member_id": 1,
             "protocol_revision_id": None,
         }
@@ -772,7 +772,7 @@ class ExecutionPortTests(unittest.TestCase):
             "day_id": self.day_id,
             "kind": "slot_status",
             "entity_id": self.slot_id,
-            "payload": {"day_revision": 0},
+            "expected_day_revision": 0,
             "actor_member_id": 1,
             "protocol_revision_id": None,
         }
@@ -790,7 +790,7 @@ class ExecutionPortTests(unittest.TestCase):
             "day_id": self.day_id,
             "kind": "slot_status",
             "entity_id": self.slot_id,
-            "payload": {"day_revision": 1},
+            "expected_day_revision": 1,
             "actor_member_id": 1,
             "protocol_revision_id": None,
         }

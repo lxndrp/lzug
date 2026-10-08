@@ -237,8 +237,11 @@ Servicebefehle die autoritative Grenze für Zustandsübergänge.
 `ExamProtocolService` verwaltet Protokollinhalt, Teilnehmende, Versionierung,
 Reaktionen, Korrekturen, Berechtigungen und Aufbewahrung über den
 Execution-eigenen `ExecutionProtocolUnitOfWork`.
+Die HTTP-Kante bildet Requests auf benannte Befehle ab; Tagesmutations-Ports
+erhalten nur die erwartete Tagesrevision und keine beliebigen Requestfelder.
 Der SQLite-Adapter materialisiert typisierte Snapshots und führt die
 Mutationen innerhalb derselben Transaktion aus.
+Protokollreferenzen für Exporte sind ein benannter, verschachtelter Snapshot.
 Der Service und seine Ports importieren weder ORM noch HTTP oder Presentation;
 die FastAPI-Kante übergibt den autorisierten Export-Snapshot an den
 Presentation-Renderer.

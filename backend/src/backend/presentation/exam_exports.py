@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Any, TypedDict
+from typing import TYPE_CHECKING, Any, TypedDict
+
+if TYPE_CHECKING:
+    from backend.execution.protocol_ports import ProtocolReferencesSnapshot
 
 
 class ResultExportPresentation(TypedDict):
@@ -28,15 +31,6 @@ class ProtocolExportPresentation(TypedDict):
     closing_ready: bool
     current_revision: dict[str, Any]
     open_correction: bool
-
-
-class ProtocolReferencesPresentation(TypedDict):
-    """The explicit protocol references needed by the human renderer."""
-
-    candidate: dict[str, Any]
-    slot: dict[str, Any]
-    location: dict[str, Any]
-    participants: list[dict[str, Any]]
 
 
 class DayClosurePresentation(TypedDict):
@@ -143,7 +137,7 @@ def render_result_export(result: ResultExportPresentation) -> str:
 
 def render_protocol_export(
     protocol: ProtocolExportPresentation,
-    references: ProtocolReferencesPresentation,
+    references: ProtocolReferencesSnapshot,
 ) -> str:
     """Render a protocol without accessing or mutating persistence."""
     current = protocol["current_revision"]

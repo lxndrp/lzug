@@ -34,6 +34,11 @@ Fachvertrag.
 `ExamProtocolService` verwaltet Inhalt, Teilnehmende, Versionierung,
 Reaktionen, Korrekturen, Berechtigungen und Aufbewahrung über einen
 Execution-eigenen Port und materialisierte Snapshots.
+Die FastAPI-Kante bildet Requestmodelle auf benannte Commands ab.
+Execution- und Tagesmutations-Ports erhalten die erlaubten Fachfelder sowie
+die erwartete Tagesrevision, nie das freie Requestmapping.
+Protokoll-Exports verwenden einen strukturierten
+`ProtocolReferencesSnapshot`.
 Der SQLite-Adapter führt diese Operationen im selben UoW wie die zugehörigen
 Tagesmutationen aus.
 Die API-Kante rendert autorisierte Export-Snapshots über Presentation.

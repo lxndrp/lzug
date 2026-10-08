@@ -2,11 +2,113 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from contextlib import AbstractContextManager
-from typing import Protocol, TypedDict
+from typing import NotRequired, Protocol, TypedDict
 
 from backend.execution.slot_ports import DayMutationHandle, DayMutationRequest
+
+
+class ProtocolContentCommand(TypedDict):
+    version: object
+    declaration: object
+    entries: NotRequired[object]
+    change_reason: NotRequired[object]
+    expected_day_revision: NotRequired[object | None]
+
+
+class ProtocolVersionCommand(TypedDict):
+    version: object
+    expected_day_revision: NotRequired[object | None]
+
+
+class ProtocolResponseCommand(ProtocolVersionCommand):
+    response: object
+    entry_id: NotRequired[object | None]
+    statement: NotRequired[object | None]
+
+
+class ProtocolCorrectionRequestCommand(ProtocolVersionCommand):
+    reason: object
+
+
+class ProtocolCorrectionOpenCommand(ProtocolVersionCommand):
+    correction_request_id: object
+    reason: object
+    reopening_reference: NotRequired[object | None]
+
+
+class ProtocolRetentionCommand(TypedDict):
+    rule_reference: object
+    retain_until: NotRequired[object | None]
+    legal_hold: NotRequired[object]
+    hold_reason: NotRequired[object | None]
+    release_reason: NotRequired[object | None]
+
+
+class ProtocolReferenceAttendanceSnapshot(TypedDict):
+    status: str
+    arrived_at: str | None
+
+
+class ProtocolCandidateReferenceSnapshot(TypedDict):
+    id: int
+    first_name: str
+    last_name: str
+    ihk_exam_number: str | None
+
+
+class ProtocolRoundReferenceSnapshot(TypedDict):
+    id: int
+    name: str
+
+
+class ProtocolDayReferenceSnapshot(TypedDict):
+    id: int
+    date: str
+
+
+class ProtocolSlotReferenceSnapshot(TypedDict):
+    id: int
+    slot_type: str
+    starts_at: str
+    ends_at: str
+    actual_started_at: str | None
+    actual_completed_at: str | None
+    execution_status: str
+
+
+class ProtocolVenueReferenceSnapshot(TypedDict):
+    id: int | None
+    name: str
+    room: str
+    city: str
+
+
+class ProtocolParticipantReferenceSnapshot(TypedDict):
+    committee_member_id: int
+    first_name: str
+    last_name: str
+    representing_side: str
+    attendance: ProtocolReferenceAttendanceSnapshot
+
+
+class ProtocolAssessmentReferenceSnapshot(TypedDict):
+    available: bool
+    exam_result_id: int | None
+    state: str
+    legacy_status: str | None
+
+
+class ProtocolReferencesSnapshot(TypedDict):
+    candidate: ProtocolCandidateReferenceSnapshot
+    round: ProtocolRoundReferenceSnapshot
+    day: ProtocolDayReferenceSnapshot
+    slot: ProtocolSlotReferenceSnapshot
+    candidate_attendance: ProtocolReferenceAttendanceSnapshot
+    location: ProtocolVenueReferenceSnapshot
+    participants: Sequence[ProtocolParticipantReferenceSnapshot]
+    assessment: ProtocolAssessmentReferenceSnapshot
 
 
 class ProtocolEntryDraft(TypedDict):
@@ -167,7 +269,7 @@ class ExecutionProtocolUnitOfWork(Protocol):
 
     def protocol_by_slot(self, slot_id: int) -> ExecutionProtocolSnapshot | None: ...
 
-    def protocol_references(self, protocol_id: int) -> Mapping[str, object]: ...
+    def protocol_references(self, protocol_id: int) -> ProtocolReferencesSnapshot: ...
 
     def protocol_day_snapshot(self, day_id: int) -> ProtocolDaySnapshot | None: ...
 

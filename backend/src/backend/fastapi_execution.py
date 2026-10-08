@@ -7,6 +7,15 @@ from fastapi.responses import Response
 
 from backend.application import hateoas
 from backend.application.transport import RequestContext
+from backend.execution.protocol_ports import (
+    ProtocolContentCommand,
+    ProtocolCorrectionOpenCommand,
+    ProtocolCorrectionRequestCommand,
+    ProtocolResponseCommand,
+    ProtocolRetentionCommand,
+    ProtocolVersionCommand,
+)
+from backend.execution.slot_ports import AttendanceCommand, SlotStartCommand, SlotStatusCommand
 from backend.persistence.models import EXAM_DAY, EXAM_DAY_ASSIGNMENT, EXAM_SLOT
 from backend.presentation.exam_exports import render_protocol_export
 
@@ -29,20 +38,61 @@ _OPTIONAL_OBJECT_BODY = Body(default_factory=DomainResourceWrite)
 
 def _protocol_action(context: RequestContext, protocol_id: int, action: str, payload: dict) -> dict:
     service = context.exam_protocol_service
+    version = _protocol_version_command(payload)
     actions = {
         "content": lambda: service.update_content(
-            context.authorization_scope, protocol_id, payload
+            context.authorization_scope,
+            protocol_id,
+            ProtocolContentCommand(
+                version=version["version"],
+                expected_day_revision=version["expected_day_revision"],
+                declaration=payload.get("declaration"),
+                entries=payload.get("entries", []),
+                change_reason=payload.get("change_reason"),
+            ),
         ),
-        "submit": lambda: service.submit(context.authorization_scope, protocol_id, payload),
-        "responses": lambda: service.respond(context.authorization_scope, protocol_id, payload),
+        "submit": lambda: service.submit(context.authorization_scope, protocol_id, version),
+        "responses": lambda: service.respond(
+            context.authorization_scope,
+            protocol_id,
+            ProtocolResponseCommand(
+                version=version["version"],
+                expected_day_revision=version["expected_day_revision"],
+                response=payload.get("response"),
+                entry_id=payload.get("entry_id"),
+                statement=payload.get("statement"),
+            ),
+        ),
         "correction-requests": lambda: service.request_correction(
-            context.authorization_scope, protocol_id, payload
+            context.authorization_scope,
+            protocol_id,
+            ProtocolCorrectionRequestCommand(
+                version=version["version"],
+                expected_day_revision=version["expected_day_revision"],
+                reason=payload.get("reason"),
+            ),
         ),
         "open-correction": lambda: service.open_correction(
-            context.authorization_scope, protocol_id, payload
+            context.authorization_scope,
+            protocol_id,
+            ProtocolCorrectionOpenCommand(
+                version=version["version"],
+                expected_day_revision=version["expected_day_revision"],
+                correction_request_id=payload.get("correction_request_id"),
+                reason=payload.get("reason"),
+                reopening_reference=payload.get("reopening_reference"),
+            ),
         ),
         "retention": lambda: service.set_retention(
-            context.authorization_scope, protocol_id, payload
+            context.authorization_scope,
+            protocol_id,
+            ProtocolRetentionCommand(
+                rule_reference=payload.get("rule_reference"),
+                retain_until=payload.get("retain_until"),
+                legal_hold=payload.get("legal_hold", False),
+                hold_reason=payload.get("hold_reason"),
+                release_reason=payload.get("release_reason"),
+            ),
         ),
     }
     try:
@@ -60,6 +110,44 @@ def _protocol_write(
 ):
     result = _protocol_action(context, protocol_id, action, payload)
     return finish(context, context.respond(result))
+
+
+def _protocol_version_command(payload: dict) -> ProtocolVersionCommand:
+    return {
+        "version": payload.get("version"),
+        "expected_day_revision": payload.get("day_revision"),
+    }
+
+
+def _attendance_command(payload: ExamAttendanceUpdateRequest) -> AttendanceCommand:
+    data = payload.model_dump(exclude_unset=True)
+    command: AttendanceCommand = {
+        "status": data.get("status"),
+        "expected_day_revision": data.get("day_revision"),
+    }
+    if "arrived_at" in data:
+        command["arrived_at"] = data["arrived_at"]
+    return command
+
+
+def _slot_start_command(payload: ExamSlotStartRequest) -> SlotStartCommand:
+    data = payload.model_dump(exclude_unset=True)
+    command: SlotStartCommand = {"expected_day_revision": data.get("day_revision")}
+    if "actual_started_at" in data:
+        command["actual_started_at"] = data["actual_started_at"]
+    return command
+
+
+def _slot_status_command(payload: ExamSlotStatusUpdateRequest) -> SlotStatusCommand:
+    data = payload.model_dump(exclude_unset=True)
+    command: SlotStatusCommand = {
+        "status": data.get("status"),
+        "expected_day_revision": data.get("day_revision"),
+    }
+    for field in ("reason", "actual_started_at", "actual_completed_at"):
+        if field in data:
+            command[field] = data[field]
+    return command
 
 
 def _confirmed_day(context: RequestContext, day_id: int, *, finish, not_found):
@@ -91,7 +179,7 @@ def _add_slot_start_route(router, *, finish, not_found, write_security):
         context.execution_service.start_slot(
             day_id,
             slot_id,
-            payload_data(context, payload),
+            _slot_start_command(payload),
             actor_member_id=actor_member_id,
         )
         return _confirmed_day(context, day_id, finish=finish, not_found=not_found)
@@ -252,18 +340,18 @@ def _add_attendance_routes(router, *, finish, not_found, write_security):
             assignment = context.repository.get(EXAM_DAY_ASSIGNMENT, entity_id)
             member_id = assignment.get("committee_member_id") if assignment else None
         context.require_day_access(day_id, manage=kind == "slots", member_id=member_id)
-        data = payload_data(context, payload)
+        command = _attendance_command(payload)
         committee_id = context.repository.committee_id_for_resource(EXAM_DAY, day_id)
         actor_member_id = context.authorization_scope.member_for_committee(committee_id)
         if actor_member_id is None:
             raise ForbiddenRequestError("Forbidden.")
         if kind == "slots":
             context.execution_service.save_candidate_attendance(
-                day_id, entity_id, data, actor_member_id=actor_member_id
+                day_id, entity_id, command, actor_member_id=actor_member_id
             )
         else:
             context.execution_service.save_member_attendance(
-                day_id, entity_id, data, actor_member_id=actor_member_id
+                day_id, entity_id, command, actor_member_id=actor_member_id
             )
         return _confirmed_day(context, day_id, finish=finish, not_found=not_found)
 
@@ -304,7 +392,7 @@ def _add_slot_status_route(router, *, finish, not_found, write_security):
         payload: ExamSlotStatusUpdateRequest,
     ):
         context.require_day_access(day_id, manage=True)
-        data = payload_data(context, payload)
+        command = _slot_status_command(payload)
         committee_id = context.repository.committee_id_for_resource(EXAM_DAY, day_id)
         actor_member_id = context.authorization_scope.member_for_committee(committee_id)
         if actor_member_id is None:
@@ -312,7 +400,7 @@ def _add_slot_status_route(router, *, finish, not_found, write_security):
         context.execution_service.update_slot_status(
             day_id,
             slot_id,
-            data,
+            command,
             actor_member_id=actor_member_id,
         )
         day_record = context.repository.get(EXAM_DAY, day_id)

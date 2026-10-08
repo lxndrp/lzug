@@ -4,11 +4,15 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 
 from backend.execution.slot_ports import (
+    AttendanceCommand,
+    AttendanceValues,
     ExecutionUnitOfWorkFactory,
     SlotSnapshot,
+    SlotStartCommand,
+    SlotStatusCommand,
 )
 
 ATTENDANCE_VALUES = frozenset({"open", "present", "late", "absent"})
@@ -39,16 +43,18 @@ class ExecutionService:
         self,
         day_id: int,
         slot_id: int,
-        payload: Mapping[str, Any],
+        command: AttendanceCommand,
         *,
         actor_member_id: int,
     ) -> dict[str, Any]:
         with self._unit_of_work_factory(write=True) as work:
             work.confirmed_slot(day_id, slot_id)
             existing = work.candidate_attendance(slot_id)
-            values = self._attendance_values(payload, existing)
-            if existing is not None and all(
-                existing[key] == value for key, value in values.items()
+            values = self._attendance_values(command, existing)
+            if (
+                existing is not None
+                and existing["status"] == values["status"]
+                and existing["arrived_at"] == values["arrived_at"]
             ):
                 return dict(existing)
             return dict(
@@ -57,7 +63,7 @@ class ExecutionService:
                     slot_id,
                     values,
                     actor_member_id=actor_member_id,
-                    payload=payload,
+                    expected_day_revision=command.get("expected_day_revision"),
                 )
             )
 
@@ -65,7 +71,7 @@ class ExecutionService:
         self,
         day_id: int,
         assignment_id: int,
-        payload: Mapping[str, Any],
+        command: AttendanceCommand,
         *,
         actor_member_id: int,
     ) -> dict[str, Any]:
@@ -73,9 +79,11 @@ class ExecutionService:
             assignment = work.confirmed_assignment(day_id, assignment_id)
             member_id = assignment["committee_member_id"]
             existing = work.member_attendance(day_id, member_id)
-            values = self._attendance_values(payload, existing)
-            if existing is not None and all(
-                existing[key] == value for key, value in values.items()
+            values = self._attendance_values(command, existing)
+            if (
+                existing is not None
+                and existing["status"] == values["status"]
+                and existing["arrived_at"] == values["arrived_at"]
             ):
                 return dict(existing)
             return dict(
@@ -85,7 +93,7 @@ class ExecutionService:
                     member_id,
                     values,
                     actor_member_id=actor_member_id,
-                    payload=payload,
+                    expected_day_revision=command.get("expected_day_revision"),
                 )
             )
 
@@ -93,7 +101,7 @@ class ExecutionService:
         self,
         day_id: int,
         slot_id: int,
-        payload: Mapping[str, Any],
+        command: SlotStartCommand,
         *,
         actor_member_id: int,
     ) -> dict[str, Any]:
@@ -131,7 +139,7 @@ class ExecutionService:
                     "Vertreterseiten sind erforderlich"
                 )
 
-            requested = payload.get("actual_started_at")
+            requested = command.get("actual_started_at")
             started_at = slot["actual_started_at"]
             if started_at is not None:
                 if slot["execution_status"] != "running":
@@ -156,7 +164,7 @@ class ExecutionService:
                     started_at=requested,
                     participant_member_ids=participant_ids,
                     actor_member_id=actor_member_id,
-                    payload=payload,
+                    expected_day_revision=command.get("expected_day_revision"),
                 )
             )
 
@@ -164,23 +172,27 @@ class ExecutionService:
         self,
         day_id: int,
         slot_id: int,
-        payload: Mapping[str, Any],
+        command: SlotStatusCommand,
         *,
         actor_member_id: int,
     ) -> dict[str, Any]:
         with self._unit_of_work_factory(write=True) as work:
             slot = work.confirmed_slot(day_id, slot_id)
             correction_mode = work.day_execution_state(day_id)["closure_status"] == "reopening"
-            target_status = payload.get("status")
-            if target_status not in EXECUTION_STATUS_VALUES:
+            target_status = command.get("status")
+            if not isinstance(target_status, str) or target_status not in EXECUTION_STATUS_VALUES:
                 raise ValueError("Unbekannter Durchführungsstatus")
-            reason = self._slot_status_reason(slot, payload, target_status)
+            reason = self._slot_status_reason(slot, command, target_status)
             changed_at = self._clock()
             actual_started_at = slot["actual_started_at"]
             actual_completed_at = slot["actual_completed_at"]
             if correction_mode:
-                actual_started_at = payload.get("actual_started_at", actual_started_at)
-                actual_completed_at = payload.get("actual_completed_at", actual_completed_at)
+                actual_started_at = cast(
+                    str | None, command.get("actual_started_at", actual_started_at)
+                )
+                actual_completed_at = cast(
+                    str | None, command.get("actual_completed_at", actual_completed_at)
+                )
                 self._validate_corrected_slot_facts(
                     target_status, actual_started_at, actual_completed_at
                 )
@@ -198,7 +210,7 @@ class ExecutionService:
                 day_id,
                 slot_id,
                 actor_member_id=actor_member_id,
-                payload=payload,
+                expected_day_revision=command.get("expected_day_revision"),
             )
             self._validate_slot_status_transition(slot, target_status, correction_mode)
             return dict(
@@ -211,23 +223,23 @@ class ExecutionService:
                     actual_started_at=actual_started_at,
                     actual_completed_at=actual_completed_at,
                     actor_member_id=actor_member_id,
-                    payload=payload,
+                    expected_day_revision=command.get("expected_day_revision"),
                 )
             )
 
     @staticmethod
     def _attendance_values(
-        payload: Mapping[str, Any], existing: Mapping[str, Any] | None
-    ) -> dict[str, object]:
-        status = payload.get("status")
-        if status not in ATTENDANCE_VALUES:
+        command: AttendanceCommand, existing: Mapping[str, Any] | None
+    ) -> AttendanceValues:
+        status = command.get("status")
+        if not isinstance(status, str) or status not in ATTENDANCE_VALUES:
             raise ValueError("Unbekannter Anwesenheitsstatus")
-        arrived_at = payload.get("arrived_at", existing.get("arrived_at") if existing else None)
+        arrived_at = command.get("arrived_at", existing.get("arrived_at") if existing else None)
         if status in {"open", "absent"}:
             arrived_at = None
         elif status == "late" and (not isinstance(arrived_at, str) or not arrived_at.strip()):
             raise ValueError("Für verspätete Personen ist die Ankunftszeit erforderlich")
-        return {"status": status, "arrived_at": arrived_at}
+        return {"status": status, "arrived_at": cast(str | None, arrived_at)}
 
     @staticmethod
     def _validate_startable_slot(slot: SlotSnapshot) -> None:
@@ -240,11 +252,11 @@ class ExecutionService:
 
     @staticmethod
     def _slot_status_reason(
-        slot: SlotSnapshot, payload: Mapping[str, Any], target_status: str
+        slot: SlotSnapshot, command: SlotStatusCommand, target_status: str
     ) -> str | None:
         if target_status not in {"cancelled", "needs_follow_up"}:
             return slot["status_reason"]
-        reason = payload.get("reason")
+        reason = command.get("reason")
         if not isinstance(reason, str) or not reason.strip():
             raise ValueError(
                 "Für einen Ausfall oder eine Nachbereitung ist eine Begründung erforderlich"

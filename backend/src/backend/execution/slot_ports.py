@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from contextlib import AbstractContextManager
-from typing import Protocol, TypedDict
+from typing import NotRequired, Protocol, TypedDict
 
 
 class SlotSnapshot(TypedDict):
@@ -52,9 +52,33 @@ class DayMutationRequest(TypedDict):
     day_id: int
     kind: str
     entity_id: int
-    payload: Mapping[str, object]
+    expected_day_revision: object | None
     actor_member_id: int | None
     protocol_revision_id: int | None
+
+
+class AttendanceCommand(TypedDict):
+    status: object
+    arrived_at: NotRequired[object | None]
+    expected_day_revision: NotRequired[object | None]
+
+
+class SlotStartCommand(TypedDict):
+    actual_started_at: NotRequired[object | None]
+    expected_day_revision: NotRequired[object | None]
+
+
+class SlotStatusCommand(TypedDict):
+    status: object
+    reason: NotRequired[object | None]
+    actual_started_at: NotRequired[object | None]
+    actual_completed_at: NotRequired[object | None]
+    expected_day_revision: NotRequired[object | None]
+
+
+class AttendanceValues(TypedDict):
+    status: str
+    arrived_at: str | None
 
 
 class ExecutionIdentitySnapshots(Protocol):
@@ -87,7 +111,7 @@ class ExecutionUnitOfWork(Protocol):
         slot_id: int,
         *,
         actor_member_id: int,
-        payload: Mapping[str, object],
+        expected_day_revision: object | None,
     ) -> None: ...
 
     def candidate_attendance(self, slot_id: int) -> AttendanceSnapshot | None: ...
@@ -104,10 +128,10 @@ class ExecutionUnitOfWork(Protocol):
         self,
         day_id: int,
         slot_id: int,
-        values: Mapping[str, object],
+        values: AttendanceValues,
         *,
         actor_member_id: int,
-        payload: Mapping[str, object],
+        expected_day_revision: object | None,
     ) -> AttendanceSnapshot: ...
 
     def save_member_attendance(
@@ -115,10 +139,10 @@ class ExecutionUnitOfWork(Protocol):
         day_id: int,
         assignment_id: int,
         member_id: int,
-        values: Mapping[str, object],
+        values: AttendanceValues,
         *,
         actor_member_id: int,
-        payload: Mapping[str, object],
+        expected_day_revision: object | None,
     ) -> AttendanceSnapshot: ...
 
     def start_slot(
@@ -129,7 +153,7 @@ class ExecutionUnitOfWork(Protocol):
         started_at: str,
         participant_member_ids: frozenset[int],
         actor_member_id: int,
-        payload: Mapping[str, object],
+        expected_day_revision: object | None,
     ) -> SlotSnapshot: ...
 
     def ensure_started_protocol(
@@ -152,7 +176,7 @@ class ExecutionUnitOfWork(Protocol):
         actual_started_at: str | None,
         actual_completed_at: str | None,
         actor_member_id: int,
-        payload: Mapping[str, object],
+        expected_day_revision: object | None,
     ) -> SlotSnapshot: ...
 
 

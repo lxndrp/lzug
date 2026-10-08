@@ -70,13 +70,16 @@ def guard_day_mutation(
     day: ExamDay,
     kind: str,
     entity_id: int,
-    payload: dict[str, Any],
+    payload: dict[str, Any] | None = None,
+    expected_day_revision: object | None = None,
     actor_member_id: int | None,
     protocol_revision_id: int | None = None,
 ) -> DayMutationGuard:
     """Check revision, closure, and reopening rules in the caller's transaction."""
     token = _domain_mutation_token(kind, entity_id)
-    supplied = _supplied_day_revision(payload, day.id)
+    supplied = (
+        _supplied_day_revision(payload, day.id) if payload is not None else expected_day_revision
+    )
     if day.closure_status == "open":
         return _guard_open_day_mutation(day, token, supplied)
 

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any
 
@@ -10,8 +9,15 @@ from backend.execution.protocol_ports import (
     ExecutionProtocolSnapshot,
     ExecutionProtocolUnitOfWork,
     ExecutionProtocolUnitOfWorkFactory,
+    ProtocolContentCommand,
+    ProtocolCorrectionOpenCommand,
+    ProtocolCorrectionRequestCommand,
     ProtocolEntryDraft,
+    ProtocolReferencesSnapshot,
+    ProtocolResponseCommand,
+    ProtocolRetentionCommand,
     ProtocolRevisionSnapshot,
+    ProtocolVersionCommand,
 )
 from backend.execution.slot_ports import DayMutationRequest
 from backend.identity.authorization import AuthorizationScope
@@ -59,7 +65,7 @@ class ExamProtocolService:
             return self._view(protocol, scope)
 
     def update_content(
-        self, scope: AuthorizationScope, protocol_id: int, payload: dict[str, Any]
+        self, scope: AuthorizationScope, protocol_id: int, payload: ProtocolContentCommand
     ) -> dict[str, Any]:
         declaration, entries = self._normalize_content(payload)
         expected_version = self._required_version(payload)
@@ -86,7 +92,13 @@ class ExamProtocolService:
                 and not (can_manage and current["workflow_state"] == "correction_open")
             ):
                 raise PermissionError("Forbidden.")
-            handle = self._guard_day_mutation(work, protocol, "exam_protocol", payload, actor_id)
+            handle = self._guard_day_mutation(
+                work,
+                protocol,
+                "exam_protocol",
+                payload.get("expected_day_revision"),
+                actor_id,
+            )
             change_reason = self._optional_text(payload.get("change_reason"), 1000)
             work.write_protocol_revision(
                 {
@@ -110,7 +122,7 @@ class ExamProtocolService:
             return self._view(self._required_protocol(work, protocol_id), scope)
 
     def submit(
-        self, scope: AuthorizationScope, protocol_id: int, payload: dict[str, Any]
+        self, scope: AuthorizationScope, protocol_id: int, payload: ProtocolVersionCommand
     ) -> dict[str, Any]:
         expected_version = self._required_version(payload)
         with self._unit_of_work_factory(write=True) as work:
@@ -123,7 +135,13 @@ class ExamProtocolService:
             if actor_id not in participants:
                 raise PermissionError("Forbidden.")
             self._validate_persisted_content(revision)
-            handle = self._guard_day_mutation(work, protocol, "exam_protocol", payload, actor_id)
+            handle = self._guard_day_mutation(
+                work,
+                protocol,
+                "exam_protocol",
+                payload.get("expected_day_revision"),
+                actor_id,
+            )
             submitted_at = self._now()
             work.submit_protocol_revision(
                 {
@@ -137,7 +155,7 @@ class ExamProtocolService:
             return self._view(self._required_protocol(work, protocol_id), scope)
 
     def respond(
-        self, scope: AuthorizationScope, protocol_id: int, payload: dict[str, Any]
+        self, scope: AuthorizationScope, protocol_id: int, payload: ProtocolResponseCommand
     ) -> dict[str, Any]:
         expected_version = self._required_version(payload)
         response_type = payload.get("response")
@@ -175,7 +193,7 @@ class ExamProtocolService:
                 work,
                 protocol,
                 "protocol_response",
-                payload,
+                payload.get("expected_day_revision"),
                 actor_id,
                 protocol_revision_id=revision["id"],
             )
@@ -199,7 +217,10 @@ class ExamProtocolService:
             return self._view(self._required_protocol(work, protocol_id), scope)
 
     def request_correction(
-        self, scope: AuthorizationScope, protocol_id: int, payload: dict[str, Any]
+        self,
+        scope: AuthorizationScope,
+        protocol_id: int,
+        payload: ProtocolCorrectionRequestCommand,
     ) -> dict[str, Any]:
         expected_version = self._required_version(payload)
         reason = self._required_text(payload.get("reason"), "reason", 2000)
@@ -229,7 +250,7 @@ class ExamProtocolService:
                     work,
                     protocol,
                     "protocol_correction_request",
-                    payload,
+                    payload.get("expected_day_revision"),
                     actor_id,
                 )
                 work.write_protocol_correction_request(
@@ -246,7 +267,7 @@ class ExamProtocolService:
             return self._view(protocol, scope)
 
     def open_correction(
-        self, scope: AuthorizationScope, protocol_id: int, payload: dict[str, Any]
+        self, scope: AuthorizationScope, protocol_id: int, payload: ProtocolCorrectionOpenCommand
     ) -> dict[str, Any]:
         expected_version = self._required_version(payload)
         reason = self._required_text(payload.get("reason"), "reason", 2000)
@@ -283,7 +304,13 @@ class ExamProtocolService:
                 raise ValueError(
                     "Nach Tagesabschluss ist eine zulässige Wiederöffnung nach #36 erforderlich"
                 )
-            handle = self._guard_day_mutation(work, protocol, "exam_protocol", payload, actor_id)
+            handle = self._guard_day_mutation(
+                work,
+                protocol,
+                "exam_protocol",
+                payload.get("expected_day_revision"),
+                actor_id,
+            )
             work.open_protocol_correction(
                 {
                     "protocol_id": protocol_id,
@@ -299,7 +326,7 @@ class ExamProtocolService:
             return self._view(self._required_protocol(work, protocol_id), scope)
 
     def set_retention(
-        self, scope: AuthorizationScope, protocol_id: int, payload: dict[str, Any]
+        self, scope: AuthorizationScope, protocol_id: int, payload: ProtocolRetentionCommand
     ) -> dict[str, Any]:
         rule_reference = self._required_text(payload.get("rule_reference"), "rule_reference", 1000)
         retain_until = self._optional_text(payload.get("retain_until"), 100)
@@ -392,11 +419,12 @@ class ExamProtocolService:
             protocol = self._required_protocol(work, protocol_id)
             self._require_access(protocol, scope)
             view = self._view(protocol, scope)
+            references: ProtocolReferencesSnapshot = work.protocol_references(protocol_id)
             return {
                 "export_version": 1,
                 "complete": view["closing_ready"],
                 "current_state": view["state"],
-                "references": work.protocol_references(protocol_id),
+                "references": references,
                 "protocol": view,
             }
 
@@ -586,7 +614,7 @@ class ExamProtocolService:
         self,
         revision: ProtocolRevisionSnapshot,
         response_type: str,
-        payload: dict[str, Any],
+        payload: ProtocolResponseCommand,
     ) -> tuple[int | None, str | None]:
         entry_id: int | None = None
         statement: str | None = None
@@ -608,7 +636,9 @@ class ExamProtocolService:
             raise ValueError("Eine Bestätigung enthält keinen Vorbehaltstext")
         return entry_id, statement
 
-    def _normalize_content(self, payload: dict[str, Any]) -> tuple[str, list[ProtocolEntryDraft]]:
+    def _normalize_content(
+        self, payload: ProtocolContentCommand
+    ) -> tuple[str, list[ProtocolEntryDraft]]:
         declaration = payload.get("declaration")
         if declaration not in DECLARATIONS:
             raise ValueError("Der Prüfungsverlauf muss ausdrücklich festgestellt werden")
@@ -652,7 +682,7 @@ class ExamProtocolService:
             raise ValueError("Ein abweichender Verlauf benötigt mindestens eine Besonderheit")
 
     @staticmethod
-    def _required_version(payload: dict[str, Any]) -> int:
+    def _required_version(payload: ProtocolVersionCommand) -> int:
         version = payload.get("version")
         if not isinstance(version, int) or isinstance(version, bool) or version < 1:
             raise ValueError("Eine gültige Protokollversion ist erforderlich")
@@ -690,7 +720,7 @@ class ExamProtocolService:
         work: ExecutionProtocolUnitOfWork,
         protocol: ExecutionProtocolSnapshot,
         kind: str,
-        payload: Mapping[str, object],
+        expected_day_revision: object | None,
         actor_member_id: int,
         *,
         protocol_revision_id: int | None = None,
@@ -701,7 +731,7 @@ class ExamProtocolService:
             "day_id": protocol["exam_day_id"],
             "kind": kind,
             "entity_id": protocol["id"],
-            "payload": payload,
+            "expected_day_revision": expected_day_revision,
             "actor_member_id": actor_member_id,
             "protocol_revision_id": protocol_revision_id,
         }

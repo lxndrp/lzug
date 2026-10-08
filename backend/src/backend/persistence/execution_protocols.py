@@ -40,6 +40,7 @@ if TYPE_CHECKING:
         ProtocolCorrectionRequestWrite,
         ProtocolDaySnapshot,
         ProtocolEntrySnapshot,
+        ProtocolReferencesSnapshot,
         ProtocolResponseSnapshot,
         ProtocolResponseWrite,
         ProtocolRetentionWrite,
@@ -220,7 +221,7 @@ class SQLiteExecutionProtocolStore:
         )
         return self.protocol_by_id(protocol_id) if protocol_id is not None else None
 
-    def protocol_references(self, protocol_id: int) -> dict[str, object]:
+    def protocol_references(self, protocol_id: int) -> ProtocolReferencesSnapshot:
         protocol = self._required_protocol(protocol_id)
         slot = self._session.get(ExamSlot, protocol.exam_slot_id)
         day = self._session.get(ExamDay, slot.exam_day_id)
@@ -261,46 +262,51 @@ class SQLiteExecutionProtocolStore:
         result = self._session.scalar(
             select(ExamResult).where(ExamResult.round_candidate_id == round_candidate.id)
         )
-        return {
-            "candidate": {
-                "id": candidate.id,
-                "first_name": candidate.first_name,
-                "last_name": candidate.last_name,
-                "ihk_exam_number": candidate.ihk_exam_number,
+        return cast(
+            "ProtocolReferencesSnapshot",
+            {
+                "candidate": {
+                    "id": candidate.id,
+                    "first_name": candidate.first_name,
+                    "last_name": candidate.last_name,
+                    "ihk_exam_number": candidate.ihk_exam_number,
+                },
+                "round": {"id": exam_round.id, "name": exam_round.name},
+                "day": {"id": day.id, "date": day.date},
+                "slot": {
+                    "id": slot.id,
+                    "slot_type": slot.slot_type,
+                    "starts_at": slot.starts_at,
+                    "ends_at": slot.ends_at,
+                    "actual_started_at": slot.actual_started_at,
+                    "actual_completed_at": slot.actual_completed_at,
+                    "execution_status": slot.execution_status,
+                },
+                "candidate_attendance": {
+                    "status": (
+                        candidate_attendance.status if candidate_attendance is not None else "open"
+                    ),
+                    "arrived_at": (
+                        candidate_attendance.arrived_at
+                        if candidate_attendance is not None
+                        else None
+                    ),
+                },
+                "location": {
+                    "id": venue.id if venue is not None else None,
+                    "name": venue.name if venue is not None else "",
+                    "room": room.name if room is not None else "",
+                    "city": venue.city if venue is not None else "",
+                },
+                "participants": participant_references,
+                "assessment": {
+                    "available": result is not None and result.legacy_status is None,
+                    "exam_result_id": result.id if result is not None else None,
+                    "state": result.current_state if result is not None else "not_bound",
+                    "legacy_status": result.legacy_status if result is not None else None,
+                },
             },
-            "round": {"id": exam_round.id, "name": exam_round.name},
-            "day": {"id": day.id, "date": day.date},
-            "slot": {
-                "id": slot.id,
-                "slot_type": slot.slot_type,
-                "starts_at": slot.starts_at,
-                "ends_at": slot.ends_at,
-                "actual_started_at": slot.actual_started_at,
-                "actual_completed_at": slot.actual_completed_at,
-                "execution_status": slot.execution_status,
-            },
-            "candidate_attendance": {
-                "status": (
-                    candidate_attendance.status if candidate_attendance is not None else "open"
-                ),
-                "arrived_at": (
-                    candidate_attendance.arrived_at if candidate_attendance is not None else None
-                ),
-            },
-            "location": {
-                "id": venue.id if venue is not None else None,
-                "name": venue.name if venue is not None else "",
-                "room": room.name if room is not None else "",
-                "city": venue.city if venue is not None else "",
-            },
-            "participants": participant_references,
-            "assessment": {
-                "available": result is not None and result.legacy_status is None,
-                "exam_result_id": result.id if result is not None else None,
-                "state": result.current_state if result is not None else "not_bound",
-                "legacy_status": result.legacy_status if result is not None else None,
-            },
-        }
+        )
 
     def protocol_day_snapshot(self, day_id: int) -> ProtocolDaySnapshot | None:
         day = self._session.get(ExamDay, day_id)
