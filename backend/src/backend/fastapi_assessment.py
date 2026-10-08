@@ -8,7 +8,7 @@ from fastapi import APIRouter, Body
 from fastapi.responses import Response
 
 from backend.application.transport import RequestContext
-from backend.persistence.models import EXAM_SLOT
+from backend.presentation.exam_exports import render_result_export
 
 from .api_contracts import (
     AssessmentModelBindingRequest,
@@ -32,37 +32,37 @@ def _result_action(
     service = context.exam_result_service
     actions = {
         ("individual-assessments", False): lambda: service.save_individual(
-            context.authorization_scope, result_id, payload
+            context.assessment_actor, result_id, payload
         ),
         ("individual-assessments", True): lambda: service.withdraw_individual(
-            context.authorization_scope, result_id, nested_id, payload
+            context.assessment_actor, result_id, nested_id, payload
         ),
         ("disclosures", False): lambda: service.disclose(
-            context.authorization_scope, result_id, payload
+            context.assessment_actor, result_id, payload
         ),
         ("committee-assessments", False): lambda: service.determine_component(
-            context.authorization_scope, result_id, payload
+            context.assessment_actor, result_id, payload
         ),
         ("external-results", False): lambda: service.record_external(
-            context.authorization_scope, result_id, payload
+            context.assessment_actor, result_id, payload
         ),
         ("external-results", True): lambda: service.confirm_external(
-            context.authorization_scope, result_id, nested_id, payload
+            context.assessment_actor, result_id, nested_id, payload
         ),
         ("determine", False): lambda: service.determine_result(
-            context.authorization_scope, result_id, payload
+            context.assessment_actor, result_id, payload
         ),
         ("record-confirmations", False): lambda: service.confirm_record(
-            context.authorization_scope, result_id, payload
+            context.assessment_actor, result_id, payload
         ),
         ("corrections", False): lambda: service.open_correction(
-            context.authorization_scope, result_id, payload
+            context.assessment_actor, result_id, payload
         ),
         ("communications", False): lambda: service.communicate(
-            context.authorization_scope, result_id, payload
+            context.assessment_actor, result_id, payload
         ),
         ("retention", False): lambda: service.set_retention(
-            context.authorization_scope, result_id, payload
+            context.assessment_actor, result_id, payload
         ),
     }
     try:
@@ -89,7 +89,7 @@ def _add_assessment_model_routes(router, *, finish, not_found, read_security, wr
     def assessment_model_versions(context: ReadContext):
         return finish(
             context,
-            context.respond(context.exam_result_service.list_models(context.authorization_scope)),
+            context.respond(context.exam_result_service.list_models(context.assessment_actor)),
         )
 
     @router.post(
@@ -99,7 +99,7 @@ def _add_assessment_model_routes(router, *, finish, not_found, read_security, wr
     )
     def create_assessment_model_version(context: WriteContext, payload: DomainResourceWrite):
         result = context.exam_result_service.create_model(
-            context.authorization_scope, payload_data(context, payload)
+            context.assessment_actor, payload_data(context, payload)
         )
         return finish(context, context.respond(result, HTTPStatus.CREATED))
 
@@ -108,9 +108,7 @@ def _add_assessment_model_routes(router, *, finish, not_found, read_security, wr
         openapi_extra=read_security,
     )
     def assessment_model_binding(context: ReadContext, round_id: int):
-        binding = context.exam_result_service.get_round_binding(
-            context.authorization_scope, round_id
-        )
+        binding = context.exam_result_service.get_round_binding(context.assessment_actor, round_id)
         return not_found() if binding is None else finish(context, context.respond(binding))
 
     @router.post(
@@ -123,7 +121,7 @@ def _add_assessment_model_routes(router, *, finish, not_found, read_security, wr
         payload: AssessmentModelBindingRequest,
     ):
         result = context.exam_result_service.bind_round(
-            context.authorization_scope,
+            context.assessment_actor,
             round_id,
             payload_data(context, payload),
         )
@@ -137,10 +135,9 @@ def _add_result_read_routes(router, *, finish, not_found, read_security):
         openapi_extra=read_security,
     )
     def slot_result(context: ReadContext, day_id: int, slot_id: int):
-        slot = context.repository.get(EXAM_SLOT, slot_id)
-        if slot is None or slot["exam_day_id"] != day_id:
-            return not_found()
-        result = context.exam_result_service.get_by_slot(context.authorization_scope, slot_id)
+        result = context.exam_result_service.get_by_slot(
+            context.assessment_actor, slot_id, day_id=day_id
+        )
         return not_found() if result is None else finish(context, context.respond(result))
 
     @router.get(
@@ -149,7 +146,7 @@ def _add_result_read_routes(router, *, finish, not_found, read_security):
         openapi_extra=read_security,
     )
     def exam_result(context: ReadContext, result_id: int):
-        result = context.exam_result_service.get(context.authorization_scope, result_id)
+        result = context.exam_result_service.get(context.assessment_actor, result_id)
         return not_found() if result is None else finish(context, context.respond(result))
 
 
@@ -330,8 +327,8 @@ def _add_final_result_routes(router, *, finish, write_security):
 def _add_result_export_routes(router, *, finish, plain_text, read_security):
     @router.get("/api/exam-results/{result_id}/export.json", openapi_extra=read_security)
     def export_exam_result_json(context: ReadContext, result_id: int):
-        result = context.exam_result_service.machine_export(context.authorization_scope, result_id)
-        return finish(context, context.respond(result))
+        export = context.exam_result_service.machine_export(context.assessment_actor, result_id)
+        return finish(context, context.respond(export))
 
     @router.get(
         "/api/exam-results/{result_id}/export.txt",
@@ -339,8 +336,9 @@ def _add_result_export_routes(router, *, finish, plain_text, read_security):
         openapi_extra=read_security,
     )
     def export_exam_result_text(context: ReadContext, result_id: int):
-        result = context.exam_result_service.human_export(context.authorization_scope, result_id)
-        return plain_text(context, result, f"ergebnisniederschrift-{result_id}.txt")
+        export = context.exam_result_service.human_export(context.assessment_actor, result_id)
+        rendered = render_result_export(export["result"])
+        return plain_text(context, rendered, f"ergebnisniederschrift-{result_id}.txt")
 
 
 def _add_result_completion_route(router, *, finish, not_found, read_security):
@@ -349,7 +347,7 @@ def _add_result_completion_route(router, *, finish, not_found, read_security):
         openapi_extra=read_security,
     )
     def result_completion(context: ReadContext, day_id: int):
-        result = context.exam_result_service.completion_for_day(context.authorization_scope, day_id)
+        result = context.exam_result_service.completion_for_day(context.assessment_actor, day_id)
         return not_found() if result is None else finish(context, context.respond(result))
 
 

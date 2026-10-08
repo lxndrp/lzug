@@ -7,3 +7,7 @@ class TransactionConflictError(Exception):
 
 class TransactionUnavailableError(Exception):
     """A transaction could not be completed because storage was unavailable."""
+
+
+class AssessmentWriteConflictError(ValueError):
+    """An assessment revision or model binding changed before the write committed."""

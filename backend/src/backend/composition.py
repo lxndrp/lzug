@@ -7,6 +7,12 @@ from datetime import timedelta
 from pathlib import Path
 
 from backend.application.exam_venue_api import ExamVenueApi
+from backend.assessment.service import ExamResultService
+from backend.execution.exam_day_closures import (
+    complete_day_mutation,
+    days_for_result,
+    guard_day_mutation,
+)
 from backend.execution.exam_protocols import ExamProtocolService
 from backend.execution.slot_service import ExecutionService
 from backend.identity.admin_service import OperatorAuthService
@@ -19,6 +25,7 @@ from backend.integrations.holiday_provider import PythonHolidaysProvider
 from backend.integrations.map_provider import MapProviderConfig, NominatimGeocoder
 from backend.integrations.notification_delivery import NotificationDeliveryGateway
 from backend.notifications.service import NotificationService
+from backend.persistence.assessment import SQLiteAssessmentUnitOfWorkFactory
 from backend.persistence.auth import (
     SQLiteAuthenticationRepository,
     SQLiteOperatorAuthUnitOfWorkFactory,
@@ -105,6 +112,33 @@ def exam_protocol_service(db_path: Path) -> ExamProtocolService:
             identity_snapshot_factory=SQLiteIdentityExecutionSnapshotFactory(),
         )
     )
+
+
+def exam_result_service(db_path: Path) -> ExamResultService:
+    """Wire Assessment commands and queries to the SQLite unit of work."""
+    return ExamResultService(
+        unit_of_work_factory=SQLiteAssessmentUnitOfWorkFactory(
+            db_path, day_mutation_handler=_complete_assessment_day_mutation
+        )
+    )
+
+
+def _complete_assessment_day_mutation(
+    session, result_id: int, kind: str, payload: dict, actor_member_id: int, reason: str | None
+) -> None:
+    guards = [
+        guard_day_mutation(
+            session,
+            day=day,
+            kind=kind,
+            entity_id=result_id,
+            payload=payload,
+            actor_member_id=actor_member_id,
+        )
+        for day in days_for_result(session, result_id)
+    ]
+    for guard in guards:
+        complete_day_mutation(session, guard, actor_member_id=actor_member_id, reason=reason)
 
 
 def notification_service(

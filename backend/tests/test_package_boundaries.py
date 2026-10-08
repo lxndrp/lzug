@@ -77,7 +77,7 @@ ALLOWED_PACKAGE_DEPENDENCIES = {
             "notifications",
         }
     ),
-    "assessment": frozenset({"execution", "identity", "persistence", "presentation"}),
+    "assessment": frozenset(),
     "execution": frozenset(
         {"identity", "integrations", "notifications", "persistence", "presentation"}
     ),
@@ -303,6 +303,32 @@ class BackendPackageBoundaryTests(unittest.TestCase):
             if dependencies - ALLOWED_PACKAGE_DEPENDENCIES[package]
         }
         self.assertEqual(unexpected, {})
+
+    def test_assessment_core_has_no_persistence_http_or_renderer_dependencies(self) -> None:
+        forbidden = (
+            "backend.persistence",
+            "backend.composition",
+            "backend.presentation",
+            "fastapi",
+            "sqlalchemy",
+        )
+        for path in sorted((BACKEND_ROOT / "assessment").glob("*.py")):
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            imports = []
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    imports.extend(alias.name for alias in node.names)
+                elif isinstance(node, ast.ImportFrom) and node.module is not None:
+                    imports.append(node.module)
+            for module in imports:
+                with self.subTest(path=path.name, module=module):
+                    self.assertFalse(
+                        any(
+                            module == prefix or module.startswith(f"{prefix}.")
+                            for prefix in forbidden
+                        ),
+                        f"Assessment imports outer adapter or transport module {module}",
+                    )
 
     def test_core_package_dependency_graph_is_acyclic(self) -> None:
         graph = {package: _package_dependencies(package) for package in CORE_PACKAGES}
