@@ -21,7 +21,7 @@ func operationalCommands() []Command {
 			Transport:      ContainerExecTransport,
 			BackendCommand: "process-notifications",
 			LegacyForms:    []string{"process-notifications"},
-			Output:         OutputSpec{Human: HumanSilent, Verbose: VerboseSummary, JSON: JSONProjected, Summary: "Successful human output is silent; JSON includes technical counters only.", ResultKeys: []string{"processed", "succeeded", "failed", "plan_consequences"}},
+			Output:         OutputSpec{Human: HumanSilent, Verbose: VerboseSummary, JSON: JSONProjected, Summary: "Successful human output is silent; JSON includes notification and consequence recovery counters.", ResultKeys: []string{"processed", "succeeded", "failed", "plan_consequences", "venue_consequences"}},
 			BuildRequest:   simpleRequest("process-notifications", func(_, _ Values) map[string]any { return map[string]any{} }),
 		},
 		{

@@ -636,7 +636,7 @@ Zeitlimit: `10m0s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederh
 
 Geführter Modus: zeigt vor der Ausführung Ziel, Wirkung und alle nicht geheimen Parameter.
 
-Ausgabe: Successful human output is silent; JSON includes technical counters only.
+Ausgabe: Successful human output is silent; JSON includes notification and consequence recovery counters.
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
 
 ```console
