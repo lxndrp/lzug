@@ -25,6 +25,7 @@ from backend.persistence.candidate_days import SQLiteCandidateDayUnitOfWorkFacto
 from backend.persistence.committee_admin import SQLiteCommitteeAdminUnitOfWorkFactory
 from backend.persistence.database import DEFAULT_DB_PATH
 from backend.persistence.identity import (
+    SQLiteIdentityPlanningSnapshotFactory,
     SQLiteIdentityQueryFactory,
     SQLiteIdentityUnitOfWorkFactory,
 )
@@ -36,8 +37,10 @@ from backend.persistence.notifications import (
     SQLiteNotificationDeliveryUnitOfWorkFactory,
     SQLiteNotificationUnitOfWorkFactory,
 )
+from backend.persistence.planning import SQLitePlanningUnitOfWorkFactory
 from backend.persistence.planning_resources import SQLitePlanningResourceUnitOfWorkFactory
 from backend.persistence.sqlite_exam_venues import SQLiteExamVenueRepository
+from backend.planning import PlanningService
 from backend.planning.candidate_days import CandidateDayService
 from backend.planning.exam_venues import ExamVenuePolicy, ExamVenueService
 from backend.planning.venue_consequences import VenueConsequenceService
@@ -62,6 +65,21 @@ def planning_resource_unit_of_work_factory(
     return SQLitePlanningResourceUnitOfWorkFactory(
         db_path,
         require_confirmed_coordinates=require_confirmed_coordinates,
+    )
+
+
+def planning_service(
+    db_path: Path,
+    *,
+    require_confirmed_coordinates: bool = False,
+) -> PlanningService:
+    """Wire Planning's proposal use cases to the SQLite Unit of Work."""
+    return PlanningService(
+        SQLitePlanningUnitOfWorkFactory(
+            db_path,
+            identity_snapshot_factory=SQLiteIdentityPlanningSnapshotFactory(),
+            require_confirmed_coordinates=require_confirmed_coordinates,
+        )
     )
 
 

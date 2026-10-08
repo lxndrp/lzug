@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Mapping
+from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple
@@ -24,7 +24,13 @@ from backend.persistence.resource_access import SQLiteResourceAccessQueries, _Re
 from backend.persistence.store import Store
 
 if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
+
     from backend.identity.people import IdentityQueries, IdentityUnitOfWork
+    from backend.planning.proposal_ports import (
+        CommitteeMemberSnapshot,
+        PlanningIdentitySnapshots,
+    )
 
 
 class _SQLiteIdentityMembership(NamedTuple):
@@ -239,6 +245,59 @@ class SQLiteIdentityQueryFactory:
     def snapshot(self) -> Iterator[IdentityQueries]:
         with read_session_scope(self.db_path) as session:
             yield SQLiteIdentityQueries(session)
+
+
+class SQLiteIdentityPlanningSnapshotFactory:
+    """Implement Planning's identity snapshot port on its shared SQLite session."""
+
+    def __call__(self, session: Session) -> PlanningIdentitySnapshots:
+        return SQLiteIdentityPlanningSnapshots(session)
+
+
+class SQLiteIdentityPlanningSnapshots:
+    """Read membership facts without exposing Identity tables to Planning."""
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def active_committee_members(self, committee_id: int) -> dict[int, CommitteeMemberSnapshot]:
+        rows = self._session.execute(
+            select(
+                CommitteeMember.id,
+                CommitteeMember.person_id,
+                CommitteeMember.committee_id,
+                CommitteeMember.representing_side,
+                CommitteeMember.is_active,
+            ).where(
+                CommitteeMember.committee_id == committee_id,
+                CommitteeMember.is_active == 1,
+            )
+        ).all()
+        return {row.id: self._snapshot(row) for row in rows}
+
+    def members_by_id(self, member_ids: Sequence[int]) -> dict[int, CommitteeMemberSnapshot]:
+        if not member_ids:
+            return {}
+        rows = self._session.execute(
+            select(
+                CommitteeMember.id,
+                CommitteeMember.person_id,
+                CommitteeMember.committee_id,
+                CommitteeMember.representing_side,
+                CommitteeMember.is_active,
+            ).where(CommitteeMember.id.in_(member_ids))
+        ).all()
+        return {row.id: self._snapshot(row) for row in rows}
+
+    @staticmethod
+    def _snapshot(row) -> CommitteeMemberSnapshot:
+        return {
+            "id": row.id,
+            "person_id": row.person_id,
+            "committee_id": row.committee_id,
+            "representing_side": row.representing_side,
+            "is_active": row.is_active,
+        }
 
 
 class SQLiteIdentityQueries:

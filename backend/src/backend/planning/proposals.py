@@ -5,32 +5,15 @@ from __future__ import annotations
 import json
 from collections import defaultdict
 from dataclasses import dataclass, field, replace
-from datetime import UTC, datetime, timedelta
-from pathlib import Path
+from datetime import datetime, timedelta
 from typing import Any
 
-from sqlalchemy import select as sql_select
-from sqlalchemy import update as sql_update
-
-from backend.persistence.database import DEFAULT_DB_PATH, session_scope
-from backend.persistence.models import (
-    CANDIDATE,
-    CANDIDATE_COMMITTEE_ASSIGNMENT,
-    CANDIDATE_EXAM_DAY,
-    COMMITTEE_MEMBER,
-    EXAM_DAY,
-    EXAM_DAY_ASSIGNMENT,
-    EXAM_ROUND,
-    EXAM_SLOT,
-    MEMBER_AVAILABILITY,
-    PLANNING_SETTINGS,
-    ROUND_CANDIDATE,
-    ConfirmedPlanRevision,
-    ExamRound,
-    ExamSlot,
+from backend.planning.proposal_ports import (
+    ConfirmedPlanRevisionSnapshot,
+    PlanningContextSnapshot,
+    PlanningProposalSnapshot,
+    PlanningUnitOfWorkFactory,
 )
-from backend.persistence.sqlite_exam_venues import room_is_usable_for_committee
-from backend.persistence.store import Store
 
 SIDES = ("employer", "employee", "school")
 
@@ -108,6 +91,47 @@ class PlanValidationIssue:
     member_id: int | None = None
 
 
+@dataclass(frozen=True)
+class ProposalGenerationCounts:
+    """Domain counts describing the generated proposal."""
+
+    required_slots: int
+    planned_slots: int
+    regular_slots: int
+    mep_slots: int
+
+
+@dataclass(frozen=True)
+class ProposalGenerationResult:
+    """Validated proposal aggregate and scheduling counts."""
+
+    proposal: PlanningProposal
+    counts: ProposalGenerationCounts
+
+
+@dataclass(frozen=True)
+class PlanConfirmationResult:
+    """Confirmed proposal aggregate and confirmation counts."""
+
+    proposal: PlanningProposal
+    confirmed_exam_days: int
+    confirmed_slots: int
+
+
+@dataclass(frozen=True)
+class ConfirmedPlanRevision:
+    """Immutable confirmed-plan audit revision in Planning-owned terms."""
+
+    id: int
+    previous_revision: int
+    resulting_revision: int
+    reason: str
+    actor_member_id: int
+    before: dict[str, Any]
+    after: dict[str, Any]
+    created_at: str
+
+
 @dataclass
 class _ProposalValidationContext:
     """Loaded reference data and accumulated counts for proposal validation."""
@@ -119,6 +143,8 @@ class _ProposalValidationContext:
     members: dict[int, dict[str, Any]]
     availability: dict[tuple[int, int], str]
     blocked: dict[tuple[str, str], dict[int, str]]
+    active_candidate_assignments: dict[int, int]
+    usable_room_ids: frozenset[int]
     slot_counts: dict[tuple[int, str], int] = field(default_factory=lambda: defaultdict(int))
     used_candidate_days: set[int] = field(default_factory=set)
     days_by_week: dict[str, int] = field(default_factory=lambda: defaultdict(int))
@@ -141,22 +167,16 @@ class ConfirmedPlanConflictError(PlanConflictError):
 
 
 class PlanningService:
-    """Coordinate proposal generation and confirmation within one database transaction.
+    """Coordinate proposal use cases through an injected Planning Unit of Work.
 
     The service owns the planning-specific invariants; callers must use the
     returned validation information instead of inferring validity from created
-    rows. Each public operation runs in one :func:`session_scope`, so partial
-    proposals and partially confirmed plans are rolled back on errors.
+    rows. The Unit of Work keeps each command's reads, compare-and-swap, writes,
+    and audit record in one transaction.
     """
 
-    def __init__(
-        self,
-        db_path: Path = DEFAULT_DB_PATH,
-        *,
-        require_confirmed_coordinates: bool = False,
-    ):
-        self.db_path = db_path
-        self.require_confirmed_coordinates = require_confirmed_coordinates
+    def __init__(self, unit_of_work_factory: PlanningUnitOfWorkFactory):
+        self._unit_of_work_factory = unit_of_work_factory
 
     def request_availabilities(self, round_id: int) -> dict[str, Any]:
         """Move a prepared draft into availability coordination.
@@ -165,9 +185,9 @@ class PlanningService:
         workflow phase. Planning settings, an active candidate day and a
         response deadline must already be persisted before coordination starts.
         """
-        with session_scope(self.db_path) as session:
-            store = Store(session)
-            context = self._load_context(store, round_id)
+        with self._unit_of_work_factory(write=True) as unit_of_work:
+            snapshot = unit_of_work.planning_context(round_id)
+            context = self._load_context(snapshot)
             exam_round = context["round"]
             if exam_round is None:
                 raise ValueError("Exam round not found")
@@ -182,12 +202,9 @@ class PlanningService:
             if not exam_round.get("availability_deadline"):
                 raise ValueError("Availability deadline is required")
 
-            return (
-                store.update(EXAM_ROUND, round_id, {"status": "availability_requested"})
-                or exam_round
-            )
+            return unit_of_work.mark_availabilities_requested(round_id) or exam_round
 
-    def generate_proposal(self, round_id: int) -> dict[str, Any]:
+    def generate_proposal(self, round_id: int) -> ProposalGenerationResult:
         """Create a replaceable proposal for an exam round.
 
         Regular candidates are scheduled before MEP candidates, every planned
@@ -205,9 +222,9 @@ class PlanningService:
             ValueError: If required planning data is missing or a confirmed
                 proposal would be replaced.
         """
-        with session_scope(self.db_path) as session:
-            store = Store(session)
-            context = self._load_context(store, round_id)
+        with self._unit_of_work_factory(write=True) as unit_of_work:
+            snapshot = unit_of_work.planning_context(round_id)
+            context = self._load_context(snapshot)
             if context["round"] is None:
                 raise ValueError("Exam round not found")
             if context["round"]["status"] not in {
@@ -223,109 +240,122 @@ class PlanningService:
 
             generated = self._build_proposal(context)
             proposal = self._generated_aggregate(context, generated)
-            proposal = self._normalize_proposal(store, proposal)
-            self._raise_for_invalid_proposal(store, proposal)
-            next_revision = self._claim_revision(
-                store,
-                round_id,
-                proposal.revision,
-                allowed_statuses={
-                    "availability_requested",
-                    "availability_closed",
-                    "plan_proposed",
-                },
+            proposal = self._normalize_proposal(context, proposal)
+            self._raise_for_invalid_proposal(context, proposal)
+            next_revision = unit_of_work.replace_proposal(
+                proposal,
+                expected_revision=proposal.revision,
+                allowed_statuses=frozenset(
+                    {
+                        "availability_requested",
+                        "availability_closed",
+                        "plan_proposed",
+                    }
+                ),
                 target_status="plan_proposed",
             )
-            self._clear_existing_proposal(store, round_id)
-            self._persist_aggregate(store, proposal)
-            persisted = self._read_proposal(store, round_id, revision=next_revision)
+            if next_revision is None:
+                raise PlanConflictError("Planning proposal revision or status changed")
+            persisted = self._proposal_from_snapshot(
+                unit_of_work.planning_context(round_id).proposal
+            )
+            if persisted is None:
+                raise PlanConflictError("No planning proposal found")
 
-            return {
-                "round_id": round_id,
-                "status": "plan_proposed",
-                "revision": persisted.revision,
-                "exam_days": self._proposal_days(persisted),
-                "validation": {"passed": True, "messages": []},
-                "counts": generated["counts"],
-            }
+            return ProposalGenerationResult(
+                persisted,
+                ProposalGenerationCounts(**generated["counts"]),
+            )
 
     def get_proposal(self, round_id: int) -> PlanningProposal:
         """Read the complete persisted proposal aggregate and its revision."""
-        with session_scope(self.db_path) as session:
-            store = Store(session)
-            exam_round = store.get(EXAM_ROUND, round_id)
+        with self._unit_of_work_factory() as unit_of_work:
+            snapshot = unit_of_work.planning_context(round_id)
+            exam_round = snapshot.exam_round
             if exam_round is None:
                 raise ValueError("Exam round not found")
             if exam_round["status"] != "plan_proposed":
                 raise PlanConflictError("Only a planning proposal can be read")
-            return self._read_proposal(store, round_id)
+            proposal = self._proposal_from_snapshot(snapshot.proposal)
+            if proposal is None:
+                raise PlanConflictError("No planning proposal found")
+            return proposal
 
     def save_proposal(self, proposal: PlanningProposal) -> PlanningProposal:
         """Validate and replace one proposal atomically using optimistic revision."""
-        with session_scope(self.db_path) as session:
-            store = Store(session)
-            exam_round = store.get(EXAM_ROUND, proposal.round_id)
+        with self._unit_of_work_factory(write=True) as unit_of_work:
+            snapshot = unit_of_work.planning_context(proposal.round_id)
+            context = self._load_context(snapshot)
+            exam_round = snapshot.exam_round
             if exam_round is None:
                 raise ValueError("Exam round not found")
             if exam_round["status"] != "plan_proposed":
                 raise PlanConflictError("Only a planning proposal can be changed")
-            round_model = store.session.get(ExamRound, proposal.round_id)
-            if round_model is None or round_model.plan_revision != proposal.revision:
+            if exam_round.get("plan_revision") != proposal.revision:
                 raise PlanConflictError("Planning proposal revision is stale")
 
-            normalized = self._normalize_proposal(store, proposal)
-            self._raise_for_invalid_proposal(store, normalized)
-            next_revision = self._claim_revision(
-                store,
-                proposal.round_id,
-                proposal.revision,
-                allowed_statuses={"plan_proposed"},
+            normalized = self._normalize_proposal(context, proposal)
+            self._raise_for_invalid_proposal(context, normalized)
+            next_revision = unit_of_work.replace_proposal(
+                normalized,
+                expected_revision=proposal.revision,
+                allowed_statuses=frozenset({"plan_proposed"}),
                 target_status="plan_proposed",
             )
-            self._clear_existing_proposal(store, proposal.round_id)
-            self._persist_aggregate(store, normalized)
-            return self._read_proposal(store, proposal.round_id, revision=next_revision)
+            if next_revision is None:
+                raise PlanConflictError("Planning proposal revision or status changed")
+            saved = self._proposal_from_snapshot(
+                unit_of_work.planning_context(proposal.round_id).proposal
+            )
+            if saved is None:
+                raise PlanConflictError("No planning proposal found")
+            return saved
 
     def get_confirmed_plan(self, round_id: int) -> PlanningProposal:
         """Read the complete, still editable confirmed plan aggregate."""
-        with session_scope(self.db_path) as session:
-            store = Store(session)
-            exam_round = store.get(EXAM_ROUND, round_id)
+        with self._unit_of_work_factory() as unit_of_work:
+            snapshot = unit_of_work.planning_context(round_id)
+            exam_round = snapshot.exam_round
             if exam_round is None:
                 raise ValueError("Exam round not found")
             if exam_round["status"] != "plan_confirmed":
                 raise ConfirmedPlanConflictError("Only a confirmed plan can be changed")
-            return self._read_proposal(store, round_id)
+            proposal = self._proposal_from_snapshot(snapshot.proposal)
+            if proposal is None:
+                raise ConfirmedPlanConflictError("Confirmed plan not found")
+            return proposal
 
     def save_confirmed_plan(
         self,
         change: ConfirmedPlanChange,
         *,
         actor_member_id: int,
-    ) -> tuple[PlanningProposal, dict[str, Any]]:
+    ) -> tuple[PlanningProposal, ConfirmedPlanRevision]:
         """Atomically revise a confirmed plan and record immutable before/after states.
 
         The existing day, slot, and assignment identities are retained.  This
         deliberately prevents an aggregate update from deleting operational
         evidence that later workflow steps may reference.
         """
-        with session_scope(self.db_path) as session:
-            store = Store(session)
+        with self._unit_of_work_factory(write=True) as unit_of_work:
+            snapshot = unit_of_work.planning_context(change.plan.round_id)
+            context = self._load_context(snapshot)
             proposal = change.plan
-            exam_round = store.get(EXAM_ROUND, proposal.round_id)
+            exam_round = snapshot.exam_round
             if exam_round is None:
                 raise ValueError("Exam round not found")
             if exam_round["status"] != "plan_confirmed":
                 raise ConfirmedPlanConflictError("Only a confirmed plan can be changed")
-            round_model = store.session.get(ExamRound, proposal.round_id)
-            if round_model is None or round_model.plan_revision != proposal.revision:
+            if exam_round.get("plan_revision") != proposal.revision:
                 raise ConfirmedPlanConflictError("Confirmed plan revision is stale")
 
-            before = self._read_proposal(store, proposal.round_id)
+            before = self._proposal_from_snapshot(snapshot.proposal)
+            if before is None:
+                raise ConfirmedPlanConflictError("Confirmed plan not found")
             self._raise_for_confirmed_plan_shape(before, proposal)
-            protected_day_ids = self._protected_confirmed_day_ids(store, before)
-            normalized = self._normalize_proposal(store, proposal, status="confirmed")
-            self._raise_for_invalid_proposal(store, normalized, status="confirmed")
+            protected_day_ids = set(snapshot.protected_confirmed_day_ids)
+            normalized = self._normalize_proposal(context, proposal, status="confirmed")
+            self._raise_for_invalid_proposal(context, normalized, status="confirmed")
             self._raise_for_protected_confirmed_days_unchanged(
                 before,
                 normalized,
@@ -342,7 +372,7 @@ class PlanningService:
                         )
                     ]
                 )
-            actor = store.get(COMMITTEE_MEMBER, actor_member_id)
+            actor = context["members_by_id"].get(actor_member_id)
             if (
                 actor is None
                 or not actor["is_active"]
@@ -350,47 +380,40 @@ class PlanningService:
             ):
                 raise PermissionError("The acting member may not change this confirmed plan")
 
-            before_payload = self.confirmed_plan_payload(before)
-            next_revision = self._claim_revision(
-                store,
-                proposal.round_id,
-                proposal.revision,
-                allowed_statuses={"plan_confirmed"},
-                target_status="plan_confirmed",
-            )
-            self._persist_confirmed_aggregate(store, normalized, protected_day_ids)
-            saved = self._read_proposal(store, proposal.round_id, revision=next_revision)
-            after_payload = self.confirmed_plan_payload(saved)
-            audit = ConfirmedPlanRevision(
-                exam_round_id=proposal.round_id,
-                previous_revision=proposal.revision,
-                resulting_revision=next_revision,
-                reason=reason,
+            before_payload = self._confirmed_plan_audit_state(before)
+            next_revision = proposal.revision + 1
+            saved_for_audit = replace(normalized, revision=next_revision)
+            after_payload = self._confirmed_plan_audit_state(saved_for_audit)
+            audit = unit_of_work.revise_confirmed_plan(
+                normalized,
+                expected_revision=proposal.revision,
+                protected_day_ids=frozenset(protected_day_ids),
                 actor_member_id=actor_member_id,
+                reason=reason,
                 before_state_json=self._snapshot_json(before_payload),
                 after_state_json=self._snapshot_json(after_payload),
             )
-            session.add(audit)
-            session.flush()
-            return saved, self._revision_payload(audit)
+            if audit is None:
+                raise ConfirmedPlanConflictError("Confirmed plan revision is stale")
+            saved = self._proposal_from_snapshot(
+                unit_of_work.planning_context(proposal.round_id).proposal
+            )
+            if saved is None:
+                raise ConfirmedPlanConflictError("Confirmed plan not found")
+            return saved, self._revision_result(audit)
 
-    def confirmed_plan_revisions(self, round_id: int) -> list[dict[str, Any]]:
+    def confirmed_plan_revisions(self, round_id: int) -> list[ConfirmedPlanRevision]:
         """Return the append-only revision history for one confirmed plan."""
-        with session_scope(self.db_path) as session:
-            store = Store(session)
-            exam_round = store.get(EXAM_ROUND, round_id)
+        with self._unit_of_work_factory() as unit_of_work:
+            exam_round = unit_of_work.planning_context(round_id).exam_round
             if exam_round is None:
                 raise ValueError("Exam round not found")
             return [
-                self._revision_payload(item)
-                for item in session.scalars(
-                    sql_select(ConfirmedPlanRevision)
-                    .where(ConfirmedPlanRevision.exam_round_id == round_id)
-                    .order_by(ConfirmedPlanRevision.resulting_revision)
-                )
+                self._revision_result(item)
+                for item in unit_of_work.confirmed_plan_revisions(round_id)
             ]
 
-    def confirm_plan(self, round_id: int) -> dict[str, Any]:
+    def confirm_plan(self, round_id: int) -> PlanConfirmationResult:
         """Confirm every day, slot, and fallback belonging to a proposal.
 
         Confirmation is an all-or-nothing state transition. Cancelled days are
@@ -409,60 +432,79 @@ class PlanningService:
             PlanConflictError: If no proposal exists or the round status or
                 revision changed before confirmation.
         """
-        with session_scope(self.db_path) as session:
-            store = Store(session)
-            exam_round = store.get(EXAM_ROUND, round_id)
+        with self._unit_of_work_factory(write=True) as unit_of_work:
+            snapshot = unit_of_work.planning_context(round_id)
+            exam_round = snapshot.exam_round
             if exam_round is None:
                 raise ValueError("Exam round not found")
-            exam_days = store.where(EXAM_DAY, exam_round_id=round_id)
-            if not exam_days:
+            proposal = self._proposal_from_snapshot(snapshot.proposal)
+            if proposal is None or not proposal.days:
                 raise PlanConflictError("No planning proposal found")
             if exam_round["status"] != "plan_proposed":
                 raise PlanConflictError("Only a planning proposal can be confirmed")
 
-            proposal = self._read_proposal(store, round_id)
-            self._raise_for_invalid_proposal(store, proposal)
-            confirmed_revision = self._claim_revision(
-                store,
-                round_id,
-                proposal.revision,
-                allowed_statuses={"plan_proposed"},
-                target_status="plan_confirmed",
+            context = self._load_context(snapshot)
+            self._raise_for_invalid_proposal(context, proposal)
+            confirmed_revision = unit_of_work.confirm_proposal(
+                round_id, expected_revision=proposal.revision
+            )
+            if confirmed_revision is None:
+                raise PlanConflictError("Planning proposal revision or status changed")
+            confirmed_snapshot = unit_of_work.planning_context(round_id)
+            confirmed = self._proposal_from_snapshot(confirmed_snapshot.proposal)
+            if confirmed is None:
+                raise PlanConflictError("Confirmed plan not found")
+            confirmed_slot_count = sum(len(day.slots) for day in confirmed.days)
+
+            return PlanConfirmationResult(
+                confirmed,
+                len(confirmed_snapshot.exam_day_records),
+                confirmed_slot_count,
             )
 
-            confirmed_days = []
-            confirmed_slot_count = 0
-            for exam_day in exam_days:
-                confirmed_day = store.update(
-                    EXAM_DAY,
-                    exam_day["id"],
-                    {"status": "confirmed"},
-                )
-                confirmed_days.append(confirmed_day)
-                for slot in store.where(EXAM_SLOT, exam_day_id=exam_day["id"]):
-                    store.update(EXAM_SLOT, slot["id"], {"status": "confirmed"})
-                    confirmed_slot_count += 1
-                for assignment in store.where(
-                    EXAM_DAY_ASSIGNMENT,
-                    exam_day_id=exam_day["id"],
-                ):
-                    if assignment["assignment_role"] == "fallback":
-                        store.update(
-                            EXAM_DAY_ASSIGNMENT,
-                            assignment["id"],
-                            {"fallback_status": "confirmed"},
+    @staticmethod
+    def _proposal_from_snapshot(
+        snapshot: PlanningProposalSnapshot | None,
+    ) -> PlanningProposal | None:
+        """Reconstitute the Planning-owned aggregate from adapter values."""
+        if snapshot is None:
+            return None
+        return PlanningProposal(
+            round_id=snapshot.round_id,
+            revision=snapshot.revision,
+            days=tuple(
+                PlanDay(
+                    candidate_exam_day_id=day.candidate_exam_day_id,
+                    room_id=day.room_id,
+                    slots=tuple(
+                        PlanSlot(
+                            round_candidate_id=slot.round_candidate_id,
+                            slot_type=slot.slot_type,
+                            id=slot.id,
+                            sequence_number=slot.sequence_number,
+                            starts_at=slot.starts_at,
+                            ends_at=slot.ends_at,
+                            status=slot.status,
                         )
-
-            return {
-                "round_id": round_id,
-                "status": "plan_confirmed",
-                "revision": confirmed_revision,
-                "exam_days": confirmed_days,
-                "counts": {
-                    "confirmed_exam_days": len(confirmed_days),
-                    "confirmed_slots": confirmed_slot_count,
-                },
-            }
+                        for slot in day.slots
+                    ),
+                    assignments=tuple(
+                        PlanAssignment(
+                            committee_member_id=assignment.committee_member_id,
+                            assignment_role=assignment.assignment_role,
+                            day_part=assignment.day_part,
+                            id=assignment.id,
+                            fallback_status=assignment.fallback_status,
+                        )
+                        for assignment in day.assignments
+                    ),
+                    id=day.id,
+                    date=day.date,
+                    status=day.status,
+                )
+                for day in snapshot.days
+            ),
+        )
 
     def _generated_aggregate(
         self,
@@ -505,16 +547,13 @@ class PlanningService:
 
     def _normalize_proposal(
         self,
-        store: Store,
+        context: dict[str, Any],
         proposal: PlanningProposal,
         *,
         status: str = "proposed",
     ) -> PlanningProposal:
-        candidate_days = {
-            row["id"]: row
-            for row in store.where(CANDIDATE_EXAM_DAY, exam_round_id=proposal.round_id)
-        }
-        settings = store.first(PLANNING_SETTINGS, exam_round_id=proposal.round_id)
+        candidate_days = context["candidate_days_by_id"]
+        settings = context["settings"]
         lunch_break = bool(settings and settings["lunch_break_enabled"])
         normalized_days = []
         for day in proposal.days:
@@ -555,196 +594,8 @@ class PlanningService:
             )
         return replace(proposal, days=tuple(normalized_days))
 
-    def _read_proposal(
-        self,
-        store: Store,
-        round_id: int,
-        *,
-        revision: int | None = None,
-    ) -> PlanningProposal:
-        exam_round = store.get(EXAM_ROUND, round_id)
-        if exam_round is None:
-            raise ValueError("Exam round not found")
-        round_model = store.session.get(ExamRound, round_id)
-        if round_model is None:
-            raise ValueError("Exam round not found")
-        candidate_days = {
-            row["date"]: row for row in store.where(CANDIDATE_EXAM_DAY, exam_round_id=round_id)
-        }
-        days = []
-        for row in store.where(EXAM_DAY, exam_round_id=round_id):
-            candidate_day = candidate_days.get(row["date"])
-            slots = tuple(
-                PlanSlot(
-                    round_candidate_id=slot["round_candidate_id"],
-                    slot_type=slot["slot_type"],
-                    id=slot["id"],
-                    sequence_number=slot["sequence_number"],
-                    starts_at=slot["starts_at"],
-                    ends_at=slot["ends_at"],
-                    status=slot["status"],
-                )
-                for slot in store.where(EXAM_SLOT, exam_day_id=row["id"])
-            )
-            assignments = tuple(
-                PlanAssignment(
-                    committee_member_id=assignment["committee_member_id"],
-                    assignment_role=assignment["assignment_role"],
-                    day_part=assignment["day_part"],
-                    id=assignment["id"],
-                    fallback_status=assignment["fallback_status"],
-                )
-                for assignment in store.where(EXAM_DAY_ASSIGNMENT, exam_day_id=row["id"])
-            )
-            days.append(
-                PlanDay(
-                    candidate_exam_day_id=candidate_day["id"] if candidate_day else -1,
-                    room_id=row["room_id"],
-                    slots=slots,
-                    assignments=assignments,
-                    id=row["id"],
-                    date=row["date"],
-                    status=row["status"],
-                )
-            )
-        return PlanningProposal(
-            round_id=round_id,
-            revision=round_model.plan_revision if revision is None else revision,
-            days=tuple(days),
-        )
-
-    def _persist_aggregate(self, store: Store, proposal: PlanningProposal) -> None:
-        settings = store.first(PLANNING_SETTINGS, exam_round_id=proposal.round_id)
-        if settings is None:
-            raise ValueError("Planning settings not found")
-        for day in proposal.days:
-            exam_day = store.create(
-                EXAM_DAY,
-                {
-                    "exam_round_id": proposal.round_id,
-                    "room_id": day.room_id,
-                    "date": day.date,
-                    "status": "proposed",
-                    "lunch_break_enabled": int(bool(settings["lunch_break_enabled"])),
-                    "created_from_proposal": 1,
-                },
-            )
-            for assignment in day.assignments:
-                store.create(
-                    EXAM_DAY_ASSIGNMENT,
-                    {
-                        "exam_day_id": exam_day["id"],
-                        "committee_member_id": assignment.committee_member_id,
-                        "assignment_role": assignment.assignment_role,
-                        "day_part": assignment.day_part,
-                        "fallback_status": assignment.fallback_status,
-                    },
-                )
-            for slot in day.slots:
-                store.create(
-                    EXAM_SLOT,
-                    {
-                        "exam_day_id": exam_day["id"],
-                        "round_candidate_id": slot.round_candidate_id,
-                        "slot_type": slot.slot_type,
-                        "starts_at": slot.starts_at,
-                        "ends_at": slot.ends_at,
-                        "sequence_number": slot.sequence_number,
-                        "status": "proposed",
-                    },
-                )
-
-    def _persist_confirmed_aggregate(
-        self,
-        store: Store,
-        proposal: PlanningProposal,
-        protected_day_ids: set[int],
-    ) -> None:
-        """Update only open confirmed-plan parts without changing row identities."""
-        editable_days = [day for day in proposal.days if day.id not in protected_day_ids]
-        slots = [slot for day in editable_days for slot in day.slots]
-        temporary_sequence_base = 1_000_000
-        for slot in slots:
-            if slot.id is None:
-                raise ValueError("Confirmed plan slots need stable identities")
-            persisted_slot = store.session.get(ExamSlot, slot.id)
-            if persisted_slot is None:
-                raise ValueError("Confirmed plan slot no longer exists")
-            # ``(exam_day_id, sequence_number)`` is unique and the schema
-            # requires a positive sequence.  Temporarily move every retained
-            # row outside the bounded planning range so swaps cannot collide
-            # while the aggregate is persisted one row at a time.
-            persisted_slot.sequence_number = temporary_sequence_base + slot.id
-        store.session.flush()
-        for day in editable_days:
-            if day.id is None:
-                raise ValueError("Confirmed plan days need stable identities")
-            store.update(
-                EXAM_DAY,
-                day.id,
-                {
-                    "room_id": day.room_id,
-                    "date": day.date,
-                    "status": "confirmed",
-                },
-            )
-            for assignment in day.assignments:
-                if assignment.id is None:
-                    raise ValueError("Confirmed plan assignments need stable identities")
-                store.update(
-                    EXAM_DAY_ASSIGNMENT,
-                    assignment.id,
-                    {
-                        "exam_day_id": day.id,
-                        "committee_member_id": assignment.committee_member_id,
-                        "assignment_role": assignment.assignment_role,
-                        "day_part": assignment.day_part,
-                        "fallback_status": assignment.fallback_status,
-                    },
-                )
-            for slot in day.slots:
-                store.update(
-                    EXAM_SLOT,
-                    slot.id,
-                    {
-                        "exam_day_id": day.id,
-                        "round_candidate_id": slot.round_candidate_id,
-                        "slot_type": slot.slot_type,
-                        "starts_at": slot.starts_at,
-                        "ends_at": slot.ends_at,
-                        "sequence_number": slot.sequence_number,
-                        "status": "confirmed",
-                    },
-                )
-
-    def _claim_revision(
-        self,
-        store: Store,
-        round_id: int,
-        expected_revision: int,
-        *,
-        allowed_statuses: set[str],
-        target_status: str,
-    ) -> int:
-        result = store.session.execute(
-            sql_update(ExamRound)
-            .where(
-                ExamRound.id == round_id,
-                ExamRound.plan_revision == expected_revision,
-                ExamRound.status.in_(allowed_statuses),
-            )
-            .values(
-                plan_revision=expected_revision + 1,
-                status=target_status,
-                updated_at=datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S.%f"),
-            )
-        )
-        if result.rowcount != 1:
-            raise PlanConflictError("Planning proposal revision or status changed")
-        return expected_revision + 1
-
     @staticmethod
-    def _proposal_days(proposal: PlanningProposal) -> list[dict[str, Any]]:
+    def _audit_days(proposal: PlanningProposal) -> list[dict[str, Any]]:
         return [
             {
                 "id": day.id,
@@ -779,47 +630,13 @@ class PlanningService:
         ]
 
     @classmethod
-    def proposal_payload(cls, proposal: PlanningProposal) -> dict[str, Any]:
-        """Serialize the complete editable aggregate for the HTTP boundary."""
+    def _confirmed_plan_audit_state(cls, proposal: PlanningProposal) -> dict[str, Any]:
+        """Build the stable historical state stored in revision audit records."""
         return {
             "round_id": proposal.round_id,
             "revision": proposal.revision,
-            "exam_days": cls._proposal_days(proposal),
+            "exam_days": cls._audit_days(proposal),
         }
-
-    @classmethod
-    def confirmed_plan_payload(cls, proposal: PlanningProposal) -> dict[str, Any]:
-        """Serialize a revisioned confirmed aggregate without a mutation reason."""
-        return cls.proposal_payload(proposal)
-
-    def _protected_confirmed_day_ids(
-        self,
-        store: Store,
-        proposal: PlanningProposal,
-    ) -> set[int]:
-        """Return confirmed-plan days whose operational state makes them immutable."""
-        protected_day_ids: set[int] = set()
-        for day in proposal.days:
-            if day.id is None:
-                raise ConfirmedPlanConflictError("Confirmed plan day identity is missing")
-            current_day = store.get(EXAM_DAY, day.id)
-            if (
-                current_day is None
-                or current_day["status"] != "confirmed"
-                or current_day["closure_status"] != "open"
-            ):
-                protected_day_ids.add(day.id)
-                continue
-            for slot in store.where(EXAM_SLOT, exam_day_id=day.id):
-                if (
-                    slot["status"] != "confirmed"
-                    or slot["execution_status"] != "open"
-                    or slot["actual_started_at"] is not None
-                    or slot["actual_completed_at"] is not None
-                ):
-                    protected_day_ids.add(day.id)
-                    break
-        return protected_day_ids
 
     @staticmethod
     def _raise_for_protected_confirmed_days_unchanged(
@@ -920,40 +737,40 @@ class PlanningService:
         return json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
 
     @staticmethod
-    def _revision_payload(revision: ConfirmedPlanRevision) -> dict[str, Any]:
-        return {
-            "id": revision.id,
-            "previous_revision": revision.previous_revision,
-            "resulting_revision": revision.resulting_revision,
-            "reason": revision.reason,
-            "actor_member_id": revision.actor_member_id,
-            "before": json.loads(revision.before_state_json),
-            "after": json.loads(revision.after_state_json),
-            "created_at": revision.created_at,
-        }
+    def _revision_result(revision: ConfirmedPlanRevisionSnapshot) -> ConfirmedPlanRevision:
+        return ConfirmedPlanRevision(
+            id=revision.id,
+            previous_revision=revision.previous_revision,
+            resulting_revision=revision.resulting_revision,
+            reason=revision.reason,
+            actor_member_id=revision.actor_member_id,
+            before=json.loads(revision.before_state_json),
+            after=json.loads(revision.after_state_json),
+            created_at=revision.created_at,
+        )
 
     def _raise_for_invalid_proposal(
         self,
-        store: Store,
+        context: dict[str, Any],
         proposal: PlanningProposal,
         *,
         status: str = "proposed",
     ) -> None:
-        issues = self._validate_proposal(store, proposal, status=status)
+        issues = self._validate_proposal(context, proposal, status=status)
         if issues:
             raise PlanValidationError(issues)
 
     def _validate_proposal(
         self,
-        store: Store,
+        context: dict[str, Any],
         proposal: PlanningProposal,
         *,
         status: str = "proposed",
     ) -> list[PlanValidationIssue]:
         """Apply every mandatory proposal invariant through one validation path."""
         issues: list[PlanValidationIssue] = []
-        exam_round = store.get(EXAM_ROUND, proposal.round_id)
-        settings = store.first(PLANNING_SETTINGS, exam_round_id=proposal.round_id)
+        exam_round = context["round"]
+        settings = context["settings"]
         if exam_round is None:
             return [PlanValidationIssue("round_not_found", "Exam round not found")]
         if settings is None:
@@ -962,48 +779,36 @@ class PlanningService:
             issues.append(
                 PlanValidationIssue("plan_empty", "A planning proposal needs at least one exam day")
             )
-        context = self._proposal_validation_context(store, proposal, exam_round, settings)
+        validation_context = self._proposal_validation_context(
+            context, proposal, exam_round, settings
+        )
         for day in proposal.days:
-            self._validate_proposal_day(store, day, context, issues, status=status)
-        self._validate_weekly_day_limits(context, issues)
-        self._validate_candidate_requirements(store, proposal, context, issues)
+            self._validate_proposal_day(day, validation_context, issues, status=status)
+        self._validate_weekly_day_limits(validation_context, issues)
+        self._validate_candidate_requirements(proposal, validation_context, issues)
         return issues
 
     def _proposal_validation_context(
         self,
-        store: Store,
+        context: dict[str, Any],
         proposal: PlanningProposal,
         exam_round: dict[str, Any],
         settings: dict[str, Any],
     ) -> _ProposalValidationContext:
-        active_candidates = {
-            row["id"]: row
-            for row in store.where(
-                ROUND_CANDIDATE,
-                exam_round_id=proposal.round_id,
-                is_active=1,
-            )
-        }
-        candidate_days = {
-            row["id"]: row
-            for row in store.where(CANDIDATE_EXAM_DAY, exam_round_id=proposal.round_id)
-        }
-        availability = self._availability_index(
-            store.where(MEMBER_AVAILABILITY, exam_round_id=proposal.round_id)
-        )
         return _ProposalValidationContext(
             exam_round=exam_round,
             settings=settings,
-            active_candidates=active_candidates,
-            candidate_days=candidate_days,
-            members={row["id"]: row for row in store.all(COMMITTEE_MEMBER)},
-            availability=availability,
-            blocked=self._blocked_person_ids(store, exam_round),
+            active_candidates={row["id"]: row for row in context["round_candidates"]},
+            candidate_days=context["candidate_days_by_id"],
+            members=context["members_by_id"],
+            availability=self._availability_index(context["availability"]),
+            blocked=context["blocked_person_ids"],
+            active_candidate_assignments=context["active_candidate_assignments"],
+            usable_room_ids=context["usable_room_ids"],
         )
 
     def _validate_proposal_day(
         self,
-        store: Store,
         day: PlanDay,
         context: _ProposalValidationContext,
         issues: list[PlanValidationIssue],
@@ -1013,7 +818,7 @@ class PlanningService:
         candidate_day = self._validated_candidate_day(day, context, issues)
         if candidate_day is None:
             return
-        self._validate_exam_day_state(store, day, candidate_day, context, issues, status=status)
+        self._validate_exam_day_state(day, candidate_day, context, issues, status=status)
         self._validate_day_slots(day, candidate_day, context, issues, status=status)
         self._validate_day_assignments(day, candidate_day, context, issues)
 
@@ -1051,7 +856,6 @@ class PlanningService:
 
     def _validate_exam_day_state(
         self,
-        store: Store,
         day: PlanDay,
         candidate_day: dict[str, Any],
         context: _ProposalValidationContext,
@@ -1067,12 +871,7 @@ class PlanningService:
                     day_id=day.id,
                 )
             )
-        if not room_is_usable_for_committee(
-            store.session,
-            day.room_id,
-            context.exam_round["committee_id"],
-            require_confirmed_coordinates=self.require_confirmed_coordinates,
-        ):
+        if day.room_id not in context.usable_room_ids:
             issues.append(
                 PlanValidationIssue(
                     "room_invalid",
@@ -1346,19 +1145,13 @@ class PlanningService:
 
     def _validate_candidate_requirements(
         self,
-        store: Store,
         proposal: PlanningProposal,
         context: _ProposalValidationContext,
         issues: list[PlanValidationIssue],
     ) -> None:
         for candidate_id, candidate in context.active_candidates.items():
             self._validate_candidate_slot_counts(candidate_id, candidate, context, issues)
-            active_assignment = store.first(
-                CANDIDATE_COMMITTEE_ASSIGNMENT,
-                round_candidate_id=candidate_id,
-                ended_at=None,
-            )
-            if active_assignment is None or active_assignment["exam_round_id"] != proposal.round_id:
+            if context.active_candidate_assignments.get(candidate_id) != proposal.round_id:
                 issues.append(
                     PlanValidationIssue(
                         "candidate_assignment_inactive",
@@ -1391,85 +1184,26 @@ class PlanningService:
                 )
             )
 
-    def _load_context(self, store: Store, round_id: int) -> dict[str, Any]:
-        exam_round = store.get(EXAM_ROUND, round_id)
-        if exam_round is not None:
-            round_model = store.session.get(ExamRound, round_id)
-            exam_round["plan_revision"] = round_model.plan_revision if round_model else 0
-        settings = store.first(PLANNING_SETTINGS, exam_round_id=round_id)
+    def _load_context(self, snapshot: PlanningContextSnapshot) -> dict[str, Any]:
+        """Adapt the typed Planning snapshot to the existing scheduling rules."""
+        candidate_days = dict(snapshot.candidate_days)
+        members = dict(snapshot.members)
         return {
-            "round": exam_round,
-            "settings": settings,
-            "round_candidates": store.where(
-                ROUND_CANDIDATE,
-                exam_round_id=round_id,
-                is_active=1,
-            ),
-            "candidates": {row["id"]: row for row in store.all(CANDIDATE)},
-            "members": [
-                row
-                for row in store.where(
-                    COMMITTEE_MEMBER,
-                    committee_id=exam_round["committee_id"] if exam_round else -1,
-                )
-                if row["is_active"]
-            ],
-            "candidate_days": [
-                row
-                for row in store.where(CANDIDATE_EXAM_DAY, exam_round_id=round_id)
-                if row["is_active"]
-            ],
-            "availability": store.where(MEMBER_AVAILABILITY, exam_round_id=round_id),
-            "blocked_person_ids": self._blocked_person_ids(store, exam_round),
+            "round": dict(snapshot.exam_round) if snapshot.exam_round is not None else None,
+            "settings": dict(snapshot.settings) if snapshot.settings is not None else None,
+            "round_candidates": [dict(row) for row in snapshot.round_candidates],
+            "candidates": {key: dict(row) for key, row in snapshot.candidates.items()},
+            "members": [dict(row) for row in members.values()],
+            "members_by_id": {key: dict(row) for key, row in members.items()},
+            "candidate_days": [dict(row) for row in candidate_days.values() if row["is_active"]],
+            "candidate_days_by_id": {key: dict(row) for key, row in candidate_days.items()},
+            "availability": [dict(row) for row in snapshot.availability],
+            "blocked_person_ids": {
+                key: dict(value) for key, value in snapshot.blocked_person_ids.items()
+            },
+            "active_candidate_assignments": dict(snapshot.active_candidate_assignments),
+            "usable_room_ids": snapshot.usable_room_ids,
         }
-
-    def _blocked_person_ids(
-        self,
-        store: Store,
-        exam_round: dict[str, Any] | None,
-    ) -> dict[tuple[str, str], dict[int, str]]:
-        """Reserve people per half-year and day part for existing plans.
-
-        Confirmed plans have precedence over proposals.  A proposal is still a
-        reservation for another proposal so independently generated plans do
-        not double-book a person while both are awaiting confirmation.
-        """
-        blocked: dict[tuple[str, str], dict[int, str]] = defaultdict(dict)
-        if exam_round is None:
-            return blocked
-        for assignment in store.all(EXAM_DAY_ASSIGNMENT):
-            exam_day = store.get(EXAM_DAY, assignment["exam_day_id"])
-            member = store.get(COMMITTEE_MEMBER, assignment["committee_member_id"])
-            other_round = store.get(EXAM_ROUND, exam_day["exam_round_id"]) if exam_day else None
-            if (
-                exam_day is None
-                or member is None
-                or other_round is None
-                or exam_day["exam_round_id"] == exam_round["id"]
-                or other_round["exam_half_year_id"] != exam_round["exam_half_year_id"]
-                or exam_day["status"] in {"cancelled", "completed"}
-            ):
-                continue
-            reservation = (
-                "bestätigten Termin" if exam_day["status"] == "confirmed" else "Planungsvorschlag"
-            )
-            parts = (
-                ("morning", "afternoon")
-                if assignment["day_part"] == "full_day"
-                else (assignment["day_part"],)
-            )
-            for part in parts:
-                key = (exam_day["date"], part)
-                previous = blocked[key].get(member["person_id"])
-                if previous != "bestätigten Termin":
-                    blocked[key][member["person_id"]] = reservation
-        return blocked
-
-    def _clear_existing_proposal(self, store: Store, round_id: int) -> None:
-        for exam_day in store.where(EXAM_DAY, exam_round_id=round_id):
-            if exam_day["status"] == "confirmed":
-                raise ValueError("Confirmed exam days cannot be replaced")
-            store.delete(EXAM_DAY, exam_day["id"])
 
     def _build_proposal(self, context: dict[str, Any]) -> dict[str, Any]:
         settings = context["settings"]

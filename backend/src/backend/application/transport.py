@@ -78,6 +78,7 @@ class RequestContext:
     session_ttl: timedelta
     max_request_bytes: int
     runtime_policy: RuntimePolicy
+    planning_service_factory: Callable[[Path], PlanningService]
     candidate_day_service_factory: Callable[[Path], CandidateDayService]
     planning_resource_unit_of_work_factory: Callable[[Path], PlanningResourceUnitOfWorkFactory]
     resource_access_query_factory: Callable[[Path], ResourceAccessQueryFactory]
@@ -120,13 +121,7 @@ class RequestContext:
 
     @property
     def planning_service(self) -> PlanningService:
-        return PlanningService(
-            self.db_path,
-            require_confirmed_coordinates=(
-                self.runtime_settings is not None
-                and self.runtime_settings.integrations.map_provider != "off"
-            ),
-        )
+        return self.planning_service_factory(self.db_path)
 
     @property
     def candidate_day_service(self) -> CandidateDayService:

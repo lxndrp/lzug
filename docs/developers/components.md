@@ -191,9 +191,6 @@ Sessions verlassen Persistence.
 Für die Koordinatenpolicy erhält der Adapter den bereits aufgelösten Wert aus
 `FastAPIConfig.map_provider.active` und liest bei Requests keine
 Prozessumgebung erneut ein.
-`PlanningService` für Vorschläge und Revisionen bleibt der bisherige Pfad und
-liegt außerhalb dieser Portmigration.
-
 Die Kandidatentage sind der erste Planning-Port-Pilot:
 `backend.planning.candidate_days` enthält den typisierten Generierungsbefehl,
 das Ergebnis, die Providerabstraktion und den Unit-of-Work-Vertrag ohne
@@ -207,9 +204,6 @@ Runtime-Policy ausgewählten Datenbankpfad. Dadurch bleiben Produkt- und
 Demo-Datenbanken getrennt und jede Generierung erhält ihren eigenen UoW.
 Das Lebensdauerdiagramm und ein konkreter Ablauf stehen im
 [Backend-Vertrag](backend-architecture-contract.md#vertikaler-pilot-kandidatentage).
-`PlanningService` für Vorschläge und Revisionen verwendet weiterhin den
-dokumentierten Übergangspfad.
-
 Prüfungsorte verwenden denselben Portansatz:
 `backend.planning_ports` enthält den Planning-owned Vertrag für typisierte
 Abfragen, Commands,
@@ -226,6 +220,17 @@ SQLite-Schreib-UoW.
 Providerverhalten und dem pro Runtime-Policy ausgewählten Datenbankpfad.
 Ein bestätigter Venue-Commit liefert eine typisierte `VenueChange`.
 Die bisherige Auditverarbeitung läuft als injizierter Post-Commit-Übergang.
+
+Vorschlagsgenerierung, Validierung, Bestätigung und bestätigte Revisionierung
+laufen über `backend.planning.proposals` und den Planning-eigenen
+`PlanningUnitOfWork`. Die Ports liefern materialisierte Snapshots; Proposal-CAS,
+Aggregatänderung und unveränderlicher Vorher-/Nachher-Auditstand committen im
+selben UoW. `backend.persistence.planning` implementiert den SQLite-Vertrag,
+`backend.composition.planning_service` verdrahtet den Adapter samt der
+konfigurierten Koordinatenregel, und `RequestContext` übergibt pro Request den
+Runtime-Datenbankpfad. Der Service enthält keine Persistenz-, Provider- oder
+HTTP-Imports; weitere Planning-Services behalten ihre separat dokumentierten
+Übergangspfade.
 
 In `execution.absence` und `execution.exam_protocols` bleiben die öffentlichen
 Servicebefehle die autoritative Grenze für Zustandsübergänge.

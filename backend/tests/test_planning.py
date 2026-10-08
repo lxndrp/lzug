@@ -1,14 +1,19 @@
 from __future__ import annotations
 
 import unittest
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from dataclasses import replace
-from unittest.mock import patch
+from threading import Barrier
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
 from sqlalchemy import text
 
 from backend.application.repositories import ResourceRepository
-from backend.composition import identity_service
+from backend.composition import identity_service, planning_service
 from backend.persistence.database import connect, session_scope
+from backend.persistence.identity import SQLiteIdentityPlanningSnapshotFactory
 from backend.persistence.models import (
     CANDIDATE_EXAM_DAY,
     COMMITTEE_MEMBER,
@@ -21,26 +26,91 @@ from backend.persistence.models import (
     ExamRoom,
     ExamVenue,
 )
+from backend.persistence.planning import SQLitePlanningUnitOfWork, SQLitePlanningUnitOfWorkFactory
 from backend.persistence.store import Store
 from backend.planning import (
     ConfirmedPlanChange,
     ConfirmedPlanConflictError,
     PlanConflictError,
-    PlanningService,
+    PlanningProposal,
     PlanValidationError,
 )
+from backend.planning.proposals import PlanningService
 from backend.tests.helpers import TempDatabase, create_committee_record
 from backend.tests.planning_support import planning_resource_service
 
 
 class PlanningTests(unittest.TestCase):
+    def test_proposal_validation_uses_only_the_planning_unit_of_work(self) -> None:
+        snapshot = SimpleNamespace(
+            exam_round={"id": 8, "status": "plan_proposed", "plan_revision": 4},
+            settings=None,
+            round_candidates=(),
+            candidates={},
+            members={},
+            candidate_days={},
+            availability=(),
+            blocked_person_ids={},
+            active_candidate_assignments={},
+            usable_room_ids=frozenset(),
+            protected_confirmed_day_ids=frozenset(),
+            exam_day_records=(),
+            proposal=PlanningProposal(round_id=8, revision=4, days=()),
+        )
+        unit_of_work = Mock()
+        unit_of_work.planning_context.return_value = snapshot
+
+        @contextmanager
+        def unit_of_work_scope():
+            yield unit_of_work
+
+        service = PlanningService(lambda **_: unit_of_work_scope())
+
+        with self.assertRaises(PlanValidationError) as error:
+            service.save_proposal(PlanningProposal(round_id=8, revision=4, days=()))
+
+        self.assertEqual("settings_missing", error.exception.issues[0].code)
+        unit_of_work.replace_proposal.assert_not_called()
+
+    def test_read_unit_of_work_pins_consistent_planning_snapshot(self) -> None:
+        with TempDatabase() as db_path:
+            factory = SQLitePlanningUnitOfWorkFactory(
+                db_path,
+                identity_snapshot_factory=SQLiteIdentityPlanningSnapshotFactory(),
+            )
+            with factory() as reader:
+                before = reader.planning_context(1)
+                assert before.settings is not None
+                original_exams_per_day = before.settings["exams_per_day"]
+
+                with session_scope(db_path, begin_immediate=True) as writer:
+                    writer.execute(
+                        text(
+                            "UPDATE planning_settings "
+                            "SET exams_per_day = exams_per_day + 1 "
+                            "WHERE exam_round_id = :round_id"
+                        ),
+                        {"round_id": 1},
+                    )
+
+                after = reader.planning_context(1)
+
+            assert after.settings is not None
+            self.assertEqual(original_exams_per_day, after.settings["exams_per_day"])
+
+            with session_scope(db_path) as session:
+                current_settings = Store(session).first(PLANNING_SETTINGS, exam_round_id=1)
+
+        assert current_settings is not None
+        self.assertEqual(original_exams_per_day + 1, current_settings["exams_per_day"])
+
     def test_request_availabilities_moves_prepared_draft_into_coordination(self) -> None:
         with TempDatabase() as db_path:
             repository = ResourceRepository(db_path)
             with session_scope(db_path) as session:
                 Store(session).update(EXAM_ROUND, 1, {"status": "draft"})
 
-            requested = PlanningService(db_path).request_availabilities(1)
+            requested = planning_service(db_path).request_availabilities(1)
             persisted = repository.get(EXAM_ROUND, 1)
 
         self.assertEqual("availability_requested", requested["status"])
@@ -49,7 +119,7 @@ class PlanningTests(unittest.TestCase):
     def test_missing_round_is_rejected(self) -> None:
         with TempDatabase(with_seed=False) as db_path:
             with self.assertRaisesRegex(ValueError, "Exam round not found"):
-                PlanningService(db_path).generate_proposal(1)
+                planning_service(db_path).generate_proposal(1)
 
     def test_missing_planning_settings_are_rejected(self) -> None:
         with TempDatabase() as db_path:
@@ -58,7 +128,7 @@ class PlanningTests(unittest.TestCase):
                 connection.commit()
 
             with self.assertRaisesRegex(ValueError, "Planning settings not found"):
-                PlanningService(db_path).generate_proposal(1)
+                planning_service(db_path).generate_proposal(1)
 
     def test_missing_default_room_is_rejected_before_proposal_building(self) -> None:
         with TempDatabase() as db_path:
@@ -69,7 +139,7 @@ class PlanningTests(unittest.TestCase):
             )
 
             with self.assertRaisesRegex(ValueError, "Planning settings need a default room"):
-                PlanningService(db_path).generate_proposal(1)
+                planning_service(db_path).generate_proposal(1)
 
     def test_no_active_candidate_days_are_rejected(self) -> None:
         with TempDatabase() as db_path:
@@ -78,33 +148,32 @@ class PlanningTests(unittest.TestCase):
                 connection.commit()
 
             with self.assertRaisesRegex(ValueError, "No active candidate exam days found"):
-                PlanningService(db_path).generate_proposal(1)
+                planning_service(db_path).generate_proposal(1)
 
     def test_confirmation_without_proposal_is_rejected(self) -> None:
         with TempDatabase() as db_path:
             with self.assertRaisesRegex(ValueError, "No planning proposal found"):
-                PlanningService(db_path).confirm_plan(1)
+                planning_service(db_path).confirm_plan(1)
 
     def test_generate_proposal_persists_days_slots_assignments(self) -> None:
         with TempDatabase() as db_path:
-            proposal = PlanningService(db_path).generate_proposal(1)
+            proposal = planning_service(db_path).generate_proposal(1)
             repository = ResourceRepository(db_path)
             exam_days = repository.list_filtered(EXAM_DAY, {"exam_round_id": 1})
             exam_slots = repository.list(EXAM_SLOT)
             assignments = repository.list(EXAM_DAY_ASSIGNMENT)
             exam_round = repository.get(EXAM_ROUND, 1)
 
-        self.assertTrue(proposal["validation"]["passed"])
-        self.assertEqual("plan_proposed", proposal["status"])
+        self.assertEqual(1, proposal.proposal.revision)
         self.assertEqual("plan_proposed", exam_round["status"])
-        self.assertEqual(16, proposal["counts"]["planned_slots"])
+        self.assertEqual(16, proposal.counts.planned_slots)
         self.assertEqual(16, len(exam_slots))
         self.assertGreaterEqual(len(exam_days), 3)
         self.assertGreaterEqual(len(assignments), len(exam_days) * 4)
 
     def test_mep_slots_are_at_the_end_of_each_day(self) -> None:
         with TempDatabase() as db_path:
-            PlanningService(db_path).generate_proposal(1)
+            planning_service(db_path).generate_proposal(1)
             repository = ResourceRepository(db_path)
             exam_days = repository.list_filtered(EXAM_DAY, {"exam_round_id": 1})
             slots = repository.list(EXAM_SLOT)
@@ -119,19 +188,19 @@ class PlanningTests(unittest.TestCase):
 
     def test_generate_proposal_replaces_existing_proposal(self) -> None:
         with TempDatabase() as db_path:
-            service = PlanningService(db_path)
+            service = planning_service(db_path)
             first = service.generate_proposal(1)
             second = service.generate_proposal(1)
             repository = ResourceRepository(db_path)
             exam_slots = repository.list(EXAM_SLOT)
 
-        self.assertEqual(16, first["counts"]["planned_slots"])
-        self.assertEqual(16, second["counts"]["planned_slots"])
+        self.assertEqual(16, first.counts.planned_slots)
+        self.assertEqual(16, second.counts.planned_slots)
         self.assertEqual(16, len(exam_slots))
 
     def test_complete_proposal_can_be_read_reordered_and_saved_with_new_revision(self) -> None:
         with TempDatabase() as db_path:
-            service = PlanningService(db_path)
+            service = planning_service(db_path)
             generated = service.generate_proposal(1)
             proposal = service.get_proposal(1)
             first_day = proposal.days[0]
@@ -148,7 +217,7 @@ class PlanningTests(unittest.TestCase):
             saved = service.save_proposal(changed)
             persisted = service.get_proposal(1)
 
-        self.assertEqual(1, generated["revision"])
+        self.assertEqual(1, generated.proposal.revision)
         self.assertEqual(1, proposal.revision)
         self.assertEqual(2, saved.revision)
         self.assertEqual(saved, persisted)
@@ -164,7 +233,7 @@ class PlanningTests(unittest.TestCase):
 
     def test_stale_revision_and_validation_failure_leave_proposal_unchanged(self) -> None:
         with TempDatabase() as db_path:
-            service = PlanningService(db_path)
+            service = planning_service(db_path)
             service.generate_proposal(1)
             original = service.get_proposal(1)
             saved = service.save_proposal(original)
@@ -198,7 +267,7 @@ class PlanningTests(unittest.TestCase):
 
     def test_confirmed_plan_change_records_actor_reason_and_immutable_snapshots(self) -> None:
         with TempDatabase() as db_path:
-            service = PlanningService(db_path)
+            service = planning_service(db_path)
             service.generate_proposal(1)
             service.confirm_plan(1)
             original = service.get_confirmed_plan(1)
@@ -224,22 +293,22 @@ class PlanningTests(unittest.TestCase):
         self.assertEqual(saved, persisted)
         self.assertEqual(1, len(history))
         self.assertEqual(revision, history[0])
-        self.assertEqual(1, history[0]["actor_member_id"])
-        self.assertEqual("Prüflingsreihenfolge korrigiert", history[0]["reason"])
-        self.assertEqual(original.revision, history[0]["previous_revision"])
-        self.assertEqual(saved.revision, history[0]["resulting_revision"])
+        self.assertEqual(1, history[0].actor_member_id)
+        self.assertEqual("Prüflingsreihenfolge korrigiert", history[0].reason)
+        self.assertEqual(original.revision, history[0].previous_revision)
+        self.assertEqual(saved.revision, history[0].resulting_revision)
         self.assertEqual(
             [slot.id for slot in original.days[0].slots],
-            [slot["id"] for slot in history[0]["before"]["exam_days"][0]["slots"]],
+            [slot["id"] for slot in history[0].before["exam_days"][0]["slots"]],
         )
         self.assertEqual(
             [slot.id for slot in saved.days[0].slots],
-            [slot["id"] for slot in history[0]["after"]["exam_days"][0]["slots"]],
+            [slot["id"] for slot in history[0].after["exam_days"][0]["slots"]],
         )
 
     def test_confirmed_plan_change_keeps_started_day_immutable_but_allows_later_day(self) -> None:
         with TempDatabase() as db_path:
-            service = PlanningService(db_path)
+            service = planning_service(db_path)
             service.generate_proposal(1)
             service.confirm_plan(1)
             original = service.get_confirmed_plan(1)
@@ -300,7 +369,7 @@ class PlanningTests(unittest.TestCase):
 
     def test_confirmed_plan_change_allows_later_day_after_terminal_day(self) -> None:
         with TempDatabase() as db_path:
-            service = PlanningService(db_path)
+            service = planning_service(db_path)
             service.generate_proposal(1)
             service.confirm_plan(1)
             original = service.get_confirmed_plan(1)
@@ -339,7 +408,7 @@ class PlanningTests(unittest.TestCase):
         self,
     ) -> None:
         with TempDatabase() as db_path:
-            service = PlanningService(db_path)
+            service = planning_service(db_path)
             service.generate_proposal(1)
             service.confirm_plan(1)
             original = service.get_confirmed_plan(1)
@@ -361,12 +430,12 @@ class PlanningTests(unittest.TestCase):
                 )
             history = service.confirmed_plan_revisions(1)
 
-        self.assertEqual(saved.revision, history[0]["resulting_revision"])
+        self.assertEqual(saved.revision, history[0].resulting_revision)
         self.assertEqual(1, len(history))
 
     def test_confirmed_plan_persistence_failure_rolls_back_plan_and_audit(self) -> None:
         with TempDatabase() as db_path:
-            service = PlanningService(db_path)
+            service = planning_service(db_path)
             service.generate_proposal(1)
             service.confirm_plan(1)
             original = service.get_confirmed_plan(1)
@@ -380,16 +449,16 @@ class PlanningTests(unittest.TestCase):
                     *original.days[1:],
                 ),
             )
-            persist = service._persist_confirmed_aggregate
+            persist = SQLitePlanningUnitOfWork._persist_confirmed_plan
 
-            def persist_then_fail(store, proposal, protected_day_ids):
-                persist(store, proposal, protected_day_ids)
+            def persist_then_fail(unit_of_work, proposal, protected_day_ids):
+                persist(unit_of_work, proposal, protected_day_ids)
                 raise RuntimeError("simulated confirmed-plan persistence failure")
 
             with patch.object(
-                service,
-                "_persist_confirmed_aggregate",
-                side_effect=persist_then_fail,
+                SQLitePlanningUnitOfWork,
+                "_persist_confirmed_plan",
+                new=persist_then_fail,
             ):
                 with self.assertRaisesRegex(
                     RuntimeError,
@@ -407,7 +476,7 @@ class PlanningTests(unittest.TestCase):
 
     def test_status_conflict_and_persistence_error_roll_back_revision_and_rows(self) -> None:
         with TempDatabase() as db_path:
-            service = PlanningService(db_path)
+            service = planning_service(db_path)
             service.generate_proposal(1)
             original = service.get_proposal(1)
 
@@ -424,16 +493,16 @@ class PlanningTests(unittest.TestCase):
                 )
                 connection.commit()
 
-            persist = service._persist_aggregate
+            persist = SQLitePlanningUnitOfWork._persist_proposal
 
-            def persist_partly_then_fail(store, proposal):
-                persist(store, replace(proposal, days=proposal.days[:1]))
+            def persist_partly_then_fail(unit_of_work, proposal):
+                persist(unit_of_work, replace(proposal, days=proposal.days[:1]))
                 raise RuntimeError("simulated persistence failure")
 
             with patch.object(
-                service,
-                "_persist_aggregate",
-                side_effect=persist_partly_then_fail,
+                SQLitePlanningUnitOfWork,
+                "_persist_proposal",
+                new=persist_partly_then_fail,
             ):
                 with self.assertRaisesRegex(RuntimeError, "simulated persistence failure"):
                     service.save_proposal(original)
@@ -441,9 +510,31 @@ class PlanningTests(unittest.TestCase):
 
         self.assertEqual(original, unchanged)
 
+    def test_concurrent_proposal_saves_return_one_success_and_one_conflict(self) -> None:
+        with TempDatabase() as db_path:
+            service = planning_service(db_path)
+            service.generate_proposal(1)
+            original = service.get_proposal(1)
+            barrier = Barrier(2)
+
+            def save_same_revision() -> str:
+                barrier.wait()
+                try:
+                    service.save_proposal(original)
+                except PlanConflictError:
+                    return "conflict"
+                return "saved"
+
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                outcomes = list(executor.map(lambda _: save_same_revision(), range(2)))
+            saved = service.get_proposal(1)
+
+        self.assertCountEqual(["saved", "conflict"], outcomes)
+        self.assertEqual(original.revision + 1, saved.revision)
+
     def test_confirmation_reuses_full_validator(self) -> None:
         with TempDatabase() as db_path:
-            service = PlanningService(db_path)
+            service = planning_service(db_path)
             service.generate_proposal(1)
             proposal = service.get_proposal(1)
             with connect(db_path) as connection:
@@ -465,7 +556,7 @@ class PlanningTests(unittest.TestCase):
 
     def test_generic_writes_cannot_bypass_plan_aggregate(self) -> None:
         with TempDatabase() as db_path:
-            service = PlanningService(db_path)
+            service = planning_service(db_path)
             service.generate_proposal(1)
             proposal = service.get_proposal(1)
             repository = ResourceRepository(db_path)
@@ -485,7 +576,7 @@ class PlanningTests(unittest.TestCase):
 
     def test_validator_covers_day_slot_location_crew_and_capacity_rules(self) -> None:
         with TempDatabase() as db_path:
-            service = PlanningService(db_path)
+            service = planning_service(db_path)
             service.generate_proposal(1)
             proposal = service.get_proposal(1)
             repository = ResourceRepository(db_path)
@@ -578,7 +669,7 @@ class PlanningTests(unittest.TestCase):
 
     def test_validator_covers_assignment_week_and_candidate_contracts(self) -> None:
         with TempDatabase() as db_path:
-            service = PlanningService(db_path)
+            service = planning_service(db_path)
             service.generate_proposal(1)
             proposal = service.get_proposal(1)
             repository = ResourceRepository(db_path)
@@ -628,14 +719,14 @@ class PlanningTests(unittest.TestCase):
 
     def test_proposal_builder_preserves_stepwise_capacity_messages(self) -> None:
         with TempDatabase() as db_path:
-            service = PlanningService(db_path)
-            with session_scope(db_path) as session:
-                context = service._load_context(Store(session), 1)
-                context["members"] = []
-                candidate_days = sorted(context["candidate_days"], key=lambda row: row["date"])
-                regular_count = len(context["round_candidates"])
-                mep_count = sum(row["requires_mep"] for row in context["round_candidates"])
-                result = service._build_proposal(context)
+            service = planning_service(db_path)
+            with service._unit_of_work_factory() as unit_of_work:
+                context = service._load_context(unit_of_work.planning_context(1))
+            context["members"] = []
+            candidate_days = sorted(context["candidate_days"], key=lambda row: row["date"])
+            regular_count = len(context["round_candidates"])
+            mep_count = sum(row["requires_mep"] for row in context["round_candidates"])
+            result = service._build_proposal(context)
 
         self.assertFalse(result["validation"]["passed"])
         self.assertEqual(
@@ -655,7 +746,7 @@ class PlanningTests(unittest.TestCase):
 
     def test_confirm_plan_updates_statuses_and_blocks_replacement(self) -> None:
         with TempDatabase() as db_path:
-            service = PlanningService(db_path)
+            service = planning_service(db_path)
             service.generate_proposal(1)
             confirmed = service.confirm_plan(1)
             repository = ResourceRepository(db_path)
@@ -667,7 +758,8 @@ class PlanningTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 service.generate_proposal(1)
 
-        self.assertEqual("plan_confirmed", confirmed["status"])
+        self.assertGreater(confirmed.confirmed_exam_days, 0)
+        self.assertGreater(confirmed.confirmed_slots, 0)
         self.assertEqual("plan_confirmed", exam_round["status"])
         self.assertTrue(all(day["status"] == "confirmed" for day in exam_days))
         self.assertTrue(all(slot["status"] == "confirmed" for slot in exam_slots))
@@ -687,10 +779,10 @@ class PlanningTests(unittest.TestCase):
                 for member_id in range(5, 9):
                     Store(session).update(COMMITTEE_MEMBER, member_id, {"is_active": 0})
 
-            PlanningService(db_path).generate_proposal(other_round["id"])
-            PlanningService(db_path).confirm_plan(other_round["id"])
+            planning_service(db_path).generate_proposal(other_round["id"])
+            planning_service(db_path).confirm_plan(other_round["id"])
             with self.assertRaises(PlanValidationError) as error:
-                PlanningService(db_path).generate_proposal(1)
+                planning_service(db_path).generate_proposal(1)
             exam_round = repository.get(EXAM_ROUND, 1)
             exam_days = repository.list_filtered(EXAM_DAY, {"exam_round_id": 1})
 
@@ -711,10 +803,10 @@ class PlanningTests(unittest.TestCase):
                 for member_id in range(5, 9):
                     Store(session).update(COMMITTEE_MEMBER, member_id, {"is_active": 0})
 
-            PlanningService(db_path).generate_proposal(other_round["id"])
+            planning_service(db_path).generate_proposal(other_round["id"])
             other_assignments = repository.list(EXAM_DAY_ASSIGNMENT)
             with self.assertRaises(PlanValidationError):
-                PlanningService(db_path).generate_proposal(1)
+                planning_service(db_path).generate_proposal(1)
             exam_round = repository.get(EXAM_ROUND, 1)
             exam_days = repository.list_filtered(EXAM_DAY, {"exam_round_id": 1})
 
@@ -829,7 +921,7 @@ class PlanningTests(unittest.TestCase):
                         "responded_at": "2026-01-01T00:00:00+00:00",
                     },
                 )
-        PlanningService(repository.db_path).request_availabilities(exam_round["id"])
+        planning_service(repository.db_path).request_availabilities(exam_round["id"])
         return exam_round
 
 
