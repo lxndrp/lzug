@@ -14,9 +14,7 @@ class SQLiteCalendarLifecycleWork:
     def __init__(self, session: Session) -> None:
         self._session = session
 
-    def cancel_future_round_events(
-        self, round_id: int, cutoff_date: str, now: str
-    ) -> set[int]:
+    def cancel_future_round_events(self, round_id: int, cutoff_date: str, now: str) -> set[int]:
         recipients: set[int] = set()
         for event in self._session.scalars(
             select(CalendarEvent).where(

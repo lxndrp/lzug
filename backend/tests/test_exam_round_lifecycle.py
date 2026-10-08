@@ -381,9 +381,7 @@ class ExamRoundLifecycleTests(unittest.TestCase):
                 ),
                 SQLiteAssessmentUnitOfWorkFactory(self.db_path),
                 self.db_path,
-                SQLiteAssessmentLifecycleAdapter(
-                    SQLiteAssessmentUnitOfWorkFactory(self.db_path)
-                ),
+                SQLiteAssessmentLifecycleAdapter(SQLiteAssessmentUnitOfWorkFactory(self.db_path)),
             ),
             lambda: ExamDayClosureService(
                 self.db_path,

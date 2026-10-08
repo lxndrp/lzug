@@ -938,9 +938,9 @@ class ExamDayClosureTests(unittest.TestCase):
                     responsible_member_id=1,
                     communicated_at="2026-10-08T12:01:00+00:00",
                     external_document_status=external_document_status,
-                    external_document_reference="IHK-Fachverfahren"
-                    if external_document_status
-                    else None,
+                    external_document_reference=(
+                        "IHK-Fachverfahren" if external_document_status else None
+                    ),
                     status="current",
                 )
             )

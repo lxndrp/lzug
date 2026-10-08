@@ -455,9 +455,9 @@ class ExamRoundLifecycleService:
             round_id=intent.round_id if recipients else None,
             recipient_member_ids=frozenset(recipients),
             title="Prüfungsrunde abgesagt" if recipients else "",
-            message="Die Prüfungsrunde wurde vollständig und begründet abgesagt."
-            if recipients
-            else "",
+            message=(
+                "Die Prüfungsrunde wurde vollständig und begründet abgesagt." if recipients else ""
+            ),
             origin_key=f"exam-round-decision:{decision.id}:cancelled" if recipients else "",
         )
 
