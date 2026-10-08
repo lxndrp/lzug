@@ -103,6 +103,12 @@ class VenueAuditConsequenceSource:
     descriptions: VenueConsequenceDescriptions
 
 
+def _snapshot_id(value: object) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+        raise ValueError("Venue change has an invalid audit-time assignment snapshot")
+    return value
+
+
 class PlanningVenueConsequencePlanner:
     """Read Planning facts and derive typed, deterministic venue consequences."""
 
@@ -172,9 +178,9 @@ class PlanningVenueConsequencePlanner:
         try:
             assignments = tuple(
                 VenueAssignment(
-                    assignment_id=int(item["assignment_id"]),
-                    recipient_member_id=int(item["recipient_member_id"]),
-                    committee_id=int(item["committee_id"]),
+                    assignment_id=_snapshot_id(item["assignment_id"]),
+                    recipient_member_id=_snapshot_id(item["recipient_member_id"]),
+                    committee_id=_snapshot_id(item["committee_id"]),
                 )
                 for item in raw_assignments
                 if isinstance(item, dict)

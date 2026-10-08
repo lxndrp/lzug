@@ -650,6 +650,97 @@ class VenueConsequenceTests(unittest.TestCase):
         finally:
             database.__exit__(None, None, None)
 
+    def test_legacy_audit_snapshot_is_only_a_problem_when_batch_is_missing(self) -> None:
+        database, db_path = self._confirmed_database()
+        try:
+            service = venue_consequence_service_for_test(db_path)
+            legacy_with_batch = VenueAuditEventSnapshot(
+                id=1001,
+                venue_id=1,
+                entity_type="venue",
+                entity_id=1,
+                details_json=json.dumps(
+                    {
+                        "consequence_version": 1,
+                        "before": {"site_name": "Old"},
+                        "after": {"site_name": "New"},
+                        "changed_fields": ["site_name"],
+                        "meaningful_change": True,
+                    }
+                ),
+                created_at="2026-10-09T00:00:00+00:00",
+            )
+            legacy_without_batch = VenueAuditEventSnapshot(
+                id=1002,
+                venue_id=1,
+                entity_type="room",
+                entity_id=2,
+                details_json=legacy_with_batch.details_json,
+                created_at="2026-10-09T00:00:01+00:00",
+            )
+            service.consequence_store.record_batch(
+                origin_type="exam_venue_audit_event",
+                origin_key=str(legacy_with_batch.id),
+                confirmed_plan_revision_id=None,
+                notification_scope=(),
+                tasks=(),
+                error_code=None,
+                now="2026-10-09T00:00:00+00:00",
+            )
+            audits = (legacy_with_batch, legacy_without_batch)
+            with (
+                patch.object(service.venue_planner, "consequence_audits", return_value=audits),
+                patch.object(service.venue_planner, "audits_for_venue", return_value=audits),
+            ):
+                recovered = service.process_due()
+                problems = service.problems_for_venue(1)
+
+            self.assertEqual(2, recovered["audits"])
+            self.assertEqual(1, recovered["problems"])
+            self.assertEqual(1, len(problems))
+            self.assertEqual("legacy_audit_snapshot_missing", problems[0]["error_code"])
+            self.assertEqual(legacy_without_batch.id, problems[0]["audit_id"])
+        finally:
+            database.__exit__(None, None, None)
+
+    def test_audit_snapshot_rejects_non_integer_assignment_identifiers(self) -> None:
+        database, db_path = self._confirmed_database()
+        try:
+            service = venue_consequence_service_for_test(db_path)
+            invalid_assignments = (
+                {"assignment_id": 1, "recipient_member_id": 27.8, "committee_id": 1},
+                {"assignment_id": 1, "recipient_member_id": True, "committee_id": 1},
+            )
+            for index, assignment in enumerate(invalid_assignments):
+                with self.subTest(assignment=assignment):
+                    audit = VenueAuditEventSnapshot(
+                        id=1100 + index,
+                        venue_id=1,
+                        entity_type="venue",
+                        entity_id=1,
+                        details_json=json.dumps(
+                            {
+                                "consequence_version": 2,
+                                "before": {},
+                                "after": {},
+                                "changed_fields": ["site_name"],
+                                "meaningful_change": True,
+                                "assignments": [assignment],
+                            }
+                        ),
+                        created_at="2026-10-09T00:00:00+00:00",
+                    )
+                    with patch.object(
+                        service.venue_planner.repository,
+                        "consequence_audit",
+                        return_value=audit,
+                    ):
+                        with self.assertRaisesRegex(ValueError, "invalid audit-time assignment"):
+                            service.venue_planner.source_for_audit(audit.id)
+                    self.assertTrue(service._has_invalid_details(service._audit_details(audit)))
+        finally:
+            database.__exit__(None, None, None)
+
     def test_retry_supersedes_an_effect_after_a_newer_relevant_change(self) -> None:
         database, db_path = self._confirmed_database()
         try:
@@ -687,6 +778,39 @@ class VenueConsequenceTests(unittest.TestCase):
             )
             self.assertGreater(old["superseded"], 0)
             self.assertEqual(0, old["problems"])
+        finally:
+            database.__exit__(None, None, None)
+
+    def test_retry_uses_persisted_tasks_when_audit_snapshot_cannot_be_read(self) -> None:
+        database, db_path = self._confirmed_database()
+        try:
+            venues = exam_venue_service_for_test(db_path)
+            venue = venues.get_venue(1)
+            assert venue is not None
+            with patch(
+                "backend.calendar.service.CalendarService.sync_assignment",
+                side_effect=RuntimeError("simulated calendar failure"),
+            ):
+                updated = venues.update_venue(
+                    1,
+                    {
+                        "expected_revision": venue["revision"],
+                        "site_name": "Retry from batch",
+                        "confirm_future_assignments": True,
+                    },
+                    technical_actor="operator:test",
+                )
+            assert updated is not None
+            service = venue_consequence_service_for_test(db_path)
+            with patch.object(
+                service.venue_planner,
+                "source_for_audit",
+                side_effect=ValueError("invalid audit-time assignment snapshot"),
+            ):
+                retried = service.retry_audit(updated["consequence_audit_id"])
+
+            self.assertEqual(0, retried["problems"])
+            self.assertGreater(retried["processed"], 0)
         finally:
             database.__exit__(None, None, None)
 

@@ -91,6 +91,10 @@ class VenueConsequenceService:
         for audit in audits:
             if audit.id in invalid_audit_ids or str(audit.id) in existing_origins:
                 continue
+            details = self._audit_details(audit)
+            if self._is_valid_legacy_snapshot(details):
+                derivation_problems += 1
+                continue
             try:
                 self._derive(audit.id, current)
             except Exception:
@@ -145,14 +149,22 @@ class VenueConsequenceService:
                 "room",
                 "venue",
             }
-            if details.get("consequence_version") != 2 and not invalid_details:
+            legacy_snapshot = self._is_valid_legacy_snapshot(details)
+            if (
+                details.get("consequence_version") != 2
+                and not invalid_details
+                and not legacy_snapshot
+            ):
                 continue
             if invalid_details:
                 result.append(self._problem_view(audit, None, "invalid_audit_details"))
             batch = self.consequence_store.batch_by_origin("exam_venue_audit_event", str(audit.id))
             if batch is None:
                 if not invalid_details:
-                    result.append(self._problem_view(audit, None, "derivation_missing"))
+                    error_code = (
+                        "legacy_audit_snapshot_missing" if legacy_snapshot else "derivation_missing"
+                    )
+                    result.append(self._problem_view(audit, None, error_code))
                 continue
             for task in self.consequence_store.tasks_for_batch(batch.id):
                 expired_claim = (
@@ -353,7 +365,12 @@ class VenueConsequenceService:
 
     def _supersede_stale(self, audit_id: int, current: datetime) -> None:
         today = date.today()
-        current_source = self.venue_planner.source_for_audit(audit_id, today=today)
+        try:
+            current_source = self.venue_planner.source_for_audit(audit_id, today=today)
+        except ValueError:
+            # Stored task signatures remain sufficient for manual retry when the
+            # immutable audit snapshot is damaged or predates the v2 contract.
+            return
         if current_source is None:
             return
         current_audit = current_source.audit
@@ -368,7 +385,10 @@ class VenueConsequenceService:
                 other_audit_id = int(batch.origin_key)
             except ValueError:
                 continue
-            other_source = self.venue_planner.source_for_audit(other_audit_id, today=today)
+            try:
+                other_source = self.venue_planner.source_for_audit(other_audit_id, today=today)
+            except ValueError:
+                continue
             other_audit = other_source.audit if other_source is not None else None
             if (
                 other_audit is None
@@ -451,6 +471,10 @@ class VenueConsequenceService:
             return {"_invalid_audit_details": True}
         if audit.entity_type not in {"room", "venue"}:
             return value
+        if value.get("consequence_version") == 1:
+            if not cls._is_valid_legacy_snapshot(value):
+                return {"_invalid_audit_details": True}
+            return value
         # Legacy audits omit retry-contract keys; partial presence signals damaged metadata.
         snapshot_keys = {
             "assignments",
@@ -467,8 +491,10 @@ class VenueConsequenceService:
     @classmethod
     def _is_recoverable_audit(cls, audit: VenueAuditEventSnapshot) -> bool:
         details = cls._audit_details(audit)
-        return details.get("consequence_version") == 2 or (
-            audit.entity_type in {"room", "venue"} and cls._has_invalid_details(details)
+        return (
+            details.get("consequence_version") == 2
+            or cls._is_valid_legacy_snapshot(details)
+            or (audit.entity_type in {"room", "venue"} and cls._has_invalid_details(details))
         )
 
     @staticmethod
@@ -484,8 +510,10 @@ class VenueConsequenceService:
         ):
             return False
         changed_fields = details.get("changed_fields")
-        if not isinstance(changed_fields, list) or not all(
-            isinstance(field, str) for field in changed_fields
+        if (
+            not isinstance(changed_fields, list)
+            or not changed_fields
+            or not all(isinstance(field, str) for field in changed_fields)
         ):
             return False
         if not isinstance(details.get("meaningful_change"), bool):
@@ -496,13 +524,26 @@ class VenueConsequenceService:
         for assignment in assignments:
             if not isinstance(assignment, dict):
                 return False
-            try:
-                int(assignment["assignment_id"])
-                int(assignment["recipient_member_id"])
-                int(assignment["committee_id"])
-            except KeyError, TypeError, ValueError:
-                return False
+            for key in ("assignment_id", "recipient_member_id", "committee_id"):
+                value = assignment.get(key)
+                if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+                    return False
         return True
+
+    @staticmethod
+    def _is_valid_legacy_snapshot(details: dict[str, Any]) -> bool:
+        if details.get("consequence_version") != 1:
+            return False
+        if not isinstance(details.get("before"), dict) or not isinstance(
+            details.get("after"), dict
+        ):
+            return False
+        changed_fields = details.get("changed_fields")
+        return (
+            isinstance(changed_fields, list)
+            and all(isinstance(field, str) for field in changed_fields)
+            and isinstance(details.get("meaningful_change"), bool)
+        )
 
     @staticmethod
     def _problem_view(audit: VenueAuditEventSnapshot, task, error_code):
