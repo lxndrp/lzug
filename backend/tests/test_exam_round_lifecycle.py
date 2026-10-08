@@ -327,6 +327,9 @@ class ExamRoundLifecycleTests(unittest.TestCase):
             self.assertTrue(
                 all(item["execution_status"] == "cancelled" for item in cancelled_slots)
             )
+            cancelled_days = cancelled["current_decision"]["snapshot"]["days"]
+            self.assertTrue(cancelled_days)
+            self.assertTrue(all(item["status"] == "cancelled" for item in cancelled_days))
 
             status, repeated = api.request(
                 "POST",
@@ -353,6 +356,8 @@ class ExamRoundLifecycleTests(unittest.TestCase):
             )
             snapshot = json.loads(decision.snapshot_json)
             self.assertEqual("cancelled", snapshot["slots"][0]["execution_status"])
+            self.assertTrue(snapshot["days"])
+            self.assertTrue(all(item["status"] == "cancelled" for item in snapshot["days"]))
             self.assertEqual(("cancelled", 2), (event.status, event.version))
             self.assertEqual(
                 1,

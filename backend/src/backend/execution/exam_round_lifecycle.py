@@ -271,7 +271,17 @@ class ExamRoundLifecycleService:
         facts: RoundLifecycleFacts,
     ) -> ExamRoundDecisionIntent:
         """Rebuild the persisted decision snapshot from post-Planning mutation facts."""
-        return replace(intent, snapshot=self._snapshot(session, facts.round, facts=facts))
+        day_status_overrides = (
+            {day_id: "cancelled" for day_id in facts.day_ids}
+            if intent.decision_type == "cancel"
+            else {}
+        )
+        return replace(
+            intent,
+            snapshot=self._snapshot(
+                session, facts.round, facts=facts, day_status_overrides=day_status_overrides
+            ),
+        )
 
     def evaluate_reopen_intent(
         self,
@@ -1280,6 +1290,7 @@ class ExamRoundLifecycleService:
         planning_work: PlanningLifecycleWork | None = None,
         identity_work: IdentityLifecycleWork | None = None,
         facts: RoundLifecycleFacts | None = None,
+        day_status_overrides: dict[int, str] | None = None,
     ) -> dict[str, Any]:
         planning = planning_work or self.planning_lifecycle_work_factory(session)
         identity = identity_work or self.identity_lifecycle_work_factory(session)
@@ -1425,7 +1436,7 @@ class ExamRoundLifecycleService:
                 {
                     "id": item.id,
                     "date": item.date,
-                    "status": item.status,
+                    "status": (day_status_overrides or {}).get(item.id, item.status),
                     "revision": item.revision,
                     "closure_status": item.closure_status,
                 }
