@@ -5,7 +5,15 @@ from __future__ import annotations
 import ast
 import unittest
 from pathlib import Path
+from typing import get_type_hints
 
+from backend.application.exam_lifecycle import ExamLifecycleApplication
+from backend.application.exam_lifecycle_contracts import (
+    DayCloseCommand,
+    DayReopenCommand,
+    RoundDecisionCommand,
+    RoundReopenCommand,
+)
 from backend.execution.protocol_ports import ProtocolReferencesSnapshot
 from backend.execution.slot_ports import DayMutationRequest
 
@@ -238,6 +246,74 @@ def _package_dependencies(package: str) -> set[str]:
 
 
 class BackendPackageBoundaryTests(unittest.TestCase):
+    def test_exam_lifecycle_application_accepts_named_commands(self) -> None:
+        expected = {
+            "close_exam_day": DayCloseCommand,
+            "reopen_exam_day": DayReopenCommand,
+            "close_exam_round": RoundDecisionCommand,
+            "cancel_exam_round": RoundDecisionCommand,
+            "reopen_exam_round": RoundReopenCommand,
+        }
+        for method_name, command_type in expected.items():
+            with self.subTest(method=method_name):
+                method = getattr(ExamLifecycleApplication, method_name)
+                self.assertIs(get_type_hints(method)["command"], command_type)
+
+    def test_execution_does_not_import_assessment_orm_models(self) -> None:
+        assessment_models = {
+            "AssessmentModelVersion",
+            "CommitteeAssessment",
+            "ExamResult",
+            "ExamRoundAssessmentBinding",
+            "ExternalExamResult",
+            "IndividualAssessment",
+            "ResultCalculation",
+            "ResultCommunication",
+            "ResultCorrection",
+            "ResultDetermination",
+            "ResultRecordConfirmation",
+            "ResultRetention",
+        }
+        for path in sorted((BACKEND_ROOT / "execution").rglob("*.py")):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            imported = {
+                alias.name
+                for node in ast.walk(tree)
+                if isinstance(node, ast.ImportFrom) and node.module == "backend.persistence.models"
+                for alias in node.names
+            }
+            with self.subTest(module=path.relative_to(BACKEND_ROOT)):
+                self.assertFalse(assessment_models & imported)
+
+    def test_execution_lifecycle_does_not_import_planning_round_orm(self) -> None:
+        foreign_models = {
+            "CandidateCommitteeAssignment",
+            "CandidateExamDay",
+            "CalendarEvent",
+            "CommitteeMember",
+            "ConfirmedPlanRevision",
+            "ExamHalfYear",
+            "ExamRound",
+            "MemberAvailability",
+            "PlanConsequence",
+            "PlanConsequenceBatch",
+            "PlanningSettings",
+            "RoundCandidate",
+        }
+        for relative in (
+            "execution/exam_day_closures.py",
+            "execution/exam_round_lifecycle.py",
+        ):
+            tree = ast.parse((BACKEND_ROOT / relative).read_text(encoding="utf-8"))
+            imported = {
+                alias.name
+                for node in ast.walk(tree)
+                if isinstance(node, ast.ImportFrom) and node.module == "backend.persistence.models"
+                for alias in node.names
+            }
+            with self.subTest(module=relative):
+                self.assertFalse(foreign_models & imported)
+
     def test_application_transport_does_not_import_composition_root(self) -> None:
         for relative in ("application/__init__.py", "application/transport.py"):
             with self.subTest(module=relative):

@@ -17,6 +17,12 @@ from fastapi.responses import Response
 from sqlalchemy.exc import SQLAlchemyError
 from starlette.routing import Match
 
+from backend.application.exam_lifecycle_commands import (
+    day_close_command,
+    day_reopen_command,
+    round_decision_command,
+    round_reopen_command,
+)
 from backend.application.transport import (
     RequestTooLargeError,
     UnsupportedMediaTypeError,
@@ -794,8 +800,8 @@ def _register_exam_round_routes(app, resolved, application, read_security, write
         id: int,
         payload: DomainResourceWrite = _OPTIONAL_OBJECT_BODY,
     ):
-        result = context.exam_round_lifecycle_service.close(
-            context.authorization_scope, id, payload_data(context, payload)
+        result = context.exam_lifecycle_application.close_exam_round(
+            context.authorization_scope, id, round_decision_command(payload_data(context, payload))
         )
         return _finish(context, context.respond(result))
 
@@ -805,8 +811,8 @@ def _register_exam_round_routes(app, resolved, application, read_security, write
         id: int,
         payload: DomainResourceWrite = _OPTIONAL_OBJECT_BODY,
     ):
-        result = context.exam_round_lifecycle_service.cancel(
-            context.authorization_scope, id, payload_data(context, payload)
+        result = context.exam_lifecycle_application.cancel_exam_round(
+            context.authorization_scope, id, round_decision_command(payload_data(context, payload))
         )
         return _finish(context, context.respond(result))
 
@@ -816,8 +822,8 @@ def _register_exam_round_routes(app, resolved, application, read_security, write
         id: int,
         payload: DomainResourceWrite = _OPTIONAL_OBJECT_BODY,
     ):
-        result = context.exam_round_lifecycle_service.reopening_impact(
-            context.authorization_scope, id, payload_data(context, payload)
+        result = context.exam_lifecycle_application.round_reopening_impact(
+            context.authorization_scope, id, payload_data(context, payload).get("scope")
         )
         return _finish(context, context.respond(result))
 
@@ -827,8 +833,8 @@ def _register_exam_round_routes(app, resolved, application, read_security, write
         id: int,
         payload: DomainResourceWrite = _OPTIONAL_OBJECT_BODY,
     ):
-        result = context.exam_round_lifecycle_service.reopen(
-            context.authorization_scope, id, payload_data(context, payload)
+        result = context.exam_lifecycle_application.reopen_exam_round(
+            context.authorization_scope, id, round_reopen_command(payload_data(context, payload))
         )
         return _finish(context, context.respond(result))
 
@@ -906,8 +912,8 @@ def _register_exam_day_routes(app, resolved, application, read_security, write_s
         id: int,
         payload: DomainResourceWrite = _OPTIONAL_OBJECT_BODY,
     ):
-        result = context.exam_day_closure_service.close(
-            context.authorization_scope, id, payload_data(context, payload)
+        result = context.exam_lifecycle_application.close_exam_day(
+            context.authorization_scope, id, day_close_command(payload_data(context, payload))
         )
         return _finish(context, context.respond(result))
 
@@ -920,8 +926,8 @@ def _register_exam_day_routes(app, resolved, application, read_security, write_s
         id: int,
         payload: DomainResourceWrite = _OPTIONAL_OBJECT_BODY,
     ):
-        result = context.exam_day_closure_service.reopening_impact(
-            context.authorization_scope, id, payload_data(context, payload)
+        result = context.exam_lifecycle_application.day_reopening_impact(
+            context.authorization_scope, id, payload_data(context, payload).get("scope")
         )
         return _finish(context, context.respond(result))
 
@@ -934,8 +940,8 @@ def _register_exam_day_routes(app, resolved, application, read_security, write_s
         id: int,
         payload: DomainResourceWrite = _OPTIONAL_OBJECT_BODY,
     ):
-        result = context.exam_day_closure_service.reopen(
-            context.authorization_scope, id, payload_data(context, payload)
+        result = context.exam_lifecycle_application.reopen_exam_day(
+            context.authorization_scope, id, day_reopen_command(payload_data(context, payload))
         )
         return _finish(context, context.respond(result))
 

@@ -121,6 +121,14 @@ class SQLiteExecutionUnitOfWorkFactory:
     def __call__(self, *, write: bool = False) -> AbstractContextManager[SQLiteExecutionUnitOfWork]:
         return self._unit_of_work(write=write)
 
+    def in_session(self, session: Session) -> SQLiteExecutionUnitOfWork:
+        """Bind Execution capabilities to an Application-owned session."""
+        return SQLiteExecutionUnitOfWork(
+            session,
+            Store(session),
+            self.identity_snapshot_factory(session),
+        )
+
     @contextmanager
     def _unit_of_work(self, *, write: bool) -> Iterator[SQLiteExecutionUnitOfWork]:
         scope = (

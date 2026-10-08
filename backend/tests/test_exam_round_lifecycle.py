@@ -1,15 +1,30 @@
 from __future__ import annotations
 
+import json
 import unittest
 from http import HTTPStatus
 from unittest.mock import patch
 
 from sqlalchemy import select, text
 
-from backend.composition import authorization_service
+from backend.application.exam_lifecycle import ExamLifecycleApplication
+from backend.application.exam_lifecycle_commands import round_decision_command, round_reopen_command
+from backend.application.exam_lifecycle_contracts import RoundLifecycleFacts
+from backend.composition import (
+    SQLiteAssessmentLifecycleAdapter,
+    authorization_service,
+    calendar_lifecycle_work_factory,
+    identity_lifecycle_work_factory,
+    planning_lifecycle_work_factory,
+)
+from backend.execution.exam_day_closures import ExamDayClosureService
 from backend.execution.exam_round_lifecycle import ExamRoundConflictError, ExamRoundLifecycleService
+from backend.persistence.assessment import SQLiteAssessmentUnitOfWorkFactory
 from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.persistence.database import session_scope
+from backend.persistence.exam_lifecycle import SQLiteExamLifecycleUnitOfWorkFactory
+from backend.persistence.execution import SQLiteExecutionUnitOfWorkFactory
+from backend.persistence.identity import SQLiteIdentityExecutionSnapshotFactory
 from backend.persistence.models import (
     CalendarEvent,
     CandidateCommitteeAssignment,
@@ -49,6 +64,48 @@ class ExamRoundLifecycleTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         self.database.__exit__(None, None, None)
+
+    def test_round_lifecycle_facts_use_round_candidate_ids_for_scope(self) -> None:
+        facts = RoundLifecycleFacts(
+            round=type("Round", (), {"id": 7})(),
+            day_ids=(),
+            candidates=({"id": 61, "candidate_id": 12}, {"id": 62, "candidate_id": 13}),
+            candidate_details=(),
+            planning_context={},
+            slots=(),
+            assignments=(),
+            assessment_results=(),
+            committee=type("Committee", (), {"id": 3})(),
+            members=(),
+            management_member_ids=frozenset(),
+        )
+        self.assertEqual({61, 62}, facts.lifecycle_candidate_ids(7))
+
+    def test_round_commands_reject_invalid_revision_values(self) -> None:
+        for revision in (True, "1", None, 0, -1):
+            with self.subTest(revision=revision), self.assertRaises(ValueError):
+                round_decision_command({"revision": revision, "confirmed": True})
+            with self.subTest(reopen_revision=revision), self.assertRaises(ValueError):
+                round_reopen_command(
+                    {
+                        "revision": revision,
+                        "occasion": "Berichtigung",
+                        "source": "IHK",
+                        "reason": "Korrektur",
+                        "scope": [],
+                    }
+                )
+        with self.assertRaises(ValueError):
+            round_decision_command({"confirmed": True})
+        with self.assertRaises(ValueError):
+            round_reopen_command(
+                {
+                    "occasion": "Berichtigung",
+                    "source": "IHK",
+                    "reason": "Korrektur",
+                    "scope": [],
+                }
+            )
 
     def test_closure_matrix_equal_management_lock_reopening_and_exports(self) -> None:
         with ApiServer(self.db_path) as api:
@@ -265,6 +322,14 @@ class ExamRoundLifecycleTests(unittest.TestCase):
             )
             assert_status(status, HTTPStatus.OK)
             self.assertEqual(("cancelled", 2), (cancelled["status"], cancelled["revision"]))
+            cancelled_slots = cancelled["current_decision"]["snapshot"]["slots"]
+            self.assertTrue(cancelled_slots)
+            self.assertTrue(
+                all(item["execution_status"] == "cancelled" for item in cancelled_slots)
+            )
+            cancelled_days = cancelled["current_decision"]["snapshot"]["days"]
+            self.assertTrue(cancelled_days)
+            self.assertTrue(all(item["status"] == "cancelled" for item in cancelled_days))
 
             status, repeated = api.request(
                 "POST",
@@ -283,6 +348,16 @@ class ExamRoundLifecycleTests(unittest.TestCase):
             )
             self.assertEqual("cancelled", day.status)
             self.assertEqual(("cancelled", "cancelled"), (slot.status, slot.execution_status))
+            decision = session.scalar(
+                select(ExamRoundDecision).where(
+                    ExamRoundDecision.exam_round_id == 1,
+                    ExamRoundDecision.decision_type == "cancel",
+                )
+            )
+            snapshot = json.loads(decision.snapshot_json)
+            self.assertEqual("cancelled", snapshot["slots"][0]["execution_status"])
+            self.assertTrue(snapshot["days"])
+            self.assertTrue(all(item["status"] == "cancelled" for item in snapshot["days"]))
             self.assertEqual(("cancelled", 2), (event.status, event.version))
             self.assertEqual(
                 1,
@@ -351,37 +426,62 @@ class ExamRoundLifecycleTests(unittest.TestCase):
     def test_decision_and_reopening_rollback_and_replay_preserve_all_evidence(self) -> None:
         self._make_round_closable()
         service = ExamRoundLifecycleService(
-            self.db_path, notification_service=notification_service_for_test(self.db_path)
+            self.db_path,
+            notification_service=notification_service_for_test(self.db_path),
+            assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(),
+            planning_lifecycle_work_factory=planning_lifecycle_work_factory(),
+            identity_lifecycle_work_factory=identity_lifecycle_work_factory(),
+            calendar_lifecycle_work_factory=calendar_lifecycle_work_factory(),
         )
         context = SQLiteAuthenticationRepository(self.db_path).authenticate(self.chair.token)
         scope = authorization_service(self.db_path).scope(context)
-        close = {"revision": 1, "confirmed": True}
+        application = ExamLifecycleApplication(
+            SQLiteExamLifecycleUnitOfWorkFactory(
+                SQLiteExecutionUnitOfWorkFactory(
+                    self.db_path,
+                    identity_snapshot_factory=SQLiteIdentityExecutionSnapshotFactory(),
+                ),
+                SQLiteAssessmentUnitOfWorkFactory(self.db_path),
+                self.db_path,
+                SQLiteAssessmentLifecycleAdapter(SQLiteAssessmentUnitOfWorkFactory(self.db_path)),
+            ),
+            lambda: ExamDayClosureService(
+                self.db_path,
+                notification_service=notification_service_for_test(self.db_path),
+                assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(),
+                planning_lifecycle_work_factory=planning_lifecycle_work_factory(),
+                identity_lifecycle_work_factory=identity_lifecycle_work_factory(),
+            ),
+            lambda: service,
+        )
+        close = round_decision_command({"revision": 1, "confirmed": True})
         with (
             patch.object(service, "_view", side_effect=RuntimeError("test view failure")),
             self.assertRaisesRegex(RuntimeError, "test view failure"),
         ):
-            service.close(scope, 1, close)
+            application.close_exam_round(scope, 1, close)
         with session_scope(self.db_path) as session:
             exam_round = session.get(ExamRound, 1)
             self.assertEqual(("open", 1), (exam_round.lifecycle_status, exam_round.revision))
             self.assertEqual(0, session.query(ExamRoundDecision).count())
             self.assertEqual(0, session.query(ExamRoundAuditEvent).count())
 
-        service.close(scope, 1, close)
+        application.close_exam_round(scope, 1, close)
         service.machine_export(scope, 1)
-        command = {
+        command_payload = {
             "revision": 2,
             "occasion": "Berichtigung",
             "source": "IHK-Vorgang",
             "reason": "Rundenbezeichnung korrigieren",
             "scope": [{"kind": "planning", "entity_id": 1}],
         }
+        command = round_reopen_command(command_payload)
         with (
             patch.object(service, "_view", side_effect=RuntimeError("test view failure")),
             patch.object(service, "_notify") as notify,
             self.assertRaisesRegex(RuntimeError, "test view failure"),
         ):
-            service.reopen(scope, 1, command)
+            application.reopen_exam_round(scope, 1, command)
         notify.assert_not_called()
         with session_scope(self.db_path) as session:
             exam_round = session.get(ExamRound, 1)
@@ -393,15 +493,21 @@ class ExamRoundLifecycleTests(unittest.TestCase):
             self.assertEqual(1, session.query(ExamRoundAuditEvent).count())
 
         with patch.object(service, "_notify", wraps=service._notify) as notify:
-            reopened = service.reopen(scope, 1, command)
-            repeated = service.reopen(scope, 1, command)
+            reopened = application.reopen_exam_round(scope, 1, command)
+            repeated = application.reopen_exam_round(scope, 1, command)
         notify.assert_called_once()
         self.assertEqual(reopened, repeated)
         self.assertEqual(2, len(reopened["tasks"]))
         self.assertEqual({"reconfirmation"}, {item["task_type"] for item in reopened["tasks"]})
         with self.assertRaises(ExamRoundConflictError):
-            service.reopen(scope, 1, {**command, "reason": "Anderer Auftrag"})
-        reclosed = service.close(scope, 1, {"revision": 3, "confirmed": True})
+            application.reopen_exam_round(
+                scope,
+                1,
+                round_reopen_command({**command_payload, "reason": "Anderer Auftrag"}),
+            )
+        reclosed = application.close_exam_round(
+            scope, 1, round_decision_command({"revision": 3, "confirmed": True})
+        )
         self.assertEqual("reclosed", reclosed["history"][-1]["event_type"])
         self.assertTrue(all(item["status"] == "completed" for item in reclosed["tasks"]))
         with session_scope(self.db_path) as session:
@@ -409,9 +515,47 @@ class ExamRoundLifecycleTests(unittest.TestCase):
             self.assertEqual(1, session.query(ExamRoundReopening).count())
             self.assertEqual(3, session.query(ExamRoundAuditEvent).count())
 
+    def test_planning_round_lifecycle_cas_rolls_back_with_the_shared_uow(self) -> None:
+        factory = SQLiteExamLifecycleUnitOfWorkFactory(
+            SQLiteExecutionUnitOfWorkFactory(
+                self.db_path,
+                identity_snapshot_factory=SQLiteIdentityExecutionSnapshotFactory(),
+            ),
+            SQLiteAssessmentUnitOfWorkFactory(self.db_path),
+            self.db_path,
+            SQLiteAssessmentLifecycleAdapter(SQLiteAssessmentUnitOfWorkFactory(self.db_path)),
+        )
+        with self.assertRaisesRegex(RuntimeError, "round CAS rollback"):
+            with factory() as unit_of_work:
+                planning = unit_of_work.planning_lifecycle
+                snapshot = planning.round_lifecycle_snapshot(1)
+                self.assertIsNotNone(snapshot)
+                self.assertTrue(
+                    planning.advance_round_lifecycle(
+                        1, snapshot.revision, "2026-10-08T12:00:00+00:00", lifecycle_status="closed"
+                    )
+                )
+                self.assertFalse(
+                    planning.advance_round_lifecycle(
+                        1,
+                        snapshot.revision,
+                        "2026-10-08T12:00:01+00:00",
+                        lifecycle_status="cancelled",
+                    )
+                )
+                raise RuntimeError("round CAS rollback")
+        with session_scope(self.db_path) as session:
+            round_state = session.get(ExamRound, 1)
+            self.assertEqual(("open", 1), (round_state.lifecycle_status, round_state.revision))
+
     def test_terminal_candidate_evidence_and_revision_guard_precede_mutation(self) -> None:
         service = ExamRoundLifecycleService(
-            self.db_path, notification_service=notification_service_for_test(self.db_path)
+            self.db_path,
+            notification_service=notification_service_for_test(self.db_path),
+            assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(),
+            planning_lifecycle_work_factory=planning_lifecycle_work_factory(),
+            identity_lifecycle_work_factory=identity_lifecycle_work_factory(),
+            calendar_lifecycle_work_factory=calendar_lifecycle_work_factory(),
         )
         context = SQLiteAuthenticationRepository(self.db_path).authenticate(self.chair.token)
         scope = authorization_service(self.db_path).scope(context)
@@ -500,7 +644,12 @@ class ExamRoundLifecycleTests(unittest.TestCase):
 
     def test_transferred_status_requires_effective_assignment_in_the_target_round(self) -> None:
         service = ExamRoundLifecycleService(
-            self.db_path, notification_service=notification_service_for_test(self.db_path)
+            self.db_path,
+            notification_service=notification_service_for_test(self.db_path),
+            assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(),
+            planning_lifecycle_work_factory=planning_lifecycle_work_factory(),
+            identity_lifecycle_work_factory=identity_lifecycle_work_factory(),
+            calendar_lifecycle_work_factory=calendar_lifecycle_work_factory(),
         )
         context = SQLiteAuthenticationRepository(self.db_path).authenticate(self.chair.token)
         scope = authorization_service(self.db_path).scope(context)

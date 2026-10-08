@@ -21,6 +21,8 @@ from backend.application import (
     ForbiddenRequestError,
     ReadApplication,
 )
+from backend.application.exam_lifecycle import ExamLifecycleApplication
+from backend.application.exam_lifecycle_ports import ExamLifecycleUnitOfWorkFactory
 from backend.application.planning_payloads import (
     confirmed_plan_change_from_payload as confirmed_plan_change_from_payload,
 )
@@ -36,6 +38,12 @@ from backend.execution.absence import AbsenceService
 from backend.execution.exam_day_closures import ExamDayClosureService
 from backend.execution.exam_protocols import ExamProtocolService
 from backend.execution.exam_round_lifecycle import ExamRoundLifecycleService
+from backend.execution.lifecycle_ports import (
+    AssessmentLifecycleWorkFactory,
+    CalendarLifecycleWorkFactory,
+    IdentityLifecycleWorkFactory,
+    PlanningLifecycleWorkFactory,
+)
 from backend.execution.slot_service import ExecutionService
 from backend.identity.auth import AuthContext, AuthenticationRepository, SessionCredentials
 from backend.identity.authorization import AuthorizationScope, AuthorizationService
@@ -84,6 +92,12 @@ class RequestContext:
     execution_service_factory: Callable[[Path], ExecutionService]
     exam_protocol_service_factory: Callable[[Path], ExamProtocolService]
     exam_result_service_factory: Callable[[Path], ExamResultService]
+    planning_lifecycle_work_factory: PlanningLifecycleWorkFactory
+    identity_lifecycle_work_factory: IdentityLifecycleWorkFactory
+    calendar_lifecycle_work_factory: CalendarLifecycleWorkFactory
+    assessment_lifecycle: AssessmentLifecycleWorkFactory
+    assessment_round_queries: AssessmentLifecycleWorkFactory
+    exam_lifecycle_unit_of_work_factory: ExamLifecycleUnitOfWorkFactory
     candidate_day_service_factory: Callable[[Path], CandidateDayService]
     planning_resource_unit_of_work_factory: Callable[[Path], PlanningResourceUnitOfWorkFactory]
     resource_access_query_factory: Callable[[Path], ResourceAccessQueryFactory]
@@ -231,7 +245,10 @@ class RequestContext:
 
     @property
     def absence_service(self) -> AbsenceService:
-        return AbsenceService(self.db_path, notification_service=self.notification_service)
+        return AbsenceService(
+            self.db_path,
+            notification_service=self.notification_service,
+        )
 
     @property
     def exam_protocol_service(self) -> ExamProtocolService:
@@ -247,12 +264,31 @@ class RequestContext:
 
     @property
     def exam_day_closure_service(self) -> ExamDayClosureService:
-        return ExamDayClosureService(self.db_path, notification_service=self.notification_service)
+        return ExamDayClosureService(
+            self.db_path,
+            notification_service=self.notification_service,
+            assessment_lifecycle_factory=self.assessment_lifecycle,
+            planning_lifecycle_work_factory=self.planning_lifecycle_work_factory,
+            identity_lifecycle_work_factory=self.identity_lifecycle_work_factory,
+        )
+
+    @property
+    def exam_lifecycle_application(self) -> ExamLifecycleApplication:
+        return ExamLifecycleApplication(
+            self.exam_lifecycle_unit_of_work_factory,
+            lambda: self.exam_day_closure_service,
+            lambda: self.exam_round_lifecycle_service,
+        )
 
     @property
     def exam_round_lifecycle_service(self) -> ExamRoundLifecycleService:
         return ExamRoundLifecycleService(
-            self.db_path, notification_service=self.notification_service
+            self.db_path,
+            notification_service=self.notification_service,
+            assessment_lifecycle_factory=self.assessment_round_queries,
+            planning_lifecycle_work_factory=self.planning_lifecycle_work_factory,
+            identity_lifecycle_work_factory=self.identity_lifecycle_work_factory,
+            calendar_lifecycle_work_factory=self.calendar_lifecycle_work_factory,
         )
 
     @property

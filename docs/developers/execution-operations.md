@@ -43,9 +43,34 @@ Der SQLite-Adapter führt diese Operationen im selben UoW wie die zugehörigen
 Tagesmutationen aus.
 Die API-Kante rendert autorisierte Export-Snapshots über Presentation.
 Sie ergänzt auch die HTTP-Links in API-Antworten und JSON-Exports.
-Auch Tagesabschluss und gezielte Wiederöffnung bleiben in
-`ExamDayClosureService`; deren fachübergreifende Orchestrierung wird im
-dafür vorgesehenen Teilissue #1077 in Planning-, Execution- und
-Assessment-Ports mit einem gemeinsamen UoW überführt.
-Dieser Schritt ändert weder Schema und Datenformat noch öffentliche
-API-Verträge.
+`ExamDayClosureService` behält die Execution-Regeln für Tagesabschluss und
+gezielte Wiederöffnung. Die FastAPI-Schreibbefehle laufen über
+`ExamLifecycleApplication` und den gemeinsamen Execution-/Planning-/Assessment-UoW.
+Planning-, Assessment- und Identity-Fähigkeiten sind frameworkfreie, an den
+UoW gebundene Ports. Tageszugriff, Mitgliederprojektionen und Planungsscope
+werden über diese Eigentümerfähigkeiten aufgelöst. Rundeabsage verwendet
+zusätzlich den Calendar-Port, um künftige Ereignisse in derselben Transaktion
+zu stornieren und Empfänger für die Benachrichtigung nach dem Commit zu sammeln.
+Rundenabschluss und Rundenwiederöffnung verwenden dieselbe Application-Grenze.
+Der getrennte Ersatzbesetzungs-HTTP-Ablauf in `execution.absence` behält noch
+direkte Planning-Zugriffe und ist für die Boundary-/Transition-Fortsetzung #1085
+abgegrenzt. Schema, Datenformat und öffentliche API-Verträge bleiben unverändert.
+
+## Transaktionsmatrix für den Prüfungs-Lifecycle
+
+| Use Case | Aktuelle Transaktionsgrenze | Eigentümergrenze |
+| --- | --- | --- |
+| Prüfungstag schließen | Application öffnet den Composite-UoW, lädt detached Planning-, Assessment- und Identity-Fakten und übergibt sie der Execution-Regelprüfung. Danach wendet Application den Execution-eigenen Abschluss samt Revision, Audit und Wiedereröffnungsabschluss an. Benachrichtigungen folgen nach Commit. | Application besitzt Reihenfolge und gemeinsame Commit-Grenze |
+| Prüfungstag wiederöffnen | Application lädt Scope- und Auswirkungsfakten, Execution validiert den Reopen-Intent, Assessment öffnet die betroffenen Korrekturen, danach schreibt Execution Aufgaben und Audit. Alle Schritte teilen den UoW; Benachrichtigungen folgen nach Commit. | Application besitzt Reihenfolge und gemeinsame Commit-Grenze |
+| Prüfungsrunde schließen oder absagen | Application lädt Planning-, Assessment- und Identity-Fakten, Execution validiert den Intent, Planning führt Revision-CAS aus. Bei Absage storniert Application zusätzlich Planning-Slots und Calendar-Ereignisse. Execution schreibt Entscheidung, Tageszustände und Audit. Benachrichtigungen folgen nach Commit. | Application besitzt Reihenfolge und gemeinsame Commit-Grenze |
+| Prüfungsrunde wiederöffnen | Application lädt Scope- und Auswirkungsfakten, Execution validiert den Intent, Planning führt Revision-CAS aus und Execution schreibt Wiederöffnung, Aufgaben, Exportinvalidierung und Audit. Benachrichtigungen folgen nach Commit. | Application besitzt Reihenfolge und gemeinsame Commit-Grenze |
+
+Alle Close-/Cancel-/Reopen-Routen verwenden die gemeinsame Application-Grenze.
+Die öffentlichen Service-eigenen Übergänge sind entfernt.
+Assessment-, Planning-, Identity- und Calendar-Fähigkeiten werden als frameworkfreie,
+bereits an den UoW gebundene Ports bereitgestellt; Execution bindet keine fremde
+Session an Fachports und liest im beschriebenen Lifecycle-Scope keine fremden
+ORM-Modelle. Der Persistence-Adapter übergibt
+für Execution-eigene ORM-Regeln weiterhin die gemeinsame Session. Der getrennte
+Abwesenheits-/Ersatzbesetzungsablauf bleibt eine nachgelagerte Boundary-Arbeit
+#1085.
