@@ -431,6 +431,10 @@ class CalendarService:
             "exam_half_year_id": round_snapshot.half_year_id,
             "exam_round_id": round_snapshot.id,
             "exam_day_id": assignment.day_id,
+            # These legacy hash inputs preserve idempotence for already stored events.
+            # They remain private to the digest and do not cross a Calendar port.
+            "exam_day_assignment_id": assignment.id,
+            "secure_reference": f"/api/confirmed-plan-days/{assignment.day_id}",
             "recipient_member_id": assignment.member_id,
             "date": assignment.day_date,
             "starts_at": starts_at,

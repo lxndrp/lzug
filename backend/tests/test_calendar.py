@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import unittest
 from dataclasses import fields
 from unittest.mock import patch
@@ -168,6 +169,48 @@ class CalendarServiceTests(unittest.TestCase):
             service.sync_round(1)
             stable = next(item for item in service.list_events(scope) if item.id == event.id)
             self.assertEqual(changed.version, stable.version)
+        finally:
+            database.__exit__(None, None, None)
+
+    def test_sync_preserves_existing_content_hashes_for_unchanged_events(self) -> None:
+        database, db_path = self._confirmed_database()
+        try:
+            service = create_calendar_service(db_path)
+            service.sync_round(1)
+            legacy_hash_fields = (
+                "exam_half_year_id",
+                "exam_round_id",
+                "exam_day_id",
+                "exam_day_assignment_id",
+                "recipient_member_id",
+                "date",
+                "starts_at",
+                "ends_at",
+                "time_zone",
+                "location",
+                "role",
+                "round_name",
+                "secure_reference",
+                "source_key",
+                "status",
+            )
+            with session_scope(db_path) as session:
+                event = session.scalars(select(CalendarEvent).order_by(CalendarEvent.id)).first()
+                assert event is not None
+                legacy_payload = {field: getattr(event, field) for field in legacy_hash_fields}
+                event.content_hash = hashlib.sha256(
+                    repr(sorted(legacy_payload.items())).encode("utf-8")
+                ).hexdigest()
+                event_id = event.id
+                version = event.version
+
+            self.assertEqual(0, service.sync_round(1))
+
+            with session_scope(db_path) as session:
+                event = session.get(CalendarEvent, event_id)
+                assert event is not None
+                self.assertEqual(version, event.version)
+                self.assertEqual("sent", event.status)
         finally:
             database.__exit__(None, None, None)
 
