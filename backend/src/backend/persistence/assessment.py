@@ -281,7 +281,18 @@ class SQLiteAssessmentQueries:
         )
         rows = []
         for slot in slots:
-            result = self.result_for_round_candidate(slot.round_candidate_id)
+            result_row = self.session.scalar(
+                select(ExamResult).where(ExamResult.round_candidate_id == slot.round_candidate_id)
+            )
+            if result_row is None:
+                result = None
+            elif result_row.legacy_status is not None:
+                result = {
+                    "id": result_row.id,
+                    "legacy_status": result_row.legacy_status,
+                }
+            else:
+                result = self._result(result_row)
             rows.append(
                 {
                     "slot_id": slot.id,
@@ -755,7 +766,7 @@ class SQLiteAssessmentRepository:
                 IndividualAssessment.component_key == c["component_key"],
                 IndividualAssessment.criterion_key == c["criterion_key"],
                 IndividualAssessment.assessor_member_id == c["assessor_member_id"],
-                IndividualAssessment.status.in_(["draft", "submitted"]),
+                IndividualAssessment.status.in_(["draft", "submitted", "withdrawn"]),
             )
             .order_by(IndividualAssessment.revision.desc())
         )
@@ -802,6 +813,18 @@ class SQLiteAssessmentRepository:
             )
         )
         self.session.flush()
+
+    def set_result_state(self, c: dict[str, Any]) -> None:
+        changed = self.session.execute(
+            update(ExamResult)
+            .where(
+                ExamResult.id == c["result_id"],
+                ExamResult.version == c["expected_result_version"],
+            )
+            .values(current_state=c["state"])
+        )
+        if changed.rowcount != 1:
+            raise AssessmentWriteConflictError("Assessment result version conflict")
 
     def disclose_component(self, c: dict[str, Any]) -> None:
         self._claim(c["result_id"], c["expected_result_version"])

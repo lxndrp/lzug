@@ -216,7 +216,8 @@ class ExamResultService:
             if result is None:
                 return None
             self._assert_projection_access(result, actor)
-            if self._calculation_command(result) is None:
+            command = self._calculation_command(result)
+            if command is None or self._matching_calculation(result, command) is not None:
                 return self._project_and_materialize(work, result, actor)
 
         with self._unit_of_work_factory(write=True) as work:
@@ -462,7 +463,7 @@ class ExamResultService:
                 }
             )
             work.repository.complete_result_day_mutation(
-                result_id, "result_assessment", payload, member_id
+                result_id, "result_assessment", payload, member_id, rationale
             )
             updated = work.queries.result_by_id(result_id)
             assert updated is not None
@@ -476,9 +477,9 @@ class ExamResultService:
         if points < 0 or points > 100:
             raise ValueError("points muss zwischen 0 und 100 liegen")
         grade = self._optional_text(payload.get("grade"), 100)
-        status = self._required_text(payload.get("professional_status"), "professional_status", 100)
+        status = self._required_text(payload.get("professional_status"), "professional_status", 300)
         authority = self._required_text(
-            payload.get("determining_authority"), "determining_authority", 300
+            payload.get("determining_authority"), "determining_authority", 500
         )
         source = self._required_text(payload.get("source_reference"), "source_reference", 1000)
         reason = self._optional_text(payload.get("correction_reason"), 2000)
@@ -496,11 +497,7 @@ class ExamResultService:
                 ),
                 None,
             )
-            if (
-                current is not None
-                and (current["status"] == "confirmed" or result["correction_open"])
-                and reason is None
-            ):
+            if current is not None and reason is None:
                 raise ValueError("Eine Ersetzung benötigt eine Korrekturbegründung")
             self._assert_inputs_mutable(result)
             work.repository.record_external_result(
@@ -546,10 +543,18 @@ class ExamResultService:
             external = next(
                 (x for x in result["external_results"] if x["id"] == external_result_id), None
             )
-            if external is None or external["status"] != "unconfirmed":
+            if external is None:
+                raise ValueError("External result is not confirmable")
+            if (
+                external["status"] == "confirmed"
+                and external["confirmed_by_member_id"] == member_id
+            ):
+                return self._project_and_materialize(work, result, actor)
+            if external["status"] != "unconfirmed":
                 raise ValueError("External result is not confirmable")
             if external["recorded_by_member_id"] == member_id:
                 raise PermissionError("Forbidden.")
+            self._assert_inputs_mutable(result)
             work.repository.confirm_external_result(
                 {
                     "result_id": result_id,
@@ -595,7 +600,7 @@ class ExamResultService:
                 raise ExamResultConflictError("Der Ergebnisstand wurde zwischenzeitlich geändert")
             self._assert_inputs_mutable(result)
             result = self._ensure_calculation(work, result)
-            calculation = result["calculations"][-1] if result["calculations"] else None
+            calculation = self._matching_calculation(result)
             if calculation is None:
                 raise ValueError("Das Ergebnis ist noch nicht berechnungsbereit")
             # A calculation may be materialized in this same UoW; preserve the
@@ -1106,13 +1111,9 @@ class ExamResultService:
             )
             for area in rules["external_areas"]
         )
-        current_calculation = (
-            result["calculations"][-1]
-            if result["calculations"] and required_external_complete
-            else None
-        )
+        current_calculation = self._matching_calculation(result)
         view_state = result["state"]
-        if not required_external_complete and current_determination is None:
+        if current_calculation is None and current_determination is None:
             view_state = "incomplete"
         content_mutable = all(
             day["closure_status"] == "open"
@@ -1160,8 +1161,7 @@ class ExamResultService:
             ),
             "determinations": [
                 {
-                    **item,
-                    "result_calculation_id": item["calculation_id"],
+                    **self._rename_snapshot_field(item, "calculation_id", "result_calculation_id"),
                     "confirmation_member_ids": sorted(
                         {
                             c["committee_member_id"]
@@ -1174,8 +1174,9 @@ class ExamResultService:
             ],
             "current_determination": (
                 {
-                    **current_determination,
-                    "result_calculation_id": current_determination["calculation_id"],
+                    **self._rename_snapshot_field(
+                        current_determination, "calculation_id", "result_calculation_id"
+                    ),
                     "confirmation_member_ids": sorted(
                         {
                             c["committee_member_id"]
@@ -1188,16 +1189,20 @@ class ExamResultService:
                 else None
             ),
             "corrections": [
-                {**item, "result_determination_id": item["determination_id"]}
+                self._rename_snapshot_field(item, "determination_id", "result_determination_id")
                 for item in result["corrections"]
             ],
             "communications": [
-                {**item, "result_determination_id": item["determination_id"]}
+                self._rename_snapshot_field(item, "determination_id", "result_determination_id")
                 for item in result["communications"]
             ],
-            "retention": result["retention"],
+            "retention": (
+                {key: value for key, value in result["retention"].items() if key != "version"}
+                if result["retention"] is not None
+                else None
+            ),
             "exports": [
-                {**item, "result_determination_id": item["determination_id"]}
+                self._rename_snapshot_field(item, "determination_id", "result_determination_id")
                 for item in result["exports"]
             ],
             "permissions": {
@@ -1220,6 +1225,12 @@ class ExamResultService:
             },
         }
         return view
+
+    @staticmethod
+    def _rename_snapshot_field(snapshot: dict[str, Any], source: str, target: str):
+        public = dict(snapshot)
+        public[target] = public.pop(source)
+        return public
 
     @staticmethod
     def _model_view(model: AssessmentModelSnapshot) -> dict[str, Any]:
@@ -1528,8 +1539,6 @@ class ExamResultService:
         fingerprint = hashlib.sha256(
             json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
         ).hexdigest()
-        if any(x["input_fingerprint"] == fingerprint for x in result["calculations"]):
-            return None
         command: CalculationCommand = {
             "result_id": result["id"],
             "expected_result_version": result["version"],
@@ -1548,9 +1557,52 @@ class ExamResultService:
         }
         return command
 
+    def _matching_calculation(
+        self,
+        result: AssessmentResultSnapshot,
+        command: CalculationCommand | None = None,
+    ):
+        command = command or self._calculation_command(result)
+        if command is None:
+            return None
+        return next(
+            (
+                calculation
+                for calculation in result["calculations"]
+                if calculation["input_fingerprint"] == command["input_fingerprint"]
+            ),
+            None,
+        )
+
     def _ensure_calculation(self, work, result: AssessmentResultSnapshot):
         command = self._calculation_command(result)
         if command is None:
+            has_determination = any(
+                item["status"] == "current" for item in result["determinations"]
+            )
+            if not has_determination and result["state"] != "incomplete":
+                work.repository.set_result_state(
+                    {
+                        "result_id": result["id"],
+                        "expected_result_version": result["version"],
+                        "state": "incomplete",
+                    }
+                )
+                return work.queries.result_by_id(result["id"]) or result
+            return result
+        if self._matching_calculation(result, command) is not None:
+            has_determination = any(
+                item["status"] == "current" for item in result["determinations"]
+            )
+            if not has_determination and result["state"] != "calculation_ready":
+                work.repository.set_result_state(
+                    {
+                        "result_id": result["id"],
+                        "expected_result_version": result["version"],
+                        "state": "calculation_ready",
+                    }
+                )
+                return work.queries.result_by_id(result["id"]) or result
             return result
         work.repository.save_calculation(command)
         updated = work.queries.result_by_id(result["id"])

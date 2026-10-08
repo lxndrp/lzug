@@ -119,6 +119,12 @@ class CalculationCommand(TypedDict):
     created_at: str
 
 
+class ResultStateCommand(TypedDict):
+    result_id: int
+    expected_result_version: int
+    state: AssessmentStatus
+
+
 class CommitteeVote(TypedDict):
     yes_member_ids: Sequence[int]
     no_member_ids: Sequence[int]
@@ -510,7 +516,14 @@ class AssessmentResultProjection(TypedDict):
 class AssessmentDayCompletionSlotSnapshot(TypedDict):
     slot_id: int
     execution_status: str
-    result: AssessmentResultSnapshot | None
+    result: AssessmentResultSnapshot | AssessmentLegacyResultSnapshot | None
+
+
+class AssessmentLegacyResultSnapshot(TypedDict):
+    """Minimal historical result projection; legacy rows have no model binding."""
+
+    id: int
+    legacy_status: str
 
 
 class AssessmentDayCompletionSnapshot(TypedDict):
@@ -651,6 +664,8 @@ class AssessmentRepositoryPort(Protocol):
     def save_individual_assessment(self, command: IndividualAssessmentCommand) -> None: ...
 
     def save_calculation(self, command: CalculationCommand) -> None: ...
+
+    def set_result_state(self, command: ResultStateCommand) -> None: ...
 
     def disclose_component(self, command: DisclosureCommand) -> None: ...
 
