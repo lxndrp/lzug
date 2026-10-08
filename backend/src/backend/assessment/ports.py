@@ -207,6 +207,24 @@ class CorrectionCommand(TypedDict):
     requested_at: str
 
 
+class DayReopeningCorrectionCommand(TypedDict):
+    result_id: int
+    expected_result_version: int
+    reopening_reference: str
+    requested_by_member_id: int
+    reason: str
+    requested_at: str
+
+
+class DayReopeningCorrectionReceipt(TypedDict):
+    result_id: int
+    result_version: int
+    determination_id: int | None
+    participant_member_ids: Sequence[int]
+    communicated: bool
+    ihk_processed: bool
+
+
 class CommunicationCommand(TypedDict):
     result_id: int
     expected_result_version: int
@@ -516,7 +534,12 @@ class AssessmentResultProjection(TypedDict):
 class AssessmentDayCompletionSlotSnapshot(TypedDict):
     slot_id: int
     execution_status: str
-    result: AssessmentResultSnapshot | AssessmentLegacyResultSnapshot | None
+    result: (
+        AssessmentResultSnapshot
+        | AssessmentLegacyResultSnapshot
+        | AssessmentUnboundResultSnapshot
+        | None
+    )
 
 
 class AssessmentLegacyResultSnapshot(TypedDict):
@@ -524,6 +547,14 @@ class AssessmentLegacyResultSnapshot(TypedDict):
 
     id: int
     legacy_status: str
+
+
+class AssessmentUnboundResultSnapshot(TypedDict):
+    """Result row lacking an Assessment model binding; day close must report it as blocked."""
+
+    id: int
+    legacy_status: None
+    model: None
 
 
 class AssessmentDayCompletionSnapshot(TypedDict):
@@ -622,6 +653,8 @@ class ResultQueryPort(Protocol):
 
     def result_by_id(self, result_id: int) -> AssessmentResultSnapshot | None: ...
 
+    def results_for_round(self, round_id: int) -> Sequence[AssessmentResultSnapshot]: ...
+
     def result_by_slot(
         self, slot_id: int, day_id: int | None = None
     ) -> AssessmentResultSnapshot | None: ...
@@ -680,6 +713,10 @@ class AssessmentRepositoryPort(Protocol):
     def confirm_record(self, command: RecordConfirmationCommand) -> None: ...
 
     def open_correction(self, command: CorrectionCommand) -> None: ...
+
+    def open_day_reopening_correction(
+        self, command: DayReopeningCorrectionCommand
+    ) -> DayReopeningCorrectionReceipt: ...
 
     def communicate_result(self, command: CommunicationCommand) -> None: ...
 

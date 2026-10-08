@@ -21,6 +21,8 @@ from backend.application import (
     ForbiddenRequestError,
     ReadApplication,
 )
+from backend.application.exam_lifecycle import ExamLifecycleApplication
+from backend.application.exam_lifecycle_ports import ExamLifecycleUnitOfWorkFactory
 from backend.application.planning_payloads import (
     confirmed_plan_change_from_payload as confirmed_plan_change_from_payload,
 )
@@ -34,6 +36,7 @@ from backend.assessment.ports import AssessmentActorSnapshot
 from backend.assessment.service import ExamResultService
 from backend.execution.absence import AbsenceService
 from backend.execution.exam_day_closures import ExamDayClosureService
+from backend.execution.exam_lifecycle_ports import AssessmentLifecyclePort
 from backend.execution.exam_protocols import ExamProtocolService
 from backend.execution.exam_round_lifecycle import ExamRoundLifecycleService
 from backend.execution.slot_service import ExecutionService
@@ -84,6 +87,9 @@ class RequestContext:
     execution_service_factory: Callable[[Path], ExecutionService]
     exam_protocol_service_factory: Callable[[Path], ExamProtocolService]
     exam_result_service_factory: Callable[[Path], ExamResultService]
+    assessment_lifecycle: AssessmentLifecyclePort
+    assessment_round_queries: AssessmentLifecyclePort
+    exam_lifecycle_unit_of_work_factory: ExamLifecycleUnitOfWorkFactory
     candidate_day_service_factory: Callable[[Path], CandidateDayService]
     planning_resource_unit_of_work_factory: Callable[[Path], PlanningResourceUnitOfWorkFactory]
     resource_access_query_factory: Callable[[Path], ResourceAccessQueryFactory]
@@ -247,12 +253,26 @@ class RequestContext:
 
     @property
     def exam_day_closure_service(self) -> ExamDayClosureService:
-        return ExamDayClosureService(self.db_path, notification_service=self.notification_service)
+        return ExamDayClosureService(
+            self.db_path,
+            notification_service=self.notification_service,
+            assessment_lifecycle=self.assessment_lifecycle,
+        )
+
+    @property
+    def exam_lifecycle_application(self) -> ExamLifecycleApplication:
+        return ExamLifecycleApplication(
+            self.exam_lifecycle_unit_of_work_factory,
+            lambda: self.exam_day_closure_service,
+            lambda: self.exam_round_lifecycle_service,
+        )
 
     @property
     def exam_round_lifecycle_service(self) -> ExamRoundLifecycleService:
         return ExamRoundLifecycleService(
-            self.db_path, notification_service=self.notification_service
+            self.db_path,
+            notification_service=self.notification_service,
+            assessment_queries=self.assessment_round_queries,
         )
 
     @property

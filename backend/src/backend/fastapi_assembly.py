@@ -16,12 +16,19 @@ from .application import ApplicationServices, ReadApplication
 from .application.admin import AdminApplication, AdminServices
 from .application.resource_access import ResourceAccessQueryFactory
 from .assessment.service import ExamResultService
+from .composition import SQLiteAssessmentLifecycleAdapter
+from .composition import (
+    assessment_unit_of_work_factory as compose_assessment_unit_of_work_factory,
+)
 from .composition import authentication_repository as compose_authentication_repository
 from .composition import authorization_service as compose_authorization_service
 from .composition import (
     candidate_day_service as compose_candidate_day_service,
 )
 from .composition import committee_admin_service as compose_committee_admin_service
+from .composition import (
+    exam_lifecycle_unit_of_work_factory as compose_exam_lifecycle_unit_of_work_factory,
+)
 from .composition import exam_protocol_service as compose_exam_protocol_service
 from .composition import exam_result_service as compose_exam_result_service
 from .composition import execution_service as compose_execution_service
@@ -150,6 +157,7 @@ def create_app(
     authorization_service_factory: Callable[[Path], AuthorizationService] | None = None,
     committee_admin_service_factory: Callable[[Path], CommitteeAdminService] | None = None,
     exam_result_service_factory: Callable[[Path], ExamResultService] | None = None,
+    assessment_lifecycle: object | None = None,
 ) -> FastAPI:
     """Create the single FastAPI application used by product and demo images."""
     resolved = config or FastAPIConfig.from_environment()
@@ -196,6 +204,13 @@ def create_app(
     app.state.exam_result_service_factory = (
         exam_result_service_factory or compose_exam_result_service
     )
+    app.state.exam_lifecycle_unit_of_work_factory = compose_exam_lifecycle_unit_of_work_factory(
+        resolved.db_path
+    )
+    app.state.assessment_lifecycle = assessment_lifecycle or SQLiteAssessmentLifecycleAdapter(
+        compose_assessment_unit_of_work_factory(resolved.db_path)
+    )
+    app.state.assessment_round_queries = app.state.assessment_lifecycle
     app.state.candidate_day_service_factory = (
         candidate_day_service_factory or compose_candidate_day_service
     )

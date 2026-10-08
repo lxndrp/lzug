@@ -12,13 +12,16 @@ from pydantic import ValidationError
 
 from backend.assessment.ports import (
     AssessmentActorSnapshot,
+    AssessmentDayCompletionSnapshot,
     AssessmentHumanExportData,
     AssessmentMachineExportData,
     AssessmentModelCommand,
     AssessmentModelSnapshot,
     AssessmentResultSnapshot,
+    AssessmentUnitOfWork,
     AssessmentUnitOfWorkFactory,
     CalculationCommand,
+    DayReopeningCorrectionReceipt,
     IndividualAssessmentCommand,
     RoundBindingCommand,
 )
@@ -959,91 +962,160 @@ class ExamResultService:
                 return None
             if not self._can_read_committee(actor, day["committee_id"]):
                 raise PermissionError("Forbidden.")
-            rows = []
-            for slot in day["slots"]:
-                result = slot["result"]
-                if result is None:
-                    rows.append(
-                        {
-                            "exam_slot_id": slot["slot_id"],
-                            "exam_result_id": None,
-                            "state": "not_bound",
-                            "day_assessments": [],
-                            "day_assessments_complete": False,
-                            "external_inputs_pending": [],
-                            "overall_determination_pending": False,
-                            "record_confirmations_complete": False,
-                            "regular_close_ready": slot["execution_status"] == "cancelled",
-                        }
-                    )
-                    continue
-                if result["legacy_status"]:
-                    rows.append(
-                        {
-                            "exam_slot_id": slot["slot_id"],
-                            "exam_result_id": result["id"],
-                            "state": result["legacy_status"],
-                            "day_assessments": [],
-                            "day_assessments_complete": True,
-                            "external_inputs_pending": [],
-                            "overall_determination_pending": False,
-                            "record_confirmations_complete": True,
-                            "regular_close_ready": True,
-                        }
-                    )
-                    continue
-                rules = result["model"]["rules"]
-                day_assessments = [
+            return self.completion_from_snapshot(day)
+
+    def completion_from_snapshot(self, day: AssessmentDayCompletionSnapshot) -> dict[str, Any]:
+        """Apply Assessment readiness rules to a snapshot owned by an outer UoW."""
+        rows = []
+        for slot in day["slots"]:
+            result = slot["result"]
+            if result is None:
+                rows.append(
                     {
-                        "component_key": component["key"],
-                        "label": component["label"],
-                        "complete": self._component_score(result, component, strict=False)
-                        is not None,
+                        "exam_slot_id": slot["slot_id"],
+                        "exam_result_id": None,
+                        "state": "not_bound",
+                        "day_assessments": [],
+                        "day_assessments_complete": False,
+                        "external_inputs_pending": [],
+                        "overall_determination_pending": False,
+                        "record_confirmations_complete": False,
+                        "regular_close_ready": slot["execution_status"] == "cancelled",
                     }
-                    for component in rules["components"]
-                    if component.get("day_scoped", False)
-                ]
-                external_pending = [
-                    area["key"]
-                    for area in rules["external_areas"]
-                    if area["required"]
-                    and not any(
-                        item["area_key"] == area["key"] and item["status"] == "confirmed"
-                        for item in result["external_results"]
-                    )
-                ]
-                determination = next(
-                    (x for x in result["determinations"] if x["status"] == "current"), None
                 )
-                confirmed = determination is None or {
-                    item["committee_member_id"]
-                    for item in result["record_confirmations"]
-                    if item["determination_id"] == determination["id"]
-                } == set(determination["participant_member_ids"])
-                day_complete = all(item["complete"] for item in day_assessments)
-                pending = result["state"] == "calculation_ready"
+                continue
+            if result["legacy_status"]:
                 rows.append(
                     {
                         "exam_slot_id": slot["slot_id"],
                         "exam_result_id": result["id"],
-                        "state": result["state"],
-                        "correction_open": result["correction_open"],
-                        "day_assessments": day_assessments,
-                        "day_assessments_complete": day_complete,
-                        "external_inputs_pending": external_pending,
-                        "overall_determination_pending": pending,
-                        "record_confirmations_complete": confirmed,
-                        "regular_close_ready": day_complete
-                        and not pending
-                        and confirmed
-                        and not result["correction_open"],
+                        "state": result["legacy_status"],
+                        "day_assessments": [],
+                        "day_assessments_complete": True,
+                        "external_inputs_pending": [],
+                        "overall_determination_pending": False,
+                        "record_confirmations_complete": True,
+                        "regular_close_ready": True,
                     }
                 )
+                continue
+            if result["model"] is None:
+                rows.append(
+                    {
+                        "exam_slot_id": slot["slot_id"],
+                        "exam_result_id": result["id"],
+                        "state": "model_missing",
+                        "day_assessments": [],
+                        "day_assessments_complete": False,
+                        "external_inputs_pending": [],
+                        "overall_determination_pending": False,
+                        "record_confirmations_complete": False,
+                        "regular_close_ready": False,
+                    }
+                )
+                continue
+            rules = result["model"]["rules"]
+            day_assessments = [
+                {
+                    "component_key": component["key"],
+                    "label": component["label"],
+                    "complete": self._day_component_complete(result, component),
+                }
+                for component in rules["components"]
+                if component.get("day_scoped", False)
+            ]
+            external_pending = [
+                area["key"]
+                for area in rules["external_areas"]
+                if area["required"]
+                and not any(
+                    item["area_key"] == area["key"] and item["status"] == "confirmed"
+                    for item in result["external_results"]
+                )
+            ]
+            determination = next(
+                (x for x in result["determinations"] if x["status"] == "current"), None
+            )
+            confirmed = determination is None or {
+                item["committee_member_id"]
+                for item in result["record_confirmations"]
+                if item["determination_id"] == determination["id"]
+            } == set(determination["participant_member_ids"])
+            day_complete = all(item["complete"] for item in day_assessments)
+            pending = result["state"] == "calculation_ready"
+            rows.append(
+                {
+                    "exam_slot_id": slot["slot_id"],
+                    "exam_result_id": result["id"],
+                    "state": result["state"],
+                    "correction_open": result["correction_open"],
+                    "day_assessments": day_assessments,
+                    "day_assessments_complete": day_complete,
+                    "external_inputs_pending": external_pending,
+                    "overall_determination_pending": pending,
+                    "record_confirmations_complete": confirmed,
+                    "regular_close_ready": day_complete
+                    and not pending
+                    and confirmed
+                    and not result["correction_open"],
+                }
+            )
+        return {
+            "exam_day_id": day["day_id"],
+            "slots": rows,
+            "closing_ready": all(item["regular_close_ready"] for item in rows),
+        }
+
+    def _day_component_complete(self, result, component) -> bool:
+        """Preserve the day-close contract without applying determination scoring rules."""
+        if component["mode"] == "committee":
+            return any(
+                item["component_key"] == component["key"] and item["status"] == "current"
+                for item in result["component_assessments"]
+            )
+        return self._individual_component_complete(
+            result, component, set(result["participant_member_ids"])
+        )
+
+    def reopen_result_for_day(
+        self,
+        work: AssessmentUnitOfWork,
+        *,
+        result_id: int,
+        expected_result_version: int,
+        reopening_reference: str,
+        actor_member_id: int,
+        reason: str,
+        requested_at: str,
+    ) -> DayReopeningCorrectionReceipt:
+        """Open Assessment correction state without committing the caller's UoW."""
+        result = work.queries.result_by_id(result_id)
+        if result is None:
+            raise ValueError("Assessment result not found")
+        if result["version"] != expected_result_version:
+            raise ExamResultConflictError("Assessment result version conflict")
+        determination = next(
+            (item for item in result["determinations"] if item["status"] == "current"), None
+        )
+        if determination is None:
             return {
-                "exam_day_id": day["day_id"],
-                "slots": rows,
-                "closing_ready": all(item["regular_close_ready"] for item in rows),
+                "result_id": result_id,
+                "result_version": result["version"],
+                "determination_id": None,
+                "participant_member_ids": [],
+                "communicated": False,
+                "ihk_processed": False,
             }
+        return work.repository.open_day_reopening_correction(
+            {
+                "result_id": result_id,
+                "expected_result_version": expected_result_version,
+                "reopening_reference": reopening_reference,
+                "requested_by_member_id": actor_member_id,
+                "reason": reason,
+                "requested_at": requested_at,
+            }
+        )
 
     @staticmethod
     def _outcome(

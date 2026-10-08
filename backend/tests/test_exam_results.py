@@ -5,6 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
 from http import HTTPStatus
 from threading import Barrier
+from unittest.mock import Mock
 
 from sqlalchemy import select
 
@@ -180,6 +181,118 @@ class ExamResultRuleTests(unittest.TestCase):
         invalid["passing"]["external_minima"] = {"documentation": "50"}
         with self.assertRaisesRegex(ValueError, "unbekannten Bereich"):
             self.service._validate_rules(invalid)
+
+    def test_day_completion_rules_accept_a_snapshot_from_an_outer_uow(self) -> None:
+        completion = self.service.completion_from_snapshot(
+            {
+                "day_id": 41,
+                "committee_id": 7,
+                "slots": [
+                    {"slot_id": 1, "execution_status": "cancelled", "result": None},
+                    {"slot_id": 2, "execution_status": "completed", "result": None},
+                ],
+            }
+        )
+
+        self.assertEqual(41, completion["exam_day_id"])
+        self.assertFalse(completion["closing_ready"])
+        self.assertEqual([True, False], [row["regular_close_ready"] for row in completion["slots"]])
+
+    def test_day_completion_blocks_a_result_without_an_assessment_model(self) -> None:
+        completion = self.service.completion_from_snapshot(
+            {
+                "day_id": 41,
+                "committee_id": 7,
+                "slots": [
+                    {
+                        "slot_id": 1,
+                        "execution_status": "completed",
+                        "result": {"id": 12, "legacy_status": None, "model": None},
+                    }
+                ],
+            }
+        )
+
+        self.assertFalse(completion["closing_ready"])
+        self.assertEqual("model_missing", completion["slots"][0]["state"])
+
+    def test_day_readiness_keeps_the_existing_minimum_assessor_rule(self) -> None:
+        component = assessment_rules()["components"][0]
+        result = {
+            "participant_member_ids": [1, 2, 3],
+            "individual_assessments": [
+                {
+                    "component_key": "documentation",
+                    "criterion_key": "quality",
+                    "assessor_member_id": member_id,
+                    "normalized_points": points,
+                    "status": "submitted",
+                    "revision": 1,
+                }
+                for member_id, points in ((1, "0"), (2, "100"))
+            ],
+            "component_assessments": [],
+            "model": {"rules": {"rounding": {"intermediate": {"mode": "none"}}}},
+        }
+
+        self.assertTrue(self.service._day_component_complete(result, component))
+        self.assertIsNone(self.service._component_score(result, component, strict=False))
+
+    def test_day_reopening_correction_uses_the_caller_owned_assessment_uow(self) -> None:
+        receipt = {
+            "result_id": 9,
+            "result_version": 5,
+            "determination_id": 4,
+            "participant_member_ids": [1, 2, 3],
+            "communicated": True,
+            "ihk_processed": False,
+        }
+        work = Mock()
+        work.queries.result_by_id.return_value = {
+            "id": 9,
+            "version": 4,
+            "determinations": [{"id": 4, "status": "current", "participant_member_ids": [1, 2, 3]}],
+        }
+        work.repository.open_day_reopening_correction.return_value = receipt
+
+        actual = self.service.reopen_result_for_day(
+            work,
+            result_id=9,
+            expected_result_version=4,
+            reopening_reference="exam-day-reopening:12",
+            actor_member_id=1,
+            reason="Begründete Korrektur",
+            requested_at="2026-10-08T12:00:00+00:00",
+        )
+
+        self.assertEqual(receipt, actual)
+        work.repository.open_day_reopening_correction.assert_called_once_with(
+            {
+                "result_id": 9,
+                "expected_result_version": 4,
+                "reopening_reference": "exam-day-reopening:12",
+                "requested_by_member_id": 1,
+                "reason": "Begründete Korrektur",
+                "requested_at": "2026-10-08T12:00:00+00:00",
+            }
+        )
+
+    def test_day_reopening_correction_rejects_a_stale_assessment_snapshot(self) -> None:
+        work = Mock()
+        work.queries.result_by_id.return_value = {"id": 9, "version": 5}
+
+        with self.assertRaises(ExamResultConflictError):
+            self.service.reopen_result_for_day(
+                work,
+                result_id=9,
+                expected_result_version=4,
+                reopening_reference="exam-day-reopening:12",
+                actor_member_id=1,
+                reason="Begründete Korrektur",
+                requested_at="2026-10-08T12:00:00+00:00",
+            )
+
+        work.repository.open_day_reopening_correction.assert_not_called()
 
     def test_rule_models_preserve_strict_booleans_and_reject_shape_drift(self) -> None:
         invalid = assessment_rules()

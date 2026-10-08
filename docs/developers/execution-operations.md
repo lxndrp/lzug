@@ -43,9 +43,30 @@ Der SQLite-Adapter führt diese Operationen im selben UoW wie die zugehörigen
 Tagesmutationen aus.
 Die API-Kante rendert autorisierte Export-Snapshots über Presentation.
 Sie ergänzt auch die HTTP-Links in API-Antworten und JSON-Exports.
-Auch Tagesabschluss und gezielte Wiederöffnung bleiben in
-`ExamDayClosureService`; deren fachübergreifende Orchestrierung wird im
-dafür vorgesehenen Teilissue #1077 in Planning-, Execution- und
-Assessment-Ports mit einem gemeinsamen UoW überführt.
-Dieser Schritt ändert weder Schema und Datenformat noch öffentliche
-API-Verträge.
+`ExamDayClosureService` behält die Execution-Regeln für Tagesabschluss und
+gezielte Wiederöffnung. Die FastAPI-Schreibbefehle laufen über
+`ExamLifecycleApplication` und den gemeinsamen Execution-/Assessment-UoW;
+der direkte Service-Aufruf bleibt vorübergehend für interne Aufrufer bestehen.
+Rundenabschluss und Rundenwiederöffnung werden noch im Teilissue #1077 in
+Application-Orchestrierung und Planning-, Execution- sowie Assessment-Ports
+überführt. Schema, Datenformat und öffentliche API-Verträge bleiben dabei
+unverändert.
+
+## Transaktionsmatrix für den Prüfungs-Lifecycle
+
+| Use Case | Aktuelle Transaktionsgrenze | Zielgrenze aus #1077 |
+| --- | --- | --- |
+| Prüfungstag schließen | Der FastAPI-Befehl läuft über `ExamLifecycleApplication` und öffnet den gemeinsamen Execution-/Assessment-UoW. Execution validiert und schreibt Abschluss, Tagesrevision, Audit und Wiederöffnungsabschluss in dessen Session; die Assessment-Readiness wird über die vom UoW gelieferte getypte Lifecycle-Fähigkeit gelesen. Application committet atomar und stößt Benachrichtigungen danach an. Der Service besitzt keinen eigenen öffentlichen Close-Befehl mehr | Gemeinsame Application-Grenze; keine weitere Lifecycle-Transaktion erforderlich |
+| Prüfungstag wiederöffnen | Der FastAPI-Befehl läuft über `ExamLifecycleApplication` und öffnet den gemeinsamen Execution-/Assessment-UoW. Assessment-Korrektur, Tagesrevision, Umfang, Aufgaben und Audit verwenden dessen Session; Assessment wird über die vom UoW gelieferte getypte Lifecycle-Fähigkeit aufgerufen. Benachrichtigungen folgen nach dem Commit. Der Service besitzt keinen eigenen öffentlichen Reopen-Befehl mehr | Gemeinsame Application-Grenze; keine weitere Lifecycle-Transaktion erforderlich |
+| Prüfungsrunde schließen oder absagen | Die FastAPI-Befehle laufen über `ExamLifecycleApplication` und den gemeinsamen Execution-/Assessment-UoW. Rundenentscheidung, Aufgaben, Audit und abgeleitete Tageszustände teilen dessen Session; Assessment-Projektionen kommen über die vom UoW gelieferte getypte Lifecycle-Fähigkeit. Application committet atomar und stößt Benachrichtigungen danach an. Der Service besitzt keine eigenen öffentlichen Close-/Cancel-Befehle mehr | Gemeinsame Application-Grenze; erforderliche Planning-Fähigkeiten direkt aus dem komponierten UoW beziehen |
+| Prüfungsrunde wiederöffnen | Der FastAPI-Befehl läuft über `ExamLifecycleApplication` und den gemeinsamen Execution-/Assessment-UoW. Runden-, Tages-, Aufgaben- und Auditänderungen teilen dessen Session; Assessment-Auswirkungsprojektionen kommen über die vom UoW gelieferte getypte Lifecycle-Fähigkeit. Benachrichtigungen folgen nach dem Commit. Der Service besitzt keinen eigenen öffentlichen Reopen-Befehl mehr | Gemeinsame Application-Grenze; erforderliche Planning-Fähigkeiten direkt aus dem komponierten UoW beziehen |
+
+Die vier mutierenden Close-/Cancel-/Reopen-Routen verwenden die gemeinsame
+Application-Grenze. Die öffentlichen Service-eigenen Close-/Cancel-/Reopen-
+Übergänge sind entfernt. Die Lifecycle-Services erhalten die bereits
+sessiongebundene Assessment-Fähigkeit vom komponierten UoW, statt sie mit einer
+rohen Session zu binden. Der Persistence-Adapter übergibt die gemeinsame
+Session für Execution-eigene ORM-Zugriffe noch an diese Services; dieser
+Übergang muss für die vollständige Portmigration weiter aufgelöst werden.
+Planning-Fähigkeiten, die der Runden-Lifecycle benötigt, sind noch nicht
+vollständig über den gemeinsamen UoW komponiert.

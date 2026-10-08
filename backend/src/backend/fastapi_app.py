@@ -794,7 +794,7 @@ def _register_exam_round_routes(app, resolved, application, read_security, write
         id: int,
         payload: DomainResourceWrite = _OPTIONAL_OBJECT_BODY,
     ):
-        result = context.exam_round_lifecycle_service.close(
+        result = context.exam_lifecycle_application.close_exam_round(
             context.authorization_scope, id, payload_data(context, payload)
         )
         return _finish(context, context.respond(result))
@@ -805,7 +805,7 @@ def _register_exam_round_routes(app, resolved, application, read_security, write
         id: int,
         payload: DomainResourceWrite = _OPTIONAL_OBJECT_BODY,
     ):
-        result = context.exam_round_lifecycle_service.cancel(
+        result = context.exam_lifecycle_application.cancel_exam_round(
             context.authorization_scope, id, payload_data(context, payload)
         )
         return _finish(context, context.respond(result))
@@ -827,7 +827,7 @@ def _register_exam_round_routes(app, resolved, application, read_security, write
         id: int,
         payload: DomainResourceWrite = _OPTIONAL_OBJECT_BODY,
     ):
-        result = context.exam_round_lifecycle_service.reopen(
+        result = context.exam_lifecycle_application.reopen_exam_round(
             context.authorization_scope, id, payload_data(context, payload)
         )
         return _finish(context, context.respond(result))
@@ -906,7 +906,7 @@ def _register_exam_day_routes(app, resolved, application, read_security, write_s
         id: int,
         payload: DomainResourceWrite = _OPTIONAL_OBJECT_BODY,
     ):
-        result = context.exam_day_closure_service.close(
+        result = context.exam_lifecycle_application.close_exam_day(
             context.authorization_scope, id, payload_data(context, payload)
         )
         return _finish(context, context.respond(result))
@@ -934,7 +934,7 @@ def _register_exam_day_routes(app, resolved, application, read_security, write_s
         id: int,
         payload: DomainResourceWrite = _OPTIONAL_OBJECT_BODY,
     ):
-        result = context.exam_day_closure_service.reopen(
+        result = context.exam_lifecycle_application.reopen_exam_day(
             context.authorization_scope, id, payload_data(context, payload)
         )
         return _finish(context, context.respond(result))

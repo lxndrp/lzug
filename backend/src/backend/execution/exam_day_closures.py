@@ -10,19 +10,19 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import select, update
-from sqlalchemy.exc import OperationalError
+from sqlalchemy import select
 from sqlalchemy.orm import Session
-from sqlalchemy.orm.attributes import set_committed_value
 
+from backend.execution.exam_lifecycle_ports import (
+    AssessmentLifecyclePort,
+    AssessmentLifecycleWork,
+)
 from backend.identity.authorization import AuthorizationScope
 from backend.notifications.service import NotificationService
 from backend.persistence.database import DEFAULT_DB_PATH, session_scope
 from backend.persistence.models import (
     AbsenceReport,
-    AssessmentModelVersion,
     CandidateExamAttendance,
-    CommitteeAssessment,
     CommitteeMember,
     ExamDay,
     ExamDayAssignment,
@@ -37,18 +37,9 @@ from backend.persistence.models import (
     ExamProtocolParticipant,
     ExamProtocolResponse,
     ExamProtocolRevision,
-    ExamResult,
     ExamRound,
-    ExamRoundAssessmentBinding,
     ExamSlot,
-    ExternalExamResult,
-    IndividualAssessment,
     MemberExamAttendance,
-    ResultCommunication,
-    ResultCorrection,
-    ResultDetermination,
-    ResultRecordConfirmation,
-    RoundCandidate,
 )
 from backend.presentation.exam_exports import render_day_closure_export
 
@@ -110,6 +101,17 @@ class NotificationJob:
 
 
 @dataclass(frozen=True)
+class ExamDayClosureOutcome:
+    """Committed response data and deferred notification input for one close."""
+
+    response: dict[str, Any]
+    committee_id: int | None = None
+    round_id: int | None = None
+    day_id: int | None = None
+    notification_jobs: tuple[NotificationJob, ...] = ()
+
+
+@dataclass(frozen=True)
 class ExamDayClosureSnapshot:
     """The bounded, transaction-local input for the closure checklist."""
 
@@ -158,19 +160,6 @@ def day_for_protocol(session: Session, protocol_id: int) -> ExamDay | None:
         .join(ExamSlot, ExamSlot.exam_day_id == ExamDay.id)
         .join(ExamProtocol, ExamProtocol.exam_slot_id == ExamSlot.id)
         .where(ExamProtocol.id == protocol_id)
-    )
-
-
-def days_for_result(session: Session, result_id: int) -> list[ExamDay]:
-    return list(
-        session.scalars(
-            select(ExamDay)
-            .join(ExamSlot, ExamSlot.exam_day_id == ExamDay.id)
-            .join(RoundCandidate, RoundCandidate.id == ExamSlot.round_candidate_id)
-            .join(ExamResult, ExamResult.round_candidate_id == RoundCandidate.id)
-            .where(ExamResult.id == result_id)
-            .order_by(ExamDay.id)
-        ).unique()
     )
 
 
@@ -321,9 +310,11 @@ class ExamDayClosureService:
         db_path: Path = DEFAULT_DB_PATH,
         *,
         notification_service: NotificationService,
+        assessment_lifecycle: AssessmentLifecyclePort,
     ) -> None:
         self.db_path = db_path
         self.notification_service = notification_service
+        self.assessment_lifecycle = assessment_lifecycle
 
     def get(self, scope: AuthorizationScope, day_id: int) -> dict[str, Any] | None:
         with session_scope(self.db_path) as session:
@@ -333,44 +324,59 @@ class ExamDayClosureService:
             self._require_access(session, day, scope)
             return self._view(session, day, scope)
 
-    def close(
-        self, scope: AuthorizationScope, day_id: int, payload: dict[str, Any]
-    ) -> dict[str, Any]:
+    def close_in_transaction(
+        self,
+        session: Session,
+        scope: AuthorizationScope,
+        day_id: int,
+        payload: dict[str, Any],
+        assessment_work: AssessmentLifecycleWork | None = None,
+    ) -> ExamDayClosureOutcome:
+        """Apply the close command in the caller's transaction without committing or notifying."""
         expected_revision, closure_type, reason, attempts, fingerprint = self._close_command(
             payload
         )
-        notification_jobs: list[NotificationJob] = []
-        with session_scope(self.db_path) as session:
-            day = self._required_day(session, day_id)
-            actor_id, committee_id, round_id = self._require_management(session, day, scope)
-            if self._repeated_closure(session, day.id, fingerprint):
-                return self._view(session, day, scope)
-            reopening = self._prepare_closure(session, day, expected_revision)
-            evaluation = self._evaluate(session, day)
-            ready_key = (
-                "regular_close_ready" if closure_type == "regular" else "exception_close_ready"
+        day = self._required_day(session, day_id)
+        actor_id, committee_id, round_id = self._require_management(session, day, scope)
+        if self._repeated_closure(session, day.id, fingerprint):
+            return ExamDayClosureOutcome(self._view(session, day, scope, assessment_work))
+        reopening = self._prepare_closure(session, day, expected_revision)
+        evaluation = self._evaluate(session, day, assessment_work)
+        ready_key = "regular_close_ready" if closure_type == "regular" else "exception_close_ready"
+        if not evaluation[ready_key]:
+            raise ExamDayValidationError(
+                "Die Voraussetzungen für diesen Tagesabschluss sind nicht erfüllt",
+                [item for item in evaluation["items"] if not item["ok"]],
             )
-            if not evaluation[ready_key]:
-                raise ExamDayValidationError(
-                    "Die Voraussetzungen für diesen Tagesabschluss sind nicht erfüllt",
-                    [item for item in evaluation["items"] if not item["ok"]],
-                )
-            notification_jobs.extend(
-                self._record_closure(
-                    session,
-                    day,
-                    reopening,
-                    evaluation,
-                    closure_type,
-                    actor_id,
-                    reason,
-                    attempts,
-                    fingerprint,
-                )
-            )
-            result = self._view(session, day, scope)
-        self._notify(committee_id, round_id, day_id, notification_jobs)
-        return result
+        notification_jobs = self._record_closure(
+            session,
+            day,
+            reopening,
+            evaluation,
+            closure_type,
+            actor_id,
+            reason,
+            attempts,
+            fingerprint,
+        )
+        return ExamDayClosureOutcome(
+            response=self._view(session, day, scope, assessment_work),
+            committee_id=committee_id,
+            round_id=round_id,
+            day_id=day_id,
+            notification_jobs=tuple(notification_jobs),
+        )
+
+    def publish_close_notifications(self, outcome: ExamDayClosureOutcome) -> None:
+        """Publish close notifications only after the caller has committed."""
+        if outcome.committee_id is None or outcome.round_id is None or outcome.day_id is None:
+            return
+        self._notify(
+            outcome.committee_id,
+            outcome.round_id,
+            outcome.day_id,
+            list(outcome.notification_jobs),
+        )
 
     def _close_command(
         self, payload: dict[str, Any]
@@ -636,9 +642,15 @@ class ExamDayClosureService:
                 raise ExamDayConflictError("Für den Prüfungstag läuft bereits eine Wiederöffnung")
             return self._impact(session, day, payload.get("scope"))
 
-    def reopen(
-        self, scope: AuthorizationScope, day_id: int, payload: dict[str, Any]
-    ) -> dict[str, Any]:
+    def reopen_in_transaction(
+        self,
+        session: Session,
+        scope: AuthorizationScope,
+        day_id: int,
+        payload: dict[str, Any],
+        assessment_work: AssessmentLifecycleWork | None = None,
+    ) -> ExamDayClosureOutcome:
+        """Apply a targeted reopening in the caller's transaction without publishing effects."""
         expected_revision = self._required_revision(payload)
         occasion = self._required_text(payload.get("occasion"), "occasion", 1000)
         source = self._required_text(payload.get("source"), "source", 1000)
@@ -651,81 +663,97 @@ class ExamDayClosureService:
             "scope": self._normalize_scope(payload.get("scope")),
         }
         fingerprint = _fingerprint(command)
-        notification_jobs: list[NotificationJob] = []
-        with session_scope(self.db_path) as session:
-            day = self._required_day(session, day_id)
-            actor_id, committee_id, round_id = self._require_management(session, day, scope)
-            repeated = session.scalar(
-                select(ExamDayReopening).where(
-                    ExamDayReopening.exam_day_id == day.id,
-                    ExamDayReopening.command_fingerprint == fingerprint,
-                )
+        day = self._required_day(session, day_id)
+        actor_id, committee_id, round_id = self._require_management(session, day, scope)
+        repeated = session.scalar(
+            select(ExamDayReopening).where(
+                ExamDayReopening.exam_day_id == day.id,
+                ExamDayReopening.command_fingerprint == fingerprint,
             )
-            if repeated is not None:
-                return self._view(session, day, scope)
-            if day.revision != expected_revision:
-                raise ExamDayConflictError("Der Prüfungstag wurde zwischenzeitlich geändert")
-            if day.closure_status not in CLOSED_STATUSES:
-                raise ExamDayConflictError(
-                    "Nur ein geschlossener Prüfungstag kann wieder geöffnet werden"
-                )
-            if self._active_reopening(session, day.id) is not None:
-                raise ExamDayConflictError("Für den Prüfungstag läuft bereits eine Wiederöffnung")
-            impact = self._impact(session, day, payload.get("scope"))
-            now = _now()
-            previous = self._current_or_latest_closure(session, day.id)
-            if previous is not None:
-                previous.status = "superseded"
-            reopening = ExamDayReopening(
+        )
+        if repeated is not None:
+            return ExamDayClosureOutcome(self._view(session, day, scope, assessment_work))
+        if day.revision != expected_revision:
+            raise ExamDayConflictError("Der Prüfungstag wurde zwischenzeitlich geändert")
+        if day.closure_status not in CLOSED_STATUSES:
+            raise ExamDayConflictError(
+                "Nur ein geschlossener Prüfungstag kann wieder geöffnet werden"
+            )
+        if self._active_reopening(session, day.id) is not None:
+            raise ExamDayConflictError("Für den Prüfungstag läuft bereits eine Wiederöffnung")
+        impact = self._impact(session, day, payload.get("scope"), assessment_work)
+        now = _now()
+        previous = self._current_or_latest_closure(session, day.id)
+        if previous is not None:
+            previous.status = "superseded"
+        reopening = ExamDayReopening(
+            exam_day_id=day.id,
+            previous_closure_id=previous.id if previous else None,
+            requested_revision=day.revision,
+            resulting_revision=day.revision + 1,
+            occasion=occasion,
+            source=source,
+            reason=reason,
+            requested_scope_json=_json(impact["requested_scope"]),
+            scope_json=_json(impact["expanded_scope"]),
+            completed_scope_json="[]",
+            impacts_json=_json(impact["impacts"]),
+            actor_member_id=actor_id,
+            status="open",
+            command_fingerprint=fingerprint,
+            opened_at=now,
+        )
+        session.add(reopening)
+        session.flush()
+        day.revision += 1
+        day.closure_status = "reopening"
+        day.updated_at = now
+        self._open_dependent_corrections(
+            session, day, reopening, impact, actor_id, reason, now, assessment_work
+        )
+        session.add(
+            ExamDayAuditEvent(
                 exam_day_id=day.id,
-                previous_closure_id=previous.id if previous else None,
-                requested_revision=day.revision,
-                resulting_revision=day.revision + 1,
-                occasion=occasion,
-                source=source,
-                reason=reason,
-                requested_scope_json=_json(impact["requested_scope"]),
-                scope_json=_json(impact["expanded_scope"]),
-                completed_scope_json="[]",
-                impacts_json=_json(impact["impacts"]),
+                day_revision=day.revision,
+                event_type="reopened",
                 actor_member_id=actor_id,
-                status="open",
-                command_fingerprint=fingerprint,
-                opened_at=now,
+                reopening_id=reopening.id,
+                reason=reason,
+                scope_json=reopening.requested_scope_json,
+                created_at=now,
             )
-            session.add(reopening)
-            session.flush()
-            day.revision += 1
-            day.closure_status = "reopening"
-            day.updated_at = now
-            self._open_dependent_corrections(session, day, reopening, impact, actor_id, reason, now)
-            session.add(
-                ExamDayAuditEvent(
-                    exam_day_id=day.id,
-                    day_revision=day.revision,
-                    event_type="reopened",
-                    actor_member_id=actor_id,
-                    reopening_id=reopening.id,
-                    reason=reason,
-                    scope_json=reopening.requested_scope_json,
-                    created_at=now,
+        )
+        recipients = set(impact["impacts"]["recipient_member_ids"])
+        notification_jobs = []
+        if recipients:
+            notification_jobs.append(
+                NotificationJob(
+                    recipients,
+                    "exam_day_reopened",
+                    "Prüfungstag zur Korrektur wieder geöffnet",
+                    "Von Ihnen erfasste oder bestätigte Daten sind von einer begründeten "
+                    "Korrektur betroffen.",
+                    f"exam-day-reopening:{reopening.id}:affected",
                 )
             )
-            recipients = set(impact["impacts"]["recipient_member_ids"])
-            if recipients:
-                notification_jobs.append(
-                    NotificationJob(
-                        recipients,
-                        "exam_day_reopened",
-                        "Prüfungstag zur Korrektur wieder geöffnet",
-                        "Von Ihnen erfasste oder bestätigte Daten sind von einer begründeten "
-                        "Korrektur betroffen.",
-                        f"exam-day-reopening:{reopening.id}:affected",
-                    )
-                )
-            result = self._view(session, day, scope)
-        self._notify(committee_id, round_id, day_id, notification_jobs)
-        return result
+        return ExamDayClosureOutcome(
+            response=self._view(session, day, scope, assessment_work),
+            committee_id=committee_id,
+            round_id=round_id,
+            day_id=day_id,
+            notification_jobs=tuple(notification_jobs),
+        )
+
+    def publish_reopening_notifications(self, outcome: ExamDayClosureOutcome) -> None:
+        """Publish reopening notifications only after the caller has committed."""
+        if outcome.committee_id is None or outcome.round_id is None or outcome.day_id is None:
+            return
+        self._notify(
+            outcome.committee_id,
+            outcome.round_id,
+            outcome.day_id,
+            list(outcome.notification_jobs),
+        )
 
     def machine_export(self, scope: AuthorizationScope, day_id: int) -> dict[str, Any]:
         return self._export(scope, day_id, "machine")
@@ -760,9 +788,15 @@ class ExamDayClosureService:
         closure = export["closure"]
         return render_day_closure_export(day, closure)
 
-    def _view(self, session: Session, day: ExamDay, scope: AuthorizationScope) -> dict[str, Any]:
+    def _view(
+        self,
+        session: Session,
+        day: ExamDay,
+        scope: AuthorizationScope,
+        assessment_work: AssessmentLifecycleWork | None = None,
+    ) -> dict[str, Any]:
         actor_id, _committee_id, _round_id = self._require_access(session, day, scope)
-        evaluation = self._evaluate(session, day)
+        evaluation = self._evaluate(session, day, assessment_work)
         closures = list(
             session.scalars(
                 select(ExamDayClosure)
@@ -905,7 +939,12 @@ class ExamDayClosureService:
             },
         }
 
-    def _evaluate(self, session: Session, day: ExamDay) -> dict[str, Any]:
+    def _evaluate(
+        self,
+        session: Session,
+        day: ExamDay,
+        assessment_work: AssessmentLifecycleWork | None = None,
+    ) -> dict[str, Any]:
         snapshot = self._load_closure_snapshot(session, day)
         items: list[dict[str, Any]] = []
         warnings: list[dict[str, Any]] = []
@@ -917,7 +956,9 @@ class ExamDayClosureService:
         exception_candidates = self._evaluate_protocols(
             session, snapshot.slots, items, warnings, protocol_references
         )
-        self._evaluate_results(session, snapshot.slots, items, result_references)
+        self._evaluate_results(
+            session, day.id, snapshot.slots, items, result_references, assessment_work
+        )
 
         regular_ready = all(item["ok"] for item in items)
         non_protocol_ready = all(
@@ -1269,12 +1310,22 @@ class ExamDayClosureService:
     def _evaluate_results(
         self,
         session: Session,
+        day_id: int,
         slots: Sequence[ExamSlot],
         items: list[dict[str, Any]],
         references: list[dict[str, Any]],
+        assessment_work: AssessmentLifecycleWork | None = None,
     ) -> None:
+        work = assessment_work or self.assessment_lifecycle.bind(session)
+        completion = work.day_completion(day_id)
+        by_slot = {item["exam_slot_id"]: item for item in completion["slots"]}
         for slot in slots:
-            references.append(self._result_completion(session, slot))
+            references.append(
+                by_slot.get(
+                    slot.id,
+                    self._no_result_completion(slot, "missing", False),
+                )
+            )
         result_ready = all(item["regular_close_ready"] for item in references)
         self._finding(
             items,
@@ -1283,47 +1334,6 @@ class ExamDayClosureService:
             result_ready,
             [item for item in references if not item["regular_close_ready"]],
         )
-
-    def _result_completion(self, session: Session, slot: ExamSlot) -> dict[str, Any]:
-        if slot.execution_status == "cancelled":
-            return self._no_result_completion(slot, "not_required", True)
-        result = session.scalar(
-            select(ExamResult).where(ExamResult.round_candidate_id == slot.round_candidate_id)
-        )
-        if result is None:
-            return self._no_result_completion(slot, "missing", False)
-        if result.legacy_status is not None:
-            return self._legacy_result_completion(slot, result)
-        binding = self._assessment_binding(session, result)
-        if binding is None:
-            return self._missing_model_completion(slot, result)
-        model = session.get(AssessmentModelVersion, binding.assessment_model_version_id)
-        rules = json.loads(model.rules_json)
-        participant_ids = self._result_participant_ids(session, result)
-        incomplete_components = self._incomplete_day_components(
-            session, result, rules["components"], participant_ids
-        )
-        pending_external = self._pending_external_areas(session, result, rules["external_areas"])
-        determination, confirmations_complete = self._result_determination_state(session, result)
-        calculation_ready_unfixed = self._unfixed_calculation_ready(
-            result, incomplete_components, pending_external, determination
-        )
-        ready = self._result_is_ready(
-            result, incomplete_components, calculation_ready_unfixed, confirmations_complete
-        )
-        return {
-            "exam_slot_id": slot.id,
-            "exam_result_id": result.id,
-            "version": result.version,
-            "state": result.current_state,
-            "correction_open": bool(result.correction_open),
-            "incomplete_day_components": incomplete_components,
-            "external_inputs_pending": pending_external,
-            "external_follow_up_open": bool(pending_external),
-            "determination_id": determination.id if determination else None,
-            "record_confirmations_complete": confirmations_complete,
-            "regular_close_ready": ready,
-        }
 
     @staticmethod
     def _no_result_completion(slot: ExamSlot, state: str, ready: bool) -> dict[str, Any]:
@@ -1335,178 +1345,23 @@ class ExamDayClosureService:
             "external_inputs_pending": [],
         }
 
-    @staticmethod
-    def _legacy_result_completion(slot: ExamSlot, result: ExamResult) -> dict[str, Any]:
-        return {
-            "exam_slot_id": slot.id,
-            "exam_result_id": result.id,
-            "version": result.version,
-            "state": result.legacy_status,
-            "regular_close_ready": True,
-            "external_inputs_pending": [],
-        }
-
-    @staticmethod
-    def _missing_model_completion(slot: ExamSlot, result: ExamResult) -> dict[str, Any]:
-        return {
-            "exam_slot_id": slot.id,
-            "exam_result_id": result.id,
-            "version": result.version,
-            "state": "model_missing",
-            "regular_close_ready": False,
-            "external_inputs_pending": [],
-        }
-
-    @staticmethod
-    def _assessment_binding(
-        session: Session, result: ExamResult
-    ) -> ExamRoundAssessmentBinding | None:
-        round_candidate = session.get(RoundCandidate, result.round_candidate_id)
-        return session.scalar(
-            select(ExamRoundAssessmentBinding).where(
-                ExamRoundAssessmentBinding.exam_round_id == round_candidate.exam_round_id
-            )
-        )
-
-    @staticmethod
-    def _result_participant_ids(session: Session, result: ExamResult) -> set[int]:
-        return set(
-            session.scalars(
-                select(ExamProtocolParticipant.committee_member_id)
-                .join(ExamProtocol, ExamProtocol.id == ExamProtocolParticipant.exam_protocol_id)
-                .join(ExamSlot, ExamSlot.id == ExamProtocol.exam_slot_id)
-                .where(ExamSlot.round_candidate_id == result.round_candidate_id)
-            )
-        )
-
-    def _incomplete_day_components(
+    def _impact(
         self,
         session: Session,
-        result: ExamResult,
-        components: list[dict[str, Any]],
-        participant_ids: set[int],
-    ) -> list[str]:
-        incomplete: list[str] = []
-        for component in components:
-            if component.get("day_scoped", False) and not self._component_complete(
-                session, result, component, participant_ids
-            ):
-                incomplete.append(component["key"])
-        return incomplete
-
-    @staticmethod
-    def _component_complete(
-        session: Session,
-        result: ExamResult,
-        component: dict[str, Any],
-        participant_ids: set[int],
-    ) -> bool:
-        if component["mode"] == "committee":
-            return (
-                session.scalar(
-                    select(CommitteeAssessment.id).where(
-                        CommitteeAssessment.exam_result_id == result.id,
-                        CommitteeAssessment.component_key == component["key"],
-                        CommitteeAssessment.status == "current",
-                    )
-                )
-                is not None
-            )
-        criteria = {item["key"] for item in component["criteria"]}
-        by_member: dict[int, set[str]] = {}
-        for item in session.scalars(
-            select(IndividualAssessment).where(
-                IndividualAssessment.exam_result_id == result.id,
-                IndividualAssessment.component_key == component["key"],
-                IndividualAssessment.status == "submitted",
-            )
-        ):
-            if item.assessor_member_id in participant_ids:
-                by_member.setdefault(item.assessor_member_id, set()).add(item.criterion_key)
-        return sum(1 for submitted in by_member.values() if submitted == criteria) >= int(
-            component["required_assessors"]
-        )
-
-    @staticmethod
-    def _pending_external_areas(
-        session: Session, result: ExamResult, external_areas: list[dict[str, Any]]
-    ) -> list[str]:
-        pending: list[str] = []
-        for area in external_areas:
-            if not area["required"]:
-                continue
-            external = session.scalar(
-                select(ExternalExamResult)
-                .where(
-                    ExternalExamResult.exam_result_id == result.id,
-                    ExternalExamResult.area_key == area["key"],
-                    ExternalExamResult.status.in_({"unconfirmed", "confirmed"}),
-                )
-                .order_by(ExternalExamResult.revision.desc())
-            )
-            if external is None or external.status != "confirmed":
-                pending.append(area["key"])
-        return pending
-
-    @staticmethod
-    def _result_determination_state(
-        session: Session, result: ExamResult
-    ) -> tuple[ResultDetermination | None, bool]:
-        determination = session.scalar(
-            select(ResultDetermination).where(
-                ResultDetermination.exam_result_id == result.id,
-                ResultDetermination.status == "current",
-            )
-        )
-        if determination is None:
-            return None, True
-        expected = set(json.loads(determination.participant_member_ids_json))
-        actual = set(
-            session.scalars(
-                select(ResultRecordConfirmation.committee_member_id).where(
-                    ResultRecordConfirmation.result_determination_id == determination.id
-                )
-            )
-        )
-        return determination, expected == actual
-
-    @staticmethod
-    def _unfixed_calculation_ready(
-        result: ExamResult,
-        incomplete_components: list[str],
-        pending_external: list[str],
-        determination: ResultDetermination | None,
-    ) -> bool:
-        return result.current_state == "calculation_ready" or (
-            not incomplete_components
-            and not pending_external
-            and determination is None
-            and result.current_state != "incomplete"
-        )
-
-    @staticmethod
-    def _result_is_ready(
-        result: ExamResult,
-        incomplete_components: list[str],
-        calculation_ready_unfixed: bool,
-        confirmations_complete: bool,
-    ) -> bool:
-        return (
-            not incomplete_components
-            and not calculation_ready_unfixed
-            and confirmations_complete
-            and not bool(result.correction_open)
-        )
-
-    def _impact(self, session: Session, day: ExamDay, raw_scope: Any) -> dict[str, Any]:
+        day: ExamDay,
+        raw_scope: Any,
+        assessment_work: AssessmentLifecycleWork | None = None,
+    ) -> dict[str, Any]:
         requested = self._normalize_scope(raw_scope)
-        slots, assignments, absences, protocols, results = self._reopening_entities(session, day)
+        slots, assignments, absences, protocols, results = self._reopening_entities(
+            session, day, assessment_work
+        )
         self._validate_reopening_scope(requested, slots, assignments, absences, protocols, results)
         impacted_protocol_ids, impacted_result_ids = self._impacted_entity_ids(
             requested, slots, protocols, results
         )
         impacts = self._impact_details(
-            session, protocols, impacted_protocol_ids, impacted_result_ids
+            session, protocols, impacted_protocol_ids, impacted_result_ids, assessment_work
         )
         expanded = set(requested)
         expanded.update(_token("exam_protocol", item) for item in impacted_protocol_ids)
@@ -1519,13 +1374,17 @@ class ExamDayClosureService:
             "impacts": impacts,
         }
 
-    @staticmethod
-    def _reopening_entities(session: Session, day: ExamDay) -> tuple[
+    def _reopening_entities(
+        self,
+        session: Session,
+        day: ExamDay,
+        assessment_work: AssessmentLifecycleWork | None = None,
+    ) -> tuple[
         dict[int, ExamSlot],
         dict[int, ExamDayAssignment],
         dict[int, AbsenceReport],
         dict[int, ExamProtocol],
-        dict[int, ExamResult],
+        dict[int, int],
     ]:
         slots = {
             item.id: item
@@ -1552,12 +1411,10 @@ class ExamDayClosureService:
             )
         }
         results = {
-            item.id: item
-            for item in session.scalars(
-                select(ExamResult)
-                .join(ExamSlot, ExamSlot.round_candidate_id == ExamResult.round_candidate_id)
-                .where(ExamSlot.exam_day_id == day.id)
-            ).unique()
+            item["id"]: item["round_candidate_id"]
+            for item in (
+                assessment_work or self.assessment_lifecycle.bind(session)
+            ).results_for_day_slots(day.id, tuple(slots))
         }
         return slots, assignments, absences, protocols, results
 
@@ -1568,7 +1425,7 @@ class ExamDayClosureService:
         assignments: dict[int, ExamDayAssignment],
         absences: dict[int, AbsenceReport],
         protocols: dict[int, ExamProtocol],
-        results: dict[int, ExamResult],
+        results: dict[int, int],
     ) -> None:
         for token in requested:
             kind, raw_id = token.split(":", 1)
@@ -1588,7 +1445,7 @@ class ExamDayClosureService:
         requested: list[str],
         slots: dict[int, ExamSlot],
         protocols: dict[int, ExamProtocol],
-        results: dict[int, ExamResult],
+        results: dict[int, int],
     ) -> tuple[set[int], set[int]]:
         impacted_protocol_ids: set[int] = set()
         impacted_result_ids: set[int] = set()
@@ -1610,17 +1467,17 @@ class ExamDayClosureService:
                     if protocol.exam_slot_id == slot.id
                 )
                 impacted_result_ids.update(
-                    result.id
-                    for result in results.values()
-                    if result.round_candidate_id == slot.round_candidate_id
+                    result_id
+                    for result_id, candidate_id in results.items()
+                    if candidate_id == slot.round_candidate_id
                 )
             elif kind == "exam_protocol":
                 impacted_protocol_ids.add(entity_id)
                 slot = slots[protocols[entity_id].exam_slot_id]
                 impacted_result_ids.update(
-                    result.id
-                    for result in results.values()
-                    if result.round_candidate_id == slot.round_candidate_id
+                    result_id
+                    for result_id, candidate_id in results.items()
+                    if candidate_id == slot.round_candidate_id
                 )
             elif kind == "exam_result":
                 impacted_result_ids.add(entity_id)
@@ -1632,6 +1489,7 @@ class ExamDayClosureService:
         protocols: dict[int, ExamProtocol],
         impacted_protocol_ids: set[int],
         impacted_result_ids: set[int],
+        assessment_work: AssessmentLifecycleWork | None = None,
     ) -> dict[str, list[int]]:
         recipient_ids: set[int] = set()
         invalidated_response_ids: list[int] = []
@@ -1654,7 +1512,9 @@ class ExamDayClosureService:
                     )
                 )
             )
-        result_impacts = self._result_impact_details(session, impacted_result_ids, recipient_ids)
+        result_impacts = self._result_impact_details(
+            session, impacted_result_ids, recipient_ids, assessment_work
+        )
         return {
             "exam_protocol_ids": sorted(impacted_protocol_ids),
             "invalidated_protocol_response_ids": sorted(invalidated_response_ids),
@@ -1663,35 +1523,29 @@ class ExamDayClosureService:
             "recipient_member_ids": sorted(recipient_ids),
         }
 
-    @staticmethod
     def _result_impact_details(
-        session: Session, impacted_result_ids: set[int], recipient_ids: set[int]
+        self,
+        session: Session,
+        impacted_result_ids: set[int],
+        recipient_ids: set[int],
+        assessment_work: AssessmentLifecycleWork | None = None,
     ) -> dict[str, list[int]]:
         determination_ids: list[int] = []
         communicated_result_ids: list[int] = []
         ihk_processed_result_ids: list[int] = []
-        for result_id in impacted_result_ids:
-            determination = session.scalar(
-                select(ResultDetermination).where(
-                    ResultDetermination.exam_result_id == result_id,
-                    ResultDetermination.status == "current",
-                )
-            )
+        for result in (
+            assessment_work or self.assessment_lifecycle.bind(session)
+        ).result_reopening_impacts(impacted_result_ids):
+            determination = result["current_determination"]
             if determination is None:
                 continue
-            determination_ids.append(determination.id)
-            recipient_ids.update(json.loads(determination.participant_member_ids_json))
-            communications = list(
-                session.scalars(
-                    select(ResultCommunication).where(
-                        ResultCommunication.exam_result_id == result_id,
-                        ResultCommunication.status == "current",
-                    )
-                )
-            )
+            result_id = result["id"]
+            determination_ids.append(determination["id"])
+            recipient_ids.update(determination["participant_member_ids"])
+            communications = result["communications"]
             if communications:
                 communicated_result_ids.append(result_id)
-            if any(item.external_document_status for item in communications):
+            if any(item["external_document_status"] for item in communications):
                 ihk_processed_result_ids.append(result_id)
         return {
             "affected_result_determination_ids": sorted(determination_ids),
@@ -1708,6 +1562,7 @@ class ExamDayClosureService:
         actor_id: int,
         reason: str,
         now: str,
+        assessment_work: AssessmentLifecycleWork | None = None,
     ) -> None:
         for protocol_id in impact["impacts"]["exam_protocol_ids"]:
             self._open_protocol_correction(
@@ -1715,7 +1570,9 @@ class ExamDayClosureService:
             )
 
         for result_id in impact["impacts"]["exam_result_ids"]:
-            self._open_result_correction(session, day, reopening, result_id, actor_id, reason, now)
+            self._open_result_correction(
+                session, day, reopening, result_id, actor_id, reason, now, assessment_work
+            )
 
     def _open_protocol_correction(
         self,
@@ -1807,134 +1664,71 @@ class ExamDayClosureService:
         actor_id: int,
         reason: str,
         now: str,
+        assessment_work: AssessmentLifecycleWork | None = None,
     ) -> None:
-        result = session.get(ExamResult, result_id)
-        determination = session.scalar(
-            select(ResultDetermination).where(
-                ResultDetermination.exam_result_id == result.id,
-                ResultDetermination.status == "current",
-            )
+        correction = (
+            assessment_work or self.assessment_lifecycle.bind(session)
+        ).open_result_correction(
+            result_id=result_id,
+            reopening_id=reopening.id,
+            actor_member_id=actor_id,
+            reason=reason,
+            requested_at=now,
         )
-        if determination is None:
+        determination_id = correction["determination_id"]
+        if determination_id is None:
             return
-        self._claim_result_version(session, result, now)
-        self._ensure_result_correction(
-            session, result, determination, reopening, actor_id, reason, now
-        )
-        result.correction_open = 1
-        participants = set(json.loads(determination.participant_member_ids_json))
+        participants = set(correction["participant_member_ids"])
         self._add_reopening_tasks(
             session,
             day,
             reopening,
             participants,
             "result_reconfirmation",
-            f"exam-day-reopening:{reopening.id}:result:{result.id}",
+            f"exam-day-reopening:{reopening.id}:result:{result_id}",
             reason,
             now,
-            result_determination_id=determination.id,
+            result_determination_id=determination_id,
         )
         self._add_result_follow_up_tasks(
-            session, day, reopening, result, determination, reason, now
+            session, day, reopening, result_id, determination_id, correction, reason, now
         )
-
-    @staticmethod
-    def _claim_result_version(session: Session, result: ExamResult, now: str) -> None:
-        expected_version = result.version
-        try:
-            claim = session.execute(
-                update(ExamResult)
-                .where(
-                    ExamResult.id == result.id,
-                    ExamResult.version == expected_version,
-                )
-                .values(version=expected_version + 1, updated_at=now)
-                .execution_options(synchronize_session=False)
-            )
-        except OperationalError as error:
-            # A concurrent SQLite snapshot writer means this aggregate changed
-            # after it was read. Other busy errors remain retryable DB failures.
-            if getattr(error.orig, "sqlite_errorname", None) == "SQLITE_BUSY_SNAPSHOT":
-                raise ExamDayConflictError(
-                    "Der Ergebnisstand wurde zwischenzeitlich geändert"
-                ) from error
-            raise
-        if claim.rowcount != 1:
-            raise ExamDayConflictError("Der Ergebnisstand wurde zwischenzeitlich geändert")
-        set_committed_value(result, "version", expected_version + 1)
-        set_committed_value(result, "updated_at", now)
-
-    @staticmethod
-    def _ensure_result_correction(
-        session: Session,
-        result: ExamResult,
-        determination: ResultDetermination,
-        reopening: ExamDayReopening,
-        actor_id: int,
-        reason: str,
-        now: str,
-    ) -> None:
-        existing = session.scalar(
-            select(ResultCorrection).where(
-                ResultCorrection.exam_result_id == result.id,
-                ResultCorrection.status == "open",
-            )
-        )
-        if existing is None:
-            session.add(
-                ResultCorrection(
-                    exam_result_id=result.id,
-                    result_determination_id=determination.id,
-                    reason=reason,
-                    requested_by_member_id=actor_id,
-                    status="open",
-                    reopening_reference=f"exam-day-reopening:{reopening.id}",
-                    requested_at=now,
-                )
-            )
 
     def _add_result_follow_up_tasks(
         self,
         session: Session,
         day: ExamDay,
         reopening: ExamDayReopening,
-        result: ExamResult,
-        determination: ResultDetermination,
+        result_id: int,
+        determination_id: int,
+        correction: dict[str, Any],
         reason: str,
         now: str,
     ) -> None:
-        communications = list(
-            session.scalars(
-                select(ResultCommunication).where(
-                    ResultCommunication.exam_result_id == result.id,
-                    ResultCommunication.status == "current",
-                )
-            )
-        )
         chairs = self._management_member_ids(session, day)
-        if communications:
+        if correction["communicated"]:
             self._add_reopening_tasks(
                 session,
                 day,
                 reopening,
                 chairs,
                 "result_recommunication",
-                f"exam-day-reopening:{reopening.id}:recommunicate:{result.id}",
+                f"exam-day-reopening:{reopening.id}:recommunicate:{result_id}",
                 reason,
                 now,
-                result_determination_id=determination.id,
+                result_determination_id=determination_id,
             )
-        if any(item.external_document_status for item in communications):
+        if correction["ihk_processed"]:
             self._add_reopening_tasks(
                 session,
                 day,
                 reopening,
                 chairs,
                 "ihk_clarification",
-                f"exam-day-reopening:{reopening.id}:ihk:{result.id}",
+                f"exam-day-reopening:{reopening.id}:ihk:{result_id}",
                 reason,
                 now,
-                result_determination_id=determination.id,
+                result_determination_id=determination_id,
             )
 
     @staticmethod

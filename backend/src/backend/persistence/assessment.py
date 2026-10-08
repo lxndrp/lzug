@@ -84,6 +84,10 @@ class SQLiteAssessmentUnitOfWorkFactory:
     def __call__(self, *, write: bool = False) -> AbstractContextManager[Any]:
         return self._scope(write)
 
+    def in_session(self, session: Session) -> SQLiteAssessmentUnitOfWork:
+        """Bind Assessment capabilities to an Application-owned session."""
+        return SQLiteAssessmentUnitOfWork(session, self.day_mutation_handler)
+
     @contextmanager
     def _scope(self, write: bool) -> Iterator[Any]:
         scope = (
@@ -292,7 +296,23 @@ class SQLiteAssessmentQueries:
                     "legacy_status": result_row.legacy_status,
                 }
             else:
-                result = self._result(result_row)
+                binding = self.session.scalar(
+                    select(ExamRoundAssessmentBinding).where(
+                        ExamRoundAssessmentBinding.exam_round_id == day.exam_round_id
+                    )
+                )
+                if (
+                    binding is None
+                    or self.session.get(AssessmentModelVersion, binding.assessment_model_version_id)
+                    is None
+                ):
+                    result = {
+                        "id": result_row.id,
+                        "legacy_status": None,
+                        "model": None,
+                    }
+                else:
+                    result = self._result(result_row)
             rows.append(
                 {
                     "slot_id": slot.id,
@@ -305,6 +325,15 @@ class SQLiteAssessmentQueries:
     def result_by_id(self, result_id: int) -> dict[str, Any] | None:
         row = self.session.get(ExamResult, result_id)
         return self._result(row) if row else None
+
+    def results_for_round(self, round_id: int) -> Sequence[dict[str, Any]]:
+        rows = self.session.scalars(
+            select(ExamResult)
+            .join(RoundCandidate, RoundCandidate.id == ExamResult.round_candidate_id)
+            .where(RoundCandidate.exam_round_id == round_id)
+            .order_by(ExamResult.id)
+        )
+        return [self._result(row) for row in rows]
 
     def result_for_round_candidate(self, round_candidate_id: int) -> dict[str, Any] | None:
         row = self.session.scalar(
@@ -981,6 +1010,65 @@ class SQLiteAssessmentRepository:
         )
         row.correction_open = 1
         self.session.flush()
+
+    def open_day_reopening_correction(self, c: dict[str, Any]) -> dict[str, Any]:
+        """Claim the result revision and open its correction inside the caller's UoW."""
+        result = self.session.get(ExamResult, c["result_id"])
+        if result is None:
+            raise ValueError("Assessment result not found")
+        determination = self.session.scalar(
+            select(ResultDetermination).where(
+                ResultDetermination.exam_result_id == result.id,
+                ResultDetermination.status == "current",
+            )
+        )
+        if determination is None:
+            return {
+                "result_id": result.id,
+                "result_version": result.version,
+                "determination_id": None,
+                "participant_member_ids": [],
+                "communicated": False,
+                "ihk_processed": False,
+            }
+
+        result = self._claim(result.id, c["expected_result_version"])
+        correction = self.session.scalar(
+            select(ResultCorrection).where(
+                ResultCorrection.exam_result_id == result.id,
+                ResultCorrection.status == "open",
+            )
+        )
+        if correction is None:
+            self.session.add(
+                ResultCorrection(
+                    exam_result_id=result.id,
+                    result_determination_id=determination.id,
+                    reason=c["reason"],
+                    requested_by_member_id=c["requested_by_member_id"],
+                    status="open",
+                    reopening_reference=c["reopening_reference"],
+                    requested_at=c["requested_at"],
+                )
+            )
+        result.correction_open = 1
+        communications = list(
+            self.session.scalars(
+                select(ResultCommunication).where(
+                    ResultCommunication.exam_result_id == result.id,
+                    ResultCommunication.status == "current",
+                )
+            )
+        )
+        self.session.flush()
+        return {
+            "result_id": result.id,
+            "result_version": result.version,
+            "determination_id": determination.id,
+            "participant_member_ids": json.loads(determination.participant_member_ids_json),
+            "communicated": bool(communications),
+            "ihk_processed": any(item.external_document_status for item in communications),
+        }
 
     def communicate_result(self, c: dict[str, Any]) -> None:
         row = self._claim(c["result_id"], c["expected_result_version"], state="communicated")

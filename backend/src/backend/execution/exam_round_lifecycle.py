@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -11,6 +12,10 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from backend.execution.exam_lifecycle_ports import (
+    AssessmentLifecyclePort,
+    AssessmentLifecycleWork,
+)
 from backend.identity.authorization import AuthorizationScope
 from backend.notifications.service import NotificationService
 from backend.persistence.database import DEFAULT_DB_PATH, session_scope
@@ -21,7 +26,6 @@ from backend.persistence.models import (
     CandidateCommitteeAssignment,
     CandidateExamDay,
     Committee,
-    CommitteeAssessment,
     CommitteeMember,
     ConfirmedPlanRevision,
     ExamDay,
@@ -33,7 +37,6 @@ from backend.persistence.models import (
     ExamProtocolCorrectionRequest,
     ExamProtocolRetention,
     ExamProtocolRevision,
-    ExamResult,
     ExamRound,
     ExamRoundAuditEvent,
     ExamRoundDecision,
@@ -42,17 +45,11 @@ from backend.persistence.models import (
     ExamRoundReopening,
     ExamRoundTask,
     ExamSlot,
-    ExternalExamResult,
-    IndividualAssessment,
     MemberAvailability,
     Person,
     PlanConsequence,
     PlanConsequenceBatch,
     PlanningSettings,
-    ResultCommunication,
-    ResultCorrection,
-    ResultDetermination,
-    ResultRetention,
     RoundCandidate,
 )
 from backend.presentation.exam_exports import render_round_lifecycle_export
@@ -93,6 +90,19 @@ class ExamRoundValidationError(ValueError):
         self.findings = findings
 
 
+@dataclass(frozen=True)
+class ExamRoundDecisionOutcome:
+    """Decision response and deferred cancellation notification input."""
+
+    response: dict[str, Any]
+    committee_id: int | None = None
+    round_id: int | None = None
+    recipient_member_ids: frozenset[int] = frozenset()
+    title: str = ""
+    message: str = ""
+    origin_key: str = ""
+
+
 def _now() -> str:
     return datetime.now(UTC).replace(microsecond=0).isoformat()
 
@@ -117,9 +127,11 @@ class ExamRoundLifecycleService:
         db_path: Path = DEFAULT_DB_PATH,
         *,
         notification_service: NotificationService,
+        assessment_queries: AssessmentLifecyclePort,
     ) -> None:
         self.db_path = db_path
         self.notification_service = notification_service
+        self.assessment_queries = assessment_queries
 
     def get(self, scope: AuthorizationScope, round_id: int) -> dict[str, Any] | None:
         with session_scope(self.db_path) as session:
@@ -129,23 +141,16 @@ class ExamRoundLifecycleService:
             self._require_access(exam_round, scope)
             return self._view(session, exam_round, scope)
 
-    def close(
-        self, scope: AuthorizationScope, round_id: int, payload: dict[str, Any]
-    ) -> dict[str, Any]:
-        return self._decide(scope, round_id, payload, "close")
-
-    def cancel(
-        self, scope: AuthorizationScope, round_id: int, payload: dict[str, Any]
-    ) -> dict[str, Any]:
-        return self._decide(scope, round_id, payload, "cancel")
-
-    def _decide(
+    def decide_in_transaction(
         self,
+        session: Session,
         scope: AuthorizationScope,
         round_id: int,
         payload: dict[str, Any],
         decision_type: str,
-    ) -> dict[str, Any]:
+        assessment_work: AssessmentLifecycleWork | None = None,
+    ) -> ExamRoundDecisionOutcome:
+        """Apply close/cancel rules in the caller's transaction without notifying."""
         expected_revision = self._required_revision(payload)
         if payload.get("confirmed") is not True:
             raise ValueError("Die angezeigten Voraussetzungen müssen bestätigt werden")
@@ -162,80 +167,97 @@ class ExamRoundLifecycleService:
         }
         fingerprint = _fingerprint(command)
         notify_cancelled: set[int] = set()
-        committee_id = 0
         decision_id = 0
-        with session_scope(self.db_path) as session:
-            exam_round = self._required_round(session, round_id)
-            committee_id = exam_round.committee_id
-            actor_id = self._require_management(exam_round, scope)
-            repeated = session.scalar(
-                select(ExamRoundDecision).where(
-                    ExamRoundDecision.exam_round_id == exam_round.id,
-                    ExamRoundDecision.command_fingerprint == fingerprint,
-                )
+        exam_round = self._required_round(session, round_id)
+        committee_id = exam_round.committee_id
+        actor_id = self._require_management(exam_round, scope)
+        repeated = session.scalar(
+            select(ExamRoundDecision).where(
+                ExamRoundDecision.exam_round_id == exam_round.id,
+                ExamRoundDecision.command_fingerprint == fingerprint,
             )
-            if repeated is not None:
-                return self._view(session, exam_round, scope)
-            reopening, evaluation = self._decision_prerequisites(
-                session, exam_round, expected_revision, decision_type
-            )
+        )
+        if repeated is not None:
+            return ExamRoundDecisionOutcome(self._view(session, exam_round, scope, assessment_work))
+        reopening, evaluation = self._decision_prerequisites(
+            session, exam_round, expected_revision, decision_type, assessment_work
+        )
 
-            now = _now()
-            if decision_type == "cancel":
-                notify_cancelled = self._apply_cancellation(session, exam_round, now)
-            previous = self._current_or_latest_decision(session, exam_round.id)
-            if previous is not None:
-                previous.status = "superseded"
-            snapshot = self._snapshot(session, exam_round)
-            decision = ExamRoundDecision(
+        now = _now()
+        if decision_type == "cancel":
+            notify_cancelled = self._apply_cancellation(session, exam_round, now)
+        previous = self._current_or_latest_decision(session, exam_round.id)
+        if previous is not None:
+            previous.status = "superseded"
+        snapshot = self._snapshot(session, exam_round, assessment_work)
+        decision = ExamRoundDecision(
+            exam_round_id=exam_round.id,
+            decision_type=decision_type,
+            requested_revision=exam_round.revision,
+            resulting_revision=exam_round.revision + 1,
+            actor_member_id=actor_id,
+            reason=reason,
+            checklist_json=_json(evaluation["items"]),
+            snapshot_json=_json(snapshot),
+            previous_decision_id=previous.id if previous else None,
+            status="current",
+            command_fingerprint=fingerprint,
+            decided_at=now,
+        )
+        session.add(decision)
+        session.flush()
+        decision_id = decision.id
+        exam_round.revision += 1
+        exam_round.lifecycle_status = "closed" if decision_type == "close" else "cancelled"
+        exam_round.updated_at = now
+        self._complete_reopening(session, reopening, now)
+        session.add(
+            ExamRoundAuditEvent(
                 exam_round_id=exam_round.id,
-                decision_type=decision_type,
-                requested_revision=exam_round.revision,
-                resulting_revision=exam_round.revision + 1,
+                round_revision=exam_round.revision,
+                event_type=(
+                    ("reclosed" if decision_type == "close" else "recancelled")
+                    if reopening
+                    else ("closed" if decision_type == "close" else "cancelled")
+                ),
                 actor_member_id=actor_id,
+                decision_id=decision.id,
+                reopening_id=reopening.id if reopening else None,
                 reason=reason,
-                checklist_json=_json(evaluation["items"]),
-                snapshot_json=_json(snapshot),
-                previous_decision_id=previous.id if previous else None,
-                status="current",
-                command_fingerprint=fingerprint,
-                decided_at=now,
+                scope_json=reopening.requested_scope_json if reopening else "[]",
+                created_at=now,
             )
-            session.add(decision)
-            session.flush()
-            decision_id = decision.id
-            exam_round.revision += 1
-            exam_round.lifecycle_status = "closed" if decision_type == "close" else "cancelled"
-            exam_round.updated_at = now
-            self._complete_reopening(session, reopening, now)
-            session.add(
-                ExamRoundAuditEvent(
-                    exam_round_id=exam_round.id,
-                    round_revision=exam_round.revision,
-                    event_type=(
-                        ("reclosed" if decision_type == "close" else "recancelled")
-                        if reopening
-                        else ("closed" if decision_type == "close" else "cancelled")
-                    ),
-                    actor_member_id=actor_id,
-                    decision_id=decision.id,
-                    reopening_id=reopening.id if reopening else None,
-                    reason=reason,
-                    scope_json=reopening.requested_scope_json if reopening else "[]",
-                    created_at=now,
-                )
-            )
-            result = self._view(session, exam_round, scope)
-        if notify_cancelled:
+        )
+        result = self._view(session, exam_round, scope, assessment_work)
+        return ExamRoundDecisionOutcome(
+            response=result,
+            committee_id=committee_id if notify_cancelled else None,
+            round_id=round_id if notify_cancelled else None,
+            recipient_member_ids=frozenset(notify_cancelled),
+            title="Prüfungsrunde abgesagt" if notify_cancelled else "",
+            message=(
+                "Die Prüfungsrunde wurde vollständig und begründet abgesagt."
+                if notify_cancelled
+                else ""
+            ),
+            origin_key=f"exam-round-decision:{decision_id}:cancelled" if notify_cancelled else "",
+        )
+
+    def publish_decision_notifications(self, outcome: ExamRoundDecisionOutcome) -> None:
+        """Publish cancellation notices only after the caller has committed."""
+        if (
+            outcome.committee_id is not None
+            and outcome.round_id is not None
+            and outcome.recipient_member_ids
+        ):
             self._notify(
-                committee_id,
-                round_id,
-                notify_cancelled,
-                "Prüfungsrunde abgesagt",
-                "Die Prüfungsrunde wurde vollständig und begründet abgesagt.",
-                f"exam-round-decision:{decision_id}:cancelled",
+                outcome.committee_id,
+                outcome.round_id,
+                set(outcome.recipient_member_ids),
+                outcome.title,
+                outcome.message,
+                outcome.origin_key,
             )
-        return result
 
     def _decision_prerequisites(
         self,
@@ -243,6 +265,7 @@ class ExamRoundLifecycleService:
         exam_round: ExamRound,
         expected_revision: int,
         decision_type: str,
+        assessment_work: AssessmentLifecycleWork | None = None,
     ) -> tuple[ExamRoundReopening | None, dict[str, Any]]:
         """Evaluate the current state after replay detection and before any mutation."""
         if exam_round.revision != expected_revision:
@@ -253,7 +276,7 @@ class ExamRoundLifecycleService:
         if exam_round.lifecycle_status == "reopening" and reopening is None:
             raise ExamRoundConflictError("Der Wiederöffnungsstand ist inkonsistent")
 
-        evaluation = self._evaluate(session, exam_round, decision_type)
+        evaluation = self._evaluate(session, exam_round, decision_type, assessment_work)
         if not evaluation["ready"]:
             raise ExamRoundValidationError(
                 "Die Voraussetzungen für diesen Rundenstand sind nicht erfüllt",
@@ -295,9 +318,15 @@ class ExamRoundLifecycleService:
                 )
             return self._impact(session, exam_round, payload.get("scope"))
 
-    def reopen(
-        self, scope: AuthorizationScope, round_id: int, payload: dict[str, Any]
-    ) -> dict[str, Any]:
+    def reopen_in_transaction(
+        self,
+        session: Session,
+        scope: AuthorizationScope,
+        round_id: int,
+        payload: dict[str, Any],
+        assessment_work: AssessmentLifecycleWork | None = None,
+    ) -> ExamRoundDecisionOutcome:
+        """Apply reopening rules in the caller's transaction without notifying."""
         expected_revision = self._required_revision(payload)
         occasion = self._required_text(payload.get("occasion"), "occasion", 1000)
         source = self._required_text(payload.get("source"), "source", 1000)
@@ -311,79 +340,81 @@ class ExamRoundLifecycleService:
             "scope": requested_scope,
         }
         fingerprint = _fingerprint(command)
-        recipients: set[int] = set()
-        committee_id = 0
-        reopening_id = 0
-        with session_scope(self.db_path) as session:
-            exam_round = self._required_round(session, round_id)
-            committee_id = exam_round.committee_id
-            actor_id = self._require_management(exam_round, scope)
-            repeated = session.scalar(
-                select(ExamRoundReopening).where(
-                    ExamRoundReopening.exam_round_id == round_id,
-                    ExamRoundReopening.command_fingerprint == fingerprint,
-                )
+        exam_round = self._required_round(session, round_id)
+        committee_id = exam_round.committee_id
+        actor_id = self._require_management(exam_round, scope)
+        repeated = session.scalar(
+            select(ExamRoundReopening).where(
+                ExamRoundReopening.exam_round_id == round_id,
+                ExamRoundReopening.command_fingerprint == fingerprint,
             )
-            if repeated is not None:
-                return self._view(session, exam_round, scope)
-            impact = self._reopening_prerequisites(
-                session, exam_round, expected_revision, payload.get("scope")
-            )
-            now = _now()
-            previous = self._current_or_latest_decision(session, round_id)
-            if previous is not None:
-                previous.status = "superseded"
-            reopening = ExamRoundReopening(
+        )
+        if repeated is not None:
+            return ExamRoundDecisionOutcome(self._view(session, exam_round, scope, assessment_work))
+        impact = self._reopening_prerequisites(
+            session, exam_round, expected_revision, payload.get("scope"), assessment_work
+        )
+        now = _now()
+        previous = self._current_or_latest_decision(session, round_id)
+        if previous is not None:
+            previous.status = "superseded"
+        reopening = ExamRoundReopening(
+            exam_round_id=round_id,
+            previous_decision_id=previous.id if previous else None,
+            requested_revision=exam_round.revision,
+            resulting_revision=exam_round.revision + 1,
+            occasion=occasion,
+            source=source,
+            reason=reason,
+            requested_scope_json=_json(impact["requested_scope"]),
+            scope_json=_json(impact["expanded_scope"]),
+            impacts_json=_json(impact["impacts"]),
+            actor_member_id=actor_id,
+            status="open",
+            command_fingerprint=fingerprint,
+            opened_at=now,
+        )
+        session.add(reopening)
+        session.flush()
+        exam_round.revision += 1
+        exam_round.lifecycle_status = "reopening"
+        exam_round.updated_at = now
+        self._supersede_exports(session, exam_round, now)
+        recipients = self._create_reopening_tasks(session, exam_round, reopening, impact, now)
+        session.add(
+            ExamRoundAuditEvent(
                 exam_round_id=round_id,
-                previous_decision_id=previous.id if previous else None,
-                requested_revision=exam_round.revision,
-                resulting_revision=exam_round.revision + 1,
-                occasion=occasion,
-                source=source,
-                reason=reason,
-                requested_scope_json=_json(impact["requested_scope"]),
-                scope_json=_json(impact["expanded_scope"]),
-                impacts_json=_json(impact["impacts"]),
+                round_revision=exam_round.revision,
+                event_type="reopened",
                 actor_member_id=actor_id,
-                status="open",
-                command_fingerprint=fingerprint,
-                opened_at=now,
+                reopening_id=reopening.id,
+                reason=reason,
+                scope_json=reopening.requested_scope_json,
+                created_at=now,
             )
-            session.add(reopening)
-            session.flush()
-            reopening_id = reopening.id
-            exam_round.revision += 1
-            exam_round.lifecycle_status = "reopening"
-            exam_round.updated_at = now
-            self._supersede_exports(session, exam_round, now)
-            recipients = self._create_reopening_tasks(session, exam_round, reopening, impact, now)
-            session.add(
-                ExamRoundAuditEvent(
-                    exam_round_id=round_id,
-                    round_revision=exam_round.revision,
-                    event_type="reopened",
-                    actor_member_id=actor_id,
-                    reopening_id=reopening.id,
-                    reason=reason,
-                    scope_json=reopening.requested_scope_json,
-                    created_at=now,
-                )
-            )
-            result = self._view(session, exam_round, scope)
-        if recipients:
-            self._notify(
-                committee_id,
-                round_id,
-                recipients,
-                "Prüfungsrunde zur Korrektur wieder geöffnet",
+        )
+        return ExamRoundDecisionOutcome(
+            response=self._view(session, exam_round, scope, assessment_work),
+            committee_id=committee_id if recipients else None,
+            round_id=round_id if recipients else None,
+            recipient_member_ids=frozenset(recipients),
+            title="Prüfungsrunde zur Korrektur wieder geöffnet" if recipients else "",
+            message=(
                 "Von Ihnen erfasste oder bestätigte Daten sind von einer begründeten "
-                "Korrektur betroffen.",
-                f"exam-round-reopening:{reopening_id}:affected",
-            )
-        return result
+                "Korrektur betroffen."
+                if recipients
+                else ""
+            ),
+            origin_key=(f"exam-round-reopening:{reopening.id}:affected" if recipients else ""),
+        )
 
     def _reopening_prerequisites(
-        self, session: Session, exam_round: ExamRound, expected_revision: int, raw_scope: Any
+        self,
+        session: Session,
+        exam_round: ExamRound,
+        expected_revision: int,
+        raw_scope: Any,
+        assessment_work: AssessmentLifecycleWork | None = None,
     ) -> dict[str, Any]:
         """Read and validate correction impact without superseding any current evidence."""
         if exam_round.revision != expected_revision:
@@ -394,7 +425,7 @@ class ExamRoundLifecycleService:
             )
         if self._active_reopening(session, exam_round.id) is not None:
             raise ExamRoundConflictError("Für die Prüfungsrunde läuft bereits eine Wiederöffnung")
-        return self._impact(session, exam_round, raw_scope)
+        return self._impact(session, exam_round, raw_scope, assessment_work)
 
     def _create_reopening_tasks(
         self,
@@ -600,15 +631,8 @@ class ExamRoundLifecycleService:
         with session_scope(self.db_path) as session:
             exam_round = self._required_round(session, round_id)
             actor_id = self._require_management(exam_round, scope)
-            belongs = session.scalar(
-                select(ExamResult.id)
-                .join(RoundCandidate, RoundCandidate.id == ExamResult.round_candidate_id)
-                .where(
-                    ExamResult.id == result_id,
-                    RoundCandidate.exam_round_id == round_id,
-                )
-            )
-            if belongs is None:
+            result = self.assessment_queries.bind(session).result_by_id(result_id)
+            if result is None or result["round_id"] != round_id:
                 raise ValueError("Ergebnis gehört nicht zur Prüfungsrunde")
             existing = session.scalar(
                 select(ExamRoundIhkStatus).where(
@@ -752,11 +776,8 @@ class ExamRoundLifecycleService:
             )
             return (round_id, _token("exam_protocol", identifier)) if round_id else None
         if resource == "exam-results" and identifier is not None:
-            round_id = session.scalar(
-                select(RoundCandidate.exam_round_id)
-                .join(ExamResult, ExamResult.round_candidate_id == RoundCandidate.id)
-                .where(ExamResult.id == identifier)
-            )
+            result = self.assessment_queries.bind(session).result_by_id(identifier)
+            round_id = result["round_id"] if result is not None else None
             return (round_id, _token("exam_result", identifier)) if round_id else None
         if resource == "absence-reports" and identifier is not None:
             round_id = session.scalar(
@@ -768,7 +789,11 @@ class ExamRoundLifecycleService:
         return None
 
     def _view(
-        self, session: Session, exam_round: ExamRound, scope: AuthorizationScope
+        self,
+        session: Session,
+        exam_round: ExamRound,
+        scope: AuthorizationScope,
+        assessment_work: AssessmentLifecycleWork | None = None,
     ) -> dict[str, Any]:
         actor_id = self._require_access(exam_round, scope)
         decision_rows = list(
@@ -828,7 +853,7 @@ class ExamRoundLifecycleService:
             "historical_without_formal_evidence": (
                 exam_round.lifecycle_status == "historical" and not decision_rows
             ),
-            "evaluation": self._evaluate(session, exam_round, "close"),
+            "evaluation": self._evaluate(session, exam_round, "close", assessment_work),
             "candidates": [
                 {
                     "round_candidate_id": item.id,
@@ -862,7 +887,7 @@ class ExamRoundLifecycleService:
                 }
                 for item in ihk_statuses
             ],
-            "retention": self._retention_view(session, exam_round.id),
+            "retention": self._retention_view(session, exam_round.id, assessment_work),
             "permissions": {
                 "close": scope.can_manage_committee(exam_round.committee_id)
                 and exam_round.lifecycle_status in {"open", "reopening"},
@@ -885,7 +910,11 @@ class ExamRoundLifecycleService:
         }
 
     def _evaluate(
-        self, session: Session, exam_round: ExamRound, decision_type: str
+        self,
+        session: Session,
+        exam_round: ExamRound,
+        decision_type: str,
+        assessment_work: AssessmentLifecycleWork | None = None,
     ) -> dict[str, Any]:
         items: list[dict[str, Any]] = []
         days = list(session.scalars(select(ExamDay).where(ExamDay.exam_round_id == exam_round.id)))
@@ -1001,25 +1030,15 @@ class ExamRoundLifecycleService:
             not non_terminal and not invalid_terminal,
             sorted(set(non_terminal + invalid_terminal)),
         )
-        result_ids = list(
-            session.scalars(
-                select(ExamResult.id)
-                .join(RoundCandidate, RoundCandidate.id == ExamResult.round_candidate_id)
-                .where(RoundCandidate.exam_round_id == exam_round.id)
-            )
+        results = (assessment_work or self.assessment_queries.bind(session)).results_for_round(
+            exam_round.id
         )
-        corrections = (
-            list(
-                session.scalars(
-                    select(ResultCorrection).where(
-                        ResultCorrection.exam_result_id.in_(result_ids),
-                        ResultCorrection.status == "open",
-                    )
-                )
-            )
-            if result_ids
-            else []
-        )
+        corrections = [
+            (result["id"], correction["id"])
+            for result in results
+            for correction in result["corrections"]
+            if correction["status"] == "open"
+        ]
         protocol_corrections = (
             list(
                 session.scalars(
@@ -1043,7 +1062,7 @@ class ExamRoundLifecycleService:
             "no_corrections",
             "Keine Protokoll-, Bewertungs- oder Ergebniskorrektur ist offen",
             not corrections and not protocol_corrections,
-            [item.id for item in corrections] + [item.id for item in protocol_corrections],
+            [item[1] for item in corrections] + [item.id for item in protocol_corrections],
         )
         absences = (
             list(
@@ -1095,7 +1114,12 @@ class ExamRoundLifecycleService:
         )
         return {"ready": all(item["ok"] for item in items), "items": items}
 
-    def _snapshot(self, session: Session, exam_round: ExamRound) -> dict[str, Any]:
+    def _snapshot(
+        self,
+        session: Session,
+        exam_round: ExamRound,
+        assessment_work: AssessmentLifecycleWork | None = None,
+    ) -> dict[str, Any]:
         half_year = session.get(ExamHalfYear, exam_round.exam_half_year_id)
         committee = session.get(Committee, exam_round.committee_id)
         members = list(
@@ -1146,13 +1170,8 @@ class ExamRoundLifecycleService:
             if day_ids
             else []
         )
-        result_rows = list(
-            session.scalars(
-                select(ExamResult)
-                .join(RoundCandidate, RoundCandidate.id == ExamResult.round_candidate_id)
-                .where(RoundCandidate.exam_round_id == exam_round.id)
-                .order_by(ExamResult.id)
-            )
+        result_rows = (assessment_work or self.assessment_queries.bind(session)).results_for_round(
+            exam_round.id
         )
         protocol_rows = (
             list(
@@ -1166,7 +1185,7 @@ class ExamRoundLifecycleService:
             if day_ids
             else []
         )
-        result_ids = [item.id for item in result_rows]
+        result_ids = [item["id"] for item in result_rows]
         assignment_rows = (
             list(
                 session.scalars(
@@ -1321,28 +1340,24 @@ class ExamRoundLifecycleService:
             ],
             "results": [
                 {
-                    "id": item.id,
-                    "round_candidate_id": item.round_candidate_id,
-                    "state": item.current_state,
-                    "correction_open": bool(item.correction_open),
-                    "version": item.version,
+                    "id": item["id"],
+                    "round_candidate_id": item["round_candidate_id"],
+                    "state": item["state"],
+                    "correction_open": bool(item["correction_open"]),
+                    "version": item["version"],
                     "communications": [
                         {
-                            "id": communication.id,
-                            "determination_id": communication.result_determination_id,
-                            "communicated_at": communication.communicated_at,
-                            "method": communication.method,
-                            "external_document_status": communication.external_document_status,
-                            "external_document_reference": (
-                                communication.external_document_reference
-                            ),
-                            "status": communication.status,
+                            "id": communication["id"],
+                            "determination_id": communication["determination_id"],
+                            "communicated_at": communication["communicated_at"],
+                            "method": communication["method"],
+                            "external_document_status": communication["external_document_status"],
+                            "external_document_reference": communication[
+                                "external_document_reference"
+                            ],
+                            "status": communication["status"],
                         }
-                        for communication in session.scalars(
-                            select(ResultCommunication)
-                            .where(ResultCommunication.exam_result_id == item.id)
-                            .order_by(ResultCommunication.id)
-                        )
+                        for communication in item["communications"]
                     ],
                 }
                 for item in result_rows
@@ -1351,20 +1366,17 @@ class ExamRoundLifecycleService:
                 "individual": (
                     [
                         {
-                            "id": item.id,
-                            "exam_result_id": item.exam_result_id,
-                            "component_key": item.component_key,
-                            "criterion_key": item.criterion_key,
-                            "assessor_member_id": item.assessor_member_id,
-                            "revision": item.revision,
-                            "normalized_points": item.normalized_points,
-                            "status": item.status,
+                            "id": item["id"],
+                            "exam_result_id": result["id"],
+                            "component_key": item["component_key"],
+                            "criterion_key": item["criterion_key"],
+                            "assessor_member_id": item["assessor_member_id"],
+                            "revision": item["revision"],
+                            "normalized_points": item["normalized_points"],
+                            "status": item["status"],
                         }
-                        for item in session.scalars(
-                            select(IndividualAssessment)
-                            .where(IndividualAssessment.exam_result_id.in_(result_ids))
-                            .order_by(IndividualAssessment.id)
-                        )
+                        for result in result_rows
+                        for item in result["individual_assessments"]
                     ]
                     if result_ids
                     else []
@@ -1372,19 +1384,16 @@ class ExamRoundLifecycleService:
                 "committee": (
                     [
                         {
-                            "id": item.id,
-                            "exam_result_id": item.exam_result_id,
-                            "component_key": item.component_key,
-                            "revision": item.revision,
-                            "points": item.points,
-                            "participant_member_ids": json.loads(item.participant_member_ids_json),
-                            "status": item.status,
+                            "id": item["id"],
+                            "exam_result_id": result["id"],
+                            "component_key": item["component_key"],
+                            "revision": item["revision"],
+                            "points": item["points"],
+                            "participant_member_ids": item["participant_member_ids"],
+                            "status": item["status"],
                         }
-                        for item in session.scalars(
-                            select(CommitteeAssessment)
-                            .where(CommitteeAssessment.exam_result_id.in_(result_ids))
-                            .order_by(CommitteeAssessment.id)
-                        )
+                        for result in result_rows
+                        for item in result["component_assessments"]
                     ]
                     if result_ids
                     else []
@@ -1392,7 +1401,12 @@ class ExamRoundLifecycleService:
             },
         }
 
-    def _retention_view(self, session: Session, round_id: int) -> dict[str, Any]:
+    def _retention_view(
+        self,
+        session: Session,
+        round_id: int,
+        assessment_work: AssessmentLifecycleWork | None = None,
+    ) -> dict[str, Any]:
         protocol_rows = list(
             session.execute(
                 select(
@@ -1407,19 +1421,13 @@ class ExamRoundLifecycleService:
                 .where(ExamDay.exam_round_id == round_id)
             )
         )
-        result_rows = list(
-            session.execute(
-                select(
-                    ResultRetention.exam_result_id,
-                    ResultRetention.retain_until,
-                    ResultRetention.legal_hold,
-                    ResultRetention.hold_reason,
-                )
-                .join(ExamResult, ExamResult.id == ResultRetention.exam_result_id)
-                .join(RoundCandidate, RoundCandidate.id == ExamResult.round_candidate_id)
-                .where(RoundCandidate.exam_round_id == round_id)
-            )
-        )
+        result_rows = [
+            {"result_id": result["id"], **result["retention"]}
+            for result in (
+                assessment_work or self.assessment_queries.bind(session)
+            ).results_for_round(round_id)
+            if result["retention"] is not None
+        ]
         sources = [
             {
                 "kind": "protocol",
@@ -1432,10 +1440,10 @@ class ExamRoundLifecycleService:
         ] + [
             {
                 "kind": "result",
-                "id": row.exam_result_id,
-                "retain_until": row.retain_until,
-                "legal_hold": bool(row.legal_hold),
-                "hold_reason": row.hold_reason,
+                "id": row["result_id"],
+                "retain_until": row["retain_until"],
+                "legal_hold": bool(row["legal_hold"]),
+                "hold_reason": row["hold_reason"],
             }
             for row in result_rows
         ]
@@ -1448,7 +1456,13 @@ class ExamRoundLifecycleService:
             "sources": sources,
         }
 
-    def _impact(self, session: Session, exam_round: ExamRound, raw_scope: Any) -> dict[str, Any]:
+    def _impact(
+        self,
+        session: Session,
+        exam_round: ExamRound,
+        raw_scope: Any,
+        assessment_work: AssessmentLifecycleWork | None = None,
+    ) -> dict[str, Any]:
         requested = self._normalize_scope(raw_scope)
         day_ids = set(
             session.scalars(select(ExamDay.id).where(ExamDay.exam_round_id == exam_round.id))
@@ -1469,13 +1483,10 @@ class ExamRoundLifecycleService:
             if day_ids
             else set()
         )
-        result_ids = set(
-            session.scalars(
-                select(ExamResult.id)
-                .join(RoundCandidate, RoundCandidate.id == ExamResult.round_candidate_id)
-                .where(RoundCandidate.exam_round_id == exam_round.id)
-            )
-        )
+        round_results = (
+            assessment_work or self.assessment_queries.bind(session)
+        ).results_for_round(exam_round.id)
+        result_ids = {item["id"] for item in round_results}
         absence_ids = (
             set(
                 session.scalars(
@@ -1518,36 +1529,29 @@ class ExamRoundLifecycleService:
                     )
                 )
                 expanded.update(
-                    _token("exam_result", item)
-                    for item in session.scalars(
-                        select(ExamResult.id).where(
-                            ExamResult.round_candidate_id.in_(day_candidate_ids)
-                        )
-                    )
+                    _token("exam_result", result["id"])
+                    for result in round_results
+                    if result["round_candidate_id"] in day_candidate_ids
                 )
         impacted_result_ids = sorted(
             int(item.split(":", 1)[1]) for item in expanded if item.startswith("exam_result:")
         )
         recipients = self._management_member_ids(session, exam_round)
+        results_by_id = {item["id"]: item for item in round_results}
         for result_id in impacted_result_ids:
-            determination = session.scalar(
-                select(ResultDetermination).where(
-                    ResultDetermination.exam_result_id == result_id,
-                    ResultDetermination.status == "current",
-                )
+            result = results_by_id[result_id]
+            determination = next(
+                (item for item in result["determinations"] if item["status"] == "current"),
+                None,
             )
             if determination is not None:
-                recipients.update(json.loads(determination.participant_member_ids_json))
+                recipients.update(determination["participant_member_ids"])
         ihk_processed = [
             result_id
             for result_id in impacted_result_ids
-            if session.scalar(
-                select(func.count())
-                .select_from(ResultCommunication)
-                .where(
-                    ResultCommunication.exam_result_id == result_id,
-                    ResultCommunication.external_document_status.is_not(None),
-                )
+            if any(
+                item["external_document_status"] is not None
+                for item in results_by_id[result_id]["communications"]
             )
         ]
         return {
@@ -1648,36 +1652,19 @@ class ExamRoundLifecycleService:
         )
         return assignment is not None and assignment.ended_at is not None
 
-    @staticmethod
-    def _assert_result_communicated(session: Session, candidate: RoundCandidate) -> None:
-        result = session.scalar(
-            select(ExamResult).where(ExamResult.round_candidate_id == candidate.id)
-        )
-        if result is None or result.current_state != "determined" or result.correction_open:
+    def _assert_result_communicated(self, session: Session, candidate: RoundCandidate) -> None:
+        result = self.assessment_queries.bind(session).result_for_round_candidate(candidate.id)
+        if result is None or result["state"] != "determined" or result["correction_open"]:
             raise ValueError("Das Ergebnis ist nicht vollständig festgestellt")
-        determination = session.scalar(
-            select(ResultDetermination).where(
-                ResultDetermination.exam_result_id == result.id,
-                ResultDetermination.status == "current",
-            )
+        determination = next(
+            (item for item in result["determinations"] if item["status"] == "current"), None
         )
-        communication = session.scalar(
-            select(ResultCommunication).where(
-                ResultCommunication.exam_result_id == result.id,
-                ResultCommunication.status == "current",
-            )
+        communication = next(
+            (item for item in result["communications"] if item["status"] == "current"), None
         )
         if determination is None or communication is None:
             raise ValueError("Ergebnisfeststellung und Ergebnismitteilung sind erforderlich")
-        unconfirmed_external = session.scalar(
-            select(func.count())
-            .select_from(ExternalExamResult)
-            .where(
-                ExternalExamResult.exam_result_id == result.id,
-                ExternalExamResult.status != "confirmed",
-            )
-        )
-        if unconfirmed_external:
+        if any(item["status"] != "confirmed" for item in result["external_results"]):
             raise ValueError("Externe Eingangsergebnisse sind noch nicht bestätigt")
 
     def _dependency_counts(self, session: Session, exam_round: ExamRound) -> dict[str, int]:

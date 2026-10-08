@@ -6,10 +6,16 @@ from unittest.mock import patch
 
 from sqlalchemy import select, text
 
-from backend.composition import authorization_service
+from backend.application.exam_lifecycle import ExamLifecycleApplication
+from backend.composition import SQLiteAssessmentLifecycleAdapter, authorization_service
+from backend.execution.exam_day_closures import ExamDayClosureService
 from backend.execution.exam_round_lifecycle import ExamRoundConflictError, ExamRoundLifecycleService
+from backend.persistence.assessment import SQLiteAssessmentUnitOfWorkFactory
 from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.persistence.database import session_scope
+from backend.persistence.exam_lifecycle import SQLiteExamLifecycleUnitOfWorkFactory
+from backend.persistence.execution import SQLiteExecutionUnitOfWorkFactory
+from backend.persistence.identity import SQLiteIdentityExecutionSnapshotFactory
 from backend.persistence.models import (
     CalendarEvent,
     CandidateCommitteeAssignment,
@@ -351,23 +357,44 @@ class ExamRoundLifecycleTests(unittest.TestCase):
     def test_decision_and_reopening_rollback_and_replay_preserve_all_evidence(self) -> None:
         self._make_round_closable()
         service = ExamRoundLifecycleService(
-            self.db_path, notification_service=notification_service_for_test(self.db_path)
+            self.db_path,
+            notification_service=notification_service_for_test(self.db_path),
+            assessment_queries=SQLiteAssessmentLifecycleAdapter(),
         )
         context = SQLiteAuthenticationRepository(self.db_path).authenticate(self.chair.token)
         scope = authorization_service(self.db_path).scope(context)
+        application = ExamLifecycleApplication(
+            SQLiteExamLifecycleUnitOfWorkFactory(
+                SQLiteExecutionUnitOfWorkFactory(
+                    self.db_path,
+                    identity_snapshot_factory=SQLiteIdentityExecutionSnapshotFactory(),
+                ),
+                SQLiteAssessmentUnitOfWorkFactory(self.db_path),
+                self.db_path,
+                SQLiteAssessmentLifecycleAdapter(
+                    SQLiteAssessmentUnitOfWorkFactory(self.db_path)
+                ).bind,
+            ),
+            lambda: ExamDayClosureService(
+                self.db_path,
+                notification_service=notification_service_for_test(self.db_path),
+                assessment_lifecycle=SQLiteAssessmentLifecycleAdapter(),
+            ),
+            lambda: service,
+        )
         close = {"revision": 1, "confirmed": True}
         with (
             patch.object(service, "_view", side_effect=RuntimeError("test view failure")),
             self.assertRaisesRegex(RuntimeError, "test view failure"),
         ):
-            service.close(scope, 1, close)
+            application.close_exam_round(scope, 1, close)
         with session_scope(self.db_path) as session:
             exam_round = session.get(ExamRound, 1)
             self.assertEqual(("open", 1), (exam_round.lifecycle_status, exam_round.revision))
             self.assertEqual(0, session.query(ExamRoundDecision).count())
             self.assertEqual(0, session.query(ExamRoundAuditEvent).count())
 
-        service.close(scope, 1, close)
+        application.close_exam_round(scope, 1, close)
         service.machine_export(scope, 1)
         command = {
             "revision": 2,
@@ -381,7 +408,7 @@ class ExamRoundLifecycleTests(unittest.TestCase):
             patch.object(service, "_notify") as notify,
             self.assertRaisesRegex(RuntimeError, "test view failure"),
         ):
-            service.reopen(scope, 1, command)
+            application.reopen_exam_round(scope, 1, command)
         notify.assert_not_called()
         with session_scope(self.db_path) as session:
             exam_round = session.get(ExamRound, 1)
@@ -393,15 +420,15 @@ class ExamRoundLifecycleTests(unittest.TestCase):
             self.assertEqual(1, session.query(ExamRoundAuditEvent).count())
 
         with patch.object(service, "_notify", wraps=service._notify) as notify:
-            reopened = service.reopen(scope, 1, command)
-            repeated = service.reopen(scope, 1, command)
+            reopened = application.reopen_exam_round(scope, 1, command)
+            repeated = application.reopen_exam_round(scope, 1, command)
         notify.assert_called_once()
         self.assertEqual(reopened, repeated)
         self.assertEqual(2, len(reopened["tasks"]))
         self.assertEqual({"reconfirmation"}, {item["task_type"] for item in reopened["tasks"]})
         with self.assertRaises(ExamRoundConflictError):
-            service.reopen(scope, 1, {**command, "reason": "Anderer Auftrag"})
-        reclosed = service.close(scope, 1, {"revision": 3, "confirmed": True})
+            application.reopen_exam_round(scope, 1, {**command, "reason": "Anderer Auftrag"})
+        reclosed = application.close_exam_round(scope, 1, {"revision": 3, "confirmed": True})
         self.assertEqual("reclosed", reclosed["history"][-1]["event_type"])
         self.assertTrue(all(item["status"] == "completed" for item in reclosed["tasks"]))
         with session_scope(self.db_path) as session:
@@ -411,7 +438,9 @@ class ExamRoundLifecycleTests(unittest.TestCase):
 
     def test_terminal_candidate_evidence_and_revision_guard_precede_mutation(self) -> None:
         service = ExamRoundLifecycleService(
-            self.db_path, notification_service=notification_service_for_test(self.db_path)
+            self.db_path,
+            notification_service=notification_service_for_test(self.db_path),
+            assessment_queries=SQLiteAssessmentLifecycleAdapter(),
         )
         context = SQLiteAuthenticationRepository(self.db_path).authenticate(self.chair.token)
         scope = authorization_service(self.db_path).scope(context)
@@ -500,7 +529,9 @@ class ExamRoundLifecycleTests(unittest.TestCase):
 
     def test_transferred_status_requires_effective_assignment_in_the_target_round(self) -> None:
         service = ExamRoundLifecycleService(
-            self.db_path, notification_service=notification_service_for_test(self.db_path)
+            self.db_path,
+            notification_service=notification_service_for_test(self.db_path),
+            assessment_queries=SQLiteAssessmentLifecycleAdapter(),
         )
         context = SQLiteAuthenticationRepository(self.db_path).authenticate(self.chair.token)
         scope = authorization_service(self.db_path).scope(context)

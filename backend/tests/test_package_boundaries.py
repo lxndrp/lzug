@@ -238,6 +238,32 @@ def _package_dependencies(package: str) -> set[str]:
 
 
 class BackendPackageBoundaryTests(unittest.TestCase):
+    def test_execution_does_not_import_assessment_orm_models(self) -> None:
+        assessment_models = {
+            "AssessmentModelVersion",
+            "CommitteeAssessment",
+            "ExamResult",
+            "ExamRoundAssessmentBinding",
+            "ExternalExamResult",
+            "IndividualAssessment",
+            "ResultCalculation",
+            "ResultCommunication",
+            "ResultCorrection",
+            "ResultDetermination",
+            "ResultRecordConfirmation",
+            "ResultRetention",
+        }
+        for path in sorted((BACKEND_ROOT / "execution").rglob("*.py")):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            imported = {
+                alias.name
+                for node in ast.walk(tree)
+                if isinstance(node, ast.ImportFrom) and node.module == "backend.persistence.models"
+                for alias in node.names
+            }
+            with self.subTest(module=path.relative_to(BACKEND_ROOT)):
+                self.assertFalse(assessment_models & imported)
+
     def test_application_transport_does_not_import_composition_root(self) -> None:
         for relative in ("application/__init__.py", "application/transport.py"):
             with self.subTest(module=relative):
