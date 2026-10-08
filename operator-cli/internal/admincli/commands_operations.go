@@ -16,7 +16,7 @@ func operationalCommands() []Command {
 			Path:        []string{"notification", "process"},
 			Interactive: InteractiveSpec{SearchTerms: []string{"benachrichtigung", "zustellung"}}, Effect: MutatingEffect, Retry: RetryForbidden, Timeout: 10 * time.Minute,
 			Summary:        "Process due technical notifications.",
-			Description:    "Process due notification deliveries and confirmed-plan consequences without returning message content.",
+			Description:    "Process due notification deliveries and re-drive confirmed-plan and versioned venue consequences without returning message content.",
 			Examples:       []string{"lzug-admin notification process"},
 			Transport:      ContainerExecTransport,
 			BackendCommand: "process-notifications",

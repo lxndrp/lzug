@@ -628,8 +628,7 @@ lzug-admin export verify --artifact export.lzug --identity-file backup.agekey
 
 ### `lzug-admin notification process`
 
-Process due notification deliveries and re-drive confirmed-plan and versioned
-venue consequences without returning message content.
+Process due notification deliveries and re-drive confirmed-plan and versioned venue consequences without returning message content.
 
 Ausführung: versionierter Backendauftrag.
 
