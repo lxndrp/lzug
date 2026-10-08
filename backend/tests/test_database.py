@@ -13,8 +13,8 @@ from unittest.mock import patch
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
+from backend.composition import calendar_service as create_calendar_service
 from backend.composition import planning_service
-from backend.integrations.calendar import CalendarService
 from backend.persistence.database import (
     BUSY_TIMEOUT_MS,
     SQLITE_JOURNAL_MODE,
@@ -1202,7 +1202,7 @@ class DatabaseTests(unittest.TestCase):
                 ConfirmedPlanChange(plan, "Bestehende Revision nicht nachträglich versenden"),
                 actor_member_id=1,
             )
-            CalendarService(db_path).sync_round(1)
+            create_calendar_service(db_path).sync_round(1)
             with closing(sqlite3.connect(db_path)) as connection:
                 connection.execute("PRAGMA foreign_keys = ON")
                 notification_id = connection.execute(

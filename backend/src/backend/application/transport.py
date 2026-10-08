@@ -34,6 +34,7 @@ from backend.application.resource_access import ResourceAccessQueryFactory, Reso
 from backend.application.resource_authorization import ResourceAuthorizer
 from backend.assessment.ports import AssessmentActorSnapshot
 from backend.assessment.service import ExamResultService
+from backend.calendar.ports import CalendarApplicationPort
 from backend.execution.absence import AbsenceService
 from backend.execution.exam_day_closures import ExamDayClosureService
 from backend.execution.exam_protocols import ExamProtocolService
@@ -50,7 +51,6 @@ from backend.identity.authorization import AuthorizationScope, AuthorizationServ
 from backend.identity.committee_admin import CommitteeAdminService
 from backend.identity.local_auth import LocalAuthService
 from backend.identity.people import IdentityService
-from backend.integrations.calendar import CalendarService
 from backend.notifications.service import NotificationService
 from backend.observability import emit_event
 from backend.persistence.models import Resource
@@ -106,6 +106,7 @@ class RequestContext:
     committee_admin_service_factory: Callable[[Path], CommitteeAdminService]
     authentication_repository_factory: Callable[[Path], AuthenticationRepository]
     local_auth_service_factory: Callable[..., LocalAuthService]
+    calendar_service_factory: Callable[[Path], CalendarApplicationPort]
     notification_service_factory: Callable[[Path], NotificationService]
     auth_rate_limiter: RequestRateLimiter
     observability_rate_limiter: RequestRateLimiter
@@ -232,8 +233,8 @@ class RequestContext:
         return self.notification_service_factory(self.db_path)
 
     @property
-    def calendar_service(self) -> CalendarService:
-        return CalendarService(self.db_path, settings=self.runtime_settings)
+    def calendar_service(self) -> CalendarApplicationPort:
+        return self.calendar_service_factory(self.db_path)
 
     @property
     def plan_consequence_service(self) -> PlanConsequenceService:
@@ -248,6 +249,7 @@ class RequestContext:
         return AbsenceService(
             self.db_path,
             notification_service=self.notification_service,
+            calendar_service=self.calendar_service,
         )
 
     @property

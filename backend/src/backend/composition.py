@@ -8,6 +8,7 @@ from pathlib import Path
 
 from backend.application.exam_venue_api import ExamVenueApi
 from backend.assessment.service import ExamResultService
+from backend.calendar.service import CalendarService
 from backend.execution.exam_day_closures import (
     complete_day_mutation,
     guard_day_mutation,
@@ -29,6 +30,7 @@ from backend.persistence.auth import (
     SQLiteAuthenticationRepository,
     SQLiteOperatorAuthUnitOfWorkFactory,
 )
+from backend.persistence.calendar import SQLiteCalendarPersistence
 from backend.persistence.calendar_lifecycle import SQLiteCalendarLifecycleWork
 from backend.persistence.candidate_days import SQLiteCandidateDayUnitOfWorkFactory
 from backend.persistence.committee_admin import SQLiteCommitteeAdminUnitOfWorkFactory
@@ -61,6 +63,23 @@ from backend.planning.exam_venues import ExamVenuePolicy, ExamVenueService
 from backend.planning.venue_consequences import VenueConsequenceService
 from backend.planning_ports import Geocoder, VenueChange, VenueChangeFollowUp
 from backend.settings import RuntimeSettings
+
+
+def calendar_service(
+    db_path: Path = DEFAULT_DB_PATH,
+    *,
+    settings: RuntimeSettings | None = None,
+    time_zone: str | None = None,
+) -> CalendarService:
+    """Wire Calendar's consumer-owned ports to the SQLite persistence adapter."""
+    persistence = SQLiteCalendarPersistence(db_path)
+    return CalendarService(
+        persistence,
+        persistence,
+        persistence,
+        settings=settings,
+        time_zone=time_zone,
+    )
 
 
 def candidate_day_service(db_path: Path) -> CandidateDayService:
@@ -379,7 +398,11 @@ def exam_venue_service(
 ) -> ExamVenueService:
     """Wire Planning's venue ports to SQLite and the configured provider adapter."""
     notifications = (notification_service_factory or notification_service)(db_path)
-    consequences = VenueConsequenceService(db_path, notification_service=notifications)
+    consequences = VenueConsequenceService(
+        db_path,
+        notification_service=notifications,
+        calendar_service=calendar_service(db_path),
+    )
     return ExamVenueService(
         SQLiteExamVenueRepository(db_path, require_confirmed_coordinates=map_provider.active),
         geocoder=venue_geocoder(map_provider),
@@ -397,7 +420,11 @@ def exam_venue_api(
 ) -> ExamVenueApi:
     """Wire the API consumer to Planning ports and database-scoped services."""
     notifications = (notification_service_factory or notification_service)(db_path)
-    consequences = VenueConsequenceService(db_path, notification_service=notifications)
+    consequences = VenueConsequenceService(
+        db_path,
+        notification_service=notifications,
+        calendar_service=calendar_service(db_path),
+    )
     service = ExamVenueService(
         SQLiteExamVenueRepository(db_path, require_confirmed_coordinates=map_provider.active),
         geocoder=venue_geocoder(map_provider),

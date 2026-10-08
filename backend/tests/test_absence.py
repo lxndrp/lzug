@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from http import HTTPStatus
 from unittest.mock import patch
 
+from backend.composition import calendar_service as compose_calendar_service
 from backend.execution.absence import AbsenceService
 from backend.identity.authorization import AuthorizationScope
 from backend.persistence.database import session_scope
@@ -40,6 +41,7 @@ class AbsenceServiceTests(unittest.TestCase):
     def setUp(self) -> None:
         self.database = TempDatabase()
         self.db_path = self.database.__enter__()
+        self.calendar_service = compose_calendar_service(self.db_path)
         with session_scope(self.db_path) as session:
             round_row = session.get(ExamRound, 1)
             round_row.status = "plan_confirmed"
@@ -110,7 +112,9 @@ class AbsenceServiceTests(unittest.TestCase):
 
     def test_report_uses_exclusive_fallback_window_and_audit_history(self) -> None:
         result = AbsenceService(
-            self.db_path, notification_service=notification_service_for_test(self.db_path)
+            self.db_path,
+            notification_service=notification_service_for_test(self.db_path),
+            calendar_service=self.calendar_service,
         ).report(
             scope(1),
             {"exam_day_id": self.day_id, "exam_day_assignment_id": self.assignment_id},
@@ -134,7 +138,9 @@ class AbsenceServiceTests(unittest.TestCase):
 
     def test_urgent_report_requests_fallback_and_other_eligible_members(self) -> None:
         result = AbsenceService(
-            self.db_path, notification_service=notification_service_for_test(self.db_path)
+            self.db_path,
+            notification_service=notification_service_for_test(self.db_path),
+            calendar_service=self.calendar_service,
         ).report(
             scope(1),
             {"exam_day_id": self.day_id, "exam_day_assignment_id": self.assignment_id},
@@ -147,7 +153,9 @@ class AbsenceServiceTests(unittest.TestCase):
 
     def test_expired_fallback_opens_further_search_and_audits_deadline(self) -> None:
         service = AbsenceService(
-            self.db_path, notification_service=notification_service_for_test(self.db_path)
+            self.db_path,
+            notification_service=notification_service_for_test(self.db_path),
+            calendar_service=self.calendar_service,
         )
         result = service.report(
             scope(1),
@@ -170,7 +178,9 @@ class AbsenceServiceTests(unittest.TestCase):
 
     def test_selection_is_single_versioned_transition_and_emits_calendar_work(self) -> None:
         service = AbsenceService(
-            self.db_path, notification_service=notification_service_for_test(self.db_path)
+            self.db_path,
+            notification_service=notification_service_for_test(self.db_path),
+            calendar_service=self.calendar_service,
         )
         result = service.report(
             scope(1),
@@ -205,7 +215,9 @@ class AbsenceServiceTests(unittest.TestCase):
 
     def test_cancellation_marks_only_the_affected_calendar_assignment(self) -> None:
         service = AbsenceService(
-            self.db_path, notification_service=notification_service_for_test(self.db_path)
+            self.db_path,
+            notification_service=notification_service_for_test(self.db_path),
+            calendar_service=self.calendar_service,
         )
         result = service.report(
             scope(1),
@@ -231,7 +243,9 @@ class AbsenceServiceTests(unittest.TestCase):
 
     def test_failed_selection_preserves_assignment_audit_version_and_follow_up_work(self) -> None:
         service = AbsenceService(
-            self.db_path, notification_service=notification_service_for_test(self.db_path)
+            self.db_path,
+            notification_service=notification_service_for_test(self.db_path),
+            calendar_service=self.calendar_service,
         )
         current = datetime(2026, 11, 1, tzinfo=UTC)
         report = service.report(
@@ -290,7 +304,9 @@ class AbsenceServiceTests(unittest.TestCase):
     def test_member_cannot_report_another_member_absence(self) -> None:
         with self.assertRaises(PermissionError):
             AbsenceService(
-                self.db_path, notification_service=notification_service_for_test(self.db_path)
+                self.db_path,
+                notification_service=notification_service_for_test(self.db_path),
+                calendar_service=self.calendar_service,
             ).report(
                 scope(2),
                 {"exam_day_id": self.day_id, "exam_day_assignment_id": self.assignment_id},

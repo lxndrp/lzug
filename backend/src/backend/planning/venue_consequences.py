@@ -11,7 +11,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from backend.integrations.calendar import CalendarService
+from backend.calendar.ports import CalendarApplicationPort
 from backend.notifications.service import NotificationService
 from backend.persistence.database import DEFAULT_DB_PATH, session_scope
 from backend.persistence.models import (
@@ -95,11 +95,11 @@ class VenueConsequenceService:
         db_path: Path = DEFAULT_DB_PATH,
         *,
         notification_service: NotificationService,
-        calendar_service: CalendarService | None = None,
+        calendar_service: CalendarApplicationPort,
     ) -> None:
         self.db_path = Path(db_path)
         self.notifications = notification_service
-        self.calendar = calendar_service or CalendarService(self.db_path)
+        self.calendar = calendar_service
 
     def preview(
         self,

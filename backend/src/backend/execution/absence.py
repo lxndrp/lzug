@@ -10,9 +10,9 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from backend.calendar.ports import CalendarApplicationPort
 from backend.execution.exam_day_closures import complete_day_mutation, guard_day_mutation
 from backend.identity.authorization import AuthorizationScope
-from backend.integrations.calendar import CalendarService
 from backend.notifications.service import NotificationService
 from backend.persistence.database import DEFAULT_DB_PATH, session_scope
 from backend.persistence.models import (
@@ -61,11 +61,11 @@ class AbsenceService:
         db_path: Path = DEFAULT_DB_PATH,
         *,
         notification_service: NotificationService,
-        calendar_service: CalendarService | None = None,
+        calendar_service: CalendarApplicationPort,
     ) -> None:
         self.db_path = db_path
         self.notification_service = notification_service
-        self.calendar_service = calendar_service or CalendarService(db_path)
+        self.calendar_service = calendar_service
 
     def list(self, scope: AuthorizationScope) -> list[dict[str, Any]]:
         with session_scope(self.db_path) as session:

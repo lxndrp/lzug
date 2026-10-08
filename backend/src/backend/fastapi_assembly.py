@@ -16,6 +16,7 @@ from .application import ApplicationServices, ReadApplication
 from .application.admin import AdminApplication, AdminServices
 from .application.resource_access import ResourceAccessQueryFactory
 from .assessment.service import ExamResultService
+from .calendar.ports import CalendarApplicationPort
 from .composition import SQLiteAssessmentLifecycleAdapter
 from .composition import (
     assessment_unit_of_work_factory as compose_assessment_unit_of_work_factory,
@@ -25,6 +26,7 @@ from .composition import authorization_service as compose_authorization_service
 from .composition import (
     calendar_lifecycle_work_factory as compose_calendar_lifecycle_work_factory,
 )
+from .composition import calendar_service as compose_calendar_service
 from .composition import (
     candidate_day_service as compose_candidate_day_service,
 )
@@ -133,7 +135,11 @@ def create_admin_application(
         ),
         consequence_factory=lambda db_path, notification_service: (
             consequences
-            or PlanConsequenceService(db_path, notification_service=notification_service)
+            or PlanConsequenceService(
+                db_path,
+                notification_service=notification_service,
+                calendar_service=compose_calendar_service(db_path, settings=require_settings()),
+            )
         ),
         artifact_factory=lambda persistence: (
             artifacts or ArtifactService(persistence, settings=require_settings())
@@ -166,6 +172,7 @@ def create_app(
     authorization_service_factory: Callable[[Path], AuthorizationService] | None = None,
     committee_admin_service_factory: Callable[[Path], CommitteeAdminService] | None = None,
     exam_result_service_factory: Callable[[Path], ExamResultService] | None = None,
+    calendar_service_factory: Callable[[Path], CalendarApplicationPort] | None = None,
     assessment_lifecycle: object | None = None,
 ) -> FastAPI:
     """Create the single FastAPI application used by product and demo images."""
@@ -255,6 +262,10 @@ def create_app(
             return compose_local_auth_service(db_path, **kwargs)
 
     app.state.local_auth_service_factory = local_authentication_factory
+    app.state.calendar_service_factory = calendar_service_factory or partial(
+        compose_calendar_service,
+        settings=resolved.runtime_settings,
+    )
     app.state.notification_service_factory = lambda db_path: compose_notification_service(
         db_path,
         external_delivery_enabled=resolved.runtime_policy.external_notifications_enabled(),

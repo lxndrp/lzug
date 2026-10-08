@@ -280,10 +280,12 @@ Schlüsselzugriffsverträge.
 Dateizugriff am Adapterrand; der Composition Root wählt die konkreten Adapter.
 Backup und Restore beziehen denselben Instanzschlüssel über den Schlüsseladapter.
 
-`integrations.calendar` ist der heutige Legacy-Pfad für lokale Kalenderlogik:
-`CalendarService` materialisiert bestätigte Zuweisungen als `CalendarEvent`-
-Projektion in SQLite und rendert daraus ICS.
-Er ruft keinen externen Kalenderprovider auf.
+`calendar` besitzt die lokalen Kalender-Use-Cases, Ports und typisierten
+Projektionen.
+`persistence.calendar` liefert detached Planning-/Identity-Snapshots und
+schreibt die `CalendarEvent`-Projektion in SQLite; `integrations` enthält keinen
+Kalender-Fachcode.
+ICS wird aus materialisierten Snapshots gerendert.
 Der aktuelle Code codiert Eventgenerationen in `source_key` und
 `external_event_id`; Inhaltsänderungen erhöhen die Eventversion und eine
 Reaktivierung erzeugt eine weitere Generation.
@@ -315,12 +317,14 @@ Nur `feed_ics` validiert dabei ein Feed-Credential.
 Heute beschränkt die Feedprüfung die Person nur darauf, mindestens eine aktive
 Mitgliedschaft zu haben; die Synchronisierung und Ausgabe filtern anschließend
 nach `person_id`.
-Bei aktivem Committee A und deaktiviertem Committee B können so weiterhin
-Kalenderereignisse aus B synchronisiert oder ausgegeben werden.
-Die Umsetzung von #1078 muss stabile Identitäten und Generationen über
-Wiederholungen und Planänderungen sowie diese Sync-Seiteneffekte erhalten.
-Sie bezieht Planungsdaten über einen typisierten Snapshot aus einem
-calendar-eigenen Port, den ein Planning-Adapter erfüllt.
+Sync und Ausgabe sind auf die aktiven Membership-IDs der Person begrenzt.
+`list_events`, `feed_ics` und `event_ics` synchronisieren über `sync_person`
+weiterhin vor dem Lesen oder Rendern; Refresh und Read verwenden getrennte
+UoWs.
+#1078 erhält stabile Identitäten und Generationen über Wiederholungen und
+Planänderungen sowie diese Sync-Seiteneffekte.
+Planungsdaten kommen über einen typisierten Snapshot aus einem
+calendar-eigenen Port, den der SQLite-Adapter erfüllt.
 Das Ziel aus #1081 lässt Planning die Folgen beschreiben und verlagert deren
 Ausführung in `application`.
 Application konsumiert dafür einen eigenen Calendar-Service-Port, erhält
