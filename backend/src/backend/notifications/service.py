@@ -26,6 +26,8 @@ from backend.notifications.repository import (
     NotificationScope,
     NotificationUnitOfWork,
     NotificationUnitOfWorkFactory,
+    PlanChangeNotice,
+    PlanRevision,
 )
 
 DELIVERY_STATUSES = frozenset(
@@ -237,48 +239,44 @@ class NotificationService:
         message: str,
         action_path: str,
     ) -> tuple[bool, set[int]]:
-        """Atomically accept only the latest revision and supersede older notices.
+        """Atomically accept recipient-relevant revisions and supersede older notices.
 
         The notification UoW factory serializes this read/write sequence. A
-        worker that resumes after a newer revision was notified therefore
-        cannot insert an older notice after the newer one.
+        worker that resumes after a newer notice for this recipient therefore
+        cannot insert an older notice after it.
         """
         superseded_revision_ids: set[int] = set()
         accepted = False
         with self._notification_unit_of_work_factory(begin_immediate=True) as unit_of_work:
             revision = unit_of_work.plan_revision(revision_id)
-            latest_revision = unit_of_work.latest_plan_revision(round_id)
-            if (
-                revision is not None
-                and revision.round_id == round_id
-                and latest_revision is not None
-                and latest_revision.resulting_revision <= revision.resulting_revision
-            ):
-                superseded_revision_ids = self._supersede_unsent_plan_changes(
+            if revision is not None and revision.round_id == round_id:
+                superseded = self._supersede_unsent_plan_changes(
                     unit_of_work,
                     round_id=round_id,
                     recipient_member_id=recipient_member_id,
                     newer_revision_id=revision_id,
                 )
-                write = unit_of_work.save_notice(
-                    NoticeDraft(
-                        committee_id=committee_id,
-                        round_id=round_id,
-                        recipient_member_id=recipient_member_id,
-                        event_type="plan_changed",
-                        origin_key=f"confirmed-plan-revision:{revision_id}:{recipient_member_id}",
-                        title=title,
-                        message=message,
-                        action_path=action_path,
+                if superseded is not None:
+                    superseded_revision_ids = superseded
+                    write = unit_of_work.save_notice(
+                        NoticeDraft(
+                            committee_id=committee_id,
+                            round_id=round_id,
+                            recipient_member_id=recipient_member_id,
+                            event_type="plan_changed",
+                            origin_key=f"confirmed-plan-revision:{revision_id}:{recipient_member_id}",
+                            title=title,
+                            message=message,
+                            action_path=action_path,
+                        )
                     )
-                )
-                if write.created and self.external_delivery_enabled:
-                    unit_of_work.queue_deliveries(
-                        write.id,
-                        recipient_member_id,
-                        self._channel_configuration(),
-                    )
-                accepted = True
+                    if write.created and self.external_delivery_enabled:
+                        unit_of_work.queue_deliveries(
+                            write.id,
+                            recipient_member_id,
+                            self._channel_configuration(),
+                        )
+                    accepted = True
         if accepted:
             self.process_deliveries()
         return accepted, superseded_revision_ids
@@ -364,10 +362,14 @@ class NotificationService:
         round_id: int,
         recipient_member_id: int,
         newer_revision_id: int,
-    ) -> set[int]:
+    ) -> set[int] | None:
         superseded_revision_ids: set[int] = set()
         current = _timestamp(_now())
+        newer_revision = unit_of_work.plan_revision(newer_revision_id)
+        if newer_revision is None:
+            return None
         notices = unit_of_work.plan_change_notices(round_id, recipient_member_id, newer_revision_id)
+        notice_revisions: list[tuple[PlanChangeNotice, PlanRevision]] = []
         for notice in notices:
             parts = notice.origin_key.split(":")
             if len(parts) < 3 or parts[0] != "confirmed-plan-revision":
@@ -377,13 +379,14 @@ class NotificationService:
             except ValueError:
                 continue
             notice_revision = unit_of_work.plan_revision(notice_revision_id)
-            newer_revision = unit_of_work.plan_revision(newer_revision_id)
-            if (
-                notice_revision is None
-                or newer_revision is None
-                or notice_revision.round_id != newer_revision.round_id
-                or notice_revision.resulting_revision >= newer_revision.resulting_revision
-            ):
+            if notice_revision is None or notice_revision.round_id != newer_revision.round_id:
+                continue
+            if notice_revision.resulting_revision > newer_revision.resulting_revision:
+                return None
+            notice_revisions.append((notice, notice_revision))
+
+        for notice, notice_revision in notice_revisions:
+            if notice_revision.resulting_revision >= newer_revision.resulting_revision:
                 continue
             attempted = any(
                 delivery.attempt_count > 0

@@ -530,21 +530,6 @@ class SQLiteNotificationUnitOfWork:
             resulting_revision=row.resulting_revision,
         )
 
-    def latest_plan_revision(self, round_id: int) -> PlanRevision | None:
-        row = self._session.scalars(
-            select(ConfirmedPlanRevision)
-            .where(ConfirmedPlanRevision.exam_round_id == round_id)
-            .order_by(ConfirmedPlanRevision.resulting_revision.desc())
-            .limit(1)
-        ).first()
-        if row is None:
-            return None
-        return PlanRevision(
-            id=row.id,
-            round_id=row.exam_round_id,
-            resulting_revision=row.resulting_revision,
-        )
-
     def delivery_attempts(self, notification_id: int) -> tuple[DeliveryAttempt, ...]:
         rows = self._session.scalars(
             select(NotificationDelivery).where(

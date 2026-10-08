@@ -79,7 +79,7 @@ class VenueConsequenceService:
         audits = tuple(
             audit
             for audit in self.venue_planner.consequence_audits()
-            if self._audit_details(audit).get("consequence_version") == 1
+            if self._audit_details(audit).get("consequence_version") == 2
         )
         audit_ids = {audit.id for audit in audits}
         derivation_problems = 0
@@ -138,7 +138,7 @@ class VenueConsequenceService:
         result: list[dict[str, Any]] = []
         for audit in audits:
             details = self._audit_details(audit)
-            if details.get("consequence_version") != 1:
+            if details.get("consequence_version") != 2:
                 continue
             batch = self.consequence_store.batch_by_origin("exam_venue_audit_event", str(audit.id))
             if batch is None:
@@ -180,7 +180,7 @@ class VenueConsequenceService:
             raise ValueError("Venue change audit not found")
         audit = source.audit
         details = self._audit_details(audit)
-        if details.get("consequence_version") != 1:
+        if details.get("consequence_version") != 2:
             raise ValueError("Venue change has no retryable consequence contract")
         task_drafts = tuple(ConsequenceTaskDraft(**task) for task in self._tasks(source))
         return self.consequence_store.record_batch(

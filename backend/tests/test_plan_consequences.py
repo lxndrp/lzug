@@ -216,6 +216,26 @@ class PlanConsequenceServiceTests(unittest.TestCase):
                 self.assertIsNone(batches[0].next_attempt_at)
                 self.assertEqual([], list(session.scalars(select(PlanConsequence))))
 
+    def test_pending_ids_for_round_does_not_decode_revision_snapshots(self) -> None:
+        with TempDatabase() as db_path:
+            with session_scope(db_path) as session:
+                session.add(
+                    ConfirmedPlanRevision(
+                        exam_round_id=1,
+                        previous_revision=0,
+                        resulting_revision=1,
+                        reason="Synthetic malformed historical snapshot",
+                        actor_member_id=1,
+                        before_state_json="{",
+                        after_state_json="{",
+                    )
+                )
+            service = plan_consequence_service_for_test(db_path)
+
+            pending_ids = service.pending_ids_for_round(1)
+
+        self.assertEqual((), pending_ids)
+
     def test_processing_claim_is_exclusive_and_recovers_after_lease_expiry(self) -> None:
         now = datetime(2026, 10, 8, 12, tzinfo=UTC)
         with TempDatabase() as db_path:

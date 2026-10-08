@@ -277,6 +277,10 @@ Fehlgeschlagene aktuelle Folgen erscheinen am verwaltbaren Ortsaggregat und
 werden über
 `/api/exam-venue-changes/{audit_id}/consequences/retry` kontrolliert erneut
 angestoßen.
+Versionierte Venue-Audits speichern die betroffenen Assignments sowie die
+damaligen Empfänger- und Ausschuss-IDs gemeinsam mit der Ortsänderung.
+Ein Wiederanlauf verwendet diesen Snapshot und ersetzt ihn nicht durch spätere
+Zuordnungen.
 Ausschussverantwortliche beantragen eine identitätserhaltende Hochstufung über
 `/api/exam-venues/{id}/promotion-requests`; Operatoren entscheiden sie über
 `/api/exam-venue-promotion-requests/{id}/decision`.

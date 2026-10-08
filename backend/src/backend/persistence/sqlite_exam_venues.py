@@ -1266,13 +1266,42 @@ class SQLiteExamVenueRepository:
     ) -> VenueChange:
         details: dict[str, Any] = {"fields": sorted(fields), "values": fields}
         if before is not None and after is not None and changed_fields:
+            assignment_query = (
+                select(
+                    ExamDayAssignment.id,
+                    ExamDayAssignment.committee_member_id,
+                    ExamRound.committee_id,
+                )
+                .join(ExamDay, ExamDay.id == ExamDayAssignment.exam_day_id)
+                .join(ExamRound, ExamRound.id == ExamDay.exam_round_id)
+                .join(ExamRoom, ExamRoom.id == ExamDay.room_id)
+                .where(
+                    ExamRoom.venue_id == venue_id,
+                    ExamDay.status == "confirmed",
+                    ExamDay.date >= date.today().isoformat(),
+                )
+                .order_by(ExamDay.date, ExamDayAssignment.id)
+            )
+            if entity_type == "room":
+                assignment_query = assignment_query.where(ExamDay.room_id == entity_id)
+            assignments = [
+                {
+                    "assignment_id": assignment_id,
+                    "recipient_member_id": recipient_member_id,
+                    "committee_id": committee_id,
+                }
+                for assignment_id, recipient_member_id, committee_id in session.execute(
+                    assignment_query
+                )
+            ]
             details.update(
                 {
-                    "consequence_version": 1,
+                    "consequence_version": 2,
                     "before": before,
                     "after": after,
                     "changed_fields": sorted(changed_fields),
                     "meaningful_change": meaningful_change,
+                    "assignments": assignments,
                 }
             )
         event = ExamVenueAuditEvent(

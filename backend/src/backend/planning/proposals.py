@@ -425,6 +425,11 @@ class PlanningService:
                 for item in unit_of_work.confirmed_plan_revisions(round_id)
             ]
 
+    def confirmed_plan_revision_ids_for_round(self, round_id: int) -> tuple[int, ...]:
+        """Return revision identifiers without decoding stored plan snapshots."""
+        with self._unit_of_work_factory() as unit_of_work:
+            return tuple(unit_of_work.confirmed_plan_revision_ids_for_round(round_id))
+
     def confirmed_plan_revision(self, revision_id: int) -> ConfirmedPlanRevision | None:
         """Return one detached revision snapshot for Application follow-up work."""
         with self._unit_of_work_factory() as unit_of_work:

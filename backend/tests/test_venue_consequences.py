@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import unittest
 from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
@@ -18,10 +19,15 @@ from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.persistence.database import session_scope
 from backend.persistence.models import (
     CalendarEvent,
+    CommitteeMember,
     ConfirmedPlanRevision,
     ExamDay,
+    ExamDayAssignment,
+    ExamRoom,
     ExamVenue,
+    ExamVenueAuditEvent,
     Notification,
+    Person,
 )
 from backend.planning.exam_venues import ExamVenueConfirmationRequiredError
 from backend.planning.venue_consequences import (
@@ -487,6 +493,100 @@ class VenueConsequenceTests(unittest.TestCase):
             retried = service.retry_audit(audit_id)
             self.assertEqual(0, retried["problems"])
             self.assertEqual([], service.problems_for_venue(1))
+        finally:
+            database.__exit__(None, None, None)
+
+    def test_recovery_uses_assignment_recipients_from_the_audit_snapshot(self) -> None:
+        database, db_path = self._confirmed_database()
+        try:
+            venues = exam_venue_service_for_test(db_path)
+            venue = venues.get_venue(1)
+            assert venue is not None
+            changed = venues.update_venue(
+                1,
+                {
+                    "expected_revision": venue["revision"],
+                    "site_name": "Auditzeitiger Standort",
+                    "confirm_future_assignments": True,
+                },
+                technical_actor="operator:test",
+            )
+            assert changed is not None
+            audit_id = changed["consequence_audit_id"]
+            with session_scope(db_path) as session:
+                audit = session.get(ExamVenueAuditEvent, audit_id)
+                assert audit is not None
+                audit_assignments = json.loads(audit.details_json)["assignments"]
+                original_recipients = {item["recipient_member_id"] for item in audit_assignments}
+                batch = session.scalar(
+                    select(PlanConsequenceBatch).where(
+                        PlanConsequenceBatch.origin_type == "exam_venue_audit_event",
+                        PlanConsequenceBatch.origin_key == str(audit_id),
+                    )
+                )
+                assert batch is not None
+                session.delete(batch)
+
+            with session_scope(db_path) as session:
+                example_member = session.scalar(
+                    select(CommitteeMember).where(
+                        CommitteeMember.committee_id == 1,
+                        CommitteeMember.committee_role == "member",
+                    )
+                )
+                assert example_member is not None
+                person = Person(
+                    first_name="Recovery",
+                    last_name="Späterer Prüfer",
+                    email="recovery-later@example.invalid",
+                )
+                session.add(person)
+                session.flush()
+                new_member = CommitteeMember(
+                    person_id=person.id,
+                    committee_id=1,
+                    member_status=example_member.member_status,
+                    committee_role=example_member.committee_role,
+                    representing_side=example_member.representing_side,
+                    is_active=1,
+                )
+                session.add(new_member)
+                session.flush()
+                later_day = session.scalar(
+                    select(ExamDay)
+                    .join(ExamRoom, ExamRoom.id == ExamDay.room_id)
+                    .where(ExamRoom.venue_id == 1, ExamDay.status == "confirmed")
+                    .order_by(ExamDay.id)
+                )
+                assert later_day is not None
+                session.add(
+                    ExamDayAssignment(
+                        exam_day_id=later_day.id,
+                        committee_member_id=new_member.id,
+                        assignment_role="examiner",
+                        day_part="full_day",
+                    )
+                )
+                new_member_id = new_member.id
+
+            recovered = venue_consequence_service_for_test(db_path).process_due()
+
+            with session_scope(db_path) as session:
+                recovered_recipients = set(
+                    session.scalars(
+                        select(PlanConsequence.recipient_member_id)
+                        .join(PlanConsequenceBatch)
+                        .where(
+                            PlanConsequenceBatch.origin_type == "exam_venue_audit_event",
+                            PlanConsequenceBatch.origin_key == str(audit_id),
+                            PlanConsequence.consequence_type == "notification",
+                        )
+                    )
+                )
+
+            self.assertGreater(recovered["processed"], 0)
+            self.assertEqual(original_recipients, recovered_recipients)
+            self.assertNotIn(new_member_id, recovered_recipients)
         finally:
             database.__exit__(None, None, None)
 

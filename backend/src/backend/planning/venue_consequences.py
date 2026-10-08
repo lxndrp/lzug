@@ -164,11 +164,27 @@ class PlanningVenueConsequencePlanner:
             details = {}
         if not isinstance(details, dict):
             details = {}
-        assignments = self.repository.future_assignments(
-            audit.venue_id,
-            room_id=audit.entity_id if audit.entity_type == "room" else None,
-            today=(today or date.today()).isoformat(),
-        )
+        if details.get("consequence_version") != 2:
+            raise ValueError("Venue change has no audit-time assignment snapshot")
+        raw_assignments = details.get("assignments")
+        if not isinstance(raw_assignments, list):
+            raise ValueError("Venue change has an invalid audit-time assignment snapshot")
+        try:
+            assignments = tuple(
+                VenueAssignment(
+                    assignment_id=int(item["assignment_id"]),
+                    recipient_member_id=int(item["recipient_member_id"]),
+                    committee_id=int(item["committee_id"]),
+                )
+                for item in raw_assignments
+                if isinstance(item, dict)
+            )
+        except (KeyError, TypeError, ValueError) as error:
+            raise ValueError(
+                "Venue change has an invalid audit-time assignment snapshot"
+            ) from error
+        if len(assignments) != len(raw_assignments):
+            raise ValueError("Venue change has an invalid audit-time assignment snapshot")
         descriptions = describe_venue_change(
             venue_id=audit.venue_id,
             entity_type=audit.entity_type,

@@ -166,9 +166,9 @@ class PlanConsequenceService:
     def pending_ids_for_round(self, round_id: int) -> tuple[int, ...]:
         """Return technical follow-up identifiers for the round readiness projection."""
         ids: list[int] = []
-        for revision in self.planning.confirmed_plan_revisions(round_id):
+        for revision_id in self.planning.confirmed_plan_revision_ids_for_round(round_id):
             batch = self.consequence_store.batch_by_origin(
-                "confirmed_plan_revision", str(revision.id)
+                "confirmed_plan_revision", str(revision_id)
             )
             if batch is None:
                 continue

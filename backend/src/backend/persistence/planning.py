@@ -384,6 +384,15 @@ class SQLitePlanningUnitOfWork:
             for item in revisions
         )
 
+    def confirmed_plan_revision_ids_for_round(self, round_id: int) -> tuple[int, ...]:
+        return tuple(
+            self._session.scalars(
+                select(ConfirmedPlanRevision.id)
+                .where(ConfirmedPlanRevision.exam_round_id == round_id)
+                .order_by(ConfirmedPlanRevision.resulting_revision)
+            )
+        )
+
     def confirmed_plan_revision(self, revision_id: int) -> ConfirmedPlanRevisionSnapshot | None:
         item = self._session.get(ConfirmedPlanRevision, revision_id)
         if item is None:
