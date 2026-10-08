@@ -9,9 +9,9 @@ from unittest.mock import patch
 
 from backend.assessment.exam_results import ExamResultConflictError, ExamResultService
 from backend.composition import authorization_service
-from backend.execution.exam_protocols import create_protocol_for_started_slot
 from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.persistence.database import session_scope
+from backend.persistence.execution import create_started_protocol
 from backend.persistence.models import (
     CandidateExamAttendance,
     ExamDay,
@@ -326,7 +326,7 @@ class ExamResultTests(unittest.TestCase):
                 )
                 for member_id in (1, 2, 3)
             )
-            protocol = create_protocol_for_started_slot(
+            protocol_id = create_started_protocol(
                 session,
                 slot_id=slot.id,
                 participant_member_ids={1, 2, 3},
@@ -335,7 +335,7 @@ class ExamResultTests(unittest.TestCase):
             )
             self.day_id = day.id
             self.slot_id = slot.id
-            self.protocol_id = protocol.id
+            self.protocol_id = protocol_id
 
     def tearDown(self) -> None:
         self.database.__exit__(None, None, None)

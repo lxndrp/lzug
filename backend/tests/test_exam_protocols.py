@@ -4,19 +4,25 @@ import sqlite3
 import unittest
 from contextlib import closing
 from http import HTTPStatus
+from threading import Barrier, Thread
 from unittest.mock import patch
 
 from sqlalchemy import select
 
-from backend.composition import authorization_service
+from backend.composition import authorization_service, exam_protocol_service
 from backend.execution.exam_protocols import (
     ENTRY_CATEGORIES,
     ExamProtocolConflictError,
-    ExamProtocolService,
-    create_protocol_for_started_slot,
 )
+from backend.execution.slot_service import ExecutionService
 from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.persistence.database import initialize, session_scope
+from backend.persistence.day_mutations import ExecutionDayMutationConflictError
+from backend.persistence.execution import (
+    SQLiteExecutionUnitOfWorkFactory,
+    create_started_protocol,
+)
+from backend.persistence.identity import SQLiteIdentityExecutionSnapshotFactory
 from backend.persistence.models import (
     CandidateExamAttendance,
     ExamDay,
@@ -114,7 +120,7 @@ class ExamProtocolTests(unittest.TestCase):
                     ),
                 )
             )
-            protocol = create_protocol_for_started_slot(
+            protocol_id = create_started_protocol(
                 session,
                 slot_id=slot.id,
                 participant_member_ids={1, 3},
@@ -123,7 +129,7 @@ class ExamProtocolTests(unittest.TestCase):
             )
             self.day_id = day.id
             self.slot_id = slot.id
-            self.protocol_id = protocol.id
+            self.protocol_id = protocol_id
 
     def tearDown(self) -> None:
         self.database.__exit__(None, None, None)
@@ -144,7 +150,23 @@ class ExamProtocolTests(unittest.TestCase):
             {"version": version, "declaration": "without_special_occurrences", "entries": []},
         )
         assert_status(status, HTTPStatus.OK)
+        self.assertEqual(
+            f"/api/exam-protocols/{self.protocol_id}",
+            protocol["_links"]["self"]["href"],
+        )
         return protocol
+
+    def test_stale_execution_day_revision_remains_an_http_conflict(self) -> None:
+        with ApiServer(self.db_path) as api:
+            status, result = api.request(
+                "PATCH",
+                f"/api/confirmed-plan-days/{self.day_id}/slots/{self.slot_id}/attendance",
+                {"status": "absent", "day_revision": 0},
+                credentials=self.chair,
+            )
+
+        assert_status(status, HTTPStatus.CONFLICT)
+        self.assertEqual("exam_day_conflict", result["error"]["code"])
 
     def complete_normal(self, api: ApiServer):
         protocol = self.save_normal(api)
@@ -182,6 +204,10 @@ class ExamProtocolTests(unittest.TestCase):
             assert_status(status, HTTPStatus.OK)
             self.assertEqual({1, 3}, set(protocol["participants"]))
             self.assertEqual("in_progress", protocol["state"])
+            self.assertEqual(
+                f"/api/exam-protocols/{self.protocol_id}",
+                protocol["_links"]["self"]["href"],
+            )
 
             status, error = self.request(
                 api,
@@ -277,6 +303,10 @@ class ExamProtocolTests(unittest.TestCase):
             assert_status(status, HTTPStatus.OK)
             self.assertTrue(exported["complete"])
             self.assertEqual(len(ENTRY_CATEGORIES) + 1, len(exported["protocol"]["history"]))
+            self.assertEqual(
+                f"/api/exam-protocols/{self.protocol_id}/export.json",
+                exported["protocol"]["_links"]["machine_export"]["href"],
+            )
             self.assertEqual(False, exported["references"]["assessment"]["available"])
             status, headers, content = api.request_raw(
                 "GET",
@@ -399,7 +429,7 @@ class ExamProtocolTests(unittest.TestCase):
             assert_status(status, HTTPStatus.BAD_REQUEST)
 
     def test_response_validation_and_failed_day_completion_leave_no_partial_response(self) -> None:
-        service = ExamProtocolService(self.db_path)
+        service = exam_protocol_service(self.db_path)
         context = self.authentication.authenticate(self.chair.token)
         scope = authorization_service(self.db_path).scope(context)
         protocol = service.update_content(
@@ -428,7 +458,7 @@ class ExamProtocolTests(unittest.TestCase):
         }
         with (
             patch(
-                "backend.execution.exam_protocols.complete_day_mutation",
+                "backend.persistence.execution.complete_day_mutation",
                 side_effect=RuntimeError("test day failure"),
             ),
             self.assertRaisesRegex(RuntimeError, "test day failure"),
@@ -442,6 +472,14 @@ class ExamProtocolTests(unittest.TestCase):
             service.respond(scope, self.protocol_id, {**command, "statement": "Anderer Vorbehalt"})
         with session_scope(self.db_path) as session:
             self.assertEqual(1, session.query(ExamProtocolResponse).count())
+
+    def test_protocol_service_views_and_exports_are_http_neutral(self) -> None:
+        service = exam_protocol_service(self.db_path)
+        context = self.authentication.authenticate(self.chair.token)
+        scope = authorization_service(self.db_path).scope(context)
+
+        self.assertNotIn("_links", service.get(scope, self.protocol_id))
+        self.assertNotIn("_links", service.machine_export(scope, self.protocol_id)["protocol"])
 
     def test_completion_contract_distinguishes_not_started_and_legacy_completed(self) -> None:
         with session_scope(self.db_path) as session:
@@ -542,6 +580,248 @@ class ExamProtocolTests(unittest.TestCase):
                     select(ExamProtocol).where(ExamProtocol.exam_slot_id == completed_id)
                 )
             )
+
+
+class ExecutionPortTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.database = TempDatabase()
+        self.db_path = self.database.__enter__()
+        with session_scope(self.db_path) as session:
+            exam_round = session.get(ExamRound, 1)
+            exam_round.status = "plan_confirmed"
+            day = ExamDay(
+                exam_round_id=1,
+                room_id=1,
+                date="2026-11-16",
+                status="confirmed",
+                lunch_break_enabled=1,
+                created_from_proposal=1,
+            )
+            session.add(day)
+            session.flush()
+            slot = ExamSlot(
+                exam_day_id=day.id,
+                round_candidate_id=1,
+                slot_type="regular",
+                starts_at="2026-11-16T09:00:00+01:00",
+                ends_at="2026-11-16T10:00:00+01:00",
+                sequence_number=1,
+                status="confirmed",
+            )
+            session.add(slot)
+            session.flush()
+            session.add_all(
+                ExamDayAssignment(
+                    exam_day_id=day.id,
+                    committee_member_id=member_id,
+                    assignment_role="examiner",
+                    day_part="full_day",
+                )
+                for member_id in (1, 2, 3)
+            )
+            session.add(CandidateExamAttendance(exam_slot_id=slot.id, status="present"))
+            self.day_id = day.id
+            self.slot_id = slot.id
+        self.execution_factory = SQLiteExecutionUnitOfWorkFactory(
+            self.db_path,
+            identity_snapshot_factory=SQLiteIdentityExecutionSnapshotFactory(),
+        )
+        self.service = ExecutionService(
+            self.execution_factory,
+            clock=lambda: "2026-11-16T09:03:00+00:00",
+        )
+
+    def tearDown(self) -> None:
+        self.database.__exit__(None, None, None)
+
+    def _mark_quorum_present(self) -> None:
+        with session_scope(self.db_path) as session:
+            session.add_all(
+                MemberExamAttendance(
+                    exam_day_id=self.day_id,
+                    committee_member_id=member_id,
+                    status="present",
+                )
+                for member_id in (1, 2, 3)
+            )
+
+    def test_start_commits_slot_protocol_participants_and_day_revision_together(self) -> None:
+        self._mark_quorum_present()
+        result = self.service.start_slot(
+            self.day_id,
+            self.slot_id,
+            {"expected_day_revision": 1},
+            actor_member_id=1,
+        )
+        self.assertEqual("running", result["execution_status"])
+        with session_scope(self.db_path) as session:
+            slot = session.get(ExamSlot, self.slot_id)
+            day = session.get(ExamDay, self.day_id)
+            protocol = session.query(ExamProtocol).filter_by(exam_slot_id=self.slot_id).one()
+            participants = set(
+                session.scalars(
+                    select(ExamProtocolParticipant.committee_member_id).where(
+                        ExamProtocolParticipant.exam_protocol_id == protocol.id
+                    )
+                )
+            )
+            self.assertEqual("running", slot.execution_status)
+            self.assertEqual("2026-11-16T09:03:00+00:00", slot.actual_started_at)
+            self.assertEqual(2, day.revision)
+            self.assertEqual({1, 2, 3}, participants)
+
+    def test_quorum_failure_leaves_start_and_revision_unchanged(self) -> None:
+        with session_scope(self.db_path) as session:
+            session.add(
+                MemberExamAttendance(
+                    exam_day_id=self.day_id,
+                    committee_member_id=1,
+                    status="present",
+                )
+            )
+        with self.assertRaisesRegex(ValueError, "Mindestens drei"):
+            self.service.start_slot(
+                self.day_id,
+                self.slot_id,
+                {"expected_day_revision": 1},
+                actor_member_id=1,
+            )
+        with session_scope(self.db_path) as session:
+            self.assertEqual("open", session.get(ExamSlot, self.slot_id).execution_status)
+            self.assertEqual(1, session.get(ExamDay, self.day_id).revision)
+            self.assertEqual(
+                0,
+                session.query(ExamProtocol).filter_by(exam_slot_id=self.slot_id).count(),
+            )
+
+    def test_protocol_failure_rolls_back_slot_mutation_and_revision(self) -> None:
+        self._mark_quorum_present()
+        with patch(
+            "backend.persistence.execution.create_started_protocol",
+            side_effect=RuntimeError("protocol write failed"),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "protocol write failed"):
+                self.service.start_slot(
+                    self.day_id,
+                    self.slot_id,
+                    {"expected_day_revision": 1},
+                    actor_member_id=1,
+                )
+        with session_scope(self.db_path) as session:
+            self.assertEqual("open", session.get(ExamSlot, self.slot_id).execution_status)
+            self.assertEqual(1, session.get(ExamDay, self.day_id).revision)
+            self.assertEqual(
+                0,
+                session.query(ExamProtocol).filter_by(exam_slot_id=self.slot_id).count(),
+            )
+
+    def test_parallel_start_creates_one_protocol_and_advances_one_revision(self) -> None:
+        self._mark_quorum_present()
+        barrier = Barrier(2)
+        results: list[dict[str, object]] = []
+        errors: list[BaseException] = []
+
+        def start() -> None:
+            try:
+                barrier.wait(timeout=5)
+                results.append(
+                    self.service.start_slot(
+                        self.day_id,
+                        self.slot_id,
+                        {"expected_day_revision": 1},
+                        actor_member_id=1,
+                    )
+                )
+            except BaseException as error:
+                errors.append(error)
+
+        threads = [Thread(target=start) for _ in range(2)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=10)
+        self.assertFalse(any(thread.is_alive() for thread in threads))
+        self.assertEqual([], errors)
+        self.assertEqual(2, len(results))
+        with session_scope(self.db_path) as session:
+            self.assertEqual(
+                1,
+                session.query(ExamProtocol).filter_by(exam_slot_id=self.slot_id).count(),
+            )
+            self.assertEqual(2, session.get(ExamDay, self.day_id).revision)
+
+    def test_attendance_advances_revision_once_and_is_idempotent(self) -> None:
+        with session_scope(self.db_path) as session:
+            assignment_id = session.scalar(
+                select(ExamDayAssignment.id).where(
+                    ExamDayAssignment.exam_day_id == self.day_id,
+                    ExamDayAssignment.committee_member_id == 1,
+                )
+            )
+        payload = {"status": "late", "arrived_at": "2026-11-16T08:59:00+01:00"}
+        self.service.save_member_attendance(self.day_id, assignment_id, payload, actor_member_id=1)
+        self.service.save_member_attendance(self.day_id, assignment_id, payload, actor_member_id=1)
+        with session_scope(self.db_path) as session:
+            self.assertEqual(2, session.get(ExamDay, self.day_id).revision)
+            attendance = (
+                session.query(MemberExamAttendance)
+                .filter_by(exam_day_id=self.day_id, committee_member_id=1)
+                .one()
+            )
+            self.assertEqual("late", attendance.status)
+            self.assertEqual("2026-11-16T08:59:00+01:00", attendance.arrived_at)
+
+    def test_day_mutation_operations_commit_only_with_the_enclosing_uow(self) -> None:
+        request = {
+            "day_id": self.day_id,
+            "kind": "slot_status",
+            "entity_id": self.slot_id,
+            "expected_day_revision": 1,
+            "actor_member_id": 1,
+            "protocol_revision_id": None,
+        }
+        with self.execution_factory(write=True) as work:
+            handle = work.guard_day_mutation(request)
+            work.complete_day_mutation(handle, actor_member_id=1, reason="correction")
+
+        with session_scope(self.db_path) as session:
+            self.assertEqual(2, session.get(ExamDay, self.day_id).revision)
+
+    def test_stale_day_mutation_is_rejected_by_the_execution_adapter(self) -> None:
+        request = {
+            "day_id": self.day_id,
+            "kind": "slot_status",
+            "entity_id": self.slot_id,
+            "expected_day_revision": 0,
+            "actor_member_id": 1,
+            "protocol_revision_id": None,
+        }
+        with self.assertRaisesRegex(
+            ExecutionDayMutationConflictError, "Prüfungstag wurde zwischenzeitlich geändert"
+        ):
+            with self.execution_factory(write=True) as work:
+                work.guard_day_mutation(request)
+
+        with session_scope(self.db_path) as session:
+            self.assertEqual(1, session.get(ExamDay, self.day_id).revision)
+
+    def test_day_mutation_operations_roll_back_with_the_enclosing_uow(self) -> None:
+        request = {
+            "day_id": self.day_id,
+            "kind": "slot_status",
+            "entity_id": self.slot_id,
+            "expected_day_revision": 1,
+            "actor_member_id": 1,
+            "protocol_revision_id": None,
+        }
+        with self.assertRaisesRegex(RuntimeError, "abort outer operation"):
+            with self.execution_factory(write=True) as work:
+                handle = work.guard_day_mutation(request)
+                work.complete_day_mutation(handle, actor_member_id=1, reason="correction")
+                raise RuntimeError("abort outer operation")
+
+        with session_scope(self.db_path) as session:
+            self.assertEqual(1, session.get(ExamDay, self.day_id).revision)
 
 
 if __name__ == "__main__":

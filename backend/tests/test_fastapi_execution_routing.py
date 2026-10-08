@@ -5,12 +5,61 @@ from dataclasses import replace
 
 from fastapi.routing import APIRoute
 
+from backend.api_contracts import (
+    ExamAttendanceUpdateRequest,
+    ExamSlotStartRequest,
+    ExamSlotStatusUpdateRequest,
+)
 from backend.fastapi_assessment import create_assessment_router
-from backend.fastapi_execution import create_execution_router
+from backend.fastapi_execution import (
+    _attendance_command,
+    _protocol_version_command,
+    _slot_start_command,
+    _slot_status_command,
+    create_execution_router,
+)
 from backend.tests.helpers import ApiServer, TempDatabase, openapi_document
 
 
 class FastAPIExecutionRoutingTests(unittest.TestCase):
+    def test_execution_http_mappers_keep_only_typed_command_fields(self) -> None:
+        attendance = ExamAttendanceUpdateRequest.model_validate(
+            {
+                "status": "late",
+                "arrived_at": "2026-11-16T08:59:00+01:00",
+                "day_revision": 4,
+                "unexpected": {"private": "discard"},
+            }
+        )
+        self.assertEqual(
+            {
+                "status": "late",
+                "arrived_at": "2026-11-16T08:59:00+01:00",
+                "expected_day_revision": 4,
+            },
+            _attendance_command(attendance),
+        )
+
+        start = ExamSlotStartRequest.model_validate(
+            {"actual_started_at": "2026-11-16T09:03:00+01:00", "unexpected": "discard"}
+        )
+        self.assertEqual(
+            {"actual_started_at": "2026-11-16T09:03:00+01:00", "expected_day_revision": None},
+            _slot_start_command(start),
+        )
+
+        status = ExamSlotStatusUpdateRequest.model_validate(
+            {"status": "cancelled", "reason": "Raumausfall", "unexpected": "discard"}
+        )
+        self.assertEqual(
+            {"status": "cancelled", "expected_day_revision": None, "reason": "Raumausfall"},
+            _slot_status_command(status),
+        )
+        self.assertEqual(
+            {"version": 3, "expected_day_revision": 4},
+            _protocol_version_command({"version": 3, "day_revision": 4, "unexpected": "discard"}),
+        )
+
     def test_execution_and_assessment_modules_own_their_routes(self) -> None:
         by_module: dict[str, set[tuple[str, str]]] = {}
         routers = (

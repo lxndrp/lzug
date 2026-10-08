@@ -234,6 +234,18 @@ HTTP-Imports; weitere Planning-Services behalten ihre separat dokumentierten
 
 In `execution.absence` und `execution.exam_protocols` bleiben die öffentlichen
 Servicebefehle die autoritative Grenze für Zustandsübergänge.
+`ExamProtocolService` verwaltet Protokollinhalt, Teilnehmende, Versionierung,
+Reaktionen, Korrekturen, Berechtigungen und Aufbewahrung über den
+Execution-eigenen `ExecutionProtocolUnitOfWork`.
+Die HTTP-Kante bildet Requests auf benannte Befehle ab; Tagesmutations-Ports
+erhalten nur die erwartete Tagesrevision und keine beliebigen Requestfelder.
+Der SQLite-Adapter materialisiert typisierte Snapshots und führt die
+Mutationen innerhalb derselben Transaktion aus.
+Protokollreferenzen für Exporte sind ein benannter, verschachtelter Snapshot.
+Der Service und seine Ports importieren weder ORM noch HTTP oder Presentation;
+Serviceantworten enthalten keine HTTP-Links; FastAPI ergänzt die Links an der
+Transportkante und übergibt den autorisierten Export-Snapshot an den
+Presentation-Renderer.
 Der Runden-Lifecycle ist im Ist-Zustand noch nicht in diese Modulgrenzen
 aufgeteilt: FastAPI ruft `context.exam_round_lifecycle_service` auf, und der
 Service öffnet eigene Sessions und greift direkt auf Planning-, Execution-

@@ -18,6 +18,9 @@ Fachliche, Nutzungs- und Betreiberanleitungen liegen im
   Observability-Grenzen.
 - Der [Backend-Vertrag](backend-architecture-contract.md) legt Zielmodule,
   Ports, Transaktionen und Migrationsschritte für die Backend-Aufteilung fest.
+- [Execution-Befehle und Transaktionen](execution-operations.md) beschreibt
+  Anwesenheit, Slotstart, Protokollteilnehmer und den befristeten Übergang der
+  Abschlussorchestrierung.
 - [Komponenten](components.md) ordnet Verantwortungen und erlaubte
   Abhängigkeiten von Backend, Frontend, Betreiber-CLI, OCI-Runtime und
   Demo-Infrastruktur.
