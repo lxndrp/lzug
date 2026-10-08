@@ -7,6 +7,9 @@ from datetime import timedelta
 from pathlib import Path
 
 from backend.application.exam_venue_api import ExamVenueApi
+from backend.execution.exam_day_closures import complete_day_mutation, guard_day_mutation
+from backend.execution.exam_protocols import create_protocol_for_started_slot
+from backend.execution.slot_service import ExecutionService
 from backend.identity.admin_service import OperatorAuthService
 from backend.identity.auth import AuthenticationRepository
 from backend.identity.authorization import AuthorizationService
@@ -24,7 +27,9 @@ from backend.persistence.auth import (
 from backend.persistence.candidate_days import SQLiteCandidateDayUnitOfWorkFactory
 from backend.persistence.committee_admin import SQLiteCommitteeAdminUnitOfWorkFactory
 from backend.persistence.database import DEFAULT_DB_PATH
+from backend.persistence.execution import SQLiteExecutionUnitOfWorkFactory
 from backend.persistence.identity import (
+    SQLiteIdentityExecutionSnapshotFactory,
     SQLiteIdentityPlanningSnapshotFactory,
     SQLiteIdentityQueryFactory,
     SQLiteIdentityUnitOfWorkFactory,
@@ -79,6 +84,19 @@ def planning_service(
             db_path,
             identity_snapshot_factory=SQLiteIdentityPlanningSnapshotFactory(),
             require_confirmed_coordinates=require_confirmed_coordinates,
+        )
+    )
+
+
+def execution_service(db_path: Path) -> ExecutionService:
+    """Wire Execution commands to a shared SQLite UoW and Identity projection."""
+    return ExecutionService(
+        SQLiteExecutionUnitOfWorkFactory(
+            db_path,
+            identity_snapshot_factory=SQLiteIdentityExecutionSnapshotFactory(),
+            guard_day_mutation=guard_day_mutation,
+            complete_day_mutation=complete_day_mutation,
+            create_started_protocol=create_protocol_for_started_slot,
         )
     )
 

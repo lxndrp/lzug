@@ -21,6 +21,7 @@ from .composition import (
     candidate_day_service as compose_candidate_day_service,
 )
 from .composition import committee_admin_service as compose_committee_admin_service
+from .composition import execution_service as compose_execution_service
 from .composition import identity_service as compose_identity_service
 from .composition import local_auth_service as compose_local_auth_service
 from .composition import notification_service as compose_notification_service
@@ -29,6 +30,7 @@ from .composition import (
     planning_resource_unit_of_work_factory as compose_planning_resource_unit_of_work_factory,
 )
 from .composition import planning_service as compose_planning_service
+from .execution.slot_service import ExecutionService
 from .fastapi_app import (
     FastAPIConfig,
     register_application_routes,
@@ -133,6 +135,7 @@ def create_app(
     *,
     runtime: RuntimeCoordinator | None = None,
     planning_service_factory: Callable[[Path], PlanningService] | None = None,
+    execution_service_factory: Callable[[Path], ExecutionService] | None = None,
     candidate_day_service_factory: Callable[[Path], CandidateDayService] | None = None,
     planning_resource_unit_of_work_factory: (
         Callable[[Path], PlanningResourceUnitOfWorkFactory] | None
@@ -180,6 +183,7 @@ def create_app(
         compose_planning_service,
         require_confirmed_coordinates=resolved.map_provider.active,
     )
+    app.state.execution_service_factory = execution_service_factory or compose_execution_service
     app.state.candidate_day_service_factory = (
         candidate_day_service_factory or compose_candidate_day_service
     )

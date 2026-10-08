@@ -87,7 +87,7 @@ def _add_slot_start_route(router, *, finish, not_found, write_security):
         actor_member_id = context.authorization_scope.member_for_committee(committee_id)
         if actor_member_id is None:
             raise ForbiddenRequestError("Forbidden.")
-        context.repository.start_exam_slot(
+        context.execution_service.start_slot(
             day_id,
             slot_id,
             payload_data(context, payload),
@@ -256,11 +256,11 @@ def _add_attendance_routes(router, *, finish, not_found, write_security):
         if actor_member_id is None:
             raise ForbiddenRequestError("Forbidden.")
         if kind == "slots":
-            context.repository.save_candidate_attendance(
+            context.execution_service.save_candidate_attendance(
                 day_id, entity_id, data, actor_member_id=actor_member_id
             )
         else:
-            context.repository.save_member_attendance(
+            context.execution_service.save_member_attendance(
                 day_id, entity_id, data, actor_member_id=actor_member_id
             )
         return _confirmed_day(context, day_id, finish=finish, not_found=not_found)
@@ -307,7 +307,7 @@ def _add_slot_status_route(router, *, finish, not_found, write_security):
         actor_member_id = context.authorization_scope.member_for_committee(committee_id)
         if actor_member_id is None:
             raise ForbiddenRequestError("Forbidden.")
-        context.repository.update_exam_slot_status(
+        context.execution_service.update_slot_status(
             day_id,
             slot_id,
             data,

@@ -26,6 +26,10 @@ from backend.persistence.store import Store
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
+    from backend.execution.slot_ports import (
+        ExecutionIdentitySnapshots,
+        MemberExecutionSnapshot,
+    )
     from backend.identity.people import IdentityQueries, IdentityUnitOfWork
     from backend.planning.proposal_ports import (
         CommitteeMemberSnapshot,
@@ -297,6 +301,36 @@ class SQLiteIdentityPlanningSnapshots:
             "committee_id": row.committee_id,
             "representing_side": row.representing_side,
             "is_active": row.is_active,
+        }
+
+
+class SQLiteIdentityExecutionSnapshotFactory:
+    """Build Execution-owned membership projections on the caller's session."""
+
+    def __call__(self, session: Session) -> ExecutionIdentitySnapshots:
+        return SQLiteIdentityExecutionSnapshots(session)
+
+
+class SQLiteIdentityExecutionSnapshots:
+    """Expose only membership identity facts required by Execution."""
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def members_by_id(self, member_ids: Sequence[int]) -> dict[int, MemberExecutionSnapshot]:
+        if not member_ids:
+            return {}
+        rows = self._session.execute(
+            select(CommitteeMember.id, CommitteeMember.representing_side).where(
+                CommitteeMember.id.in_(member_ids)
+            )
+        ).all()
+        return {
+            int(row.id): {
+                "id": int(row.id),
+                "representing_side": str(row.representing_side),
+            }
+            for row in rows
         }
 
 

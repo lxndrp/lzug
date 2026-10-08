@@ -35,6 +35,7 @@ from backend.execution.absence import AbsenceService
 from backend.execution.exam_day_closures import ExamDayClosureService
 from backend.execution.exam_protocols import ExamProtocolService
 from backend.execution.exam_round_lifecycle import ExamRoundLifecycleService
+from backend.execution.slot_service import ExecutionService
 from backend.identity.auth import AuthContext, AuthenticationRepository, SessionCredentials
 from backend.identity.authorization import AuthorizationScope, AuthorizationService
 from backend.identity.committee_admin import CommitteeAdminService
@@ -79,6 +80,7 @@ class RequestContext:
     max_request_bytes: int
     runtime_policy: RuntimePolicy
     planning_service_factory: Callable[[Path], PlanningService]
+    execution_service_factory: Callable[[Path], ExecutionService]
     candidate_day_service_factory: Callable[[Path], CandidateDayService]
     planning_resource_unit_of_work_factory: Callable[[Path], PlanningResourceUnitOfWorkFactory]
     resource_access_query_factory: Callable[[Path], ResourceAccessQueryFactory]
@@ -218,6 +220,10 @@ class RequestContext:
     @property
     def exam_protocol_service(self) -> ExamProtocolService:
         return ExamProtocolService(self.db_path)
+
+    @property
+    def execution_service(self) -> ExecutionService:
+        return self.execution_service_factory(self.db_path)
 
     @property
     def exam_result_service(self) -> ExamResultService:
