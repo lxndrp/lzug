@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from urllib.parse import urlsplit
@@ -181,6 +182,48 @@ class NotificationService:
                     )
         self.process_deliveries()
         return len(created_ids)
+
+    def create_direct_if_current(
+        self,
+        *,
+        is_current: Callable[[], bool],
+        committee_id: int,
+        round_id: int | None,
+        recipient_member_id: int,
+        event_type: str,
+        title: str,
+        message: str,
+        action_path: str,
+        origin_key: str,
+    ) -> bool:
+        """Persist a targeted notice only while its source still matches.
+
+        The guard runs under SQLite write intent so a concurrent domain write
+        cannot commit between source validation and notice persistence.
+        """
+        with self._notification_unit_of_work_factory(begin_immediate=True) as unit_of_work:
+            if not is_current():
+                return False
+            write = unit_of_work.save_notice(
+                NoticeDraft(
+                    committee_id=committee_id,
+                    round_id=round_id,
+                    recipient_member_id=recipient_member_id,
+                    event_type=event_type,
+                    origin_key=f"{origin_key}:{recipient_member_id}",
+                    title=title,
+                    message=message,
+                    action_path=action_path,
+                )
+            )
+            if write.created and self.external_delivery_enabled:
+                unit_of_work.queue_deliveries(
+                    write.id,
+                    recipient_member_id,
+                    self._channel_configuration(),
+                )
+        self.process_deliveries()
+        return True
 
     def create_plan_change(
         self,

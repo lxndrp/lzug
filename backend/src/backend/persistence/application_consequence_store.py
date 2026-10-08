@@ -155,7 +155,16 @@ class SQLiteApplicationConsequenceStore:
                             )
                             session.flush()
                     except IntegrityError:
-                        pass
+                        duplicate = session.scalar(
+                            select(PlanConsequence.id).where(
+                                PlanConsequence.batch_id == batch.id,
+                                PlanConsequence.recipient_member_id == task["recipient_member_id"],
+                                PlanConsequence.consequence_type == task["consequence_type"],
+                                PlanConsequence.identity_key == task["identity_key"],
+                            )
+                        )
+                        if duplicate is None:
+                            raise
                 batch.status = "succeeded"
                 batch.next_attempt_at = None
                 batch.error_code = None

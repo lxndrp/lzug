@@ -6,10 +6,13 @@ from http import HTTPStatus
 from unittest.mock import patch
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 
 from backend.composition import calendar_service as create_calendar_service
 from backend.composition import planning_service
 from backend.identity.authorization import AuthorizationScope
+from backend.notifications.service import NotificationService
+from backend.persistence.application_consequence_store import SQLiteApplicationConsequenceStore
 from backend.persistence.application_consequences import PlanConsequence, PlanConsequenceBatch
 from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.persistence.database import session_scope
@@ -458,7 +461,9 @@ class VenueConsequenceTests(unittest.TestCase):
                 session.delete(batch)
 
             service = venue_consequence_service_for_test(db_path)
-            recovered = service.process_due()
+            with patch.object(service, "_supersede_stale", wraps=service._supersede_stale) as scan:
+                recovered = service.process_due()
+            scan.assert_not_called()
             self.assertGreater(recovered["processed"], 0)
             self.assertEqual(0, recovered["problems"])
             self.assertEqual([], service.problems_for_venue(1))
@@ -524,6 +529,107 @@ class VenueConsequenceTests(unittest.TestCase):
             self.assertEqual(0, old["problems"])
         finally:
             database.__exit__(None, None, None)
+
+    def test_notification_write_rechecks_venue_freshness_atomically(self) -> None:
+        database, db_path = self._confirmed_database()
+        try:
+            venues = exam_venue_service_for_test(db_path)
+            venue = venues.get_venue(1)
+            assert venue is not None
+            original = NotificationService.create_direct_if_current
+            state = {"advanced": False, "new_audit_id": None}
+
+            def advance_before_atomic_write(service, **kwargs):
+                if not state["advanced"]:
+                    state["advanced"] = True
+                    current = venues.get_venue(1)
+                    assert current is not None
+                    updated = venues.update_venue(
+                        1,
+                        {
+                            "expected_revision": current["revision"],
+                            "site_name": "Aktueller Standort",
+                            "confirm_future_assignments": True,
+                        },
+                        technical_actor="operator:test",
+                    )
+                    assert updated is not None
+                    state["new_audit_id"] = updated["consequence_audit_id"]
+                return original(service, **kwargs)
+
+            with patch.object(
+                NotificationService,
+                "create_direct_if_current",
+                new=advance_before_atomic_write,
+            ):
+                old_update = venues.update_venue(
+                    1,
+                    {
+                        "expected_revision": venue["revision"],
+                        "site_name": "Zwischenstand",
+                        "confirm_future_assignments": True,
+                    },
+                    technical_actor="operator:test",
+                )
+
+            assert old_update is not None
+            old_audit_id = old_update["consequence_audit_id"]
+            new_audit_id = state["new_audit_id"]
+            assert new_audit_id is not None
+            with session_scope(db_path) as session:
+                old_notices = session.scalar(
+                    select(func.count())
+                    .select_from(Notification)
+                    .where(Notification.origin_key.like(f"exam-venue-change:{old_audit_id}:%"))
+                )
+                new_notices = session.scalar(
+                    select(func.count())
+                    .select_from(Notification)
+                    .where(Notification.origin_key.like(f"exam-venue-change:{new_audit_id}:%"))
+                )
+                old_task_statuses = session.scalars(
+                    select(PlanConsequence.status)
+                    .join(PlanConsequenceBatch)
+                    .where(
+                        PlanConsequenceBatch.origin_type == "exam_venue_audit_event",
+                        PlanConsequenceBatch.origin_key == str(old_audit_id),
+                    )
+                ).all()
+
+            self.assertEqual(0, old_notices)
+            self.assertGreater(new_notices, 0)
+            self.assertIn("superseded", old_task_statuses)
+        finally:
+            database.__exit__(None, None, None)
+
+    def test_record_batch_reraises_nonduplicate_integrity_errors(self) -> None:
+        with TempDatabase() as db_path:
+            store = SQLiteApplicationConsequenceStore(db_path)
+            with self.assertRaises(IntegrityError):
+                store.record_batch(
+                    origin_type="exam_venue_audit_event",
+                    origin_key="invalid-recipient",
+                    confirmed_plan_revision_id=None,
+                    notification_scope=(),
+                    tasks=(
+                        {
+                            "recipient_member_id": 99999999,
+                            "consequence_type": "calendar",
+                            "action": "update",
+                            "identity_key": "missing-member",
+                            "details_json": "{}",
+                        },
+                    ),
+                    error_code=None,
+                    now=datetime.now(UTC).isoformat(),
+                )
+            with session_scope(db_path) as session:
+                batch = session.scalar(
+                    select(PlanConsequenceBatch).where(
+                        PlanConsequenceBatch.origin_key == "invalid-recipient"
+                    )
+                )
+            self.assertIsNone(batch)
 
     def test_abort_requires_confirmation_before_master_data_change(self) -> None:
         database, db_path = self._confirmed_database()

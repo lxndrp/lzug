@@ -246,6 +246,20 @@ class NotificationApplicationPort(Protocol):
         action_path: str,
     ) -> tuple[bool, set[int]]: ...
 
+    def create_direct_if_current(
+        self,
+        *,
+        is_current: Callable[[], bool],
+        committee_id: int,
+        round_id: int | None,
+        recipient_member_id: int,
+        event_type: str,
+        title: str,
+        message: str,
+        action_path: str,
+        origin_key: str,
+    ) -> bool: ...
+
 
 __all__ = [
     "ApplicationConsequenceStore",

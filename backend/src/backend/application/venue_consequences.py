@@ -76,28 +76,30 @@ class VenueConsequenceService:
     def process_due(self, *, now: datetime | None = None) -> dict[str, int]:
         """Re-derive missing audit batches and resume due tasks after a crash."""
         current = _now(now)
-        audit_ids: list[int] = []
-        due_task_ids: set[int] = set()
+        audits = tuple(
+            audit
+            for audit in self.venue_planner.consequence_audits()
+            if self._audit_details(audit).get("consequence_version") == 1
+        )
+        audit_ids = {audit.id for audit in audits}
         derivation_problems = 0
-        for audit in self.venue_planner.consequence_audits():
-            if self._audit_details(audit).get("consequence_version") != 1:
+        existing_batches = self.consequence_store.batches_by_origin("exam_venue_audit_event")
+        existing_origins = {batch.origin_key for batch in existing_batches}
+        for audit in audits:
+            if str(audit.id) in existing_origins:
                 continue
-            audit_ids.append(audit.id)
-            batch = self.consequence_store.batch_by_origin("exam_venue_audit_event", str(audit.id))
             try:
-                batch_id = batch.id if batch is not None else self._derive(audit.id, current)
-                due_task_ids.update(
-                    self.consequence_store.due_task_ids(
-                        origin_type="exam_venue_audit_event",
-                        now=_timestamp(current),
-                        batch_id=batch_id,
-                    )
-                )
-                self._supersede_stale(audit.id, current)
-                self._process_tasks(batch_id, current)
+                self._derive(audit.id, current)
             except Exception:
                 derivation_problems += 1
         batches = self.consequence_store.batches_by_origin("exam_venue_audit_event")
+        due_task_ids = self.consequence_store.due_task_ids(
+            origin_type="exam_venue_audit_event",
+            now=_timestamp(current),
+        )
+        derivation_problems += self._supersede_stale_all(batches, current)
+        for task_id in due_task_ids:
+            self._process_task(task_id, current)
         failed_tasks = sum(
             task.status in {"temporarily_failed", "permanently_failed"}
             for batch in batches
@@ -266,23 +268,26 @@ class VenueConsequenceService:
         member_id = task.recipient_member_id
         is_current = self._is_current(task.consequence_type, details, today)
         if not is_current:
-            self._supersede(task, current)
+            self._supersede(task, current, claim_until)
             return
         try:
             if not self._owns_claim(task_id, claim_until):
                 return
             if not self._is_current(task.consequence_type, details, date.today()):
-                self._supersede(task, current)
+                self._supersede(task, current, claim_until)
                 return
             if consequence_type == "calendar":
                 event = self.calendar.sync_assignment(assignment_ids[0], future_from=today)
                 if event is None:
                     raise RuntimeError("Calendar event could not be synchronized")
             else:
-                self.notifications.create_direct(
+                created = self.notifications.create_direct_if_current(
+                    is_current=lambda: self._is_current(
+                        task.consequence_type, details, date.today()
+                    ),
                     committee_id=int(details["committee_id"]),
                     round_id=None,
-                    recipient_member_ids={member_id},
+                    recipient_member_id=member_id,
                     event_type="exam_venue_changed",
                     title="Prüfungsort geändert",
                     message=(
@@ -293,6 +298,9 @@ class VenueConsequenceService:
                     action_path=f"/locations/{details['venue_id']}",
                     origin_key=f"exam-venue-change:{details['audit_id']}",
                 )
+                if not created:
+                    self._supersede(task, current, claim_until)
+                    return
         except Exception:
             self._fail(task_id, f"{consequence_type}_processing_failed", current, claim_until)
             return
@@ -362,7 +370,29 @@ class VenueConsequenceService:
                 details = json.loads(task.details_json)
                 is_current = self._is_current(task.consequence_type, details, today)
                 if not is_current:
-                    self._supersede(task, current)
+                    self._supersede(
+                        task,
+                        current,
+                        task.next_attempt_at if task.status == "pending" else None,
+                    )
+
+    def _supersede_stale_all(self, batches, current: datetime) -> int:
+        today = date.today()
+        pending_statuses = frozenset({"pending", "temporarily_failed", "permanently_failed"})
+        problems = 0
+        for batch in batches:
+            for task in self.consequence_store.tasks_for_batch(batch.id, statuses=pending_statuses):
+                try:
+                    details = json.loads(task.details_json)
+                    if not self._is_current(task.consequence_type, details, today):
+                        self._supersede(
+                            task,
+                            current,
+                            task.next_attempt_at if task.status == "pending" else None,
+                        )
+                except Exception:
+                    problems += 1
+        return problems
 
     def _fail(
         self, task_id: int, code: str, current: datetime, claim_until: str | None = None
@@ -388,7 +418,7 @@ class VenueConsequenceService:
             expected_claim_until=claim_until,
         )
 
-    def _supersede(self, task, current: datetime) -> None:
+    def _supersede(self, task, current: datetime, claim_until: str | None = None) -> None:
         self.consequence_store.set_task_state(
             task.id,
             status="superseded",
@@ -398,6 +428,7 @@ class VenueConsequenceService:
             calendar_event_id=task.calendar_event_id,
             calendar_event_version=task.calendar_event_version,
             updated_at=_timestamp(current),
+            expected_claim_until=claim_until,
         )
 
     @staticmethod
