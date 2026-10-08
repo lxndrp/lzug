@@ -7,6 +7,7 @@ from unittest.mock import patch
 from sqlalchemy import select, text
 
 from backend.application.exam_lifecycle import ExamLifecycleApplication
+from backend.application.exam_lifecycle_commands import round_decision_command, round_reopen_command
 from backend.composition import (
     SQLiteAssessmentLifecycleAdapter,
     authorization_service,
@@ -393,7 +394,7 @@ class ExamRoundLifecycleTests(unittest.TestCase):
             ),
             lambda: service,
         )
-        close = {"revision": 1, "confirmed": True}
+        close = round_decision_command({"revision": 1, "confirmed": True})
         with (
             patch.object(service, "_view", side_effect=RuntimeError("test view failure")),
             self.assertRaisesRegex(RuntimeError, "test view failure"),
@@ -407,13 +408,14 @@ class ExamRoundLifecycleTests(unittest.TestCase):
 
         application.close_exam_round(scope, 1, close)
         service.machine_export(scope, 1)
-        command = {
+        command_payload = {
             "revision": 2,
             "occasion": "Berichtigung",
             "source": "IHK-Vorgang",
             "reason": "Rundenbezeichnung korrigieren",
             "scope": [{"kind": "planning", "entity_id": 1}],
         }
+        command = round_reopen_command(command_payload)
         with (
             patch.object(service, "_view", side_effect=RuntimeError("test view failure")),
             patch.object(service, "_notify") as notify,
@@ -438,14 +440,53 @@ class ExamRoundLifecycleTests(unittest.TestCase):
         self.assertEqual(2, len(reopened["tasks"]))
         self.assertEqual({"reconfirmation"}, {item["task_type"] for item in reopened["tasks"]})
         with self.assertRaises(ExamRoundConflictError):
-            application.reopen_exam_round(scope, 1, {**command, "reason": "Anderer Auftrag"})
-        reclosed = application.close_exam_round(scope, 1, {"revision": 3, "confirmed": True})
+            application.reopen_exam_round(
+                scope,
+                1,
+                round_reopen_command({**command_payload, "reason": "Anderer Auftrag"}),
+            )
+        reclosed = application.close_exam_round(
+            scope, 1, round_decision_command({"revision": 3, "confirmed": True})
+        )
         self.assertEqual("reclosed", reclosed["history"][-1]["event_type"])
         self.assertTrue(all(item["status"] == "completed" for item in reclosed["tasks"]))
         with session_scope(self.db_path) as session:
             self.assertEqual(2, session.query(ExamRoundDecision).count())
             self.assertEqual(1, session.query(ExamRoundReopening).count())
             self.assertEqual(3, session.query(ExamRoundAuditEvent).count())
+
+    def test_planning_round_lifecycle_cas_rolls_back_with_the_shared_uow(self) -> None:
+        factory = SQLiteExamLifecycleUnitOfWorkFactory(
+            SQLiteExecutionUnitOfWorkFactory(
+                self.db_path,
+                identity_snapshot_factory=SQLiteIdentityExecutionSnapshotFactory(),
+            ),
+            SQLiteAssessmentUnitOfWorkFactory(self.db_path),
+            self.db_path,
+            SQLiteAssessmentLifecycleAdapter(SQLiteAssessmentUnitOfWorkFactory(self.db_path)),
+        )
+        with self.assertRaisesRegex(RuntimeError, "round CAS rollback"):
+            with factory() as unit_of_work:
+                planning = unit_of_work.planning_lifecycle
+                snapshot = planning.round_lifecycle_snapshot(1)
+                self.assertIsNotNone(snapshot)
+                self.assertTrue(
+                    planning.advance_round_lifecycle(
+                        1, snapshot.revision, "2026-10-08T12:00:00+00:00", lifecycle_status="closed"
+                    )
+                )
+                self.assertFalse(
+                    planning.advance_round_lifecycle(
+                        1,
+                        snapshot.revision,
+                        "2026-10-08T12:00:01+00:00",
+                        lifecycle_status="cancelled",
+                    )
+                )
+                raise RuntimeError("round CAS rollback")
+        with session_scope(self.db_path) as session:
+            round_state = session.get(ExamRound, 1)
+            self.assertEqual(("open", 1), (round_state.lifecycle_status, round_state.revision))
 
     def test_terminal_candidate_evidence_and_revision_guard_precede_mutation(self) -> None:
         service = ExamRoundLifecycleService(

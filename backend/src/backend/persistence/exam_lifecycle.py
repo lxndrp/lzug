@@ -6,6 +6,7 @@ from collections.abc import Callable, Iterator
 from contextlib import AbstractContextManager, contextmanager
 from pathlib import Path
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from backend.persistence.assessment import SQLiteAssessmentUnitOfWorkFactory
@@ -13,6 +14,7 @@ from backend.persistence.calendar_lifecycle import SQLiteCalendarLifecycleWork
 from backend.persistence.database import DEFAULT_DB_PATH, session_scope
 from backend.persistence.execution import SQLiteExecutionUnitOfWorkFactory
 from backend.persistence.identity_lifecycle import SQLiteIdentityLifecycleWork
+from backend.persistence.models import ExamDay
 from backend.persistence.planning_lifecycle import SQLitePlanningLifecycleWork
 
 
@@ -111,114 +113,59 @@ class _SQLiteExamLifecycleExecution:
     def __getattr__(self, name):
         return getattr(self._execution, name)
 
-    def close_exam_day(
-        self,
-        service,
-        assessment_lifecycle,
-        planning_lifecycle,
-        identity_lifecycle,
-        scope,
-        day_id: int,
-        payload: dict,
-    ):
-        """Run the Execution-owned close rule inside this composed UoW."""
-        return service.close_in_transaction(
-            self._session,
-            scope,
-            day_id,
-            payload,
-            assessment_lifecycle,
-            planning_lifecycle,
-            identity_lifecycle,
+    def exam_day_round_id(self, day_id: int) -> int | None:
+        day = self._session.get(ExamDay, day_id)
+        return day.exam_round_id if day is not None else None
+
+    def exam_day_ids_for_round(self, round_id: int) -> tuple[int, ...]:
+        return tuple(
+            self._session.scalars(
+                select(ExamDay.id).where(ExamDay.exam_round_id == round_id).order_by(ExamDay.id)
+            )
         )
 
-    def reopen_exam_day(
-        self,
-        service,
-        assessment_lifecycle,
-        planning_lifecycle,
-        identity_lifecycle,
-        scope,
-        day_id: int,
-        payload: dict,
-    ):
-        """Run the Execution-owned reopening rule inside this composed UoW."""
-        return service.reopen_in_transaction(
-            self._session,
-            scope,
-            day_id,
-            payload,
-            assessment_lifecycle,
-            planning_lifecycle,
-            identity_lifecycle,
+    def evaluate_round_decision(self, service, scope, command, decision_type, facts):
+        return service.evaluate_decision_intent(self._session, scope, command, decision_type, facts)
+
+    def replay_round_decision(self, service, scope, intent, facts):
+        return service.replay_decision_intent(self._session, scope, intent, facts)
+
+    def apply_round_decision(self, service, scope, intent, facts, cancelled_recipients):
+        return service.apply_decision_intent(
+            self._session, scope, intent, facts, cancelled_recipients
         )
 
-    def close_exam_round(
-        self,
-        service,
-        assessment_lifecycle,
-        planning_lifecycle,
-        identity_lifecycle,
-        calendar_lifecycle,
-        scope,
-        round_id: int,
-        payload: dict,
-    ):
-        """Run the Execution-owned close rule inside this composed UoW."""
-        return service.decide_in_transaction(
-            self._session,
-            scope,
-            round_id,
-            payload,
-            "close",
-            assessment_lifecycle,
-            planning_lifecycle,
-            identity_lifecycle,
-            calendar_lifecycle,
+    def evaluate_round_reopen(self, service, scope, command, facts):
+        return service.evaluate_reopen_intent(self._session, scope, command, facts)
+
+    def round_reopening_impact(self, service, scope, facts, raw_scope):
+        return service.reopening_impact_from_facts(self._session, scope, facts, raw_scope)
+
+    def replay_round_reopen(self, service, scope, intent, facts):
+        return service.replay_reopen_intent(self._session, scope, intent, facts)
+
+    def apply_round_reopen(self, service, scope, intent, facts):
+        return service.apply_reopen_intent(self._session, scope, intent, facts)
+
+    def evaluate_day_close(self, service, scope, day_id, command, facts):
+        return service.evaluate_close_intent(self._session, scope, day_id, command, facts)
+
+    def apply_day_close(self, service, scope, intent, facts):
+        return service.apply_close_intent(self._session, scope, intent, facts)
+
+    def day_reopening_impact(self, service, scope, day_id, raw_scope, facts):
+        return service.reopening_impact_from_facts(self._session, scope, day_id, raw_scope, facts)
+
+    def evaluate_day_reopen(self, service, scope, day_id, command, facts):
+        return service.evaluate_reopen_intent(self._session, scope, day_id, command, facts)
+
+    def begin_day_reopen(self, service, intent):
+        return service.begin_reopen_intent(self._session, intent)
+
+    def complete_day_reopen(self, service, scope, handle, facts, assessment_corrections):
+        return service.complete_reopen_intent(
+            self._session, scope, handle, facts, assessment_corrections
         )
 
-    def cancel_exam_round(
-        self,
-        service,
-        assessment_lifecycle,
-        planning_lifecycle,
-        identity_lifecycle,
-        calendar_lifecycle,
-        scope,
-        round_id: int,
-        payload: dict,
-    ):
-        """Run the Execution-owned cancellation rule inside this composed UoW."""
-        return service.decide_in_transaction(
-            self._session,
-            scope,
-            round_id,
-            payload,
-            "cancel",
-            assessment_lifecycle,
-            planning_lifecycle,
-            identity_lifecycle,
-            calendar_lifecycle,
-        )
-
-    def reopen_exam_round(
-        self,
-        service,
-        assessment_lifecycle,
-        planning_lifecycle,
-        identity_lifecycle,
-        calendar_lifecycle,
-        scope,
-        round_id: int,
-        payload: dict,
-    ):
-        """Run the Execution-owned round reopening rule inside this composed UoW."""
-        return service.reopen_in_transaction(
-            self._session,
-            scope,
-            round_id,
-            payload,
-            assessment_lifecycle,
-            planning_lifecycle,
-            identity_lifecycle,
-        )
+    def replay_day_reopen(self, service, scope, intent, facts):
+        return service.replay_reopen_intent(self._session, scope, intent, facts)

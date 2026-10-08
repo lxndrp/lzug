@@ -7,6 +7,7 @@ from unittest.mock import patch
 from sqlalchemy import event, text
 
 from backend.application.exam_lifecycle import ExamLifecycleApplication
+from backend.application.exam_lifecycle_commands import day_close_command, day_reopen_command
 from backend.assessment.service import ExamResultService
 from backend.composition import (
     SQLiteAssessmentLifecycleAdapter,
@@ -136,7 +137,9 @@ class ExamDayClosureTests(unittest.TestCase):
             event.listen(connection, "before_cursor_execute", count_statement)
             try:
                 snapshot = ExamDayClosureService._load_closure_snapshot(
-                    session, day, planning_lifecycle_work_factory()(session),
+                    session,
+                    day,
+                    planning_lifecycle_work_factory()(session),
                     identity_lifecycle_work_factory()(session),
                 )
             finally:
@@ -640,25 +643,40 @@ class ExamDayClosureTests(unittest.TestCase):
             management_committee_ids=frozenset({1}),
             member_by_committee={1: 1},
         )
+        application = ExamLifecycleApplication(
+            SQLiteExamLifecycleUnitOfWorkFactory(
+                SQLiteExecutionUnitOfWorkFactory(
+                    self.db_path,
+                    identity_snapshot_factory=SQLiteIdentityExecutionSnapshotFactory(),
+                ),
+                SQLiteAssessmentUnitOfWorkFactory(self.db_path),
+                self.db_path,
+                SQLiteAssessmentLifecycleAdapter(SQLiteAssessmentUnitOfWorkFactory(self.db_path)),
+            ),
+            lambda: service,
+        )
+
+        def assert_committed_before_notification(*_args, **_kwargs):
+            with session_scope(self.db_path) as session:
+                self.assertEqual("closed_exception", session.get(ExamDay, 3).closure_status)
+
         with patch(
-            "backend.execution.exam_day_closures.NotificationService.create_direct"
+            "backend.execution.exam_day_closures.NotificationService.create_direct",
+            side_effect=assert_committed_before_notification,
         ) as create_direct:
-            with session_scope(self.db_path, begin_immediate=True) as session:
-                outcome = service.close_in_transaction(
-                    session,
-                    scope,
-                    3,
+            application.close_exam_day(
+                scope,
+                3,
+                day_close_command(
                     {
                         "revision": 1,
                         "closure_type": "exception",
                         "confirmed": True,
                         "reason": "Synthetischer Ausnahmegrund",
                         "clarification_attempts": "Synthetischer Klärungsversuch",
-                    },
-                )
-                create_direct.assert_not_called()
-            create_direct.assert_not_called()
-            service.publish_close_notifications(outcome)
+                    }
+                ),
+            )
             create_direct.assert_called()
 
     def test_application_close_rolls_back_execution_write_failure(self) -> None:
@@ -677,9 +695,7 @@ class ExamDayClosureTests(unittest.TestCase):
                 ),
                 SQLiteAssessmentUnitOfWorkFactory(self.db_path),
                 self.db_path,
-                SQLiteAssessmentLifecycleAdapter(
-                    SQLiteAssessmentUnitOfWorkFactory(self.db_path)
-                ),
+                SQLiteAssessmentLifecycleAdapter(SQLiteAssessmentUnitOfWorkFactory(self.db_path)),
             ),
             lambda: service,
         )
@@ -700,13 +716,15 @@ class ExamDayClosureTests(unittest.TestCase):
                 application.close_exam_day(
                     scope,
                     3,
-                    {
-                        "revision": 1,
-                        "closure_type": "exception",
-                        "confirmed": True,
-                        "reason": "Synthetischer Ausnahmegrund",
-                        "clarification_attempts": "Synthetischer Klärungsversuch",
-                    },
+                    day_close_command(
+                        {
+                            "revision": 1,
+                            "closure_type": "exception",
+                            "confirmed": True,
+                            "reason": "Synthetischer Ausnahmegrund",
+                            "clarification_attempts": "Synthetischer Klärungsversuch",
+                        }
+                    ),
                 )
 
         with session_scope(self.db_path) as session:
@@ -746,13 +764,15 @@ class ExamDayClosureTests(unittest.TestCase):
         application.close_exam_day(
             scope,
             3,
-            {
-                "revision": 1,
-                "closure_type": "exception",
-                "confirmed": True,
-                "reason": "Synthetischer Ausnahmegrund",
-                "clarification_attempts": "Synthetischer Klärungsversuch",
-            },
+            day_close_command(
+                {
+                    "revision": 1,
+                    "closure_type": "exception",
+                    "confirmed": True,
+                    "reason": "Synthetischer Ausnahmegrund",
+                    "clarification_attempts": "Synthetischer Klärungsversuch",
+                }
+            ),
         )
         with session_scope(self.db_path) as session:
             calculation = ResultCalculation(
@@ -788,10 +808,7 @@ class ExamDayClosureTests(unittest.TestCase):
             task_count = session.query(ExamDayTask).filter_by(exam_day_id=3).count()
             audit_count = session.query(ExamDayAuditEvent).filter_by(exam_day_id=3).count()
 
-        original_open = service._open_dependent_corrections
-
         def fail_after_assessment_mutation(*args, **kwargs):
-            original_open(*args, **kwargs)
             transaction = args[0]
             self.assertTrue(transaction.get(ExamResult, 2).correction_open)
             self.assertEqual(1, transaction.query(ResultCorrection).count())
@@ -800,15 +817,16 @@ class ExamDayClosureTests(unittest.TestCase):
                 1,
                 transaction.query(ExamDayReopening).filter_by(exam_day_id=3).count(),
             )
-            self.assertGreater(
-                transaction.query(ExamDayTask).filter_by(exam_day_id=3).count(), task_count
+            self.assertEqual(
+                task_count, transaction.query(ExamDayTask).filter_by(exam_day_id=3).count()
             )
+            self.assertEqual(1, args[4][2]["determination_id"])
             raise RuntimeError("synthetic failure after assessment correction")
 
         with (
             patch.object(
                 service,
-                "_open_dependent_corrections",
+                "complete_reopen_intent",
                 side_effect=fail_after_assessment_mutation,
             ),
         ):
@@ -816,13 +834,15 @@ class ExamDayClosureTests(unittest.TestCase):
                 application.reopen_exam_day(
                     scope,
                     3,
-                    {
-                        "revision": 2,
-                        "occasion": "Korrekturanlass",
-                        "source": "Prüfungsausschuss",
-                        "reason": "Korrektur erforderlich",
-                        "scope": [{"kind": "exam_result", "entity_id": 2}],
-                    },
+                    day_reopen_command(
+                        {
+                            "revision": 2,
+                            "occasion": "Korrekturanlass",
+                            "source": "Prüfungsausschuss",
+                            "reason": "Korrektur erforderlich",
+                            "scope": [{"kind": "exam_result", "entity_id": 2}],
+                        }
+                    ),
                 )
 
         with session_scope(self.db_path) as session:

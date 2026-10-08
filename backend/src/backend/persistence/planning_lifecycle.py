@@ -4,12 +4,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
 from backend.lifecycle_ports import (
     PlanAssignmentLifecycleSnapshot,
     PlanningCandidateLifecycleSnapshot,
+    PlanningRoundLifecycleSnapshot,
     PlanSlotLifecycleSnapshot,
 )
 from backend.persistence.models import (
@@ -35,6 +36,50 @@ class SQLitePlanningLifecycleWork:
 
     def __init__(self, session: Session) -> None:
         self._session = session
+
+    def round_lifecycle_snapshot(self, round_id: int) -> PlanningRoundLifecycleSnapshot | None:
+        row = self._session.get(ExamRound, round_id)
+        if row is None:
+            return None
+        return PlanningRoundLifecycleSnapshot(
+            id=row.id,
+            exam_half_year_id=row.exam_half_year_id,
+            committee_id=row.committee_id,
+            name=row.name,
+            status=row.status,
+            revision=row.revision,
+            lifecycle_status=row.lifecycle_status,
+            legacy_status=row.legacy_status,
+        )
+
+    def advance_round_lifecycle(
+        self,
+        round_id: int,
+        expected_revision: int,
+        now: str,
+        *,
+        lifecycle_status: str | None = None,
+    ) -> bool:
+        values = {"revision": ExamRound.revision + 1, "updated_at": now}
+        if lifecycle_status is not None:
+            values["lifecycle_status"] = lifecycle_status
+        result = self._session.execute(
+            update(ExamRound)
+            .where(ExamRound.id == round_id, ExamRound.revision == expected_revision)
+            .values(**values)
+        )
+        return result.rowcount == 1
+
+    def delete_empty_draft_round(self, round_id: int, expected_revision: int) -> bool:
+        result = self._session.execute(
+            delete(ExamRound).where(
+                ExamRound.id == round_id,
+                ExamRound.revision == expected_revision,
+                ExamRound.status == "draft",
+                ExamRound.lifecycle_status == "open",
+            )
+        )
+        return result.rowcount == 1
 
     def round_candidates(self, round_id: int) -> tuple[dict[str, Any], ...]:
         rows = self._session.scalars(
@@ -65,9 +110,7 @@ class SQLitePlanningLifecycleWork:
             return None
         return self._candidate(row)
 
-    def candidate_assignment(
-        self, round_candidate_id: int, round_id: int
-    ) -> dict[str, Any] | None:
+    def candidate_assignment(self, round_candidate_id: int, round_id: int) -> dict[str, Any] | None:
         row = self._session.scalar(
             select(CandidateCommitteeAssignment).where(
                 CandidateCommitteeAssignment.round_candidate_id == round_candidate_id,
@@ -84,13 +127,16 @@ class SQLitePlanningLifecycleWork:
         target_round = self._session.get(ExamRound, target_round_id)
         if target_round is None or target_round.exam_half_year_id != source_half_year_id:
             return False
-        return self._session.scalar(
-            select(CandidateCommitteeAssignment.id).where(
-                CandidateCommitteeAssignment.candidate_id == candidate_id,
-                CandidateCommitteeAssignment.exam_round_id == target_round_id,
-                CandidateCommitteeAssignment.ended_at.is_(None),
+        return (
+            self._session.scalar(
+                select(CandidateCommitteeAssignment.id).where(
+                    CandidateCommitteeAssignment.candidate_id == candidate_id,
+                    CandidateCommitteeAssignment.exam_round_id == target_round_id,
+                    CandidateCommitteeAssignment.ended_at.is_(None),
+                )
             )
-        ) is not None
+            is not None
+        )
 
     def update_candidate_terminal(
         self,
@@ -129,14 +175,18 @@ class SQLitePlanningLifecycleWork:
 
     def lifecycle_context(self, round_id: int, half_year_id: int, candidate_ids):
         half_year = self._session.get(ExamHalfYear, half_year_id)
-        assignments = self._session.scalars(
-            select(CandidateCommitteeAssignment)
-            .where(
-                CandidateCommitteeAssignment.exam_half_year_id == half_year_id,
-                CandidateCommitteeAssignment.candidate_id.in_(candidate_ids),
+        assignments = (
+            self._session.scalars(
+                select(CandidateCommitteeAssignment)
+                .where(
+                    CandidateCommitteeAssignment.exam_half_year_id == half_year_id,
+                    CandidateCommitteeAssignment.candidate_id.in_(candidate_ids),
+                )
+                .order_by(CandidateCommitteeAssignment.id)
             )
-            .order_by(CandidateCommitteeAssignment.id)
-        ) if candidate_ids else ()
+            if candidate_ids
+            else ()
+        )
         revisions = self._session.scalars(
             select(ConfirmedPlanRevision)
             .where(ConfirmedPlanRevision.exam_round_id == round_id)
@@ -300,9 +350,7 @@ class SQLitePlanningLifecycleWork:
                 actual_completed_at=row.actual_completed_at,
             )
             for row in self._session.scalars(
-                select(ExamSlot)
-                .where(ExamSlot.exam_day_id.in_(day_ids))
-                .order_by(ExamSlot.id)
+                select(ExamSlot).where(ExamSlot.exam_day_id.in_(day_ids)).order_by(ExamSlot.id)
             )
         )
 
@@ -311,9 +359,7 @@ class SQLitePlanningLifecycleWork:
             return ()
         return tuple(
             self._session.scalars(
-                select(ExamSlot.id)
-                .where(ExamSlot.exam_day_id.in_(day_ids))
-                .order_by(ExamSlot.id)
+                select(ExamSlot.id).where(ExamSlot.exam_day_id.in_(day_ids)).order_by(ExamSlot.id)
             )
         )
 
@@ -325,9 +371,7 @@ class SQLitePlanningLifecycleWork:
         )
 
     def round_committee_id(self, round_id):
-        return self._session.scalar(
-            select(ExamRound.committee_id).where(ExamRound.id == round_id)
-        )
+        return self._session.scalar(select(ExamRound.committee_id).where(ExamRound.id == round_id))
 
     def cancel_exam_day_slots(self, day_ids, now):
         if not day_ids:

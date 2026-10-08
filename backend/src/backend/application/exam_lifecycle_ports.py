@@ -6,80 +6,154 @@ from contextlib import AbstractContextManager
 from typing import Protocol
 
 from backend.assessment.ports import AssessmentUnitOfWork
-from backend.execution.exam_day_closures import ExamDayClosureOutcome, ExamDayClosureService
+from backend.execution.exam_day_closures import (
+    ExamDayClosureIntent,
+    ExamDayClosureOutcome,
+    ExamDayClosureService,
+    ExamDayReopeningHandle,
+    ExamDayReopeningIntent,
+)
 from backend.execution.exam_round_lifecycle import (
+    ExamRoundDecisionIntent,
     ExamRoundDecisionOutcome,
     ExamRoundLifecycleService,
+    ExamRoundReopeningIntent,
 )
 from backend.execution.slot_ports import ExecutionUnitOfWork
 from backend.identity.authorization import AuthorizationScope
 from backend.lifecycle_ports import (
     AssessmentLifecycleWork,
     CalendarLifecycleWork,
+    DayCloseCommand,
+    DayClosureFacts,
+    DayReopenCommand,
     IdentityLifecycleWork,
     PlanningLifecycleWork,
+    RoundDecisionCommand,
+    RoundLifecycleFacts,
+    RoundReopenCommand,
 )
 
 
 class ExamLifecycleExecutionUnitOfWork(ExecutionUnitOfWork, Protocol):
     """Execution capabilities required by Application lifecycle commands."""
 
-    def close_exam_day(
+    def exam_day_round_id(self, day_id: int) -> int | None: ...
+
+    def exam_day_ids_for_round(self, round_id: int) -> tuple[int, ...]: ...
+
+    def evaluate_day_close(
         self,
         service: ExamDayClosureService,
-        assessment_lifecycle: AssessmentLifecycleWork,
-        planning_lifecycle: PlanningLifecycleWork,
-        identity_lifecycle: IdentityLifecycleWork,
         scope: AuthorizationScope,
         day_id: int,
-        payload: dict,
-    ) -> ExamDayClosureOutcome: ...
+        command: DayCloseCommand,
+        facts: DayClosureFacts,
+    ) -> ExamDayClosureIntent: ...
 
-    def reopen_exam_day(
+    def apply_day_close(
         self,
         service: ExamDayClosureService,
-        assessment_lifecycle: AssessmentLifecycleWork,
-        planning_lifecycle: PlanningLifecycleWork,
-        identity_lifecycle: IdentityLifecycleWork,
         scope: AuthorizationScope,
-        day_id: int,
-        payload: dict,
+        intent: ExamDayClosureIntent,
+        facts: DayClosureFacts,
     ) -> ExamDayClosureOutcome: ...
 
-    def close_exam_round(
+    def day_reopening_impact(
+        self,
+        service: ExamDayClosureService,
+        scope: AuthorizationScope,
+        day_id: int,
+        raw_scope: object,
+        facts: DayClosureFacts,
+    ) -> dict[str, object]: ...
+
+    def evaluate_day_reopen(
+        self,
+        service: ExamDayClosureService,
+        scope: AuthorizationScope,
+        day_id: int,
+        command: DayReopenCommand,
+        facts: DayClosureFacts,
+    ) -> ExamDayReopeningIntent: ...
+
+    def begin_day_reopen(
+        self, service: ExamDayClosureService, intent: ExamDayReopeningIntent
+    ) -> ExamDayReopeningHandle: ...
+
+    def complete_day_reopen(
+        self,
+        service: ExamDayClosureService,
+        scope: AuthorizationScope,
+        handle: ExamDayReopeningHandle,
+        facts: DayClosureFacts,
+        assessment_corrections: dict[int, dict],
+    ) -> ExamDayClosureOutcome: ...
+
+    def replay_day_reopen(
+        self,
+        service: ExamDayClosureService,
+        scope: AuthorizationScope,
+        intent: ExamDayReopeningIntent,
+        facts: DayClosureFacts,
+    ) -> ExamDayClosureOutcome: ...
+
+    def evaluate_round_decision(
         self,
         service: ExamRoundLifecycleService,
-        assessment_lifecycle: AssessmentLifecycleWork,
-        planning_lifecycle: PlanningLifecycleWork,
-        identity_lifecycle: IdentityLifecycleWork,
-        calendar_lifecycle: CalendarLifecycleWork,
         scope: AuthorizationScope,
-        round_id: int,
-        payload: dict,
+        command: RoundDecisionCommand,
+        decision_type: str,
+        facts: RoundLifecycleFacts,
+    ) -> ExamRoundDecisionIntent: ...
+
+    def replay_round_decision(
+        self,
+        service: ExamRoundLifecycleService,
+        scope: AuthorizationScope,
+        intent: ExamRoundDecisionIntent,
+        facts: RoundLifecycleFacts,
     ) -> ExamRoundDecisionOutcome: ...
 
-    def cancel_exam_round(
+    def apply_round_decision(
         self,
         service: ExamRoundLifecycleService,
-        assessment_lifecycle: AssessmentLifecycleWork,
-        planning_lifecycle: PlanningLifecycleWork,
-        identity_lifecycle: IdentityLifecycleWork,
-        calendar_lifecycle: CalendarLifecycleWork,
         scope: AuthorizationScope,
-        round_id: int,
-        payload: dict,
+        intent: ExamRoundDecisionIntent,
+        facts: RoundLifecycleFacts,
+        cancelled_recipients: set[int],
     ) -> ExamRoundDecisionOutcome: ...
 
-    def reopen_exam_round(
+    def evaluate_round_reopen(
         self,
         service: ExamRoundLifecycleService,
-        assessment_lifecycle: AssessmentLifecycleWork,
-        planning_lifecycle: PlanningLifecycleWork,
-        identity_lifecycle: IdentityLifecycleWork,
-        calendar_lifecycle: CalendarLifecycleWork,
         scope: AuthorizationScope,
-        round_id: int,
-        payload: dict,
+        command: RoundReopenCommand,
+        facts: RoundLifecycleFacts,
+    ) -> ExamRoundReopeningIntent: ...
+
+    def round_reopening_impact(
+        self,
+        service: ExamRoundLifecycleService,
+        scope: AuthorizationScope,
+        facts: RoundLifecycleFacts,
+        raw_scope: object,
+    ) -> dict[str, object]: ...
+
+    def replay_round_reopen(
+        self,
+        service: ExamRoundLifecycleService,
+        scope: AuthorizationScope,
+        intent: ExamRoundReopeningIntent,
+        facts: RoundLifecycleFacts,
+    ) -> ExamRoundDecisionOutcome: ...
+
+    def apply_round_reopen(
+        self,
+        service: ExamRoundLifecycleService,
+        scope: AuthorizationScope,
+        intent: ExamRoundReopeningIntent,
+        facts: RoundLifecycleFacts,
     ) -> ExamRoundDecisionOutcome: ...
 
 
