@@ -752,6 +752,7 @@ describe('LocationsComponent', () => {
           attemptCount: 1,
           errorCode: 'calendar_processing_failed',
           updatedAt: '2026-09-02T20:00:00+00:00',
+          retryable: true,
         },
       ],
     };
@@ -783,6 +784,26 @@ describe('LocationsComponent', () => {
     });
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('Folgen unvollständig');
+    expect(
+      Array.from(
+        (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button'),
+      ).some((candidate) => candidate.textContent?.includes('Erneut versuchen')),
+    ).toBe(false);
+
+    fixture.componentRef.setInput('snapshot', {
+      ...locationSnapshotFixture,
+      venues: [
+        {
+          ...venue,
+          capabilities: { ...venue.capabilities, retryConsequences: true },
+          consequenceProblems: [{ ...venue.consequenceProblems[0], retryable: false }],
+        },
+      ],
+    });
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      'Erneuter Versuch nicht verfügbar',
+    );
     expect(
       Array.from(
         (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button'),

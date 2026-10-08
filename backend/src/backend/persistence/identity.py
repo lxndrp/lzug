@@ -271,6 +271,7 @@ class SQLiteIdentityPlanningSnapshots:
                 CommitteeMember.person_id,
                 CommitteeMember.committee_id,
                 CommitteeMember.representing_side,
+                CommitteeMember.committee_role,
                 CommitteeMember.is_active,
             ).where(
                 CommitteeMember.committee_id == committee_id,
@@ -288,6 +289,7 @@ class SQLiteIdentityPlanningSnapshots:
                 CommitteeMember.person_id,
                 CommitteeMember.committee_id,
                 CommitteeMember.representing_side,
+                CommitteeMember.committee_role,
                 CommitteeMember.is_active,
             ).where(CommitteeMember.id.in_(member_ids))
         ).all()
@@ -300,6 +302,7 @@ class SQLiteIdentityPlanningSnapshots:
             "person_id": row.person_id,
             "committee_id": row.committee_id,
             "representing_side": row.representing_side,
+            "committee_role": row.committee_role,
             "is_active": row.is_active,
         }
 

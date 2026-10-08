@@ -89,6 +89,7 @@ export type VenueConsequenceProblem = {
   attempt_count: number;
   error_code: string | null;
   updated_at: string;
+  retryable: boolean;
 };
 
 export type ExamVenueContact = {

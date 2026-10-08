@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
+from backend.application.venue_consequences import VenueConsequenceService
 from backend.identity.auth import AuthContext
 from backend.identity.authorization import AuthorizationScope
 from backend.integrations.map_provider import MapProviderConfig
 from backend.planning.exam_venues import ExamVenueService
-from backend.planning.venue_consequences import VenueConsequenceService
 
 
 class ExamVenueApi:
@@ -60,7 +60,7 @@ class ExamVenueApi:
                 item
                 for venue in self.service.list_venues()
                 for item in self.consequences.problems_for_venue(venue["id"])
-                if item["audit_id"] == audit_id
+                if item["audit_id"] == audit_id and item["retryable"]
             ),
             None,
         )

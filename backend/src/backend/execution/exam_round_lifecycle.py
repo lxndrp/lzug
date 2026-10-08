@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -155,6 +156,7 @@ class ExamRoundLifecycleService:
         planning_lifecycle_work_factory: PlanningLifecycleWorkFactory,
         identity_lifecycle_work_factory: IdentityLifecycleWorkFactory,
         calendar_lifecycle_work_factory: CalendarLifecycleWorkFactory,
+        pending_consequence_ids: Callable[[int], Sequence[int]] | None = None,
     ) -> None:
         self.db_path = db_path
         self.notification_service = notification_service
@@ -162,6 +164,7 @@ class ExamRoundLifecycleService:
         self.planning_lifecycle_work_factory = planning_lifecycle_work_factory
         self.identity_lifecycle_work_factory = identity_lifecycle_work_factory
         self.calendar_lifecycle_work_factory = calendar_lifecycle_work_factory
+        self.pending_consequence_ids = pending_consequence_ids or (lambda _round_id: ())
 
     def get(self, scope: AuthorizationScope, round_id: int) -> dict[str, Any] | None:
         with session_scope(self.db_path) as session:
@@ -1260,19 +1263,7 @@ class ExamRoundLifecycleService:
             not open_slots,
             open_slots,
         )
-        pending_consequences = (
-            facts.lifecycle_context(
-                exam_round.id,
-                exam_round.exam_half_year_id,
-                tuple(item["candidate_id"] for item in candidates),
-            )
-            if facts is not None
-            else planning.lifecycle_context(
-                exam_round.id,
-                exam_round.exam_half_year_id,
-                tuple(item["candidate_id"] for item in candidates),
-            )
-        )["pending_consequence_ids"]
+        pending_consequences = self.pending_consequence_ids(exam_round.id)
         self._finding(
             items,
             "plan_consequences_complete",

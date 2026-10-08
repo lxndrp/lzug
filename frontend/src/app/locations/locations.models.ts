@@ -50,6 +50,7 @@ export type VenueConsequenceProblem = {
   attemptCount: number;
   errorCode: string | null;
   updatedAt: string;
+  retryable: boolean;
 };
 
 export type Venue = {

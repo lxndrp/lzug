@@ -9,8 +9,10 @@ from unittest.mock import patch
 
 from sqlalchemy import select
 
+from backend.application.plan_consequences import PlanConsequenceService
+from backend.composition import application_consequence_store, planning_service
 from backend.composition import calendar_service as create_calendar_service
-from backend.composition import planning_service
+from backend.persistence.application_consequences import PlanConsequence, PlanConsequenceBatch
 from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.persistence.database import session_scope
 from backend.persistence.models import (
@@ -21,11 +23,14 @@ from backend.persistence.models import (
     ExamVenue,
     MemberAvailability,
     Notification,
-    PlanConsequence,
-    PlanConsequenceBatch,
 )
 from backend.planning import ConfirmedPlanChange
-from backend.planning.plan_consequences import PlanConsequenceService
+from backend.planning.plan_consequences import (
+    PlanCalendarChange,
+    PlanConsequenceDescriptions,
+    PlanNotificationChange,
+    describe_plan_change,
+)
 from backend.tests.helpers import (
     ApiServer,
     TempDatabase,
@@ -36,9 +41,10 @@ from backend.tests.helpers import (
 
 def plan_consequence_service_for_test(db_path):
     return PlanConsequenceService(
-        db_path,
         notification_service=notification_service_for_test(db_path),
         calendar_service=create_calendar_service(db_path),
+        planning_service=planning_service(db_path),
+        consequence_store=application_consequence_store(db_path),
     )
 
 
@@ -104,15 +110,27 @@ class PlanConsequenceServiceTests(unittest.TestCase):
         after["exam_days"][0]["room_id"] = 2
         original_inputs = deepcopy((before, after))
         revision = ConfirmedPlanRevision(exam_round_id=1, actor_member_id=1)
-        with TempDatabase() as db_path, session_scope(db_path) as session:
+        with TempDatabase() as db_path:
             service = plan_consequence_service_for_test(db_path)
-            tasks, scope = service._derive_tasks(session, revision, before, after)
+            descriptions = describe_plan_change(
+                before,
+                after,
+                actor_member_id=revision.actor_member_id,
+                manager_member_ids=(2, 3),
+            )
+            tasks, scope = service._derive_tasks(descriptions)
             reversed_before, reversed_after = deepcopy((before, after))
             reversed_before["exam_days"][0]["assignments"].reverse()
             reversed_after["exam_days"][0]["assignments"].reverse()
+            reversed_descriptions = describe_plan_change(
+                reversed_before,
+                reversed_after,
+                actor_member_id=revision.actor_member_id,
+                manager_member_ids=(2, 3),
+            )
             self.assertEqual(
                 (tasks, scope),
-                service._derive_tasks(session, revision, reversed_before, reversed_after),
+                service._derive_tasks(reversed_descriptions),
             )
             self.assertEqual(original_inputs, (before, after))
             self.assertTrue({1, 2, 3, 4}.issubset(scope))
@@ -130,6 +148,46 @@ class PlanConsequenceServiceTests(unittest.TestCase):
                     json.loads(member_two["details_json"])["categories"]
                 )
             )
+
+    def test_planning_derives_typed_consequence_descriptions_from_detached_snapshots(self) -> None:
+        before = {
+            "exam_days": [
+                {
+                    "id": 10,
+                    "date": "2026-09-10",
+                    "room_id": 1,
+                    "slots": [{"starts_at": "2026-09-10T09:00", "ends_at": "2026-09-10T11:00"}],
+                    "assignments": [
+                        {
+                            "id": 100,
+                            "committee_member_id": 2,
+                            "assignment_role": "examiner",
+                            "day_part": "full_day",
+                        }
+                    ],
+                }
+            ]
+        }
+        after = deepcopy(before)
+        after["exam_days"][0]["room_id"] = 3
+
+        descriptions = describe_plan_change(
+            before,
+            after,
+            actor_member_id=1,
+            manager_member_ids=(3,),
+        )
+
+        self.assertIsInstance(descriptions, PlanConsequenceDescriptions)
+        self.assertEqual((PlanCalendarChange(2, 100, "update"),), descriptions.calendar)
+        self.assertEqual(
+            (
+                PlanNotificationChange(2, ("changed",)),
+                PlanNotificationChange(3, ("overview",)),
+            ),
+            descriptions.notifications,
+        )
+        self.assertEqual(frozenset({2, 3}), descriptions.notification_scope)
 
     def test_invalid_snapshot_retries_keep_one_failed_batch_without_partial_tasks(self) -> None:
         with TempDatabase() as db_path:
@@ -157,6 +215,63 @@ class PlanConsequenceServiceTests(unittest.TestCase):
                 self.assertEqual("invalid_revision_snapshot", batches[0].error_code)
                 self.assertIsNone(batches[0].next_attempt_at)
                 self.assertEqual([], list(session.scalars(select(PlanConsequence))))
+
+    def test_pending_ids_for_round_does_not_decode_revision_snapshots(self) -> None:
+        with TempDatabase() as db_path:
+            with session_scope(db_path) as session:
+                session.add(
+                    ConfirmedPlanRevision(
+                        exam_round_id=1,
+                        previous_revision=0,
+                        resulting_revision=1,
+                        reason="Synthetic malformed historical snapshot",
+                        actor_member_id=1,
+                        before_state_json="{",
+                        after_state_json="{",
+                    )
+                )
+            service = plan_consequence_service_for_test(db_path)
+
+            pending_ids = service.pending_ids_for_round(1)
+
+        self.assertEqual((), pending_ids)
+
+    def test_processing_claim_is_exclusive_and_recovers_after_lease_expiry(self) -> None:
+        now = datetime(2026, 10, 8, 12, tzinfo=UTC)
+        with TempDatabase() as db_path:
+            with session_scope(db_path) as session:
+                batch = PlanConsequenceBatch(
+                    origin_type="confirmed_plan_revision",
+                    origin_key="claim-test",
+                )
+                session.add(batch)
+                session.flush()
+                task = PlanConsequence(
+                    batch_id=batch.id,
+                    recipient_member_id=1,
+                    consequence_type="notification",
+                    action="notify",
+                    identity_key="member:1",
+                    details_json="{}",
+                )
+                session.add(task)
+                session.flush()
+                task_id = task.id
+
+            service = plan_consequence_service_for_test(db_path)
+            self.assertTrue(service._claim_task(task_id, now))
+            self.assertFalse(service._claim_task(task_id, now + timedelta(minutes=4)))
+            self.assertTrue(service._claim_task(task_id, now + timedelta(minutes=6)))
+
+            with session_scope(db_path) as session:
+                task = session.get(PlanConsequence, task_id)
+                assert task is not None
+                self.assertEqual("pending", task.status)
+                self.assertEqual(0, task.attempt_count)
+                self.assertEqual(
+                    (now + timedelta(minutes=11)).isoformat(timespec="seconds"),
+                    task.next_attempt_at,
+                )
 
     def test_room_change_updates_stable_events_and_creates_one_notice_per_recipient(
         self,
@@ -403,6 +518,146 @@ class PlanConsequenceServiceTests(unittest.TestCase):
         self.assertGreater(older["superseded"], 0)
         self.assertEqual(0, older["pending"])
 
+    def test_superseding_notice_keeps_other_recipient_task_status(self) -> None:
+        with TempDatabase() as db_path:
+            planning, original = self._confirmed_plan(db_path)
+            day = original.days[0]
+            with session_scope(db_path) as session:
+                room_id = self._create_active_room(
+                    session,
+                    name="Empfängerstatus-Ort",
+                    street="Testweg 8",
+                    room_name="8.01",
+                )
+            changed = replace(
+                original,
+                days=(replace(day, room_id=room_id), *original.days[1:]),
+            )
+            _saved, revision = planning.save_confirmed_plan(
+                ConfirmedPlanChange(changed, "Empfängerstatus erhalten"),
+                actor_member_id=1,
+            )
+            service = plan_consequence_service_for_test(db_path)
+            now = datetime.now(UTC)
+            updated_at = now.isoformat(timespec="seconds")
+            batch_id = service.consequence_store.record_batch(
+                origin_type="confirmed_plan_revision",
+                origin_key=str(revision.id),
+                confirmed_plan_revision_id=revision.id,
+                notification_scope=(1, 2),
+                tasks=tuple(
+                    {
+                        "recipient_member_id": member_id,
+                        "consequence_type": "notification",
+                        "action": "notify",
+                        "identity_key": f"member:{member_id}",
+                        "details_json": "{}",
+                    }
+                    for member_id in (1, 2)
+                ),
+                error_code=None,
+                now=updated_at,
+            )
+            tasks = service.consequence_store.tasks_for_batch(batch_id)
+            for task in tasks:
+                service.consequence_store.set_task_state(
+                    task.id,
+                    status="succeeded",
+                    attempt_count=1,
+                    next_attempt_at=None,
+                    error_code=None,
+                    calendar_event_id=None,
+                    calendar_event_version=None,
+                    updated_at=updated_at,
+                )
+
+            service._mark_superseded_notification_tasks(
+                {revision.id}, recipient_member_id=1, current=now
+            )
+            final_tasks = service.consequence_store.tasks_for_batch(batch_id)
+
+        self.assertEqual(
+            {1: "superseded", 2: "succeeded"},
+            {task.recipient_member_id: task.status for task in final_tasks},
+        )
+
+    def test_claimed_older_notice_is_not_created_after_newer_revision_supersedes_it(self) -> None:
+        with TempDatabase() as db_path:
+            planning, original = self._confirmed_plan(db_path)
+            day = original.days[0]
+            with session_scope(db_path) as session:
+                room_ids = [
+                    self._create_active_room(
+                        session,
+                        name=f"Konkurrierender Revisionsort {index}",
+                        street=f"Prüfweg {index}",
+                        room_name=f"{index}.01",
+                    )
+                    for index in (6, 7)
+                ]
+            first_change = replace(
+                original,
+                days=(replace(day, room_id=room_ids[0]), *original.days[1:]),
+            )
+            _first_saved, first_revision = planning.save_confirmed_plan(
+                ConfirmedPlanChange(first_change, "Erste konkurrierende Änderung"),
+                actor_member_id=1,
+            )
+            current = planning.get_confirmed_plan(1)
+            second_change = replace(
+                current,
+                days=(replace(current.days[0], room_id=room_ids[1]), *current.days[1:]),
+            )
+            _second_saved, second_revision = planning.save_confirmed_plan(
+                ConfirmedPlanChange(second_change, "Neuere konkurrierende Änderung"),
+                actor_member_id=1,
+            )
+            service = plan_consequence_service_for_test(db_path)
+            now = datetime.now(UTC)
+            original_create = service.notifications.create_plan_change
+            newer_revision_processed = False
+            newer_summary = None
+
+            def create_notice(**kwargs):
+                nonlocal newer_revision_processed, newer_summary
+                if kwargs["revision_id"] == first_revision.id and not newer_revision_processed:
+                    newer_revision_processed = True
+                    newer_summary = service.process_revision(second_revision.id, now=now)
+                return original_create(**kwargs)
+
+            with patch.object(
+                service.notifications,
+                "create_plan_change",
+                side_effect=create_notice,
+            ):
+                service.process_revision(first_revision.id, now=now)
+
+            with session_scope(db_path) as session:
+                stale_notices = list(
+                    session.scalars(
+                        select(Notification).where(
+                            Notification.origin_key.like(
+                                f"confirmed-plan-revision:{first_revision.id}:%"
+                            )
+                        )
+                    )
+                )
+                current_notices = list(
+                    session.scalars(
+                        select(Notification).where(
+                            Notification.origin_key.like(
+                                f"confirmed-plan-revision:{second_revision.id}:%"
+                            )
+                        )
+                    )
+                )
+
+        self.assertTrue(newer_revision_processed)
+        self.assertEqual([], stale_notices)
+        self.assertIsNotNone(newer_summary)
+        self.assertGreater(newer_summary["processed"], 0)
+        self.assertTrue(current_notices, newer_summary)
+
     def test_non_calendar_revision_keeps_a_still_relevant_older_retry(self) -> None:
         with TempDatabase() as db_path:
             planning, original = self._confirmed_plan(db_path)
@@ -514,8 +769,7 @@ class PlanConsequenceApiTests(unittest.TestCase):
                 assert_status(status, 403)
 
                 retry = (
-                    "/api/exam-rounds/1/confirmed-plan/revisions/"
-                    f"{revision.id}/consequences/retry"
+                    f"/api/exam-rounds/1/confirmed-plan/revisions/{revision.id}/consequences/retry"
                 )
                 status, _retried = api.request("POST", retry, {}, credentials=deputy)
                 assert_status(status, 200)

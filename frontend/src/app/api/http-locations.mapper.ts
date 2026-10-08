@@ -49,6 +49,7 @@ export function toVenue(value: ApiVenue): Venue {
       attemptCount: problem.attempt_count,
       errorCode: problem.error_code,
       updatedAt: problem.updated_at,
+      retryable: problem.retryable,
     })),
     mapProvider: {
       mode: value.map_provider?.mode ?? 'off',

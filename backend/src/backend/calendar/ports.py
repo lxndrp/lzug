@@ -5,7 +5,6 @@ from __future__ import annotations
 from collections.abc import Sequence
 from contextlib import AbstractContextManager
 from dataclasses import dataclass
-from datetime import date
 from typing import Protocol
 
 
@@ -190,29 +189,3 @@ class CalendarUnitOfWork(Protocol):
 
 class CalendarUnitOfWorkFactory(Protocol):
     def __call__(self) -> AbstractContextManager[CalendarUnitOfWork]: ...
-
-
-class CalendarApplicationPort(Protocol):
-    """Public Calendar capabilities consumed by application and transport adapters."""
-
-    def status(self, scope: CalendarScope) -> CalendarFeedStatus: ...
-
-    def list_events(self, scope: CalendarScope) -> Sequence[CalendarEventProjection]: ...
-
-    def activate(self, scope: CalendarScope, *, rotate: bool = False) -> CalendarFeedActivation: ...
-
-    def revoke(self, scope: CalendarScope) -> bool: ...
-
-    def sync_person(self, person_id: int) -> int: ...
-
-    def sync_round(self, round_id: int) -> int: ...
-
-    def sync_assignment(
-        self, assignment_id: int, *, future_from: date | None = None
-    ) -> CalendarEventSnapshot | None: ...
-
-    def cancel_assignment(self, round_id: int, assignment_id: int) -> int: ...
-
-    def feed_ics(self, token: str) -> str | None: ...
-
-    def event_ics(self, event_id: int, scope: CalendarScope) -> str | None: ...

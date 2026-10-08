@@ -211,7 +211,9 @@ class NotificationUnitOfWork(Protocol):
 class NotificationUnitOfWorkFactory(Protocol):
     """Open a fresh unit of work for one notification command or query."""
 
-    def __call__(self) -> AbstractContextManager[NotificationUnitOfWork]: ...
+    def __call__(
+        self, *, begin_immediate: bool = False
+    ) -> AbstractContextManager[NotificationUnitOfWork]: ...
 
 
 class NotificationDeliveryUnitOfWork(Protocol):

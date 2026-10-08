@@ -261,6 +261,48 @@ class VenueFutureImpactFacts:
 
 
 @dataclass(frozen=True)
+class VenueAuditEventSnapshot:
+    """Detached immutable audit facts for a committed venue change."""
+
+    id: int
+    venue_id: int
+    entity_type: str
+    entity_id: int
+    details_json: str
+    created_at: str
+
+
+@dataclass(frozen=True)
+class VenueAssignmentSnapshot:
+    """Detached future assignment facts used to describe venue consequences."""
+
+    assignment_id: int
+    recipient_member_id: int
+    committee_id: int
+    date: str
+    room_id: int
+
+
+@dataclass(frozen=True)
+class VenueAssignmentState:
+    """Current assignment and venue values for stale consequence detection."""
+
+    assignment_id: int
+    confirmed: bool
+    date: str | None
+    room_id: int | None
+    venue_id: int | None
+    room_values: Mapping[str, object] | None
+    venue_values: Mapping[str, object] | None
+
+    def __post_init__(self) -> None:
+        if self.room_values is not None:
+            object.__setattr__(self, "room_values", MappingProxyType(dict(self.room_values)))
+        if self.venue_values is not None:
+            object.__setattr__(self, "venue_values", MappingProxyType(dict(self.venue_values)))
+
+
+@dataclass(frozen=True)
 class VenueGeocodingAddress:
     """Address and revision captured from one detached venue read."""
 
@@ -308,6 +350,22 @@ class VenueRepository(Protocol):
     ) -> AbstractContextManager[VenueCommandUnitOfWork]: ...
 
     def query(self, query: VenueQuery) -> VenueQueryResult: ...
+
+    def consequence_audit(self, audit_id: int) -> VenueAuditEventSnapshot | None: ...
+
+    def consequence_audits_for_venue(
+        self, venue_id: int
+    ) -> tuple[VenueAuditEventSnapshot, ...]: ...
+
+    def consequence_audits(self) -> tuple[VenueAuditEventSnapshot, ...]: ...
+
+    def future_assignments(
+        self, venue_id: int, *, room_id: int | None, today: str
+    ) -> tuple[VenueAssignmentSnapshot, ...]: ...
+
+    def assignment_states(
+        self, assignment_ids: tuple[int, ...]
+    ) -> tuple[VenueAssignmentState, ...]: ...
 
 
 class VenueCommandUnitOfWork(Protocol):

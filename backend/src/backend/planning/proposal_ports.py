@@ -53,6 +53,7 @@ class CommitteeMemberSnapshot(TypedDict):
     person_id: int
     committee_id: int
     representing_side: str
+    committee_role: str
     is_active: int
 
 
@@ -146,6 +147,7 @@ class ConfirmedPlanRevisionSnapshot(Protocol):
     """Materialized immutable audit record for one confirmed-plan revision."""
 
     id: int
+    exam_round_id: int
     previous_revision: int
     resulting_revision: int
     reason: str
@@ -188,6 +190,14 @@ class PlanningUnitOfWork(Protocol):
     def confirmed_plan_revisions(
         self, round_id: int
     ) -> Sequence[ConfirmedPlanRevisionSnapshot]: ...
+
+    def confirmed_plan_revision_ids_for_round(self, round_id: int) -> Sequence[int]: ...
+
+    def confirmed_plan_revision(self, revision_id: int) -> ConfirmedPlanRevisionSnapshot | None: ...
+
+    def all_confirmed_plan_revisions(self) -> Sequence[ConfirmedPlanRevisionSnapshot]: ...
+
+    def confirmed_plan_revision_ids(self) -> Sequence[int]: ...
 
 
 class PlanningUnitOfWorkFactory(Protocol):

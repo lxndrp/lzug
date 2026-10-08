@@ -21,8 +21,11 @@ from backend.application import (
     ForbiddenRequestError,
     ReadApplication,
 )
+from backend.application.calendar_ports import CalendarApplicationPort
+from backend.application.consequence_ports import ApplicationConsequenceStoreFactory
 from backend.application.exam_lifecycle import ExamLifecycleApplication
 from backend.application.exam_lifecycle_ports import ExamLifecycleUnitOfWorkFactory
+from backend.application.plan_consequences import PlanConsequenceService
 from backend.application.planning_payloads import (
     confirmed_plan_change_from_payload as confirmed_plan_change_from_payload,
 )
@@ -34,7 +37,6 @@ from backend.application.resource_access import ResourceAccessQueryFactory, Reso
 from backend.application.resource_authorization import ResourceAuthorizer
 from backend.assessment.ports import AssessmentActorSnapshot
 from backend.assessment.service import ExamResultService
-from backend.calendar.ports import CalendarApplicationPort
 from backend.execution.absence import AbsenceService
 from backend.execution.exam_day_closures import ExamDayClosureService
 from backend.execution.exam_protocols import ExamProtocolService
@@ -56,7 +58,6 @@ from backend.observability import emit_event
 from backend.persistence.models import Resource
 from backend.planning import PlanningService
 from backend.planning.candidate_days import CandidateDayService
-from backend.planning.plan_consequences import PlanConsequenceService
 from backend.planning.resources import (
     MAX_PLANNING_VISIBILITY_PAGE_SIZE,
     PlanningResourceService,
@@ -107,6 +108,7 @@ class RequestContext:
     authentication_repository_factory: Callable[[Path], AuthenticationRepository]
     local_auth_service_factory: Callable[..., LocalAuthService]
     calendar_service_factory: Callable[[Path], CalendarApplicationPort]
+    consequence_store_factory: ApplicationConsequenceStoreFactory
     notification_service_factory: Callable[[Path], NotificationService]
     auth_rate_limiter: RequestRateLimiter
     observability_rate_limiter: RequestRateLimiter
@@ -239,9 +241,10 @@ class RequestContext:
     @property
     def plan_consequence_service(self) -> PlanConsequenceService:
         return PlanConsequenceService(
-            self.db_path,
             notification_service=self.notification_service,
             calendar_service=self.calendar_service,
+            planning_service=self.planning_service,
+            consequence_store=self.consequence_store_factory(self.db_path),
         )
 
     @property
@@ -291,6 +294,7 @@ class RequestContext:
             planning_lifecycle_work_factory=self.planning_lifecycle_work_factory,
             identity_lifecycle_work_factory=self.identity_lifecycle_work_factory,
             calendar_lifecycle_work_factory=self.calendar_lifecycle_work_factory,
+            pending_consequence_ids=self.plan_consequence_service.pending_ids_for_round,
         )
 
     @property

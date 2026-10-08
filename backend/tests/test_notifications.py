@@ -26,7 +26,13 @@ from backend.integrations.notifications import (
 from backend.notifications.delivery import ProviderOutcome, ProviderOutcomeKind
 from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.persistence.database import session_scope
-from backend.persistence.models import ExamDay, ExamDayAssignment, NotificationDelivery
+from backend.persistence.models import (
+    ConfirmedPlanRevision,
+    ExamDay,
+    ExamDayAssignment,
+    Notification,
+    NotificationDelivery,
+)
 from backend.persistence.notifications import (
     SQLiteNotificationDeliveryUnitOfWorkFactory,
     SQLiteNotificationUnitOfWorkFactory,
@@ -186,6 +192,64 @@ class NotificationServiceTests(unittest.TestCase):
         own = self.service.list_own(self.scope(1))[0]
         self.assertIn("2026-11-23", own["message"])
         self.assertIn(DISPLAY_NAMES[f"{FIXTURE_ROOT}.location.global.zappeion"], own["message"])
+
+    def test_later_revision_for_other_recipients_does_not_reject_plan_notice_retry(self) -> None:
+        with session_scope(self.db_path) as session:
+            first_revision = ConfirmedPlanRevision(
+                exam_round_id=1,
+                previous_revision=0,
+                resulting_revision=1,
+                reason="First recipient-scoped revision",
+                actor_member_id=1,
+                before_state_json="{}",
+                after_state_json="{}",
+            )
+            session.add(first_revision)
+            session.flush()
+            first_revision_id = first_revision.id
+
+        first_accepted, _ = self.service.create_plan_change(
+            committee_id=1,
+            round_id=1,
+            recipient_member_id=2,
+            revision_id=first_revision_id,
+            title="Plan changed",
+            message="Technical test notice",
+            action_path="/confirmed-plans/1",
+        )
+        self.assertTrue(first_accepted)
+
+        with session_scope(self.db_path) as session:
+            session.add(
+                ConfirmedPlanRevision(
+                    exam_round_id=1,
+                    previous_revision=1,
+                    resulting_revision=2,
+                    reason="Later revision for another recipient",
+                    actor_member_id=1,
+                    before_state_json="{}",
+                    after_state_json="{}",
+                )
+            )
+
+        retried, _ = self.service.create_plan_change(
+            committee_id=1,
+            round_id=1,
+            recipient_member_id=2,
+            revision_id=first_revision_id,
+            title="Plan changed",
+            message="Technical test notice",
+            action_path="/confirmed-plans/1",
+        )
+
+        self.assertTrue(retried)
+        with session_scope(self.db_path) as session:
+            notice = (
+                session.query(Notification)
+                .filter_by(origin_key=f"confirmed-plan-revision:{first_revision_id}:2")
+                .one()
+            )
+            self.assertIsNone(notice.superseded_at)
 
     def test_web_push_registration_confirmation_and_timeout_fallback_are_separate(self) -> None:
         private_key = vapid_private_key()

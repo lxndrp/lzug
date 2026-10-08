@@ -149,6 +149,10 @@ Die fachliche Bedeutung liegt in den Services und ihren Tests, insbesondere
 unter `backend/src/backend/planning/`, `backend/src/backend/execution/`,
 `backend/src/backend/assessment/` und
 `backend/src/backend/planning/venue_consequences.py`.
+Application orchestriert diese Folgen in
+`backend/src/backend/application/plan_consequences.py` und
+`backend/src/backend/application/venue_consequences.py`; den dauerhaften
+Folgezustand bildet `backend/src/backend/persistence/application_consequences.py`.
 Ändert sich eine Invariante, müssen Service, Persistenz, HTTP-Vertrag,
 Frontendverhalten und betroffene Tests gemeinsam geprüft werden.
 
@@ -273,6 +277,10 @@ Fehlgeschlagene aktuelle Folgen erscheinen am verwaltbaren Ortsaggregat und
 werden über
 `/api/exam-venue-changes/{audit_id}/consequences/retry` kontrolliert erneut
 angestoßen.
+Versionierte Venue-Audits speichern die betroffenen Assignments sowie die
+damaligen Empfänger- und Ausschuss-IDs gemeinsam mit der Ortsänderung.
+Ein Wiederanlauf verwendet diesen Snapshot und ersetzt ihn nicht durch spätere
+Zuordnungen.
 Ausschussverantwortliche beantragen eine identitätserhaltende Hochstufung über
 `/api/exam-venues/{id}/promotion-requests`; Operatoren entscheiden sie über
 `/api/exam-venue-promotion-requests/{id}/decision`.

@@ -248,6 +248,34 @@ def _package_dependencies(package: str) -> set[str]:
 
 
 class BackendPackageBoundaryTests(unittest.TestCase):
+    def test_consequence_orchestration_uses_public_ports_not_models_or_adapters(self) -> None:
+        modules = (
+            "application/plan_consequences.py",
+            "application/venue_consequences.py",
+        )
+        forbidden = {
+            "backend.persistence.models",
+            "backend.persistence.application_consequences",
+            "backend.persistence.application_consequence_store",
+            "backend.calendar.service",
+            "backend.notifications.service",
+        }
+        for relative in modules:
+            with self.subTest(module=relative):
+                tree = ast.parse((BACKEND_ROOT / relative).read_text(encoding="utf-8"))
+                imports = {
+                    alias.name
+                    for node in ast.walk(tree)
+                    if isinstance(node, ast.Import)
+                    for alias in node.names
+                }
+                imports.update(
+                    node.module
+                    for node in ast.walk(tree)
+                    if isinstance(node, ast.ImportFrom) and node.module is not None
+                )
+                self.assertFalse(imports & forbidden)
+
     def test_exam_lifecycle_application_accepts_named_commands(self) -> None:
         expected = {
             "close_exam_day": DayCloseCommand,
@@ -342,6 +370,8 @@ class BackendPackageBoundaryTests(unittest.TestCase):
             "planning/venue_consequences.py",
             "planning/exam_venues.py",
             "application/exam_venue_api.py",
+            "application/plan_consequences.py",
+            "application/venue_consequences.py",
         )
         for relative in modules:
             with self.subTest(module=relative):
@@ -358,6 +388,28 @@ class BackendPackageBoundaryTests(unittest.TestCase):
                     if isinstance(node, ast.ImportFrom) and node.module is not None
                 )
                 self.assertNotIn("backend.composition", imports)
+
+    def test_planning_consequence_policies_do_not_import_runtime_adapters(self) -> None:
+        for relative in (
+            "planning/plan_consequences.py",
+            "planning/venue_consequences.py",
+        ):
+            tree = ast.parse((BACKEND_ROOT / relative).read_text(encoding="utf-8"))
+            imports = {
+                node.module
+                for node in ast.walk(tree)
+                if isinstance(node, ast.ImportFrom) and node.module is not None
+            }
+            with self.subTest(module=relative):
+                self.assertFalse(
+                    {
+                        "backend.calendar",
+                        "backend.notifications",
+                        "backend.integrations",
+                        "backend.persistence",
+                    }
+                    & imports
+                )
 
     def test_every_backend_module_has_one_responsibility_area(self) -> None:
         self.assertEqual(

@@ -10,7 +10,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from backend.calendar.ports import CalendarApplicationPort
+from backend.execution.calendar_ports import ExecutionCalendarPort
 from backend.execution.exam_day_closures import complete_day_mutation, guard_day_mutation
 from backend.identity.authorization import AuthorizationScope
 from backend.notifications.service import NotificationService
@@ -61,7 +61,7 @@ class AbsenceService:
         db_path: Path = DEFAULT_DB_PATH,
         *,
         notification_service: NotificationService,
-        calendar_service: CalendarApplicationPort,
+        calendar_service: ExecutionCalendarPort,
     ) -> None:
         self.db_path = db_path
         self.notification_service = notification_service

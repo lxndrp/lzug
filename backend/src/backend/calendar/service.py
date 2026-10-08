@@ -175,6 +175,15 @@ class CalendarService:
                 work.events_for_source(f"assignment:{assignment_id}"), assignment.member_id
             )
 
+    def event_for_assignment(
+        self, assignment_id: int, recipient_member_id: int
+    ) -> CalendarEventSnapshot | None:
+        """Read the latest generation for one assignment recipient."""
+        with self._unit_of_work_factory() as work:
+            return self._latest_event(
+                work.events_for_source(f"assignment:{assignment_id}"), recipient_member_id
+            )
+
     def cancel_assignment(self, round_id: int, assignment_id: int) -> int:
         """Cancel all event generations for one affected assignment."""
         self.sync_round(round_id)

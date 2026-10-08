@@ -17,11 +17,12 @@ from typing import Any, Protocol
 from fastapi.testclient import TestClient
 
 from backend.composition import (
-    calendar_service as compose_calendar_service,
-)
-from backend.composition import (
+    application_consequence_store,
     exam_venue_api,
     exam_venue_service,
+)
+from backend.composition import (
+    calendar_service as compose_calendar_service,
 )
 from backend.composition import (
     notification_service as compose_notification_service,
@@ -32,7 +33,9 @@ from backend.notifications.service import NotificationService
 from backend.persistence.auth import SessionCredentials, SQLiteAuthenticationRepository
 from backend.persistence.database import initialize, is_ready, session_scope
 from backend.persistence.models import COMMITTEE
+from backend.persistence.sqlite_exam_venues import SQLiteExamVenueRepository
 from backend.persistence.store import Store
+from backend.planning.venue_consequences import PlanningVenueConsequencePlanner
 from backend.runtime_policy import ProductRuntimePolicy, RuntimePolicy
 from backend.security import RequestRateLimiter
 
@@ -62,12 +65,13 @@ def exam_venue_service_for_test(db_path: Path):
 
 def venue_consequence_service_for_test(db_path: Path):
     """Build venue consequences with their explicit notification service dependency."""
-    from backend.planning.venue_consequences import VenueConsequenceService
+    from backend.application.venue_consequences import VenueConsequenceService
 
     return VenueConsequenceService(
-        db_path,
         notification_service=notification_service_for_test(db_path),
         calendar_service=compose_calendar_service(db_path),
+        consequence_store=application_consequence_store(db_path),
+        venue_planner=PlanningVenueConsequencePlanner(SQLiteExamVenueRepository(db_path)),
     )
 
 

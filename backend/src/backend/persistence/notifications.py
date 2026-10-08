@@ -209,12 +209,14 @@ class SQLiteNotificationUnitOfWorkFactory:
     def __init__(self, db_path: Path = DEFAULT_DB_PATH) -> None:
         self.db_path = db_path
 
-    def __call__(self) -> AbstractContextManager[NotificationUnitOfWork]:
-        return self._unit_of_work()
+    def __call__(
+        self, *, begin_immediate: bool = False
+    ) -> AbstractContextManager[NotificationUnitOfWork]:
+        return self._unit_of_work(begin_immediate=begin_immediate)
 
     @contextmanager
-    def _unit_of_work(self) -> Iterator[NotificationUnitOfWork]:
-        with session_scope(self.db_path) as session:
+    def _unit_of_work(self, *, begin_immediate: bool = False) -> Iterator[NotificationUnitOfWork]:
+        with session_scope(self.db_path, begin_immediate=begin_immediate) as session:
             yield SQLiteNotificationUnitOfWork(session)
 
 

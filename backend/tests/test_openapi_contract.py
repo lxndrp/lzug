@@ -289,7 +289,7 @@ class OpenApiContractTests(unittest.TestCase):
             change["reason"] = "Folgenfehler unabhängig behandeln"
 
             with patch(
-                "backend.planning.plan_consequences.PlanConsequenceService.process_revision",
+                "backend.application.plan_consequences.PlanConsequenceService.process_revision",
                 side_effect=RuntimeError("simulated consequence failure"),
             ):
                 status, saved = self.request(api, "PUT", path, change)

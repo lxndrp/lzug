@@ -59,13 +59,20 @@ Calendar-Service-Port nach dem jeweiligen Fach-Commit aus und besitzt den
 dauerhaften Folgeauftragszustand mit stabiler Ursprungsidentität, Claim, Retry
 und Ergebnis. Ein fehlgeschlagener Kalender-UoW setzt den Fach-Commit nicht
 zurück und lässt die Folgearbeit wiederholbar offen.
-Der heutige `PlanConsequenceService` speichert Batch und Task noch in Planning;
-das ist ein Übergangspfad. Im Ziel leitet Planning nur typisierte
-Folgeauftragsbeschreibungen ab und Application persistiert sowie verarbeitet
-ihren eigenen dauerhaften Zustand.
+Planning leitet typisierte Plan- und Ortsfolgen aus materialisierten
+Änderungssnapshots ab. `application.plan_consequences` und
+`application.venue_consequences` koordinieren die unabhängigen Folgeaktionen;
+`persistence.application_consequences` besitzt den dauerhaften Batch- und
+Taskzustand. Der bestehende Tabellenvertrag bleibt erhalten.
 Nach einem Neustart stößt der bestehende Admin-Processing-Command den
 Re-Drive aus unveränderlichen Domainquellen an; ein automatischer
 Startup-Hook oder Hintergrundworker ist nicht vorausgesetzt.
+Er leitet fehlende Venue-Batches aus versionierten Auditereignissen erneut ab
+und verarbeitet persistierte fällige Tasks; abgelaufene Venue-Claims bleiben
+im Betreiberpfad sichtbar und wiederholbar.
+Plan-Notifications prüfen die neueste bestätigte Revision, supersedieren
+unzugestellte ältere Notices und speichern die aktuelle Notice atomar in einer
+serialisierten Notification-UoW.
 Eventgenerationen sind im aktuellen Code in `source_key` und
 `external_event_id` codiert; Inhaltsänderungen behalten die Identität und
 erhöhen die Eventversion, eine Reaktivierung erzeugt eine weitere Generation.
@@ -81,20 +88,22 @@ Snapshot-Port, den ein Planning-Adapter erfüllt.
 Das bestätigte Ziel aus [Issue #1081](https://github.com/lxndrp/lzug/issues/1081)
 belässt die Ableitung fachlicher Folgen in Planning und überträgt ihre
 Ausführung an `application`.
-Application konsumiert einen eigenen Calendar-Service-Port, der Event-ID und
-Eventversion als typisiertes Ergebnis liefert, und speichert Taskabschluss
-oder Retry im eigenen consumer-eigenen UoW.
+Application definiert den von seinen Folge-Use-Cases konsumierten
+Calendar-Service-Port und die Ports/Wertverträge für Taskzustand.
+Calendar und Persistence liefern strukturell passende Ergebnisse; Application
+speichert Taskabschluss oder Retry im eigenen consumer-eigenen UoW.
 Für einen Human-Export gibt Application einen vollständig autorisierten,
 materialisierten Snapshot zurück; der HTTP-Adapter ruft nach dem UoW den reinen
 Renderer `presentation.exam_exports` auf.
 `application` hängt nicht von `presentation` ab.
 Der Composition Root verdrahtet Snapshot-Port, Planning-Adapter und
 Application-Port.
-Damit entfallen der heutige direkte CalendarService-Aufruf und
-`CalendarEvent`-Read in `PlanConsequence._complete_calendar_task` nach dem
-Application-Handoff.
-Eine zusätzliche Generation-Fencing-Garantie für verspätete Task-Abschlüsse
-ist durch #1078 nicht festgelegt.
+Application liest abgeschlossene Eventgenerationen über den öffentlichen
+Calendar-Service-Port; die Orchestrierung liest keine `CalendarEvent`-Modelle.
+Application revalidiert den Task-Claim unmittelbar vor dem Seiteneffekt und
+schreibt Abschluss oder Fehlerstatus nur unter dem gespeicherten Leasewert.
+Externe Kalender-/Notification-Effekte bleiben nicht Exactly-once.
+Execution besitzt einen eigenen engeren Calendar-Port für Lifecycle-Syncs.
 Ein konsumierendes Modul definiert ein kleines strukturelles `Protocol` für
 die benötigte Fähigkeit.
 Ein zusätzliches Interface für lokale Services entsteht nur bei belegtem

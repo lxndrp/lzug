@@ -267,6 +267,26 @@ func TestJSONAndVerboseKeepOneObjectOnStdout(t *testing.T) {
 	}
 }
 
+func TestNotificationProcessJSONIncludesVenueConsequenceCounters(t *testing.T) {
+	response := `{"version":1,"ok":true,"result":{"processed":3,"succeeded":2,"failed":1,"plan_consequences":{"processed":1,"problems":0},"venue_consequences":{"processed":2,"problems":1},"uncontracted":"discarded"}}`
+	application, _, _, stdout, _ := testApplication(t, response, 0)
+	if code := application.Run(context.Background(), []string{"--json", "notification", "process"}); code != 0 {
+		t.Fatalf("notification processing returned %d", code)
+	}
+	var envelope map[string]any
+	if err := json.NewDecoder(bytes.NewReader(stdout.Bytes())).Decode(&envelope); err != nil {
+		t.Fatal(err)
+	}
+	result := envelope["result"].(map[string]any)
+	venue := result["venue_consequences"].(map[string]any)
+	if venue["processed"] != float64(2) || venue["problems"] != float64(1) {
+		t.Fatalf("venue recovery counters were not preserved: %#v", venue)
+	}
+	if _, exists := result["uncontracted"]; exists {
+		t.Fatalf("uncontracted backend field reached public JSON: %#v", result)
+	}
+}
+
 func TestJSONModeCoversEarlyParserErrorsAndCancellation(t *testing.T) {
 	for _, test := range []struct {
 		name string
