@@ -13,8 +13,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from backend.identity.authorization import AuthorizationScope
-from backend.lifecycle_ports import (
+from backend.execution.lifecycle_ports import (
     AssessmentLifecycleWork,
     AssessmentLifecycleWorkFactory,
     DayCloseCommand,
@@ -22,12 +21,13 @@ from backend.lifecycle_ports import (
     DayReopenCommand,
     IdentityLifecycleWork,
     IdentityLifecycleWorkFactory,
-    IdentityMemberLifecycleSnapshot,
     PlanAssignmentLifecycleSnapshot,
     PlanningLifecycleWork,
     PlanningLifecycleWorkFactory,
     PlanSlotLifecycleSnapshot,
 )
+from backend.identity.authorization import AuthorizationScope
+from backend.identity.lifecycle_ports import IdentityMemberLifecycleSnapshot
 from backend.notifications.service import NotificationService
 from backend.persistence.database import DEFAULT_DB_PATH, session_scope
 from backend.persistence.models import (
@@ -601,6 +601,7 @@ class ExamDayClosureService:
             correction = assessment_corrections.get(result_id)
             if correction is None or correction["determination_id"] is None:
                 continue
+            determination_id = correction["determination_id"]
             self._add_reopening_tasks(
                 session,
                 day,
@@ -610,8 +611,33 @@ class ExamDayClosureService:
                 f"exam-day-reopening:{reopening.id}:result:{result_id}",
                 intent.reason,
                 handle.now,
-                result_determination_id=correction["determination_id"],
+                result_determination_id=determination_id,
             )
+            chairs = set(facts.management_member_ids)
+            if correction["communicated"]:
+                self._add_reopening_tasks(
+                    session,
+                    day,
+                    reopening,
+                    chairs,
+                    "result_recommunication",
+                    f"exam-day-reopening:{reopening.id}:recommunicate:{result_id}",
+                    intent.reason,
+                    handle.now,
+                    result_determination_id=determination_id,
+                )
+            if correction["ihk_processed"]:
+                self._add_reopening_tasks(
+                    session,
+                    day,
+                    reopening,
+                    chairs,
+                    "ihk_clarification",
+                    f"exam-day-reopening:{reopening.id}:ihk:{result_id}",
+                    intent.reason,
+                    handle.now,
+                    result_determination_id=determination_id,
+                )
         session.add(
             ExamDayAuditEvent(
                 exam_day_id=day.id,

@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from backend.lifecycle_ports import (
+from backend.identity.lifecycle_ports import (
     IdentityCommitteeLifecycleSnapshot,
     IdentityMemberLifecycleSnapshot,
 )

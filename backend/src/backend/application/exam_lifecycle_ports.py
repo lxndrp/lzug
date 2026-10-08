@@ -5,6 +5,14 @@ from __future__ import annotations
 from contextlib import AbstractContextManager
 from typing import Protocol
 
+from backend.application.exam_lifecycle_contracts import (
+    DayCloseCommand,
+    DayClosureFacts,
+    DayReopenCommand,
+    RoundDecisionCommand,
+    RoundLifecycleFacts,
+    RoundReopenCommand,
+)
 from backend.assessment.ports import AssessmentUnitOfWork
 from backend.execution.exam_day_closures import (
     ExamDayClosureIntent,
@@ -19,20 +27,14 @@ from backend.execution.exam_round_lifecycle import (
     ExamRoundLifecycleService,
     ExamRoundReopeningIntent,
 )
-from backend.execution.slot_ports import ExecutionUnitOfWork
-from backend.identity.authorization import AuthorizationScope
-from backend.lifecycle_ports import (
+from backend.execution.lifecycle_ports import (
     AssessmentLifecycleWork,
     CalendarLifecycleWork,
-    DayCloseCommand,
-    DayClosureFacts,
-    DayReopenCommand,
     IdentityLifecycleWork,
     PlanningLifecycleWork,
-    RoundDecisionCommand,
-    RoundLifecycleFacts,
-    RoundReopenCommand,
 )
+from backend.execution.slot_ports import ExecutionUnitOfWork
+from backend.identity.authorization import AuthorizationScope
 
 
 class ExamLifecycleExecutionUnitOfWork(ExecutionUnitOfWork, Protocol):

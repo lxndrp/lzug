@@ -2,17 +2,12 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
-from backend.lifecycle_ports import (
-    PlanAssignmentLifecycleSnapshot,
-    PlanningCandidateLifecycleSnapshot,
-    PlanningRoundLifecycleSnapshot,
-    PlanSlotLifecycleSnapshot,
-)
 from backend.persistence.models import (
     Candidate,
     CandidateCommitteeAssignment,
@@ -29,6 +24,49 @@ from backend.persistence.models import (
     PlanningSettings,
     RoundCandidate,
 )
+
+
+@dataclass(frozen=True)
+class PlanSlotLifecycleSnapshot:
+    id: int
+    exam_day_id: int
+    round_candidate_id: int
+    starts_at: str
+    ends_at: str
+    execution_status: str
+    status_reason: str | None
+    actual_started_at: str | None
+    actual_completed_at: str | None
+
+
+@dataclass(frozen=True)
+class PlanAssignmentLifecycleSnapshot:
+    id: int
+    exam_day_id: int
+    committee_member_id: int
+    assignment_role: str
+    day_part: str
+    fallback_status: str | None
+
+
+@dataclass(frozen=True)
+class PlanningCandidateLifecycleSnapshot:
+    id: int
+    first_name: str
+    last_name: str
+    ihk_exam_number: str
+
+
+@dataclass(frozen=True)
+class PlanningRoundLifecycleSnapshot:
+    id: int
+    exam_half_year_id: int
+    committee_id: int
+    name: str
+    status: str
+    revision: int
+    lifecycle_status: str
+    legacy_status: str | None
 
 
 class SQLitePlanningLifecycleWork:

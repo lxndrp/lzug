@@ -5,11 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from backend.application.exam_lifecycle_ports import ExamLifecycleUnitOfWorkFactory
-from backend.execution.exam_day_closures import ExamDayClosureService
-from backend.execution.exam_round_lifecycle import ExamRoundLifecycleService
-from backend.identity.authorization import AuthorizationScope
-from backend.lifecycle_ports import (
+from backend.application.exam_lifecycle_contracts import (
     DayCloseCommand,
     DayClosureFacts,
     DayReopenCommand,
@@ -17,6 +13,10 @@ from backend.lifecycle_ports import (
     RoundLifecycleFacts,
     RoundReopenCommand,
 )
+from backend.application.exam_lifecycle_ports import ExamLifecycleUnitOfWorkFactory
+from backend.execution.exam_day_closures import ExamDayClosureService
+from backend.execution.exam_round_lifecycle import ExamRoundLifecycleService
+from backend.identity.authorization import AuthorizationScope
 
 
 class ExamLifecycleApplication:
@@ -57,6 +57,9 @@ class ExamLifecycleApplication:
                 assignments=tuple(assignments),
                 members=tuple(unit_of_work.identity_lifecycle.committee_members_by_ids(member_ids)),
                 assessment_completion=unit_of_work.assessment_lifecycle.day_completion(day_id),
+                management_member_ids=frozenset(
+                    unit_of_work.identity_lifecycle.management_member_ids(committee_id)
+                ),
             )
             intent = unit_of_work.execution.evaluate_day_close(
                 service, scope, day_id, command, facts
@@ -99,6 +102,9 @@ class ExamLifecycleApplication:
                 assignments=tuple(assignments),
                 members=members,
                 assessment_completion=unit_of_work.assessment_lifecycle.day_completion(day_id),
+                management_member_ids=frozenset(
+                    unit_of_work.identity_lifecycle.management_member_ids(committee_id)
+                ),
                 assessment_results=results,
                 assessment_impacts=tuple(
                     unit_of_work.assessment_lifecycle.result_reopening_impacts(result_ids)
@@ -141,6 +147,9 @@ class ExamLifecycleApplication:
                     )
                 ),
                 assessment_completion=unit_of_work.assessment_lifecycle.day_completion(day_id),
+                management_member_ids=frozenset(
+                    unit_of_work.identity_lifecycle.management_member_ids(committee_id)
+                ),
                 assessment_results=assessment_results,
                 assessment_impacts=tuple(
                     unit_of_work.assessment_lifecycle.result_reopening_impacts(result_ids)

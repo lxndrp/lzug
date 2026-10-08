@@ -38,6 +38,12 @@ from backend.execution.absence import AbsenceService
 from backend.execution.exam_day_closures import ExamDayClosureService
 from backend.execution.exam_protocols import ExamProtocolService
 from backend.execution.exam_round_lifecycle import ExamRoundLifecycleService
+from backend.execution.lifecycle_ports import (
+    AssessmentLifecycleWorkFactory,
+    CalendarLifecycleWorkFactory,
+    IdentityLifecycleWorkFactory,
+    PlanningLifecycleWorkFactory,
+)
 from backend.execution.slot_service import ExecutionService
 from backend.identity.auth import AuthContext, AuthenticationRepository, SessionCredentials
 from backend.identity.authorization import AuthorizationScope, AuthorizationService
@@ -45,12 +51,6 @@ from backend.identity.committee_admin import CommitteeAdminService
 from backend.identity.local_auth import LocalAuthService
 from backend.identity.people import IdentityService
 from backend.integrations.calendar import CalendarService
-from backend.lifecycle_ports import (
-    AssessmentLifecycleWorkFactory,
-    CalendarLifecycleWorkFactory,
-    IdentityLifecycleWorkFactory,
-    PlanningLifecycleWorkFactory,
-)
 from backend.notifications.service import NotificationService
 from backend.observability import emit_event
 from backend.persistence.models import Resource

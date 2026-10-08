@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from backend.lifecycle_ports import (
+from backend.application.exam_lifecycle_contracts import (
     DayCloseCommand,
     DayClosureKind,
     DayReopenCommand,

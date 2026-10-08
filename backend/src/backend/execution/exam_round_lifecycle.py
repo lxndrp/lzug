@@ -12,8 +12,7 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from backend.identity.authorization import AuthorizationScope
-from backend.lifecycle_ports import (
+from backend.execution.lifecycle_ports import (
     AssessmentLifecycleWork,
     AssessmentLifecycleWorkFactory,
     CalendarLifecycleWorkFactory,
@@ -26,6 +25,7 @@ from backend.lifecycle_ports import (
     RoundLifecycleFacts,
     RoundReopenCommand,
 )
+from backend.identity.authorization import AuthorizationScope
 from backend.notifications.service import NotificationService
 from backend.persistence.database import DEFAULT_DB_PATH, session_scope
 from backend.persistence.models import (

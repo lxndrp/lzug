@@ -8,14 +8,14 @@ from pathlib import Path
 from typing import get_type_hints
 
 from backend.application.exam_lifecycle import ExamLifecycleApplication
-from backend.execution.protocol_ports import ProtocolReferencesSnapshot
-from backend.execution.slot_ports import DayMutationRequest
-from backend.lifecycle_ports import (
+from backend.application.exam_lifecycle_contracts import (
     DayCloseCommand,
     DayReopenCommand,
     RoundDecisionCommand,
     RoundReopenCommand,
 )
+from backend.execution.protocol_ports import ProtocolReferencesSnapshot
+from backend.execution.slot_ports import DayMutationRequest
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1] / "src" / "backend"
 TEST_ROOT = Path(__file__).resolve().parent
@@ -60,7 +60,6 @@ ROOT_MODULE_OWNERS = {
     "fastapi_planning_router.py": "api",
     "fastapi_runtime.py": "api",
     "healthcheck.py": "operations-adapter",
-    "lifecycle_ports.py": "shared-lifecycle-contracts",
     "observability.py": "runtime-foundation",
     "planning_ports.py": "planning-owned-contracts",
     "public_lifecycle.py": "runtime-contract",

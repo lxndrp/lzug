@@ -36,6 +36,7 @@ from backend.persistence.models import (
     MemberExamAttendance,
     Notification,
     ResultCalculation,
+    ResultCommunication,
     ResultCorrection,
     ResultDetermination,
 )
@@ -861,6 +862,116 @@ class ExamDayClosureTests(unittest.TestCase):
                 session.query(ExamDayAuditEvent).filter_by(exam_day_id=3).count(),
             )
             self.assertEqual(0, session.query(ExamDayReopening).filter_by(exam_day_id=3).count())
+
+    def _assert_reopen_result_follow_up(self, external_document_status: str | None, expected: str):
+        service = ExamDayClosureService(
+            self.db_path,
+            notification_service=notification_service_for_test(self.db_path),
+            assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(),
+            planning_lifecycle_work_factory=planning_lifecycle_work_factory(),
+            identity_lifecycle_work_factory=identity_lifecycle_work_factory(),
+        )
+        application = ExamLifecycleApplication(
+            SQLiteExamLifecycleUnitOfWorkFactory(
+                SQLiteExecutionUnitOfWorkFactory(
+                    self.db_path,
+                    identity_snapshot_factory=SQLiteIdentityExecutionSnapshotFactory(),
+                ),
+                SQLiteAssessmentUnitOfWorkFactory(self.db_path),
+                self.db_path,
+                SQLiteAssessmentLifecycleAdapter(SQLiteAssessmentUnitOfWorkFactory(self.db_path)),
+            ),
+            lambda: service,
+        )
+        scope = AuthorizationScope(
+            person_id=1,
+            person_ids=frozenset({1}),
+            committee_ids=frozenset({1}),
+            member_ids=frozenset({1}),
+            management_committee_ids=frozenset({1}),
+            member_by_committee={1: 1},
+        )
+        application.close_exam_day(
+            scope,
+            3,
+            day_close_command(
+                {
+                    "revision": 1,
+                    "closure_type": "exception",
+                    "confirmed": True,
+                    "reason": "Synthetischer Ausnahmegrund",
+                    "clarification_attempts": "Synthetischer Klärungsversuch",
+                }
+            ),
+        )
+        with session_scope(self.db_path) as session:
+            calculation = ResultCalculation(
+                exam_result_id=2,
+                version=1,
+                input_fingerprint="c" * 64,
+                total_points="80",
+                grade="1",
+                passed=1,
+                calculation_path_json="{}",
+                created_at="2026-10-08T12:00:00+00:00",
+            )
+            session.add(calculation)
+            session.flush()
+            determination = ResultDetermination(
+                exam_result_id=2,
+                revision=1,
+                result_calculation_id=calculation.id,
+                participant_member_ids_json="[1,2,3]",
+                vote_json='{"yes":[1,2,3],"no":[],"abstain":[]}',
+                dissent_json="[]",
+                status="current",
+                determined_by_member_id=1,
+                determined_at="2026-10-08T12:00:00+00:00",
+            )
+            session.add(determination)
+            session.flush()
+            session.add(
+                ResultCommunication(
+                    exam_result_id=2,
+                    result_determination_id=determination.id,
+                    method="persönliche Bekanntgabe",
+                    responsible_member_id=1,
+                    communicated_at="2026-10-08T12:01:00+00:00",
+                    external_document_status=external_document_status,
+                    external_document_reference="IHK-Fachverfahren"
+                    if external_document_status
+                    else None,
+                    status="current",
+                )
+            )
+
+        application.reopen_exam_day(
+            scope,
+            3,
+            day_reopen_command(
+                {
+                    "revision": 2,
+                    "occasion": "Korrekturanlass",
+                    "source": "Prüfungsausschuss",
+                    "reason": "Korrektur erforderlich",
+                    "scope": [{"kind": "exam_result", "entity_id": 2}],
+                }
+            ),
+        )
+        with session_scope(self.db_path) as session:
+            tasks = session.query(ExamDayTask).filter_by(exam_day_id=3).all()
+            task_types = {task.task_type for task in tasks}
+            self.assertIn(expected, task_types)
+            if external_document_status is None:
+                self.assertNotIn("ihk_clarification", task_types)
+            else:
+                self.assertIn("result_recommunication", task_types)
+
+    def test_reopen_adds_recommunication_task_for_communicated_result(self) -> None:
+        self._assert_reopen_result_follow_up(None, "result_recommunication")
+
+    def test_reopen_adds_ihk_clarification_for_processed_result(self) -> None:
+        self._assert_reopen_result_follow_up("eingereicht", "ihk_clarification")
 
     def test_each_material_failed_prerequisite_is_reported_and_blocks_exception_close(
         self,
