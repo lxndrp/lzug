@@ -149,6 +149,10 @@ Die fachliche Bedeutung liegt in den Services und ihren Tests, insbesondere
 unter `backend/src/backend/planning/`, `backend/src/backend/execution/`,
 `backend/src/backend/assessment/` und
 `backend/src/backend/planning/venue_consequences.py`.
+Application orchestriert diese Folgen in
+`backend/src/backend/application/plan_consequences.py` und
+`backend/src/backend/application/venue_consequences.py`; den dauerhaften
+Folgezustand bildet `backend/src/backend/persistence/application_consequences.py`.
 Ändert sich eine Invariante, müssen Service, Persistenz, HTTP-Vertrag,
 Frontendverhalten und betroffene Tests gemeinsam geprüft werden.
 

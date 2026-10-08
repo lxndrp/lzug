@@ -263,8 +263,8 @@ class NotificationService:
         recipient_member_id: int,
         newer_revision_id: int,
     ) -> set[int]:
-        """Hide only plan-change notices that no channel has attempted yet."""
-        superseded: set[int] = set()
+        """Hide unattempted plan notices and return their source revision IDs."""
+        superseded_revision_ids: set[int] = set()
         current = _timestamp(_now())
         with self._notification_unit_of_work_factory() as unit_of_work:
             notices = unit_of_work.plan_change_notices(
@@ -296,8 +296,8 @@ class NotificationService:
                 if attempted:
                     continue
                 unit_of_work.supersede_plan_change(notice.id, newer_revision_id, current)
-                superseded.add(notice.id)
-        return superseded
+                superseded_revision_ids.add(notice_revision_id)
+        return superseded_revision_ids
 
     def register_push(self, scope: NotificationScope, endpoint: str) -> dict[str, object]:
         if scope.person_id is None:

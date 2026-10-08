@@ -142,6 +142,7 @@ class _SQLitePlanningContextSnapshot:
 @dataclass(frozen=True)
 class _SQLiteConfirmedPlanRevisionSnapshot:
     id: int
+    exam_round_id: int
     previous_revision: int
     resulting_revision: int
     reason: str
@@ -352,6 +353,7 @@ class SQLitePlanningUnitOfWork:
         self._session.flush()
         return _SQLiteConfirmedPlanRevisionSnapshot(
             id=revision.id,
+            exam_round_id=revision.exam_round_id,
             previous_revision=revision.previous_revision,
             resulting_revision=revision.resulting_revision,
             reason=revision.reason,
@@ -370,6 +372,7 @@ class SQLitePlanningUnitOfWork:
         return tuple(
             _SQLiteConfirmedPlanRevisionSnapshot(
                 id=item.id,
+                exam_round_id=item.exam_round_id,
                 previous_revision=item.previous_revision,
                 resulting_revision=item.resulting_revision,
                 reason=item.reason,
@@ -379,6 +382,45 @@ class SQLitePlanningUnitOfWork:
                 created_at=item.created_at,
             )
             for item in revisions
+        )
+
+    def confirmed_plan_revision(self, revision_id: int) -> ConfirmedPlanRevisionSnapshot | None:
+        item = self._session.get(ConfirmedPlanRevision, revision_id)
+        if item is None:
+            return None
+        return self._revision_snapshot(item)
+
+    def all_confirmed_plan_revisions(self) -> tuple[ConfirmedPlanRevisionSnapshot, ...]:
+        revisions = self._session.scalars(
+            select(ConfirmedPlanRevision).order_by(
+                ConfirmedPlanRevision.exam_round_id,
+                ConfirmedPlanRevision.resulting_revision,
+            )
+        )
+        return tuple(self._revision_snapshot(item) for item in revisions)
+
+    def confirmed_plan_revision_ids(self) -> tuple[int, ...]:
+        return tuple(
+            self._session.scalars(
+                select(ConfirmedPlanRevision.id).order_by(
+                    ConfirmedPlanRevision.exam_round_id,
+                    ConfirmedPlanRevision.resulting_revision,
+                )
+            )
+        )
+
+    @staticmethod
+    def _revision_snapshot(item: ConfirmedPlanRevision) -> ConfirmedPlanRevisionSnapshot:
+        return _SQLiteConfirmedPlanRevisionSnapshot(
+            id=item.id,
+            exam_round_id=item.exam_round_id,
+            previous_revision=item.previous_revision,
+            resulting_revision=item.resulting_revision,
+            reason=item.reason,
+            actor_member_id=item.actor_member_id,
+            before_state_json=item.before_state_json,
+            after_state_json=item.after_state_json,
+            created_at=item.created_at,
         )
 
     def _claim_revision(

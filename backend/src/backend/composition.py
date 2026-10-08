@@ -7,6 +7,7 @@ from datetime import timedelta
 from pathlib import Path
 
 from backend.application.exam_venue_api import ExamVenueApi
+from backend.application.venue_consequences import VenueConsequenceService
 from backend.assessment.service import ExamResultService
 from backend.calendar.service import CalendarService
 from backend.execution.exam_day_closures import (
@@ -25,6 +26,7 @@ from backend.integrations.holiday_provider import PythonHolidaysProvider
 from backend.integrations.map_provider import MapProviderConfig, NominatimGeocoder
 from backend.integrations.notification_delivery import NotificationDeliveryGateway
 from backend.notifications.service import NotificationService
+from backend.persistence.application_consequence_store import SQLiteApplicationConsequenceStore
 from backend.persistence.assessment import SQLiteAssessmentUnitOfWorkFactory
 from backend.persistence.auth import (
     SQLiteAuthenticationRepository,
@@ -60,7 +62,7 @@ from backend.persistence.sqlite_exam_venues import SQLiteExamVenueRepository
 from backend.planning import PlanningService
 from backend.planning.candidate_days import CandidateDayService
 from backend.planning.exam_venues import ExamVenuePolicy, ExamVenueService
-from backend.planning.venue_consequences import VenueConsequenceService
+from backend.planning.venue_consequences import PlanningVenueConsequencePlanner
 from backend.planning_ports import Geocoder, VenueChange, VenueChangeFollowUp
 from backend.settings import RuntimeSettings
 
@@ -80,6 +82,11 @@ def calendar_service(
         settings=settings,
         time_zone=time_zone,
     )
+
+
+def application_consequence_store(db_path: Path) -> SQLiteApplicationConsequenceStore:
+    """Wire Application's durable consequence-state capability to SQLite."""
+    return SQLiteApplicationConsequenceStore(db_path)
 
 
 def candidate_day_service(db_path: Path) -> CandidateDayService:
@@ -398,16 +405,22 @@ def exam_venue_service(
 ) -> ExamVenueService:
     """Wire Planning's venue ports to SQLite and the configured provider adapter."""
     notifications = (notification_service_factory or notification_service)(db_path)
+    repository = SQLiteExamVenueRepository(
+        db_path, require_confirmed_coordinates=map_provider.active
+    )
+    venue_planner = PlanningVenueConsequencePlanner(repository)
     consequences = VenueConsequenceService(
         db_path,
         notification_service=notifications,
         calendar_service=calendar_service(db_path),
+        consequence_store=application_consequence_store(db_path),
+        venue_planner=venue_planner,
     )
     return ExamVenueService(
-        SQLiteExamVenueRepository(db_path, require_confirmed_coordinates=map_provider.active),
+        repository,
         geocoder=venue_geocoder(map_provider),
         follow_up=_VenueAuditFollowUp(consequences),
-        impact_query=consequences,
+        impact_query=venue_planner,
         policy=ExamVenuePolicy(),
     )
 
@@ -420,16 +433,22 @@ def exam_venue_api(
 ) -> ExamVenueApi:
     """Wire the API consumer to Planning ports and database-scoped services."""
     notifications = (notification_service_factory or notification_service)(db_path)
+    repository = SQLiteExamVenueRepository(
+        db_path, require_confirmed_coordinates=map_provider.active
+    )
+    venue_planner = PlanningVenueConsequencePlanner(repository)
     consequences = VenueConsequenceService(
         db_path,
         notification_service=notifications,
         calendar_service=calendar_service(db_path),
+        consequence_store=application_consequence_store(db_path),
+        venue_planner=venue_planner,
     )
     service = ExamVenueService(
-        SQLiteExamVenueRepository(db_path, require_confirmed_coordinates=map_provider.active),
+        repository,
         geocoder=venue_geocoder(map_provider),
         follow_up=_VenueAuditFollowUp(consequences),
-        impact_query=consequences,
+        impact_query=venue_planner,
         policy=ExamVenuePolicy(),
     )
     return ExamVenueApi(service, map_provider, consequences)

@@ -12,6 +12,7 @@ from typing import Any
 
 from sqlalchemy.exc import SQLAlchemyError
 
+from backend.application.plan_consequences import PlanConsequenceService
 from backend.identity.admin_service import AdminOperationError, OperatorAuthService
 from backend.identity.committee_admin import CommitteeAdminService
 from backend.notifications.service import NotificationService
@@ -22,7 +23,6 @@ from backend.persistence.database import (
     MigrationError,
     PersistencePaths,
 )
-from backend.planning.plan_consequences import PlanConsequenceService
 from backend.runtime import RuntimeConflictError, RuntimeCoordinator
 
 PROTOCOL_VERSION = 1

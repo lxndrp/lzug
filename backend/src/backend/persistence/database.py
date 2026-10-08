@@ -22,6 +22,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import NullPool
 
+from backend.persistence import application_consequences as _application_consequences  # noqa: F401
 from backend.persistence.exam_venue_migration import (
     MIGRATION_NAME as EXAM_VENUE_MIGRATION,
 )

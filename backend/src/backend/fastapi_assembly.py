@@ -14,10 +14,13 @@ from fastapi import FastAPI
 
 from .application import ApplicationServices, ReadApplication
 from .application.admin import AdminApplication, AdminServices
+from .application.consequence_ports import ApplicationConsequenceStoreFactory
+from .application.plan_consequences import PlanConsequenceService
 from .application.resource_access import ResourceAccessQueryFactory
 from .assessment.service import ExamResultService
 from .calendar.ports import CalendarApplicationPort
 from .composition import SQLiteAssessmentLifecycleAdapter
+from .composition import application_consequence_store as compose_application_consequence_store
 from .composition import (
     assessment_unit_of_work_factory as compose_assessment_unit_of_work_factory,
 )
@@ -79,7 +82,6 @@ from .persistence.database import PersistencePaths, database_readiness, persiste
 from .persistence.resource_access import SQLiteResourceAccessQueryFactory
 from .planning import PlanningService
 from .planning.candidate_days import CandidateDayService
-from .planning.plan_consequences import PlanConsequenceService
 from .planning.resources import PlanningResourceUnitOfWorkFactory
 from .runtime import RuntimeCoordinator
 from .security import RequestRateLimiter
@@ -139,6 +141,8 @@ def create_admin_application(
                 db_path,
                 notification_service=notification_service,
                 calendar_service=compose_calendar_service(db_path, settings=require_settings()),
+                planning_service=compose_planning_service(db_path),
+                consequence_store=compose_application_consequence_store(db_path),
             )
         ),
         artifact_factory=lambda persistence: (
@@ -173,6 +177,7 @@ def create_app(
     committee_admin_service_factory: Callable[[Path], CommitteeAdminService] | None = None,
     exam_result_service_factory: Callable[[Path], ExamResultService] | None = None,
     calendar_service_factory: Callable[[Path], CalendarApplicationPort] | None = None,
+    consequence_store_factory: ApplicationConsequenceStoreFactory | None = None,
     assessment_lifecycle: object | None = None,
 ) -> FastAPI:
     """Create the single FastAPI application used by product and demo images."""
@@ -265,6 +270,9 @@ def create_app(
     app.state.calendar_service_factory = calendar_service_factory or partial(
         compose_calendar_service,
         settings=resolved.runtime_settings,
+    )
+    app.state.consequence_store_factory = consequence_store_factory or partial(
+        compose_application_consequence_store
     )
     app.state.notification_service_factory = lambda db_path: compose_notification_service(
         db_path,

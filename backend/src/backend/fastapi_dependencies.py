@@ -125,6 +125,7 @@ def request_context(request: Request) -> RequestContext:
         authentication_repository_factory=request.app.state.authentication_repository_factory,
         local_auth_service_factory=request.app.state.local_auth_service_factory,
         calendar_service_factory=request.app.state.calendar_service_factory,
+        consequence_store_factory=request.app.state.consequence_store_factory,
         notification_service_factory=request.app.state.notification_service_factory,
         runtime_settings=config.runtime_settings,
         auth_rate_limiter=request.app.state.auth_rate_limiter,

@@ -47,6 +47,9 @@ from backend.planning_ports import (
     ExamVenueInUseError,
     ExamVenueNotFoundError,
     VenueActorFacts,
+    VenueAssignmentSnapshot,
+    VenueAssignmentState,
+    VenueAuditEventSnapshot,
     VenueChange,
     VenueCommand,
     VenueCommandFacts,
@@ -141,6 +144,111 @@ class SQLiteExamVenueRepository:
     def query(self, query: VenueQuery) -> VenueQueryResult:
         """Run one Planning venue query and return detached values."""
         return VenueQueryResult(self._query_value(query))
+
+    def consequence_audit(self, audit_id: int) -> VenueAuditEventSnapshot | None:
+        with session_scope(self.db_path) as session:
+            audit = session.get(ExamVenueAuditEvent, audit_id)
+            return self._audit_snapshot(audit) if audit is not None else None
+
+    def consequence_audits_for_venue(self, venue_id: int) -> tuple[VenueAuditEventSnapshot, ...]:
+        with session_scope(self.db_path) as session:
+            audits = session.scalars(
+                select(ExamVenueAuditEvent)
+                .where(ExamVenueAuditEvent.venue_id == venue_id)
+                .order_by(ExamVenueAuditEvent.id.desc())
+            )
+            return tuple(self._audit_snapshot(audit) for audit in audits)
+
+    def future_assignments(
+        self, venue_id: int, *, room_id: int | None, today: str
+    ) -> tuple[VenueAssignmentSnapshot, ...]:
+        statement = (
+            select(ExamDayAssignment, ExamDay, ExamRound)
+            .join(ExamDay, ExamDay.id == ExamDayAssignment.exam_day_id)
+            .join(ExamRound, ExamRound.id == ExamDay.exam_round_id)
+            .join(ExamRoom, ExamRoom.id == ExamDay.room_id)
+            .where(
+                ExamRoom.venue_id == venue_id,
+                ExamDay.status == "confirmed",
+                ExamDay.date >= today,
+            )
+            .order_by(ExamDay.date, ExamDayAssignment.id)
+        )
+        if room_id is not None:
+            statement = statement.where(ExamDay.room_id == room_id)
+        with session_scope(self.db_path) as session:
+            return tuple(
+                VenueAssignmentSnapshot(
+                    assignment_id=assignment.id,
+                    recipient_member_id=assignment.committee_member_id,
+                    committee_id=exam_round.committee_id,
+                    date=day.date,
+                    room_id=day.room_id,
+                )
+                for assignment, day, exam_round in session.execute(statement)
+            )
+
+    def assignment_states(
+        self, assignment_ids: tuple[int, ...]
+    ) -> tuple[VenueAssignmentState, ...]:
+        if not assignment_ids:
+            return ()
+        with session_scope(self.db_path) as session:
+            assignments = session.execute(
+                select(ExamDayAssignment, ExamDay)
+                .join(ExamDay, ExamDay.id == ExamDayAssignment.exam_day_id)
+                .where(ExamDayAssignment.id.in_(assignment_ids))
+            ).all()
+            states: list[VenueAssignmentState] = []
+            found_ids: set[int] = set()
+            for assignment, day in assignments:
+                found_ids.add(assignment.id)
+                room = session.get(ExamRoom, day.room_id)
+                venue = session.get(ExamVenue, room.venue_id) if room is not None else None
+                states.append(
+                    VenueAssignmentState(
+                        assignment_id=assignment.id,
+                        confirmed=day.status == "confirmed",
+                        date=day.date,
+                        room_id=day.room_id,
+                        venue_id=room.venue_id if room is not None else None,
+                        room_values=(
+                            {field: getattr(room, field) for field in ROOM_FIELDS}
+                            if room is not None
+                            else None
+                        ),
+                        venue_values=(
+                            {field: getattr(venue, field) for field in VENUE_FIELDS}
+                            if venue is not None
+                            else None
+                        ),
+                    )
+                )
+            states.extend(
+                VenueAssignmentState(
+                    assignment_id=assignment_id,
+                    confirmed=False,
+                    date=None,
+                    room_id=None,
+                    venue_id=None,
+                    room_values=None,
+                    venue_values=None,
+                )
+                for assignment_id in assignment_ids
+                if assignment_id not in found_ids
+            )
+            return tuple(sorted(states, key=lambda item: item.assignment_id))
+
+    @staticmethod
+    def _audit_snapshot(audit: ExamVenueAuditEvent) -> VenueAuditEventSnapshot:
+        return VenueAuditEventSnapshot(
+            id=audit.id,
+            venue_id=audit.venue_id,
+            entity_type=audit.entity_type,
+            entity_id=audit.entity_id,
+            details_json=audit.details_json,
+            created_at=audit.created_at,
+        )
 
     def _query_value(self, query: VenueQuery) -> object:
         values = dict(query.values or {})

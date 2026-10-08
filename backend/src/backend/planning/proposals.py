@@ -4,11 +4,17 @@ from __future__ import annotations
 
 import json
 from collections import defaultdict
+from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
 from typing import Any
 
+from backend.planning.plan_consequences import (
+    PlanConsequenceSource,
+    describe_plan_change,
+)
 from backend.planning.proposal_ports import (
+    CommitteeMemberSnapshot,
     ConfirmedPlanRevisionSnapshot,
     PlanningContextSnapshot,
     PlanningProposalSnapshot,
@@ -123,6 +129,7 @@ class ConfirmedPlanRevision:
     """Immutable confirmed-plan audit revision in Planning-owned terms."""
 
     id: int
+    exam_round_id: int
     previous_revision: int
     resulting_revision: int
     reason: str
@@ -130,6 +137,7 @@ class ConfirmedPlanRevision:
     before: dict[str, Any]
     after: dict[str, Any]
     created_at: str
+    manager_member_ids: tuple[int, ...] = ()
 
 
 @dataclass
@@ -400,7 +408,10 @@ class PlanningService:
             )
             if saved is None:
                 raise ConfirmedPlanConflictError("Confirmed plan not found")
-            return saved, self._revision_result(audit)
+            return saved, self._revision_result(
+                audit,
+                self._manager_member_ids(snapshot.members),
+            )
 
     def confirmed_plan_revisions(self, round_id: int) -> list[ConfirmedPlanRevision]:
         """Return the append-only revision history for one confirmed plan."""
@@ -408,10 +419,77 @@ class PlanningService:
             exam_round = unit_of_work.planning_context(round_id).exam_round
             if exam_round is None:
                 raise ValueError("Exam round not found")
+            managers = self._manager_member_ids(unit_of_work.planning_context(round_id).members)
             return [
-                self._revision_result(item)
+                self._revision_result(item, managers)
                 for item in unit_of_work.confirmed_plan_revisions(round_id)
             ]
+
+    def confirmed_plan_revision(self, revision_id: int) -> ConfirmedPlanRevision | None:
+        """Return one detached revision snapshot for Application follow-up work."""
+        with self._unit_of_work_factory() as unit_of_work:
+            snapshot = unit_of_work.confirmed_plan_revision(revision_id)
+            if snapshot is None:
+                return None
+            context = unit_of_work.planning_context(snapshot.exam_round_id)
+            managers = self._manager_member_ids(context.members)
+            return self._revision_result(snapshot, managers)
+
+    def all_confirmed_plan_revisions(self) -> tuple[ConfirmedPlanRevision, ...]:
+        """Return detached immutable sources for Application recovery scans."""
+        with self._unit_of_work_factory() as unit_of_work:
+            revisions = unit_of_work.all_confirmed_plan_revisions()
+            managers_by_round = {
+                round_id: self._manager_member_ids(unit_of_work.planning_context(round_id).members)
+                for round_id in {item.exam_round_id for item in revisions}
+            }
+            return tuple(
+                self._revision_result(item, managers_by_round[item.exam_round_id])
+                for item in revisions
+            )
+
+    def confirmed_plan_revision_ids(self) -> tuple[int, ...]:
+        """Return stable technical IDs without decoding revision payloads."""
+        with self._unit_of_work_factory() as unit_of_work:
+            return tuple(unit_of_work.confirmed_plan_revision_ids())
+
+    def plan_consequence_source(self, revision_id: int) -> PlanConsequenceSource | None:
+        """Read and interpret one immutable revision within Planning ownership."""
+        with self._unit_of_work_factory() as unit_of_work:
+            snapshot = unit_of_work.confirmed_plan_revision(revision_id)
+            if snapshot is None:
+                return None
+            context = unit_of_work.planning_context(snapshot.exam_round_id)
+            committee_id = (
+                int(context.exam_round["committee_id"]) if context.exam_round is not None else 0
+            )
+            try:
+                revision = self._revision_result(
+                    snapshot,
+                    self._manager_member_ids(context.members),
+                )
+                descriptions = describe_plan_change(
+                    revision.before,
+                    revision.after,
+                    actor_member_id=revision.actor_member_id,
+                    manager_member_ids=revision.manager_member_ids,
+                )
+            except KeyError, TypeError, ValueError, json.JSONDecodeError:
+                return PlanConsequenceSource(
+                    revision_id=snapshot.id,
+                    exam_round_id=snapshot.exam_round_id,
+                    committee_id=committee_id,
+                    resulting_revision=snapshot.resulting_revision,
+                    descriptions=None,
+                    error_code="invalid_revision_snapshot",
+                )
+            return PlanConsequenceSource(
+                revision_id=revision.id,
+                exam_round_id=revision.exam_round_id,
+                committee_id=committee_id,
+                resulting_revision=revision.resulting_revision,
+                descriptions=descriptions,
+            )
 
     def confirm_plan(self, round_id: int) -> PlanConfirmationResult:
         """Confirm every day, slot, and fallback belonging to a proposal.
@@ -737,9 +815,13 @@ class PlanningService:
         return json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
 
     @staticmethod
-    def _revision_result(revision: ConfirmedPlanRevisionSnapshot) -> ConfirmedPlanRevision:
+    def _revision_result(
+        revision: ConfirmedPlanRevisionSnapshot,
+        manager_member_ids: tuple[int, ...] = (),
+    ) -> ConfirmedPlanRevision:
         return ConfirmedPlanRevision(
             id=revision.id,
+            exam_round_id=revision.exam_round_id,
             previous_revision=revision.previous_revision,
             resulting_revision=revision.resulting_revision,
             reason=revision.reason,
@@ -747,6 +829,17 @@ class PlanningService:
             before=json.loads(revision.before_state_json),
             after=json.loads(revision.after_state_json),
             created_at=revision.created_at,
+            manager_member_ids=manager_member_ids,
+        )
+
+    @staticmethod
+    def _manager_member_ids(members: Mapping[int, CommitteeMemberSnapshot]) -> tuple[int, ...]:
+        return tuple(
+            sorted(
+                member_id
+                for member_id, member in members.items()
+                if member["committee_role"] in {"chair", "deputy_chair"}
+            )
         )
 
     def _raise_for_invalid_proposal(

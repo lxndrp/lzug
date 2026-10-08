@@ -59,10 +59,11 @@ Calendar-Service-Port nach dem jeweiligen Fach-Commit aus und besitzt den
 dauerhaften Folgeauftragszustand mit stabiler Ursprungsidentität, Claim, Retry
 und Ergebnis. Ein fehlgeschlagener Kalender-UoW setzt den Fach-Commit nicht
 zurück und lässt die Folgearbeit wiederholbar offen.
-Der heutige `PlanConsequenceService` speichert Batch und Task noch in Planning;
-das ist ein Übergangspfad. Im Ziel leitet Planning nur typisierte
-Folgeauftragsbeschreibungen ab und Application persistiert sowie verarbeitet
-ihren eigenen dauerhaften Zustand.
+Planning leitet typisierte Plan- und Ortsfolgen aus materialisierten
+Änderungssnapshots ab. `application.plan_consequences` und
+`application.venue_consequences` koordinieren die unabhängigen Folgeaktionen;
+`persistence.application_consequences` besitzt den dauerhaften Batch- und
+Taskzustand. Der bestehende Tabellenvertrag bleibt erhalten.
 Nach einem Neustart stößt der bestehende Admin-Processing-Command den
 Re-Drive aus unveränderlichen Domainquellen an; ein automatischer
 Startup-Hook oder Hintergrundworker ist nicht vorausgesetzt.
@@ -90,9 +91,8 @@ Renderer `presentation.exam_exports` auf.
 `application` hängt nicht von `presentation` ab.
 Der Composition Root verdrahtet Snapshot-Port, Planning-Adapter und
 Application-Port.
-Damit entfallen der heutige direkte CalendarService-Aufruf und
-`CalendarEvent`-Read in `PlanConsequence._complete_calendar_task` nach dem
-Application-Handoff.
+Application liest abgeschlossene Eventgenerationen über den öffentlichen
+Calendar-Service-Port; die Orchestrierung liest keine `CalendarEvent`-Modelle.
 Eine zusätzliche Generation-Fencing-Garantie für verspätete Task-Abschlüsse
 ist durch #1078 nicht festgelegt.
 Ein konsumierendes Modul definiert ein kleines strukturelles `Protocol` für

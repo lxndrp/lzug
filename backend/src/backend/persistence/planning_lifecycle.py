@@ -19,8 +19,6 @@ from backend.persistence.models import (
     ExamRound,
     ExamSlot,
     MemberAvailability,
-    PlanConsequence,
-    PlanConsequenceBatch,
     PlanningSettings,
     RoundCandidate,
 )
@@ -230,18 +228,6 @@ class SQLitePlanningLifecycleWork:
             .where(ConfirmedPlanRevision.exam_round_id == round_id)
             .order_by(ConfirmedPlanRevision.id)
         )
-        pending = self._session.scalars(
-            select(PlanConsequence.id)
-            .join(PlanConsequenceBatch, PlanConsequenceBatch.id == PlanConsequence.batch_id)
-            .join(
-                ConfirmedPlanRevision,
-                ConfirmedPlanRevision.id == PlanConsequenceBatch.confirmed_plan_revision_id,
-            )
-            .where(
-                ConfirmedPlanRevision.exam_round_id == round_id,
-                PlanConsequence.status.in_({"pending", "temporarily_failed"}),
-            )
-        )
         return {
             "half_year": (
                 {
@@ -277,7 +263,6 @@ class SQLitePlanningLifecycleWork:
                 }
                 for row in revisions
             ),
-            "pending_consequence_ids": tuple(pending),
         }
 
     def lifecycle_candidate_ids(self, round_id: int) -> set[int]:

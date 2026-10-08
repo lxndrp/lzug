@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
+from backend.application.venue_consequences import VenueConsequenceService
 from backend.identity.auth import AuthContext
 from backend.identity.authorization import AuthorizationScope
 from backend.integrations.map_provider import MapProviderConfig
 from backend.planning.exam_venues import ExamVenueService
-from backend.planning.venue_consequences import VenueConsequenceService
 
 
 class ExamVenueApi:

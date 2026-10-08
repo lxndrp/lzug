@@ -289,11 +289,11 @@ ICS wird aus materialisierten Snapshots gerendert.
 Der aktuelle Code codiert Eventgenerationen in `source_key` und
 `external_event_id`; Inhaltsänderungen erhöhen die Eventversion und eine
 Reaktivierung erzeugt eine weitere Generation.
-`planning.plan_consequences` besitzt und leitet Kalenderaufträge nach dem
-Plan-Commit in einem separaten, idempotent wiederholbaren Planning-UoW ab.
-Scheitert die Ableitung, bleibt der bestätigte Plan bestehen; der Request
-meldet `derivation_status=missing`, und `process_due` kann die Ableitung
-erneut ausführen.
+`planning.plan_consequences` leitet typisierte Kalender- und Noticefolgen aus
+Planrevisionen ab. `application.plan_consequences` speichert und verarbeitet
+sie nach dem Plan-Commit in einem eigenen wiederholbaren UoW. Scheitert die
+Folgeausführung, bleibt der bestätigte Plan bestehen; der Request weist den
+Folgestatus aus, und `process_due` kann die Arbeit erneut ausführen.
 Dieser Pfad betrifft die aus bestätigten Planrevisionen abgeleiteten
 Kalenderfolgen.
 Er ist nicht mit den direkten Kalenderaufrufen aus dem Abwesenheitsprozess

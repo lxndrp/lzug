@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
 from unittest.mock import patch
 
@@ -9,6 +10,7 @@ from sqlalchemy import func, select
 from backend.composition import calendar_service as create_calendar_service
 from backend.composition import planning_service
 from backend.identity.authorization import AuthorizationScope
+from backend.persistence.application_consequences import PlanConsequence, PlanConsequenceBatch
 from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.persistence.database import session_scope
 from backend.persistence.models import (
@@ -17,10 +19,14 @@ from backend.persistence.models import (
     ExamDay,
     ExamVenue,
     Notification,
-    PlanConsequence,
-    PlanConsequenceBatch,
 )
 from backend.planning.exam_venues import ExamVenueConfirmationRequiredError
+from backend.planning.venue_consequences import (
+    VenueAssignment,
+    VenueCalendarConsequence,
+    VenueNotificationConsequence,
+    describe_venue_change,
+)
 from backend.tests.fixture_data import FIXTURE_IDS, FIXTURE_ROOT
 from backend.tests.helpers import (
     ApiServer,
@@ -41,6 +47,103 @@ class VenueConsequenceTests(unittest.TestCase):
         planning_service(db_path).confirm_plan(1)
         create_calendar_service(db_path).sync_round(1)
         return database, db_path
+
+    def test_planning_derives_typed_venue_consequences_from_detached_values(self) -> None:
+        descriptions = describe_venue_change(
+            venue_id=4,
+            entity_type="venue",
+            entity_id=4,
+            before={"street": "Altweg 1", "name": "Ort"},
+            after={"street": "Neuweg 2", "name": "Ort"},
+            changed_fields=frozenset({"street"}),
+            meaningful_change=True,
+            assignments=(VenueAssignment(assignment_id=12, recipient_member_id=9, committee_id=3),),
+        )
+
+        self.assertEqual(
+            (
+                VenueCalendarConsequence(
+                    recipient_member_id=9,
+                    assignment_id=12,
+                    entity_type="venue",
+                    entity_id=4,
+                    expected_signature=(
+                        ("city", None),
+                        ("country", None),
+                        ("entrance", None),
+                        ("name", "Ort"),
+                        ("postal_code", None),
+                        ("site_name", None),
+                        ("street", "Neuweg 2"),
+                        ("travel_directions", None),
+                    ),
+                ),
+            ),
+            descriptions.calendar,
+        )
+        self.assertEqual(
+            (
+                VenueNotificationConsequence(
+                    recipient_member_id=9,
+                    assignment_ids=(12,),
+                    committee_id=3,
+                    venue_id=4,
+                    entity_type="venue",
+                    entity_id=4,
+                    expected_signature=(
+                        ("accessibility_notes", None),
+                        ("accessibility_status", None),
+                        ("city", None),
+                        ("country", None),
+                        ("entrance", None),
+                        ("is_accessible", None),
+                        ("postal_code", None),
+                        ("site_name", None),
+                        ("street", "Neuweg 2"),
+                        ("travel_directions", None),
+                    ),
+                    fields=("Anschrift",),
+                ),
+            ),
+            descriptions.notifications,
+        )
+
+    def test_processing_claim_is_exclusive_and_recovers_after_lease_expiry(self) -> None:
+        now = datetime(2026, 10, 8, 12, tzinfo=UTC)
+        with TempDatabase() as db_path:
+            with session_scope(db_path) as session:
+                batch = PlanConsequenceBatch(
+                    origin_type="exam_venue_audit_event",
+                    origin_key="claim-test",
+                )
+                session.add(batch)
+                session.flush()
+                task = PlanConsequence(
+                    batch_id=batch.id,
+                    recipient_member_id=1,
+                    consequence_type="notification",
+                    action="notify",
+                    identity_key="member:1:committee:1",
+                    details_json="{}",
+                )
+                session.add(task)
+                session.flush()
+                task_id = task.id
+
+            service = venue_consequence_service_for_test(db_path)
+            self.assertTrue(service._claim_task(task_id, now))
+            self.assertFalse(service._claim_task(task_id, now + timedelta(minutes=4)))
+            self.assertTrue(service._claim_task(task_id, now + timedelta(minutes=6)))
+
+            with session_scope(db_path) as session:
+                task = session.get(PlanConsequence, task_id)
+                assert task is not None
+                self.assertEqual("pending", task.status)
+                self.assertEqual(0, task.attempt_count)
+                self.assertEqual(
+                    (now + timedelta(minutes=11)).isoformat(timespec="seconds"),
+                    task.next_attempt_at,
+                )
 
     def test_preview_and_meaningful_update_refresh_calendar_and_notify_members(self) -> None:
         database, db_path = self._confirmed_database()
