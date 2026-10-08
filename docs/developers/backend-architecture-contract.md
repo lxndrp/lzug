@@ -115,6 +115,10 @@ und die Planfolgen-Status-/Retry-Befehle an `application`; Upgrade-, Rollback-
 und Runtime-Befehle an `operations`.
 Der Application-Pfad koordiniert nur dort, wo Folgeauftragszustand und
 fachliche Ableitung zusammenlaufen.
+Der Processing-Command leitet fehlende Plan- und Venue-Batches aus den
+unveränderlichen Ursprungsrevisionen beziehungsweise Venue-Auditereignissen
+erneut ab und verarbeitet fällige Tasks nach einem Neustart.
+Abgelaufene Venue-Claims erscheinen als wiederholbare Folgeprobleme.
 
 ### Ownership
 
@@ -847,6 +851,11 @@ nicht zu dieser Migration.
   und macht Ableitungs-/Queue-Lücken diagnostizierbar und wiederanlaufbar.
   Ein Startup-Hook oder Hintergrundworker ist nicht vorausgesetzt.
   Daraus folgt keine Exactly-once- oder Outbox-Garantie.
+- Plan-Notifications werden an der Notification-Schreibgrenze unter einer
+  serialisierten UoW gegen die neueste bestätigte Rundenrevision geprüft.
+  Dieselbe Transaktion supersediert noch nicht zugestellte ältere Notices und
+  legt die aktuelle Notice an; ein abgelöster Worker kann so keine ältere
+  Notice nach einer bereits gespeicherten neueren Revision einfügen.
 - Die Taskmenge einer Ursprungsänderung wird beim ersten erfolgreichen
   Ableiten gespeichert. Ein Replay verarbeitet diese gespeicherten Tasks und
   erweitert einen historischen Ursprung nicht um später hinzugekommene

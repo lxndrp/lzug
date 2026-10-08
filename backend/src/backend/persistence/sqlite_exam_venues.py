@@ -159,6 +159,11 @@ class SQLiteExamVenueRepository:
             )
             return tuple(self._audit_snapshot(audit) for audit in audits)
 
+    def consequence_audits(self) -> tuple[VenueAuditEventSnapshot, ...]:
+        with session_scope(self.db_path) as session:
+            audits = session.scalars(select(ExamVenueAuditEvent).order_by(ExamVenueAuditEvent.id))
+            return tuple(self._audit_snapshot(audit) for audit in audits)
+
     def future_assignments(
         self, venue_id: int, *, room_id: int | None, today: str
     ) -> tuple[VenueAssignmentSnapshot, ...]:

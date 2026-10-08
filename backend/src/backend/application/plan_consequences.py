@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 from typing import Any
 
 from backend.application.calendar_ports import CalendarApplicationPort
@@ -17,7 +16,6 @@ from backend.application.consequence_ports import (
     NotificationApplicationPort,
     PlanConsequencePlanningPort,
 )
-from backend.persistence.database import DEFAULT_DB_PATH
 from backend.planning.plan_consequences import PlanConsequenceDescriptions
 from backend.planning.proposals import ConfirmedPlanRevision
 
@@ -39,14 +37,12 @@ class PlanConsequenceService:
 
     def __init__(
         self,
-        db_path: Path = DEFAULT_DB_PATH,
         *,
         notification_service: NotificationApplicationPort,
         calendar_service: CalendarApplicationPort,
         planning_service: PlanConsequencePlanningPort,
         consequence_store: ApplicationConsequenceStore,
     ) -> None:
-        self.db_path = Path(db_path)
         self.notifications = notification_service
         self.calendar = calendar_service
         self.planning = planning_service
@@ -338,27 +334,32 @@ class PlanConsequenceService:
         try:
             if not self._owns_claim(task_id, claim_until):
                 return
-            superseded_revision_ids = self.notifications.supersede_unsent_plan_changes(
+            accepted, superseded_revision_ids = self.notifications.create_plan_change(
+                committee_id=committee_id,
                 round_id=round_id,
                 recipient_member_id=member_id,
-                newer_revision_id=revision_id,
+                revision_id=revision_id,
+                title="Prüfungsplan geändert",
+                message=self._notification_message(categories),
+                action_path=f"/confirmed-plans/{round_id}",
             )
             self._mark_superseded_notification_tasks(
                 superseded_revision_ids,
                 current,
             )
-            if not self._owns_claim(task_id, claim_until):
+            if not accepted:
+                self.consequence_store.set_task_state(
+                    task_id,
+                    status="superseded",
+                    attempt_count=task.attempt_count,
+                    next_attempt_at=None,
+                    error_code="superseded_by_newer_revision",
+                    calendar_event_id=task.calendar_event_id,
+                    calendar_event_version=task.calendar_event_version,
+                    updated_at=_timestamp(current),
+                    expected_claim_until=claim_until,
+                )
                 return
-            self.notifications.create_direct(
-                committee_id=committee_id,
-                round_id=round_id,
-                recipient_member_ids={member_id},
-                event_type="plan_changed",
-                title="Prüfungsplan geändert",
-                message=self._notification_message(categories),
-                action_path=f"/confirmed-plans/{round_id}",
-                origin_key=f"confirmed-plan-revision:{revision_id}",
-            )
         except Exception:
             self._fail_task(task_id, "notification_processing_failed", current, claim_until)
             return

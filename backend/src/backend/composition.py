@@ -89,6 +89,21 @@ def application_consequence_store(db_path: Path) -> SQLiteApplicationConsequence
     return SQLiteApplicationConsequenceStore(db_path)
 
 
+def venue_consequence_service(
+    db_path: Path,
+    *,
+    notifications: NotificationService | None = None,
+    settings: RuntimeSettings | None = None,
+) -> VenueConsequenceService:
+    """Wire restartable venue effects for administrator recovery processing."""
+    return VenueConsequenceService(
+        notification_service=notifications or notification_service(db_path, settings=settings),
+        calendar_service=calendar_service(db_path, settings=settings),
+        consequence_store=application_consequence_store(db_path),
+        venue_planner=PlanningVenueConsequencePlanner(SQLiteExamVenueRepository(db_path)),
+    )
+
+
 def candidate_day_service(db_path: Path) -> CandidateDayService:
     """Wire the planning port to SQLite and the configured holiday adapter."""
     return CandidateDayService(
@@ -410,7 +425,6 @@ def exam_venue_service(
     )
     venue_planner = PlanningVenueConsequencePlanner(repository)
     consequences = VenueConsequenceService(
-        db_path,
         notification_service=notifications,
         calendar_service=calendar_service(db_path),
         consequence_store=application_consequence_store(db_path),
@@ -438,7 +452,6 @@ def exam_venue_api(
     )
     venue_planner = PlanningVenueConsequencePlanner(repository)
     consequences = VenueConsequenceService(
-        db_path,
         notification_service=notifications,
         calendar_service=calendar_service(db_path),
         consequence_store=application_consequence_store(db_path),

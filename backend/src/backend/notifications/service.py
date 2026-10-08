@@ -182,6 +182,63 @@ class NotificationService:
         self.process_deliveries()
         return len(created_ids)
 
+    def create_plan_change(
+        self,
+        *,
+        committee_id: int,
+        round_id: int,
+        recipient_member_id: int,
+        revision_id: int,
+        title: str,
+        message: str,
+        action_path: str,
+    ) -> tuple[bool, set[int]]:
+        """Atomically accept only the latest revision and supersede older notices.
+
+        The notification UoW factory serializes this read/write sequence. A
+        worker that resumes after a newer revision was notified therefore
+        cannot insert an older notice after the newer one.
+        """
+        superseded_revision_ids: set[int] = set()
+        accepted = False
+        with self._notification_unit_of_work_factory(begin_immediate=True) as unit_of_work:
+            revision = unit_of_work.plan_revision(revision_id)
+            latest_revision = unit_of_work.latest_plan_revision(round_id)
+            if (
+                revision is not None
+                and revision.round_id == round_id
+                and latest_revision is not None
+                and latest_revision.resulting_revision <= revision.resulting_revision
+            ):
+                superseded_revision_ids = self._supersede_unsent_plan_changes(
+                    unit_of_work,
+                    round_id=round_id,
+                    recipient_member_id=recipient_member_id,
+                    newer_revision_id=revision_id,
+                )
+                write = unit_of_work.save_notice(
+                    NoticeDraft(
+                        committee_id=committee_id,
+                        round_id=round_id,
+                        recipient_member_id=recipient_member_id,
+                        event_type="plan_changed",
+                        origin_key=f"confirmed-plan-revision:{revision_id}:{recipient_member_id}",
+                        title=title,
+                        message=message,
+                        action_path=action_path,
+                    )
+                )
+                if write.created and self.external_delivery_enabled:
+                    unit_of_work.queue_deliveries(
+                        write.id,
+                        recipient_member_id,
+                        self._channel_configuration(),
+                    )
+                accepted = True
+        if accepted:
+            self.process_deliveries()
+        return accepted, superseded_revision_ids
+
     def process_due_events(self, *, now: datetime | None = None) -> dict[str, int]:
         current = _now(now)
         created = 0
@@ -256,47 +313,44 @@ class NotificationService:
                 for row in rows
             ]
 
-    def supersede_unsent_plan_changes(
-        self,
+    @staticmethod
+    def _supersede_unsent_plan_changes(
+        unit_of_work: NotificationUnitOfWork,
         *,
         round_id: int,
         recipient_member_id: int,
         newer_revision_id: int,
     ) -> set[int]:
-        """Hide unattempted plan notices and return their source revision IDs."""
         superseded_revision_ids: set[int] = set()
         current = _timestamp(_now())
-        with self._notification_unit_of_work_factory() as unit_of_work:
-            notices = unit_of_work.plan_change_notices(
-                round_id, recipient_member_id, newer_revision_id
+        notices = unit_of_work.plan_change_notices(round_id, recipient_member_id, newer_revision_id)
+        for notice in notices:
+            parts = notice.origin_key.split(":")
+            if len(parts) < 3 or parts[0] != "confirmed-plan-revision":
+                continue
+            try:
+                notice_revision_id = int(parts[1])
+            except ValueError:
+                continue
+            notice_revision = unit_of_work.plan_revision(notice_revision_id)
+            newer_revision = unit_of_work.plan_revision(newer_revision_id)
+            if (
+                notice_revision is None
+                or newer_revision is None
+                or notice_revision.round_id != newer_revision.round_id
+                or notice_revision.resulting_revision >= newer_revision.resulting_revision
+            ):
+                continue
+            attempted = any(
+                delivery.attempt_count > 0
+                or delivery.technical_confirmed_at is not None
+                or delivery.claim_token is not None
+                for delivery in unit_of_work.delivery_attempts(notice.id)
             )
-            for notice in notices:
-                parts = notice.origin_key.split(":")
-                if len(parts) < 3 or parts[0] != "confirmed-plan-revision":
-                    continue
-                try:
-                    notice_revision_id = int(parts[1])
-                except ValueError:
-                    continue
-                notice_revision = unit_of_work.plan_revision(notice_revision_id)
-                newer_revision = unit_of_work.plan_revision(newer_revision_id)
-                if (
-                    notice_revision is None
-                    or newer_revision is None
-                    or notice_revision.round_id != newer_revision.round_id
-                    or notice_revision.resulting_revision >= newer_revision.resulting_revision
-                ):
-                    continue
-                attempted = any(
-                    delivery.attempt_count > 0
-                    or delivery.technical_confirmed_at is not None
-                    or delivery.claim_token is not None
-                    for delivery in unit_of_work.delivery_attempts(notice.id)
-                )
-                if attempted:
-                    continue
-                unit_of_work.supersede_plan_change(notice.id, newer_revision_id, current)
-                superseded_revision_ids.add(notice_revision_id)
+            if attempted:
+                continue
+            unit_of_work.supersede_plan_change(notice.id, newer_revision_id, current)
+            superseded_revision_ids.add(notice_revision_id)
         return superseded_revision_ids
 
     def register_push(self, scope: NotificationScope, endpoint: str) -> dict[str, object]:

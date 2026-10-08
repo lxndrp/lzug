@@ -241,7 +241,6 @@ class RequestContext:
     @property
     def plan_consequence_service(self) -> PlanConsequenceService:
         return PlanConsequenceService(
-            self.db_path,
             notification_service=self.notification_service,
             calendar_service=self.calendar_service,
             planning_service=self.planning_service,

@@ -100,13 +100,15 @@ class SQLiteApplicationConsequenceStore:
         error_code: str | None,
         now: str,
     ) -> int:
-        with session_scope(self.db_path) as session:
+        with session_scope(self.db_path, begin_immediate=True) as session:
             batch = session.scalar(
                 select(PlanConsequenceBatch).where(
                     PlanConsequenceBatch.origin_type == origin_type,
                     PlanConsequenceBatch.origin_key == origin_key,
                 )
             )
+            if batch is not None and error_code is None and batch.status == "succeeded":
+                return batch.id
             if batch is None:
                 batch = PlanConsequenceBatch(
                     origin_type=origin_type,

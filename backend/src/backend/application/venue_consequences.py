@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, date, datetime, timedelta
-from pathlib import Path
 from typing import Any
 
 from backend.application.calendar_ports import CalendarApplicationPort
@@ -14,7 +13,6 @@ from backend.application.consequence_ports import (
     NotificationApplicationPort,
     VenueConsequencePlanningPort,
 )
-from backend.persistence.database import DEFAULT_DB_PATH
 from backend.planning.venue_consequences import VenueAuditConsequenceSource
 from backend.planning_ports import VenueAuditEventSnapshot
 
@@ -36,14 +34,12 @@ class VenueConsequenceService:
 
     def __init__(
         self,
-        db_path: Path = DEFAULT_DB_PATH,
         *,
         notification_service: NotificationApplicationPort,
         calendar_service: CalendarApplicationPort,
         consequence_store: ApplicationConsequenceStore,
         venue_planner: VenueConsequencePlanningPort,
     ) -> None:
-        self.db_path = Path(db_path)
         self.notifications = notification_service
         self.calendar = calendar_service
         self.consequence_store = consequence_store
@@ -76,6 +72,42 @@ class VenueConsequenceService:
         self._supersede_stale(audit_id, current)
         self._process_tasks(batch_id, current)
         return self.summary(audit_id)
+
+    def process_due(self, *, now: datetime | None = None) -> dict[str, int]:
+        """Re-derive missing audit batches and resume due tasks after a crash."""
+        current = _now(now)
+        audit_ids: list[int] = []
+        due_task_ids: set[int] = set()
+        derivation_problems = 0
+        for audit in self.venue_planner.consequence_audits():
+            if self._audit_details(audit).get("consequence_version") != 1:
+                continue
+            audit_ids.append(audit.id)
+            batch = self.consequence_store.batch_by_origin("exam_venue_audit_event", str(audit.id))
+            try:
+                batch_id = batch.id if batch is not None else self._derive(audit.id, current)
+                due_task_ids.update(
+                    self.consequence_store.due_task_ids(
+                        origin_type="exam_venue_audit_event",
+                        now=_timestamp(current),
+                        batch_id=batch_id,
+                    )
+                )
+                self._supersede_stale(audit.id, current)
+                self._process_tasks(batch_id, current)
+            except Exception:
+                derivation_problems += 1
+        batches = self.consequence_store.batches_by_origin("exam_venue_audit_event")
+        failed_tasks = sum(
+            task.status in {"temporarily_failed", "permanently_failed"}
+            for batch in batches
+            for task in self.consequence_store.tasks_for_batch(batch.id)
+        )
+        return {
+            "audits": len(audit_ids),
+            "processed": len(due_task_ids),
+            "problems": derivation_problems + failed_tasks,
+        }
 
     def retry_audit(self, audit_id: int) -> dict[str, Any]:
         current = _now()
@@ -110,11 +142,16 @@ class VenueConsequenceService:
             if batch is None:
                 result.append(self._problem_view(audit, None, "derivation_missing"))
                 continue
-            tasks = self.consequence_store.tasks_for_batch(
-                batch.id,
-                statuses=frozenset({"temporarily_failed", "permanently_failed"}),
-            )
-            result.extend(self._problem_view(audit, task, task.error_code) for task in tasks)
+            for task in self.consequence_store.tasks_for_batch(batch.id):
+                expired_claim = (
+                    task.status == "pending"
+                    and task.next_attempt_at is not None
+                    and task.next_attempt_at <= _timestamp()
+                )
+                if task.status in {"temporarily_failed", "permanently_failed"}:
+                    result.append(self._problem_view(audit, task, task.error_code))
+                elif expired_claim:
+                    result.append(self._problem_view(audit, task, "claim_expired"))
         return result
 
     def summary(self, audit_id: int) -> dict[str, Any]:

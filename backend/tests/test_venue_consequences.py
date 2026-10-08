@@ -430,6 +430,61 @@ class VenueConsequenceTests(unittest.TestCase):
         finally:
             database.__exit__(None, None, None)
 
+    def test_process_due_recovers_missing_batches_and_expired_claims(self) -> None:
+        database, db_path = self._confirmed_database()
+        try:
+            venues = exam_venue_service_for_test(db_path)
+            venue = venues.get_venue(1)
+            assert venue is not None
+            changed = venues.update_venue(
+                1,
+                {
+                    "expected_revision": venue["revision"],
+                    "site_name": "Gebäude für Wiederanlauf",
+                    "confirm_future_assignments": True,
+                },
+                technical_actor="operator:test",
+            )
+            assert changed is not None
+            audit_id = changed["consequence_audit_id"]
+            with session_scope(db_path) as session:
+                batch = session.scalar(
+                    select(PlanConsequenceBatch).where(
+                        PlanConsequenceBatch.origin_type == "exam_venue_audit_event",
+                        PlanConsequenceBatch.origin_key == str(audit_id),
+                    )
+                )
+                assert batch is not None
+                session.delete(batch)
+
+            service = venue_consequence_service_for_test(db_path)
+            recovered = service.process_due()
+            self.assertGreater(recovered["processed"], 0)
+            self.assertEqual(0, recovered["problems"])
+            self.assertEqual([], service.problems_for_venue(1))
+
+            with session_scope(db_path) as session:
+                task = session.scalar(
+                    select(PlanConsequence)
+                    .join(PlanConsequenceBatch)
+                    .where(
+                        PlanConsequenceBatch.origin_type == "exam_venue_audit_event",
+                        PlanConsequenceBatch.origin_key == str(audit_id),
+                    )
+                )
+                assert task is not None
+                task.status = "pending"
+                task.next_attempt_at = "2000-01-01T00:00:00+00:00"
+
+            problems = service.problems_for_venue(1)
+            self.assertEqual("claim_expired", problems[0]["error_code"])
+            self.assertEqual("pending", problems[0]["status"])
+            retried = service.retry_audit(audit_id)
+            self.assertEqual(0, retried["problems"])
+            self.assertEqual([], service.problems_for_venue(1))
+        finally:
+            database.__exit__(None, None, None)
+
     def test_retry_supersedes_an_effect_after_a_newer_relevant_change(self) -> None:
         database, db_path = self._confirmed_database()
         try:

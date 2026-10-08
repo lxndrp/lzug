@@ -177,6 +177,8 @@ class NotificationUnitOfWork(Protocol):
 
     def plan_revision(self, revision_id: int) -> PlanRevision | None: ...
 
+    def latest_plan_revision(self, round_id: int) -> PlanRevision | None: ...
+
     def delivery_attempts(self, notification_id: int) -> tuple[DeliveryAttempt, ...]: ...
 
     def supersede_plan_change(
@@ -211,7 +213,9 @@ class NotificationUnitOfWork(Protocol):
 class NotificationUnitOfWorkFactory(Protocol):
     """Open a fresh unit of work for one notification command or query."""
 
-    def __call__(self) -> AbstractContextManager[NotificationUnitOfWork]: ...
+    def __call__(
+        self, *, begin_immediate: bool = False
+    ) -> AbstractContextManager[NotificationUnitOfWork]: ...
 
 
 class NotificationDeliveryUnitOfWork(Protocol):

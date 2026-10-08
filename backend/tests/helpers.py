@@ -68,7 +68,6 @@ def venue_consequence_service_for_test(db_path: Path):
     from backend.application.venue_consequences import VenueConsequenceService
 
     return VenueConsequenceService(
-        db_path,
         notification_service=notification_service_for_test(db_path),
         calendar_service=compose_calendar_service(db_path),
         consequence_store=application_consequence_store(db_path),

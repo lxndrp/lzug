@@ -208,6 +208,8 @@ class VenueConsequencePlanningPort(Protocol):
 
     def audits_for_venue(self, venue_id: int) -> tuple[VenueAuditEventSnapshot, ...]: ...
 
+    def consequence_audits(self) -> tuple[VenueAuditEventSnapshot, ...]: ...
+
     def source_for_audit(
         self, audit_id: int, *, today: date | None = None
     ) -> VenueAuditConsequenceSource | None: ...
@@ -232,13 +234,17 @@ class NotificationApplicationPort(Protocol):
         urgent: bool = False,
     ) -> int: ...
 
-    def supersede_unsent_plan_changes(
+    def create_plan_change(
         self,
         *,
+        committee_id: int,
         round_id: int,
         recipient_member_id: int,
-        newer_revision_id: int,
-    ) -> set[int]: ...
+        revision_id: int,
+        title: str,
+        message: str,
+        action_path: str,
+    ) -> tuple[bool, set[int]]: ...
 
 
 __all__ = [

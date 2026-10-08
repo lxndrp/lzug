@@ -67,6 +67,12 @@ Taskzustand. Der bestehende Tabellenvertrag bleibt erhalten.
 Nach einem Neustart stößt der bestehende Admin-Processing-Command den
 Re-Drive aus unveränderlichen Domainquellen an; ein automatischer
 Startup-Hook oder Hintergrundworker ist nicht vorausgesetzt.
+Er leitet fehlende Venue-Batches aus versionierten Auditereignissen erneut ab
+und verarbeitet persistierte fällige Tasks; abgelaufene Venue-Claims bleiben
+im Betreiberpfad sichtbar und wiederholbar.
+Plan-Notifications prüfen die neueste bestätigte Revision, supersedieren
+unzugestellte ältere Notices und speichern die aktuelle Notice atomar in einer
+serialisierten Notification-UoW.
 Eventgenerationen sind im aktuellen Code in `source_key` und
 `external_event_id` codiert; Inhaltsänderungen behalten die Identität und
 erhöhen die Eventversion, eine Reaktivierung erzeugt eine weitere Generation.

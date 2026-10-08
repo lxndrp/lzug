@@ -13,6 +13,7 @@ from typing import Any
 from sqlalchemy.exc import SQLAlchemyError
 
 from backend.application.plan_consequences import PlanConsequenceService
+from backend.application.venue_consequences import VenueConsequenceService
 from backend.identity.admin_service import AdminOperationError, OperatorAuthService
 from backend.identity.committee_admin import CommitteeAdminService
 from backend.notifications.service import NotificationService
@@ -173,6 +174,9 @@ class AdminServices:
     artifact_factory: Callable[[PersistencePaths], ArtifactService]
     recipient_repository_factory: Callable[[ArtifactService], BackupRecipientRepository]
     lifecycle_factory: Callable[[PersistencePaths], LifecycleService]
+    venue_consequence_factory: (
+        Callable[[Path, NotificationService], VenueConsequenceService] | None
+    ) = None
 
 
 def _response(
@@ -328,10 +332,14 @@ def _execute_committee(
 def _execute_notification_processing(
     notifications: NotificationService,
     consequences: PlanConsequenceService,
+    venue_consequences: VenueConsequenceService | None = None,
 ) -> dict[str, Any]:
     result = notifications.process_due_events()
     consequence_result = consequences.process_due()
-    return {**result, "plan_consequences": consequence_result}
+    response = {**result, "plan_consequences": consequence_result}
+    if venue_consequences is not None:
+        response["venue_consequences"] = venue_consequences.process_due()
+    return response
 
 
 def _execute_plan_consequences(
@@ -410,7 +418,15 @@ def _run_command(
             return _execute_notification_test(arguments, notifications), EXIT_OK
         consequences = services.consequence_factory(paths.database, notifications)
         if command == "process-notifications":
-            return _execute_notification_processing(notifications, consequences), EXIT_OK
+            venue_consequences = (
+                services.venue_consequence_factory(paths.database, notifications)
+                if services.venue_consequence_factory is not None
+                else None
+            )
+            return (
+                _execute_notification_processing(notifications, consequences, venue_consequences),
+                EXIT_OK,
+            )
         return _execute_plan_consequences(command, arguments, consequences), EXIT_OK
     service = services.operator_auth_factory(paths.database)
     return _execute_account(command, arguments, service), EXIT_OK

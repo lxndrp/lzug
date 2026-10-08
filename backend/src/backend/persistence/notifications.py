@@ -209,12 +209,14 @@ class SQLiteNotificationUnitOfWorkFactory:
     def __init__(self, db_path: Path = DEFAULT_DB_PATH) -> None:
         self.db_path = db_path
 
-    def __call__(self) -> AbstractContextManager[NotificationUnitOfWork]:
-        return self._unit_of_work()
+    def __call__(
+        self, *, begin_immediate: bool = False
+    ) -> AbstractContextManager[NotificationUnitOfWork]:
+        return self._unit_of_work(begin_immediate=begin_immediate)
 
     @contextmanager
-    def _unit_of_work(self) -> Iterator[NotificationUnitOfWork]:
-        with session_scope(self.db_path) as session:
+    def _unit_of_work(self, *, begin_immediate: bool = False) -> Iterator[NotificationUnitOfWork]:
+        with session_scope(self.db_path, begin_immediate=begin_immediate) as session:
             yield SQLiteNotificationUnitOfWork(session)
 
 
@@ -520,6 +522,21 @@ class SQLiteNotificationUnitOfWork:
 
     def plan_revision(self, revision_id: int) -> PlanRevision | None:
         row = self._session.get(ConfirmedPlanRevision, revision_id)
+        if row is None:
+            return None
+        return PlanRevision(
+            id=row.id,
+            round_id=row.exam_round_id,
+            resulting_revision=row.resulting_revision,
+        )
+
+    def latest_plan_revision(self, round_id: int) -> PlanRevision | None:
+        row = self._session.scalars(
+            select(ConfirmedPlanRevision)
+            .where(ConfirmedPlanRevision.exam_round_id == round_id)
+            .order_by(ConfirmedPlanRevision.resulting_revision.desc())
+            .limit(1)
+        ).first()
         if row is None:
             return None
         return PlanRevision(

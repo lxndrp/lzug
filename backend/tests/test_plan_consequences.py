@@ -41,7 +41,6 @@ from backend.tests.helpers import (
 
 def plan_consequence_service_for_test(db_path):
     return PlanConsequenceService(
-        db_path,
         notification_service=notification_service_for_test(db_path),
         calendar_service=create_calendar_service(db_path),
         planning_service=planning_service(db_path),
@@ -532,22 +531,21 @@ class PlanConsequenceServiceTests(unittest.TestCase):
             )
             service = plan_consequence_service_for_test(db_path)
             now = datetime.now(UTC)
-            original_supersede = service.notifications.supersede_unsent_plan_changes
+            original_create = service.notifications.create_plan_change
             newer_revision_processed = False
             newer_summary = None
 
-            def process_newer_revision(**kwargs):
+            def create_notice(**kwargs):
                 nonlocal newer_revision_processed, newer_summary
-                if not newer_revision_processed:
+                if kwargs["revision_id"] == first_revision.id and not newer_revision_processed:
                     newer_revision_processed = True
-                    service.notifications.supersede_unsent_plan_changes = original_supersede
                     newer_summary = service.process_revision(second_revision.id, now=now)
-                return original_supersede(**kwargs)
+                return original_create(**kwargs)
 
             with patch.object(
                 service.notifications,
-                "supersede_unsent_plan_changes",
-                side_effect=process_newer_revision,
+                "create_plan_change",
+                side_effect=create_notice,
             ):
                 service.process_revision(first_revision.id, now=now)
 

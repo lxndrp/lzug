@@ -54,6 +54,7 @@ from .composition import (
     planning_resource_unit_of_work_factory as compose_planning_resource_unit_of_work_factory,
 )
 from .composition import planning_service as compose_planning_service
+from .composition import venue_consequence_service as compose_venue_consequence_service
 from .execution.exam_protocols import ExamProtocolService
 from .execution.slot_service import ExecutionService
 from .fastapi_app import (
@@ -138,7 +139,6 @@ def create_admin_application(
         consequence_factory=lambda db_path, notification_service: (
             consequences
             or PlanConsequenceService(
-                db_path,
                 notification_service=notification_service,
                 calendar_service=compose_calendar_service(db_path, settings=require_settings()),
                 planning_service=compose_planning_service(db_path),
@@ -154,6 +154,13 @@ def create_admin_application(
         ),
         lifecycle_factory=lambda persistence: (
             lifecycle or LifecycleService(persistence, settings=require_settings())
+        ),
+        venue_consequence_factory=lambda db_path, notification_service: (
+            compose_venue_consequence_service(
+                db_path,
+                notifications=notification_service,
+                settings=require_settings(),
+            )
         ),
     )
     return AdminApplication(resolved_paths, services, runtime=runtime)

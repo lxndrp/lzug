@@ -151,6 +151,9 @@ class PlanningVenueConsequencePlanner:
     def audits_for_venue(self, venue_id: int) -> tuple[VenueAuditEventSnapshot, ...]:
         return self.repository.consequence_audits_for_venue(venue_id)
 
+    def consequence_audits(self) -> tuple[VenueAuditEventSnapshot, ...]:
+        return self.repository.consequence_audits()
+
     def source_for_audit(self, audit_id: int, *, today: date | None = None):
         audit = self.repository.consequence_audit(audit_id)
         if audit is None:
