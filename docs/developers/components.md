@@ -191,9 +191,6 @@ Sessions verlassen Persistence.
 Für die Koordinatenpolicy erhält der Adapter den bereits aufgelösten Wert aus
 `FastAPIConfig.map_provider.active` und liest bei Requests keine
 Prozessumgebung erneut ein.
-`PlanningService` für Vorschläge und Revisionen bleibt der bisherige Pfad und
-liegt außerhalb dieser Portmigration.
-
 Die Kandidatentage sind der erste Planning-Port-Pilot:
 `backend.planning.candidate_days` enthält den typisierten Generierungsbefehl,
 das Ergebnis, die Providerabstraktion und den Unit-of-Work-Vertrag ohne
@@ -207,9 +204,6 @@ Runtime-Policy ausgewählten Datenbankpfad. Dadurch bleiben Produkt- und
 Demo-Datenbanken getrennt und jede Generierung erhält ihren eigenen UoW.
 Das Lebensdauerdiagramm und ein konkreter Ablauf stehen im
 [Backend-Vertrag](backend-architecture-contract.md#vertikaler-pilot-kandidatentage).
-`PlanningService` für Vorschläge und Revisionen verwendet weiterhin den
-dokumentierten Übergangspfad.
-
 Prüfungsorte verwenden denselben Portansatz:
 `backend.planning_ports` enthält den Planning-owned Vertrag für typisierte
 Abfragen, Commands,

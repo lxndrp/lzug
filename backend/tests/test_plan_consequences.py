@@ -188,8 +188,8 @@ class PlanConsequenceServiceTests(unittest.TestCase):
             )
 
             service = plan_consequence_service_for_test(db_path)
-            first = service.process_revision(revision["id"])
-            second = service.process_revision(revision["id"])
+            first = service.process_revision(revision.id)
+            second = service.process_revision(revision.id)
 
             with session_scope(db_path) as session:
                 after_events = {
@@ -207,7 +207,7 @@ class PlanConsequenceServiceTests(unittest.TestCase):
                 ]
                 consequence_count = len(session.scalars(select(PlanConsequence)).all())
 
-        self.assertEqual(saved.revision, revision["resulting_revision"])
+        self.assertEqual(saved.revision, revision.resulting_revision)
         self.assertEqual("succeeded", first["derivation_status"])
         self.assertEqual(first, second)
         self.assertEqual(set(before_events), set(after_events))
@@ -241,7 +241,7 @@ class PlanConsequenceServiceTests(unittest.TestCase):
                 actor_member_id=1,
             )
 
-            result = plan_consequence_service_for_test(db_path).process_revision(revision["id"])
+            result = plan_consequence_service_for_test(db_path).process_revision(revision.id)
 
         self.assertEqual(0, result["processed"])
         self.assertEqual(0, result["problems"])
@@ -300,7 +300,7 @@ class PlanConsequenceServiceTests(unittest.TestCase):
                 actor_member_id=1,
             )
 
-            plan_consequence_service_for_test(db_path).process_revision(revision["id"])
+            plan_consequence_service_for_test(db_path).process_revision(revision.id)
             with session_scope(db_path) as session:
                 old = session.get(CalendarEvent, old_event_id)
                 new = session.scalars(
@@ -343,8 +343,8 @@ class PlanConsequenceServiceTests(unittest.TestCase):
             service = plan_consequence_service_for_test(db_path)
 
             with patch.object(service.calendar, "sync_round", side_effect=OSError("offline")):
-                failed = service.process_revision(revision["id"])
-            retried = service.retry_revision(revision["id"])
+                failed = service.process_revision(revision.id)
+            retried = service.retry_revision(revision.id)
             persisted = planning.get_confirmed_plan(1)
 
         self.assertEqual(saved, persisted)
@@ -378,7 +378,7 @@ class PlanConsequenceServiceTests(unittest.TestCase):
             )
             service = plan_consequence_service_for_test(db_path)
             service_now = datetime.now(UTC)
-            first = service.process_revision(first_revision["id"], now=service_now)
+            first = service.process_revision(first_revision.id, now=service_now)
             current = planning.get_confirmed_plan(1)
             second_day = current.days[0]
             second_change = replace(
@@ -393,8 +393,8 @@ class PlanConsequenceServiceTests(unittest.TestCase):
                 actor_member_id=1,
             )
 
-            latest = service.process_revision(second_revision["id"], now=service_now)
-            older = service.process_revision(first_revision["id"], now=service_now)
+            latest = service.process_revision(second_revision.id, now=service_now)
+            older = service.process_revision(first_revision.id, now=service_now)
 
         self.assertEqual(0, first["problems"])
         self.assertEqual(0, latest["problems"])
@@ -422,15 +422,15 @@ class PlanConsequenceServiceTests(unittest.TestCase):
             )
             service = plan_consequence_service_for_test(db_path)
             with patch.object(service.calendar, "sync_round", side_effect=OSError("offline")):
-                first = service.process_revision(first_revision["id"])
+                first = service.process_revision(first_revision.id)
 
             current = planning.get_confirmed_plan(1)
             _saved, second_revision = planning.save_confirmed_plan(
                 ConfirmedPlanChange(current, "Nur Begründung ergänzen"),
                 actor_member_id=1,
             )
-            second = service.process_revision(second_revision["id"])
-            retried = service.retry_revision(first_revision["id"])
+            second = service.process_revision(second_revision.id)
+            retried = service.retry_revision(first_revision.id)
 
             with session_scope(db_path) as session:
                 active_locations = {
@@ -470,12 +470,12 @@ class PlanConsequenceServiceTests(unittest.TestCase):
             service = plan_consequence_service_for_test(db_path)
             started = datetime.now(UTC)
             with patch.object(service.calendar, "sync_round", side_effect=OSError("offline")):
-                service.process_revision(revision["id"], now=started)
+                service.process_revision(revision.id, now=started)
                 service.process_due(now=started + timedelta(minutes=1))
                 service.process_due(now=started + timedelta(minutes=3))
                 service.process_due(now=started + timedelta(minutes=7))
 
-            status = service.operator_status(revision["id"])
+            status = service.operator_status(revision.id)
 
         failed = [
             item for item in status["technical_items"] if item["status"] == "permanently_failed"
@@ -497,7 +497,7 @@ class PlanConsequenceApiTests(unittest.TestCase):
                 ConfirmedPlanChange(original, "Technischen Wiederanlauf prüfen"),
                 actor_member_id=1,
             )
-            plan_consequence_service_for_test(db_path).process_revision(revision["id"])
+            plan_consequence_service_for_test(db_path).process_revision(revision.id)
             authentication = SQLiteAuthenticationRepository(db_path)
             examiner = authentication.create_session(2)
             deputy = authentication.create_session(3)
@@ -513,7 +513,7 @@ class PlanConsequenceApiTests(unittest.TestCase):
 
                 retry = (
                     "/api/exam-rounds/1/confirmed-plan/revisions/"
-                    f"{revision['id']}/consequences/retry"
+                    f"{revision.id}/consequences/retry"
                 )
                 status, _retried = api.request("POST", retry, {}, credentials=deputy)
                 assert_status(status, 200)

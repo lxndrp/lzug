@@ -131,10 +131,9 @@ class PlanningTests(unittest.TestCase):
             assignments = repository.list(EXAM_DAY_ASSIGNMENT)
             exam_round = repository.get(EXAM_ROUND, 1)
 
-        self.assertTrue(proposal["validation"]["passed"])
-        self.assertEqual("plan_proposed", proposal["status"])
+        self.assertEqual(1, proposal.proposal.revision)
         self.assertEqual("plan_proposed", exam_round["status"])
-        self.assertEqual(16, proposal["counts"]["planned_slots"])
+        self.assertEqual(16, proposal.counts.planned_slots)
         self.assertEqual(16, len(exam_slots))
         self.assertGreaterEqual(len(exam_days), 3)
         self.assertGreaterEqual(len(assignments), len(exam_days) * 4)
@@ -162,8 +161,8 @@ class PlanningTests(unittest.TestCase):
             repository = ResourceRepository(db_path)
             exam_slots = repository.list(EXAM_SLOT)
 
-        self.assertEqual(16, first["counts"]["planned_slots"])
-        self.assertEqual(16, second["counts"]["planned_slots"])
+        self.assertEqual(16, first.counts.planned_slots)
+        self.assertEqual(16, second.counts.planned_slots)
         self.assertEqual(16, len(exam_slots))
 
     def test_complete_proposal_can_be_read_reordered_and_saved_with_new_revision(self) -> None:
@@ -185,7 +184,7 @@ class PlanningTests(unittest.TestCase):
             saved = service.save_proposal(changed)
             persisted = service.get_proposal(1)
 
-        self.assertEqual(1, generated["revision"])
+        self.assertEqual(1, generated.proposal.revision)
         self.assertEqual(1, proposal.revision)
         self.assertEqual(2, saved.revision)
         self.assertEqual(saved, persisted)
@@ -261,17 +260,17 @@ class PlanningTests(unittest.TestCase):
         self.assertEqual(saved, persisted)
         self.assertEqual(1, len(history))
         self.assertEqual(revision, history[0])
-        self.assertEqual(1, history[0]["actor_member_id"])
-        self.assertEqual("Prüflingsreihenfolge korrigiert", history[0]["reason"])
-        self.assertEqual(original.revision, history[0]["previous_revision"])
-        self.assertEqual(saved.revision, history[0]["resulting_revision"])
+        self.assertEqual(1, history[0].actor_member_id)
+        self.assertEqual("Prüflingsreihenfolge korrigiert", history[0].reason)
+        self.assertEqual(original.revision, history[0].previous_revision)
+        self.assertEqual(saved.revision, history[0].resulting_revision)
         self.assertEqual(
             [slot.id for slot in original.days[0].slots],
-            [slot["id"] for slot in history[0]["before"]["exam_days"][0]["slots"]],
+            [slot["id"] for slot in history[0].before["exam_days"][0]["slots"]],
         )
         self.assertEqual(
             [slot.id for slot in saved.days[0].slots],
-            [slot["id"] for slot in history[0]["after"]["exam_days"][0]["slots"]],
+            [slot["id"] for slot in history[0].after["exam_days"][0]["slots"]],
         )
 
     def test_confirmed_plan_change_keeps_started_day_immutable_but_allows_later_day(self) -> None:
@@ -398,7 +397,7 @@ class PlanningTests(unittest.TestCase):
                 )
             history = service.confirmed_plan_revisions(1)
 
-        self.assertEqual(saved.revision, history[0]["resulting_revision"])
+        self.assertEqual(saved.revision, history[0].resulting_revision)
         self.assertEqual(1, len(history))
 
     def test_confirmed_plan_persistence_failure_rolls_back_plan_and_audit(self) -> None:
@@ -726,7 +725,8 @@ class PlanningTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 service.generate_proposal(1)
 
-        self.assertEqual("plan_confirmed", confirmed["status"])
+        self.assertGreater(confirmed.confirmed_exam_days, 0)
+        self.assertGreater(confirmed.confirmed_slots, 0)
         self.assertEqual("plan_confirmed", exam_round["status"])
         self.assertTrue(all(day["status"] == "confirmed" for day in exam_days))
         self.assertTrue(all(slot["status"] == "confirmed" for slot in exam_slots))

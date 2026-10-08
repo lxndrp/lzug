@@ -91,6 +91,47 @@ class PlanValidationIssue:
     member_id: int | None = None
 
 
+@dataclass(frozen=True)
+class ProposalGenerationCounts:
+    """Domain counts describing the generated proposal."""
+
+    required_slots: int
+    planned_slots: int
+    regular_slots: int
+    mep_slots: int
+
+
+@dataclass(frozen=True)
+class ProposalGenerationResult:
+    """Validated proposal aggregate and scheduling counts."""
+
+    proposal: PlanningProposal
+    counts: ProposalGenerationCounts
+
+
+@dataclass(frozen=True)
+class PlanConfirmationResult:
+    """Confirmed proposal aggregate and confirmation counts."""
+
+    proposal: PlanningProposal
+    confirmed_exam_days: int
+    confirmed_slots: int
+
+
+@dataclass(frozen=True)
+class ConfirmedPlanRevision:
+    """Immutable confirmed-plan audit revision in Planning-owned terms."""
+
+    id: int
+    previous_revision: int
+    resulting_revision: int
+    reason: str
+    actor_member_id: int
+    before: dict[str, Any]
+    after: dict[str, Any]
+    created_at: str
+
+
 @dataclass
 class _ProposalValidationContext:
     """Loaded reference data and accumulated counts for proposal validation."""
@@ -163,7 +204,7 @@ class PlanningService:
 
             return unit_of_work.mark_availabilities_requested(round_id) or exam_round
 
-    def generate_proposal(self, round_id: int) -> dict[str, Any]:
+    def generate_proposal(self, round_id: int) -> ProposalGenerationResult:
         """Create a replaceable proposal for an exam round.
 
         Regular candidates are scheduled before MEP candidates, every planned
@@ -221,14 +262,10 @@ class PlanningService:
             if persisted is None:
                 raise PlanConflictError("No planning proposal found")
 
-            return {
-                "round_id": round_id,
-                "status": "plan_proposed",
-                "revision": persisted.revision,
-                "exam_days": self._proposal_days(persisted),
-                "validation": {"passed": True, "messages": []},
-                "counts": generated["counts"],
-            }
+            return ProposalGenerationResult(
+                persisted,
+                ProposalGenerationCounts(**generated["counts"]),
+            )
 
     def get_proposal(self, round_id: int) -> PlanningProposal:
         """Read the complete persisted proposal aggregate and its revision."""
@@ -293,7 +330,7 @@ class PlanningService:
         change: ConfirmedPlanChange,
         *,
         actor_member_id: int,
-    ) -> tuple[PlanningProposal, dict[str, Any]]:
+    ) -> tuple[PlanningProposal, ConfirmedPlanRevision]:
         """Atomically revise a confirmed plan and record immutable before/after states.
 
         The existing day, slot, and assignment identities are retained.  This
@@ -343,10 +380,10 @@ class PlanningService:
             ):
                 raise PermissionError("The acting member may not change this confirmed plan")
 
-            before_payload = self.confirmed_plan_payload(before)
+            before_payload = self._confirmed_plan_audit_state(before)
             next_revision = proposal.revision + 1
             saved_for_audit = replace(normalized, revision=next_revision)
-            after_payload = self.confirmed_plan_payload(saved_for_audit)
+            after_payload = self._confirmed_plan_audit_state(saved_for_audit)
             audit = unit_of_work.revise_confirmed_plan(
                 normalized,
                 expected_revision=proposal.revision,
@@ -363,20 +400,20 @@ class PlanningService:
             )
             if saved is None:
                 raise ConfirmedPlanConflictError("Confirmed plan not found")
-            return saved, self._revision_payload(audit)
+            return saved, self._revision_result(audit)
 
-    def confirmed_plan_revisions(self, round_id: int) -> list[dict[str, Any]]:
+    def confirmed_plan_revisions(self, round_id: int) -> list[ConfirmedPlanRevision]:
         """Return the append-only revision history for one confirmed plan."""
         with self._unit_of_work_factory() as unit_of_work:
             exam_round = unit_of_work.planning_context(round_id).exam_round
             if exam_round is None:
                 raise ValueError("Exam round not found")
             return [
-                self._revision_payload(item)
+                self._revision_result(item)
                 for item in unit_of_work.confirmed_plan_revisions(round_id)
             ]
 
-    def confirm_plan(self, round_id: int) -> dict[str, Any]:
+    def confirm_plan(self, round_id: int) -> PlanConfirmationResult:
         """Confirm every day, slot, and fallback belonging to a proposal.
 
         Confirmation is an all-or-nothing state transition. Cancelled days are
@@ -417,19 +454,13 @@ class PlanningService:
             confirmed = self._proposal_from_snapshot(confirmed_snapshot.proposal)
             if confirmed is None:
                 raise PlanConflictError("Confirmed plan not found")
-            confirmed_days = [dict(day) for day in confirmed_snapshot.exam_day_records]
             confirmed_slot_count = sum(len(day.slots) for day in confirmed.days)
 
-            return {
-                "round_id": round_id,
-                "status": "plan_confirmed",
-                "revision": confirmed_revision,
-                "exam_days": confirmed_days,
-                "counts": {
-                    "confirmed_exam_days": len(confirmed_days),
-                    "confirmed_slots": confirmed_slot_count,
-                },
-            }
+            return PlanConfirmationResult(
+                confirmed,
+                len(confirmed_snapshot.exam_day_records),
+                confirmed_slot_count,
+            )
 
     @staticmethod
     def _proposal_from_snapshot(
@@ -564,7 +595,7 @@ class PlanningService:
         return replace(proposal, days=tuple(normalized_days))
 
     @staticmethod
-    def _proposal_days(proposal: PlanningProposal) -> list[dict[str, Any]]:
+    def _audit_days(proposal: PlanningProposal) -> list[dict[str, Any]]:
         return [
             {
                 "id": day.id,
@@ -599,18 +630,13 @@ class PlanningService:
         ]
 
     @classmethod
-    def proposal_payload(cls, proposal: PlanningProposal) -> dict[str, Any]:
-        """Serialize the complete editable aggregate for the HTTP boundary."""
+    def _confirmed_plan_audit_state(cls, proposal: PlanningProposal) -> dict[str, Any]:
+        """Build the stable historical state stored in revision audit records."""
         return {
             "round_id": proposal.round_id,
             "revision": proposal.revision,
-            "exam_days": cls._proposal_days(proposal),
+            "exam_days": cls._audit_days(proposal),
         }
-
-    @classmethod
-    def confirmed_plan_payload(cls, proposal: PlanningProposal) -> dict[str, Any]:
-        """Serialize a revisioned confirmed aggregate without a mutation reason."""
-        return cls.proposal_payload(proposal)
 
     @staticmethod
     def _raise_for_protected_confirmed_days_unchanged(
@@ -711,17 +737,17 @@ class PlanningService:
         return json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
 
     @staticmethod
-    def _revision_payload(revision: ConfirmedPlanRevisionSnapshot) -> dict[str, Any]:
-        return {
-            "id": revision.id,
-            "previous_revision": revision.previous_revision,
-            "resulting_revision": revision.resulting_revision,
-            "reason": revision.reason,
-            "actor_member_id": revision.actor_member_id,
-            "before": json.loads(revision.before_state_json),
-            "after": json.loads(revision.after_state_json),
-            "created_at": revision.created_at,
-        }
+    def _revision_result(revision: ConfirmedPlanRevisionSnapshot) -> ConfirmedPlanRevision:
+        return ConfirmedPlanRevision(
+            id=revision.id,
+            previous_revision=revision.previous_revision,
+            resulting_revision=revision.resulting_revision,
+            reason=revision.reason,
+            actor_member_id=revision.actor_member_id,
+            before=json.loads(revision.before_state_json),
+            after=json.loads(revision.after_state_json),
+            created_at=revision.created_at,
+        )
 
     def _raise_for_invalid_proposal(
         self,

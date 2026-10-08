@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import asdict
 from http import HTTPStatus
 
 from fastapi import APIRouter, FastAPI, Request
@@ -17,6 +18,12 @@ from backend.application.transport import (
 )
 from backend.persistence.models import EXAM_ROUND
 from backend.planning.candidate_days import GenerateCandidateDays
+from backend.planning.proposals import (
+    ConfirmedPlanRevision,
+    PlanConfirmationResult,
+    PlanningProposal,
+    ProposalGenerationResult,
+)
 
 from .api_contracts import (
     ConfirmedPlanChangeRequest,
@@ -64,6 +71,59 @@ PLANNING_RESOURCE_TABLES = frozenset(
 
 type Finish = Callable[[RequestContext, ApplicationResult | None], Response]
 type NotFound = Callable[[], Response]
+
+
+def _planning_proposal_payload(proposal: PlanningProposal) -> dict[str, object]:
+    """Map the Planning aggregate to its established HTTP response shape."""
+    return {
+        "round_id": proposal.round_id,
+        "revision": proposal.revision,
+        "exam_days": [
+            {
+                "id": day.id,
+                "candidate_exam_day_id": day.candidate_exam_day_id,
+                "date": day.date,
+                "room_id": day.room_id,
+                "status": day.status,
+                "slots": [asdict(slot) for slot in day.slots],
+                "assignments": [asdict(assignment) for assignment in day.assignments],
+            }
+            for day in proposal.days
+        ],
+    }
+
+
+def _proposal_generation_payload(result: ProposalGenerationResult) -> dict[str, object]:
+    return {
+        **_planning_proposal_payload(result.proposal),
+        "status": "plan_proposed",
+        "validation": {"passed": True, "messages": []},
+        "counts": asdict(result.counts),
+    }
+
+
+def _plan_confirmation_payload(result: PlanConfirmationResult) -> dict[str, object]:
+    return {
+        **_planning_proposal_payload(result.proposal),
+        "status": "plan_confirmed",
+        "counts": {
+            "confirmed_exam_days": result.confirmed_exam_days,
+            "confirmed_slots": result.confirmed_slots,
+        },
+    }
+
+
+def _confirmed_plan_revision_payload(revision: ConfirmedPlanRevision) -> dict[str, object]:
+    return {
+        "id": revision.id,
+        "previous_revision": revision.previous_revision,
+        "resulting_revision": revision.resulting_revision,
+        "reason": revision.reason,
+        "actor_member_id": revision.actor_member_id,
+        "before": revision.before,
+        "after": revision.after,
+        "created_at": revision.created_at,
+    }
 
 
 def _register_schedule_routes(router: APIRouter, finish: Finish, not_found: NotFound) -> None:
@@ -120,7 +180,11 @@ def _register_proposal_routes(
         return finish(
             context,
             context.respond(
-                hateoas.planning_proposal(context.planning_service.generate_proposal(round_id)),
+                hateoas.planning_proposal(
+                    _proposal_generation_payload(
+                        context.planning_service.generate_proposal(round_id)
+                    )
+                ),
                 HTTPStatus.CREATED,
             ),
         )
@@ -134,9 +198,7 @@ def _register_proposal_routes(
         return finish(
             context,
             context.respond(
-                hateoas.editable_planning_proposal(
-                    context.planning_service.proposal_payload(proposal)
-                )
+                hateoas.editable_planning_proposal(_planning_proposal_payload(proposal))
             ),
         )
 
@@ -154,14 +216,12 @@ def _register_proposal_routes(
         saved = context.planning_service.save_proposal(planning_proposal_from_payload(id, data))
         return finish(
             context,
-            context.respond(
-                hateoas.editable_planning_proposal(context.planning_service.proposal_payload(saved))
-            ),
+            context.respond(hateoas.editable_planning_proposal(_planning_proposal_payload(saved))),
         )
 
     @router.post("/api/exam-rounds/{id}/confirm-plan")
     def confirm_plan(context: ManageRoundEmptyWriteContext, id: int):
-        confirmed = context.planning_service.confirm_plan(id)
+        confirmed = _plan_confirmation_payload(context.planning_service.confirm_plan(id))
         try:
             context.calendar_service.sync_round(id)
         except Exception:
@@ -191,11 +251,7 @@ def _register_confirmed_plan_routes(
         plan = context.planning_service.get_confirmed_plan(id)
         return finish(
             context,
-            context.respond(
-                hateoas.editable_confirmed_plan(
-                    context.planning_service.confirmed_plan_payload(plan)
-                )
-            ),
+            context.respond(hateoas.editable_confirmed_plan(_planning_proposal_payload(plan))),
         )
 
     @router.put(
@@ -218,11 +274,11 @@ def _register_confirmed_plan_routes(
             actor_member_id=actor_member_id,
         )
         try:
-            consequence_status = context.plan_consequence_service.process_revision(revision["id"])
+            consequence_status = context.plan_consequence_service.process_revision(revision.id)
         except Exception:
             emit_event("backend_error", severity="error", category="plan_consequence_processing")
             consequence_status = {
-                "revision_id": revision["id"],
+                "revision_id": revision.id,
                 "derivation_status": "missing",
                 "processed": 0,
                 "problems": 1,
@@ -230,8 +286,8 @@ def _register_confirmed_plan_routes(
                 "superseded": 0,
             }
         response = hateoas.editable_confirmed_plan(
-            context.planning_service.confirmed_plan_payload(saved),
-            latest_revision=revision,
+            _planning_proposal_payload(saved),
+            latest_revision=_confirmed_plan_revision_payload(revision),
         )
         response["consequence_status"] = consequence_status
         if consequence_status["problems"] or consequence_status["derivation_status"] != "succeeded":
@@ -251,7 +307,10 @@ def _register_confirmed_plan_routes(
             context.respond(
                 hateoas.confirmed_plan_revisions(
                     id,
-                    context.planning_service.confirmed_plan_revisions(id),
+                    [
+                        _confirmed_plan_revision_payload(revision)
+                        for revision in context.planning_service.confirmed_plan_revisions(id)
+                    ],
                 )
             ),
         )
@@ -290,7 +349,7 @@ def _register_plan_consequence_routes(
     ):
         context.require_round_access(id, manage=True)
         known_revision_ids = {
-            item["id"] for item in context.planning_service.confirmed_plan_revisions(id)
+            item.id for item in context.planning_service.confirmed_plan_revisions(id)
         }
         if revision_id not in known_revision_ids:
             return not_found()
