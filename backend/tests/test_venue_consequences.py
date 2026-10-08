@@ -36,6 +36,7 @@ from backend.planning.venue_consequences import (
     VenueNotificationConsequence,
     describe_venue_change,
 )
+from backend.planning_ports import VenueAuditEventSnapshot
 from backend.tests.fixture_data import FIXTURE_IDS, FIXTURE_ROOT
 from backend.tests.helpers import (
     ApiServer,
@@ -587,6 +588,35 @@ class VenueConsequenceTests(unittest.TestCase):
             self.assertGreater(recovered["processed"], 0)
             self.assertEqual(original_recipients, recovered_recipients)
             self.assertNotIn(new_member_id, recovered_recipients)
+        finally:
+            database.__exit__(None, None, None)
+
+    def test_malformed_audit_details_are_reported_as_recovery_problems(self) -> None:
+        database, db_path = self._confirmed_database()
+        try:
+            service = venue_consequence_service_for_test(db_path)
+            audit = VenueAuditEventSnapshot(
+                id=999,
+                venue_id=1,
+                entity_type="venue",
+                entity_id=1,
+                details_json="{invalid-json",
+                created_at="2026-10-09T00:00:00+00:00",
+            )
+            with (
+                patch.object(service.venue_planner, "consequence_audits", return_value=(audit,)),
+                patch.object(service.venue_planner, "audits_for_venue", return_value=(audit,)),
+                patch.object(
+                    service.venue_planner.repository, "consequence_audit", return_value=audit
+                ),
+            ):
+                recovered = service.process_due()
+                problems = service.problems_for_venue(1)
+
+            self.assertEqual(1, recovered["audits"])
+            self.assertEqual(1, recovered["problems"])
+            self.assertEqual(1, len(problems))
+            self.assertEqual("invalid_audit_details", problems[0]["error_code"])
         finally:
             database.__exit__(None, None, None)
 

@@ -345,7 +345,8 @@ class PlanConsequenceService:
             )
             self._mark_superseded_notification_tasks(
                 superseded_revision_ids,
-                current,
+                recipient_member_id=member_id,
+                current=current,
             )
             if not accepted:
                 self.consequence_store.set_task_state(
@@ -378,6 +379,8 @@ class PlanConsequenceService:
     def _mark_superseded_notification_tasks(
         self,
         revision_ids: set[int],
+        *,
+        recipient_member_id: int,
         current: datetime,
     ) -> None:
         if not revision_ids:
@@ -391,7 +394,10 @@ class PlanConsequenceService:
             for task in self.consequence_store.tasks_for_batch(
                 batch.id, statuses=frozenset({"succeeded"})
             ):
-                if task.consequence_type == "notification":
+                if (
+                    task.consequence_type == "notification"
+                    and task.recipient_member_id == recipient_member_id
+                ):
                     self.consequence_store.set_task_state(
                         task.id,
                         status="superseded",

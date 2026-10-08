@@ -518,6 +518,69 @@ class PlanConsequenceServiceTests(unittest.TestCase):
         self.assertGreater(older["superseded"], 0)
         self.assertEqual(0, older["pending"])
 
+    def test_superseding_notice_keeps_other_recipient_task_status(self) -> None:
+        with TempDatabase() as db_path:
+            planning, original = self._confirmed_plan(db_path)
+            day = original.days[0]
+            with session_scope(db_path) as session:
+                room_id = self._create_active_room(
+                    session,
+                    name="Empfängerstatus-Ort",
+                    street="Testweg 8",
+                    room_name="8.01",
+                )
+            changed = replace(
+                original,
+                days=(replace(day, room_id=room_id), *original.days[1:]),
+            )
+            _saved, revision = planning.save_confirmed_plan(
+                ConfirmedPlanChange(changed, "Empfängerstatus erhalten"),
+                actor_member_id=1,
+            )
+            service = plan_consequence_service_for_test(db_path)
+            now = datetime.now(UTC)
+            updated_at = now.isoformat(timespec="seconds")
+            batch_id = service.consequence_store.record_batch(
+                origin_type="confirmed_plan_revision",
+                origin_key=str(revision.id),
+                confirmed_plan_revision_id=revision.id,
+                notification_scope=(1, 2),
+                tasks=tuple(
+                    {
+                        "recipient_member_id": member_id,
+                        "consequence_type": "notification",
+                        "action": "notify",
+                        "identity_key": f"member:{member_id}",
+                        "details_json": "{}",
+                    }
+                    for member_id in (1, 2)
+                ),
+                error_code=None,
+                now=updated_at,
+            )
+            tasks = service.consequence_store.tasks_for_batch(batch_id)
+            for task in tasks:
+                service.consequence_store.set_task_state(
+                    task.id,
+                    status="succeeded",
+                    attempt_count=1,
+                    next_attempt_at=None,
+                    error_code=None,
+                    calendar_event_id=None,
+                    calendar_event_version=None,
+                    updated_at=updated_at,
+                )
+
+            service._mark_superseded_notification_tasks(
+                {revision.id}, recipient_member_id=1, current=now
+            )
+            final_tasks = service.consequence_store.tasks_for_batch(batch_id)
+
+        self.assertEqual(
+            {1: "superseded", 2: "succeeded"},
+            {task.recipient_member_id: task.status for task in final_tasks},
+        )
+
     def test_claimed_older_notice_is_not_created_after_newer_revision_supersedes_it(self) -> None:
         with TempDatabase() as db_path:
             planning, original = self._confirmed_plan(db_path)

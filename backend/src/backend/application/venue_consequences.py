@@ -79,7 +79,7 @@ class VenueConsequenceService:
         audits = tuple(
             audit
             for audit in self.venue_planner.consequence_audits()
-            if self._audit_details(audit).get("consequence_version") == 2
+            if self._is_recoverable_audit(audit)
         )
         audit_ids = {audit.id for audit in audits}
         derivation_problems = 0
@@ -138,11 +138,16 @@ class VenueConsequenceService:
         result: list[dict[str, Any]] = []
         for audit in audits:
             details = self._audit_details(audit)
-            if details.get("consequence_version") != 2:
+            invalid_details = self._has_invalid_details(details) and audit.entity_type in {
+                "room",
+                "venue",
+            }
+            if details.get("consequence_version") != 2 and not invalid_details:
                 continue
             batch = self.consequence_store.batch_by_origin("exam_venue_audit_event", str(audit.id))
             if batch is None:
-                result.append(self._problem_view(audit, None, "derivation_missing"))
+                error_code = "invalid_audit_details" if invalid_details else "derivation_missing"
+                result.append(self._problem_view(audit, None, error_code))
                 continue
             for task in self.consequence_store.tasks_for_batch(batch.id):
                 expired_claim = (
@@ -436,8 +441,19 @@ class VenueConsequenceService:
         try:
             value = json.loads(audit.details_json)
         except TypeError, json.JSONDecodeError:
-            return {}
-        return value if isinstance(value, dict) else {}
+            return {"_invalid_audit_details": True}
+        return value if isinstance(value, dict) else {"_invalid_audit_details": True}
+
+    @classmethod
+    def _is_recoverable_audit(cls, audit: VenueAuditEventSnapshot) -> bool:
+        details = cls._audit_details(audit)
+        return details.get("consequence_version") == 2 or (
+            audit.entity_type in {"room", "venue"} and cls._has_invalid_details(details)
+        )
+
+    @staticmethod
+    def _has_invalid_details(details: dict[str, Any]) -> bool:
+        return details.get("_invalid_audit_details") is True
 
     @staticmethod
     def _problem_view(audit: VenueAuditEventSnapshot, task, error_code):
