@@ -24,6 +24,7 @@ CORE_PACKAGES = frozenset(
     {
         "application",
         "assessment",
+        "calendar",
         "execution",
         "identity",
         "integrations",
@@ -76,6 +77,7 @@ ALLOWED_PACKAGE_DEPENDENCIES = {
     "application": frozenset(
         {
             "assessment",
+            "calendar",
             "execution",
             "identity",
             "integrations",
@@ -86,16 +88,17 @@ ALLOWED_PACKAGE_DEPENDENCIES = {
         }
     ),
     "assessment": frozenset(),
+    "calendar": frozenset(),
     "execution": frozenset(
-        {"identity", "integrations", "notifications", "persistence", "presentation"}
+        {"calendar", "identity", "integrations", "notifications", "persistence", "presentation"}
     ),
     "identity": frozenset(),
     "integrations": frozenset({"identity", "notifications", "persistence"}),
     "notifications": frozenset(),
     "operations": frozenset({"identity", "integrations", "persistence"}),
-    "persistence": frozenset({"identity", "notifications"}),
+    "persistence": frozenset({"calendar", "identity", "notifications"}),
     "presentation": frozenset(),
-    "planning": frozenset({"integrations", "notifications", "persistence"}),
+    "planning": frozenset({"calendar", "integrations", "notifications", "persistence"}),
 }
 
 TEST_OWNERS = {
@@ -159,9 +162,8 @@ TEST_OWNERS = {
             "test_local_auth.py",
         }
     ),
-    "integrations": frozenset(
-        {"test_calendar.py", "test_map_provider.py", "test_notification_delivery.py"}
-    ),
+    "integrations": frozenset({"test_map_provider.py", "test_notification_delivery.py"}),
+    "calendar": frozenset({"test_calendar.py", "test_calendar_ports.py"}),
     "notifications": frozenset({"test_notifications.py"}),
     "operations": frozenset(
         {

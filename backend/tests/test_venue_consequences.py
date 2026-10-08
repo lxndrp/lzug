@@ -6,9 +6,9 @@ from unittest.mock import patch
 
 from sqlalchemy import func, select
 
+from backend.composition import calendar_service as create_calendar_service
 from backend.composition import planning_service
 from backend.identity.authorization import AuthorizationScope
-from backend.integrations.calendar import CalendarService
 from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.persistence.database import session_scope
 from backend.persistence.models import (
@@ -39,7 +39,7 @@ class VenueConsequenceTests(unittest.TestCase):
         db_path = database.__enter__()
         planning_service(db_path).generate_proposal(1)
         planning_service(db_path).confirm_plan(1)
-        CalendarService(db_path).sync_round(1)
+        create_calendar_service(db_path).sync_round(1)
         return database, db_path
 
     def test_preview_and_meaningful_update_refresh_calendar_and_notify_members(self) -> None:
@@ -253,7 +253,7 @@ class VenueConsequenceTests(unittest.TestCase):
             venue = venues.get_venue(1)
             assert venue is not None
             with patch(
-                "backend.planning.venue_consequences.CalendarService.sync_assignment",
+                "backend.calendar.service.CalendarService.sync_assignment",
                 side_effect=RuntimeError("simulated calendar failure"),
             ):
                 result = venues.update_venue(
@@ -329,7 +329,7 @@ class VenueConsequenceTests(unittest.TestCase):
             venue = venues.get_venue(1)
             assert venue is not None
             with patch(
-                "backend.planning.venue_consequences.CalendarService.sync_assignment",
+                "backend.calendar.service.CalendarService.sync_assignment",
                 side_effect=RuntimeError("simulated calendar failure"),
             ):
                 failed = venues.update_venue(
@@ -387,7 +387,7 @@ class VenueConsequenceApiTests(unittest.TestCase):
         with TempDatabase() as db_path:
             planning_service(db_path).generate_proposal(1)
             planning_service(db_path).confirm_plan(1)
-            CalendarService(db_path).sync_round(1)
+            create_calendar_service(db_path).sync_round(1)
             venues = exam_venue_service_for_test(db_path)
             venue = venues.get_venue(1)
             assert venue is not None
@@ -411,7 +411,7 @@ class VenueConsequenceApiTests(unittest.TestCase):
                 self.assertGreater(impact["notifications"]["recipient_count"], 0)
 
                 with patch(
-                    "backend.planning.venue_consequences.CalendarService.sync_assignment",
+                    "backend.calendar.service.CalendarService.sync_assignment",
                     side_effect=RuntimeError("simulated calendar failure"),
                 ):
                     status, changed = api.request(

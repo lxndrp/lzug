@@ -6,6 +6,8 @@ from http import HTTPStatus
 
 from fastapi import APIRouter, Body, Query
 
+from backend.calendar.ports import CalendarFeedStatus, CalendarScope
+
 from .api_contracts import (
     CalendarEventCollectionResponse,
     CalendarFeedActivationRequest,
@@ -27,8 +29,30 @@ from .fastapi_dependencies import (
     ReadContext,
 )
 from .fastapi_http import calendar_text, finish, not_found, payload_data
+from .settings import RuntimeSettings
 
 _OPTIONAL_OBJECT_BODY = Body(default_factory=DomainResourceWrite)
+
+
+def _calendar_scope(context: ReadContext) -> CalendarScope:
+    scope = context.authorization_scope
+    return CalendarScope(person_id=scope.person_id, member_ids=frozenset(scope.member_ids))
+
+
+def _calendar_status_payload(status: CalendarFeedStatus) -> dict[str, object]:
+    return {
+        "active": status.active,
+        "activated_at": status.activated_at,
+        "revoked_at": status.revoked_at,
+        "time_zone": status.time_zone,
+    }
+
+
+def _calendar_feed_url(context: ReadContext, token: str) -> str:
+    settings = context.runtime_settings or RuntimeSettings.from_environment()
+    path = f"/api/calendar/feed/{token}.ics"
+    external_url = settings.integrations.external_url or ""
+    return f"{external_url.rstrip('/')}{path}"
 
 
 def create_round_summary_router() -> APIRouter:
@@ -68,7 +92,7 @@ def create_public_calendar_router() -> APIRouter:
         """Keep the private token-like URL indistinguishable from a missing feed."""
         if not id.isdigit():
             return not_found()
-        calendar = context.calendar_service.event_ics(int(id), context.authorization_scope)
+        calendar = context.calendar_service.event_ics(int(id), _calendar_scope(context))
         return not_found() if calendar is None else calendar_text(context, calendar)
 
     return router
@@ -82,7 +106,7 @@ def create_calendar_management_router() -> APIRouter:
     @router.get("/api/calendar/feed", response_model=CalendarStatusResponse)
     def calendar_status(context: ReadContext):
         result = {
-            **context.calendar_service.status(context.authorization_scope),
+            **_calendar_status_payload(context.calendar_service.status(_calendar_scope(context))),
             "_links": {
                 "self": {"href": "/api/calendar"},
                 "feed": {"href": "/api/calendar/feed", "method": "POST"},
@@ -96,7 +120,23 @@ def create_calendar_management_router() -> APIRouter:
             context,
             context.respond(
                 {
-                    "items": context.calendar_service.list_events(context.authorization_scope),
+                    "items": [
+                        {
+                            "id": event.id,
+                            "external_event_id": event.external_event_id,
+                            "date": event.date,
+                            "starts_at": event.starts_at,
+                            "ends_at": event.ends_at,
+                            "time_zone": event.time_zone,
+                            "location": event.location,
+                            "role": event.role,
+                            "round_name": event.round_name,
+                            "status": event.status,
+                            "version": event.version,
+                            "download_url": f"/api/calendar/events/{event.id}.ics",
+                        }
+                        for event in context.calendar_service.list_events(_calendar_scope(context))
+                    ],
                     "_links": {"self": {"href": "/api/calendar/events"}},
                 }
             ),
@@ -109,10 +149,14 @@ def create_calendar_management_router() -> APIRouter:
     )
     def activate_feed(context: BodyMutationContext, payload: CalendarFeedActivationRequest):
         data = payload_data(context, payload, exclude_unset=False)
-        result = context.calendar_service.activate(
-            context.authorization_scope,
+        activation = context.calendar_service.activate(
+            _calendar_scope(context),
             rotate=data["rotate"],
         )
+        result = {
+            **_calendar_status_payload(activation.status),
+            "feed_url": _calendar_feed_url(context, activation.token),
+        }
         result.update(
             {
                 "_links": {
@@ -133,9 +177,9 @@ def create_calendar_management_router() -> APIRouter:
         response_model=CalendarFeedRevocationResponse,
     )
     def revoke_feed(context: MutationContext):
-        context.calendar_service.revoke(context.authorization_scope)
+        context.calendar_service.revoke(_calendar_scope(context))
         result = {
-            **context.calendar_service.status(context.authorization_scope),
+            **_calendar_status_payload(context.calendar_service.status(_calendar_scope(context))),
             "_links": {
                 "self": {"href": "/api/calendar"},
                 "feed": {"href": "/api/calendar/feed"},

@@ -9,8 +9,8 @@ from unittest.mock import patch
 
 from sqlalchemy import select
 
+from backend.composition import calendar_service as create_calendar_service
 from backend.composition import planning_service
-from backend.integrations.calendar import CalendarService
 from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.persistence.database import session_scope
 from backend.persistence.models import (
@@ -36,7 +36,9 @@ from backend.tests.helpers import (
 
 def plan_consequence_service_for_test(db_path):
     return PlanConsequenceService(
-        db_path, notification_service=notification_service_for_test(db_path)
+        db_path,
+        notification_service=notification_service_for_test(db_path),
+        calendar_service=create_calendar_service(db_path),
     )
 
 
@@ -74,7 +76,7 @@ class PlanConsequenceServiceTests(unittest.TestCase):
         planning = planning_service(db_path)
         planning.generate_proposal(1)
         planning.confirm_plan(1)
-        CalendarService(db_path).sync_round(1)
+        create_calendar_service(db_path).sync_round(1)
         return planning, planning.get_confirmed_plan(1)
 
     def test_task_derivation_is_order_independent_and_preserves_actor_scope(self) -> None:

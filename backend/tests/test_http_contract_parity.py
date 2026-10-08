@@ -587,7 +587,7 @@ class HttpContractParityTests(unittest.TestCase):
                 "https://app.example.invalid", ""
             )
             with patch(
-                "backend.integrations.calendar._now",
+                "backend.calendar.ics._now",
                 return_value=datetime(2026, 1, 1, tzinfo=UTC),
             ):
                 self.assert_parity(
