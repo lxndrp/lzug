@@ -34,6 +34,7 @@ from .composition import (
     candidate_day_service as compose_candidate_day_service,
 )
 from .composition import committee_admin_service as compose_committee_admin_service
+from .composition import document_snapshot_factory as compose_document_snapshot_factory
 from .composition import (
     exam_lifecycle_unit_of_work_factory as compose_exam_lifecycle_unit_of_work_factory,
 )
@@ -146,7 +147,14 @@ def create_admin_application(
             )
         ),
         artifact_factory=lambda persistence: (
-            artifacts or ArtifactService(persistence, settings=require_settings())
+            artifacts
+            or ArtifactService(
+                persistence,
+                settings=require_settings(),
+                document_snapshots=compose_document_snapshot_factory(
+                    persistence.database, persistence.documents
+                ),
+            )
         ),
         recipient_repository_factory=lambda artifact_service: BackupRecipientRepository(
             artifact_service.paths.database,

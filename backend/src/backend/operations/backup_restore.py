@@ -25,6 +25,7 @@ from uuid import UUID, uuid4
 
 from cryptography.fernet import Fernet, InvalidToken
 
+from backend.operations.document_snapshot import DocumentSnapshotFactory
 from backend.persistence.artifact_limits import configure_artifact_database
 from backend.persistence.database import (
     BUSY_TIMEOUT_MS,
@@ -305,48 +306,6 @@ def _snapshot_instance_id(path: Path) -> str:
     return _instance_id(path)
 
 
-def _document_rows(path: Path) -> list[dict[str, Any]]:
-    try:
-        with closing(_database_connection(path)) as connection:
-            return [
-                dict(row)
-                for row in connection.execute(
-                    "SELECT id, storage_id, original_filename, media_type, size_bytes, "
-                    "checksum_sha256 FROM document ORDER BY id"
-                )
-            ]
-    except sqlite3.Error as error:
-        raise ArtifactError("document_relation_failed", "Document metadata is invalid") from error
-
-
-def _validate_document_snapshot(database: Path, documents: Path) -> list[dict[str, Any]]:
-    rows = _document_rows(database)
-    expected = {str(row["storage_id"]): row for row in rows}
-    try:
-        entries = list(documents.iterdir())
-    except OSError as error:
-        raise ArtifactError(
-            "document_relation_failed", "Document storage is unavailable"
-        ) from error
-    actual: set[str] = set()
-    for entry in entries:
-        if entry.name.startswith("."):
-            raise ArtifactError("document_relation_failed", "Temporary document content remains")
-        if entry.is_symlink() or not entry.is_file():
-            raise ArtifactError("document_relation_failed", "Document storage entry is invalid")
-        actual.add(entry.name)
-    if actual != set(expected):
-        raise ArtifactError("document_relation_failed", "Document references are incomplete")
-    for storage_id, row in expected.items():
-        content = documents / storage_id
-        if (
-            content.stat().st_size != row["size_bytes"]
-            or _sha256(content) != row["checksum_sha256"]
-        ):
-            raise ArtifactError("document_integrity_failed", "Document integrity check failed")
-    return rows
-
-
 def _totp_key_binding(database: Path, key: bytes) -> str:
     database_digest = bytes.fromhex(_sha256(database))
     return "hmac-sha256:" + hmac.new(key, database_digest, hashlib.sha256).hexdigest()
@@ -381,6 +340,7 @@ class ArtifactService:
         environment: Mapping[str, str] | None = None,
         settings: RuntimeSettings | None = None,
         fault_injector: Callable[[str], None] | None = None,
+        document_snapshots: DocumentSnapshotFactory,
     ) -> None:
         self.settings = settings
         self.paths = paths or persistence_paths(
@@ -393,6 +353,7 @@ class ArtifactService:
             else (settings or RuntimeSettings.from_environment()).environment_values()
         )
         self.fault_injector = fault_injector
+        self.document_snapshots = document_snapshots
 
     def _staging_limits(self, root: Path):
         return nullcontext()
@@ -404,11 +365,8 @@ class ArtifactService:
     def _capture_snapshot(self, *, include_authentication_key: bool) -> Iterator[CapturedSnapshot]:
         self._ensure_runtime_paths()
         estimated = self.paths.database.stat().st_size if self.paths.database.exists() else 0
-        estimated += sum(
-            entry.stat().st_size
-            for entry in self.paths.documents.iterdir()
-            if entry.is_file() and not entry.is_symlink()
-        )
+        with self.document_snapshots.snapshot() as documents:
+            estimated += documents.content_size_bytes()
         self._ensure_space(self.paths.backups, max(estimated * 3, 1024 * 1024))
         key_store = SQLiteLocalAuthenticationKey(
             self.paths.database,
@@ -456,23 +414,14 @@ class ArtifactService:
         except sqlite3.Error as error:
             raise ArtifactError("snapshot_failed", "SQLite snapshot failed") from error
         snapshot_at = _timestamp()
-        rows = _document_rows(database)
-        expected = {str(row["storage_id"]) for row in rows}
-        actual = {
-            entry.name
-            for entry in self.paths.documents.iterdir()
-            if entry.is_file() and not entry.is_symlink() and not entry.name.startswith(".")
-        }
-        invalid = [
-            entry
-            for entry in self.paths.documents.iterdir()
-            if entry.name.startswith(".") or entry.is_symlink() or not entry.is_file()
-        ]
-        if invalid or actual != expected:
-            raise ArtifactError("document_relation_failed", "Document references are incomplete")
         try:
-            for storage_id in sorted(expected):
-                os.link(self.paths.documents / storage_id, documents / storage_id)
+            with self.document_snapshots.snapshot() as snapshot_queries:
+                snapshot_queries.copy_content_to(documents)
+            document_count = self._inspect_document_snapshot(database, documents)
+        except ValueError as error:
+            raise ArtifactError(
+                "document_relation_failed", "Document references are incomplete"
+            ) from error
         except OSError as error:
             raise ArtifactError("snapshot_failed", "Document snapshot failed") from error
         schema_version, _pending = _schema_compatibility(database)
@@ -485,14 +434,29 @@ class ArtifactService:
             instance_id=_snapshot_instance_id(database),
             schema_version=schema_version,
             database_records=_database_record_count(database),
-            document_count=len(rows),
+            document_count=document_count,
         )
 
     def _verify_snapshot(self, snapshot: CapturedSnapshot) -> None:
         _database_integrity(snapshot.database)
-        _validate_document_snapshot(snapshot.database, snapshot.documents)
+        self._inspect_document_snapshot(snapshot.database, snapshot.documents)
         if snapshot.authentication_key is not None:
             _validate_totp_secrets(snapshot.database, snapshot.authentication_key)
+
+    def _inspect_document_snapshot(self, database: Path, documents: Path) -> int:
+        try:
+            result = self.document_snapshots.inspect(database, documents)
+        except OSError as error:
+            raise ArtifactError(
+                "document_relation_failed", "Document references or content are unavailable"
+            ) from error
+        except ValueError as error:
+            raise ArtifactError(
+                "document_relation_failed", "Document references or content are invalid"
+            ) from error
+        if result is None:
+            raise ArtifactError("document_integrity_failed", "Document integrity check failed")
+        return result
 
     def _manifest(
         self,
@@ -716,14 +680,14 @@ class ArtifactService:
                 raise ArtifactError("artifact_content_invalid", "Backup content is incomplete")
             source_schema, pending = _schema_compatibility(database)
             _database_integrity(database)
-            rows = _validate_document_snapshot(database, documents)
+            document_count = self._inspect_document_snapshot(database, documents)
             key = key_path.read_bytes()
             totp_count = _validate_totp_secrets(database, key)
             if manifest["authentication_key_binding"] != _totp_key_binding(database, key):
                 raise ArtifactError(
                     "authentication_key_invalid", "Authentication key binding is invalid"
                 )
-            if len(rows) != manifest["counts"]["documents"]:
+            if document_count != manifest["counts"]["documents"]:
                 raise ArtifactError("manifest_invalid", "Backup document count is invalid")
             if _database_record_count(database) != manifest["counts"]["database_records"]:
                 raise ArtifactError("manifest_invalid", "Backup record count is invalid")
@@ -1128,7 +1092,7 @@ class ArtifactService:
         manifest: dict[str, Any],
     ) -> None:
         _database_integrity(database)
-        _validate_document_snapshot(database, documents)
+        self._inspect_document_snapshot(database, documents)
         _validate_totp_secrets(database, key.read_bytes())
         if _instance_id(database) != manifest["instance_id"]:
             raise ArtifactError("postcheck_failed", "Restored instance identity is invalid")
@@ -1205,7 +1169,7 @@ class ArtifactService:
 
     def _validate_activated_restore(self, target_key: Path, manifest: dict[str, Any]) -> None:
         _database_integrity(self.paths.database)
-        _validate_document_snapshot(self.paths.database, self.paths.documents)
+        self._inspect_document_snapshot(self.paths.database, self.paths.documents)
         _validate_totp_secrets(self.paths.database, target_key.read_bytes())
         if _instance_id(self.paths.database) != manifest["instance_id"]:
             raise ArtifactError(

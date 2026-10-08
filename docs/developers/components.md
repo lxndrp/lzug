@@ -817,19 +817,20 @@ Die folgende Tabelle ist die kanonische knappe Zuordnung der aktuellen
 Backend-Paketstruktur.
 Abhängigkeiten verlaufen nur in die genannten Zielpakete; der automatisierte
 Architekturtest verhindert nicht zugeordnete Module, unerlaubte Richtungen und
-Zyklen zwischen den zehn Kernpaketen.
+Zyklen zwischen den elf Kernpaketen.
 
 | Paket | Verantwortung | Darf abhängen von |
 | --- | --- | --- |
-| `application/` | frameworkneutrale Use-Case-Orchestrierung, Ressourcenfassade, Transportobjekte und HATEOAS | `assessment`, `execution`, `identity`, `integrations`, `notifications`, `operations`, `persistence`, `planning` |
+| `application/` | frameworkneutrale Use-Case-Orchestrierung, Ressourcenfassade, Transportobjekte und HATEOAS | `assessment`, `documents`, `execution`, `identity`, `integrations`, `notifications`, `operations`, `persistence`, `planning` |
+| `documents/` | Dokumentkommandos, Upload-Policy, Metadatenprojektionen und eigene Repository-/UoW-Verträge; keine eigene fachliche Ownership oder Autorisierung | keine anderen Kernpakete |
 | `planning/` | Planaggregate, mögliche Prüfungstage, Prüfungsorte und Folgen bestätigter Änderungen; Kandidatentage beginnen mit einem adapterfreien Port-Pilot | `integrations`, `notifications`, `persistence` (Legacy-Aufrufe) |
 | `execution/` | Ausfall und Ersatz, Protokolle, Tagesabschluss und Rundenlebenszyklus | `identity`, `integrations`, `notifications`, `persistence` |
 | `assessment/` | individuelle Bewertungen und festgestellte Ergebnisse über eigene Use Cases und Ports | keine anderen Kernpakete |
 | `identity/` | Authentisierung, Autorisierung, Mitgliedschaften und lokale Betreiberidentität | keine anderen Kernpakete |
-| `integrations/` | Kalender (Übergangspfad), Dokumentablage, Feiertage, Kartenanbieter und künftige externe Adapter | `identity`, `notifications`, `persistence` |
+| `integrations/` | Kalender (Übergangspfad), Dateisystem-Dokumentablage, Feiertage, Kartenanbieter und künftige externe Adapter | `documents`, `identity`, `notifications`, `persistence` |
 | `notifications/` | Benachrichtigungsregeln, Zustellpolicy sowie Provider- und Persistenzports | keine anderen Kernpakete |
-| `persistence/` | Modelle, Datenbank, Migrationen und niedrige Store-Primitive | `identity`, `notifications` |
-| `operations/` | Backup und Export, Empfängerverwaltung, Diagnose und Lifecycle | `identity`, `integrations`, `persistence` |
+| `persistence/` | Modelle, Datenbank, Migrationen und niedrige Store-Primitive | `documents`, `identity`, `notifications` |
+| `operations/` | Backup und Export samt eigenem Dokumenten-Snapshot-Protokoll, Empfängerverwaltung, Diagnose und Lifecycle | `documents`, `identity`, `integrations`, `persistence` |
 
 Der Paketroot enthält ausschließlich gemeinsame Runtime-Verträge und die
 stabilen äußeren Einstiege für FastAPI, Prozessstart, Healthcheck und

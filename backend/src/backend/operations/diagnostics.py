@@ -11,8 +11,8 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
+from backend.documents.commands import document_upload_policy
 from backend.healthcheck import public_health_ready
-from backend.integrations.documents import document_upload_policy
 from backend.integrations.map_provider import MapProviderConfig
 from backend.integrations.notification_delivery import (
     NotificationDeliveryGateway,

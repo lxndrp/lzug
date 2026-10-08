@@ -11,6 +11,7 @@ from contextlib import closing, redirect_stdout
 from pathlib import Path
 
 from backend.application.admin import EXIT_CONFLICT, EXIT_OK
+from backend.composition import document_snapshot_factory
 from backend.operations.backup_recipients import BackupRecipientRepository, recipient_fingerprint
 from backend.operations.backup_restore import BACKUP_PUBLIC_KEY_ENV, ArtifactError, ArtifactService
 from backend.persistence.database import PersistencePaths, initialize
@@ -133,6 +134,7 @@ class BackupRecipientTests(unittest.TestCase):
         artifacts = ArtifactService(
             self.paths,
             environment={},
+            document_snapshots=document_snapshot_factory(self.paths.database, self.paths.documents),
         )
         arguments = {
             "recipient": RECIPIENT,
@@ -172,7 +174,11 @@ class BackupRecipientTests(unittest.TestCase):
         self.assertEqual(EXIT_CONFLICT, code)
 
     def test_admin_protocol_rejects_private_material_as_unknown_argument(self) -> None:
-        artifacts = ArtifactService(self.paths, environment={})
+        artifacts = ArtifactService(
+            self.paths,
+            environment={},
+            document_snapshots=document_snapshot_factory(self.paths.database, self.paths.documents),
+        )
         output = io.BytesIO()
         stdout = io.TextIOWrapper(output, encoding="utf-8")
         with redirect_stdout(stdout):
