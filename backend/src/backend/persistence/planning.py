@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import AbstractContextManager, contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -12,12 +12,11 @@ from typing import TYPE_CHECKING, TypedDict, cast
 
 from sqlalchemy import select, update
 
-from backend.persistence.database import DEFAULT_DB_PATH, session_scope
+from backend.persistence.database import DEFAULT_DB_PATH, read_session_scope, session_scope
 from backend.persistence.models import (
     CANDIDATE,
     CANDIDATE_COMMITTEE_ASSIGNMENT,
     CANDIDATE_EXAM_DAY,
-    COMMITTEE_MEMBER,
     EXAM_DAY,
     EXAM_DAY_ASSIGNMENT,
     EXAM_ROUND,
@@ -35,9 +34,13 @@ from backend.persistence.models import (
 from backend.persistence.store import Store
 
 if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
+
     from backend.planning.proposal_ports import (
+        CommitteeMemberSnapshot,
         ConfirmedPlanRevisionSnapshot,
         PlanningContextSnapshot,
+        PlanningIdentitySnapshots,
         PlanningProposalSnapshot,
         PlanningUnitOfWork,
     )
@@ -67,14 +70,6 @@ class _RoundCandidateRecord(TypedDict):
 class _CandidateRecord(TypedDict):
     id: int
     requires_mep: int
-
-
-class _CommitteeMemberRecord(TypedDict):
-    id: int
-    person_id: int
-    committee_id: int
-    representing_side: str
-    is_active: int
 
 
 class _CandidateDayRecord(TypedDict):
@@ -133,7 +128,7 @@ class _SQLitePlanningContextSnapshot:
     settings: _PlanningSettingsRecord | None
     round_candidates: tuple[_RoundCandidateRecord, ...]
     candidates: dict[int, _CandidateRecord]
-    members: dict[int, _CommitteeMemberRecord]
+    members: dict[int, CommitteeMemberSnapshot]
     candidate_days: dict[int, _CandidateDayRecord]
     availability: tuple[_MemberAvailabilityRecord, ...]
     blocked_person_ids: dict[tuple[str, str], dict[int, str]]
@@ -163,9 +158,11 @@ class SQLitePlanningUnitOfWorkFactory:
         self,
         db_path: Path = DEFAULT_DB_PATH,
         *,
+        identity_snapshot_factory: Callable[[Session], PlanningIdentitySnapshots],
         require_confirmed_coordinates: bool = False,
     ) -> None:
         self.db_path = Path(db_path)
+        self.identity_snapshot_factory = identity_snapshot_factory
         self.require_confirmed_coordinates = require_confirmed_coordinates
 
     def __call__(self, *, write: bool = False) -> AbstractContextManager[PlanningUnitOfWork]:
@@ -173,9 +170,15 @@ class SQLitePlanningUnitOfWorkFactory:
 
     @contextmanager
     def _unit_of_work(self, *, write: bool) -> Iterator[PlanningUnitOfWork]:
-        with session_scope(self.db_path, begin_immediate=write) as session:
+        scope = (
+            session_scope(self.db_path, begin_immediate=True)
+            if write
+            else read_session_scope(self.db_path)
+        )
+        with scope as session:
             yield SQLitePlanningUnitOfWork(
                 Store(session),
+                identity_snapshots=self.identity_snapshot_factory(session),
                 require_confirmed_coordinates=self.require_confirmed_coordinates,
             )
 
@@ -187,10 +190,12 @@ class SQLitePlanningUnitOfWork:
         self,
         store: Store,
         *,
+        identity_snapshots: PlanningIdentitySnapshots,
         require_confirmed_coordinates: bool,
     ) -> None:
         self._store = store
         self._session = store.session
+        self._identity_snapshots = identity_snapshots
         self._require_confirmed_coordinates = require_confirmed_coordinates
 
     def planning_context(self, round_id: int) -> PlanningContextSnapshot:
@@ -213,11 +218,7 @@ class SQLitePlanningUnitOfWork:
         )
         candidates = {row["id"]: cast(_CandidateRecord, row) for row in self._store.all(CANDIDATE)}
         committee_id = exam_round["committee_id"] if exam_round else -1
-        members = {
-            row["id"]: cast(_CommitteeMemberRecord, row)
-            for row in self._store.where(COMMITTEE_MEMBER, committee_id=committee_id)
-            if row["is_active"]
-        }
+        members = dict(self._identity_snapshots.active_committee_members(committee_id))
         candidate_days = {
             row["id"]: cast(_CandidateDayRecord, row)
             for row in self._store.where(CANDIDATE_EXAM_DAY, exam_round_id=round_id)
@@ -321,7 +322,7 @@ class SQLitePlanningUnitOfWork:
         after_state_json: str,
     ) -> ConfirmedPlanRevisionSnapshot | None:
         exam_round = self._store.get(EXAM_ROUND, proposal.round_id)
-        actor = self._store.get(COMMITTEE_MEMBER, actor_member_id)
+        actor = self._identity_snapshots.members_by_id((actor_member_id,)).get(actor_member_id)
         if (
             exam_round is None
             or actor is None
@@ -558,9 +559,13 @@ class SQLitePlanningUnitOfWork:
         blocked: dict[tuple[str, str], dict[int, str]] = defaultdict(dict)
         if exam_round is None:
             return blocked
-        for assignment in self._store.all(EXAM_DAY_ASSIGNMENT):
+        assignments = self._store.all(EXAM_DAY_ASSIGNMENT)
+        members = self._identity_snapshots.members_by_id(
+            tuple({assignment["committee_member_id"] for assignment in assignments})
+        )
+        for assignment in assignments:
             exam_day = self._store.get(EXAM_DAY, assignment["exam_day_id"])
-            member = self._store.get(COMMITTEE_MEMBER, assignment["committee_member_id"])
+            member = members.get(assignment["committee_member_id"])
             other_round = (
                 self._store.get(EXAM_ROUND, exam_day["exam_round_id"]) if exam_day else None
             )

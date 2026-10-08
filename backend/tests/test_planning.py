@@ -13,6 +13,7 @@ from sqlalchemy import text
 from backend.application.repositories import ResourceRepository
 from backend.composition import identity_service, planning_service
 from backend.persistence.database import connect, session_scope
+from backend.persistence.identity import SQLiteIdentityPlanningSnapshotFactory
 from backend.persistence.models import (
     CANDIDATE_EXAM_DAY,
     COMMITTEE_MEMBER,
@@ -25,7 +26,7 @@ from backend.persistence.models import (
     ExamRoom,
     ExamVenue,
 )
-from backend.persistence.planning import SQLitePlanningUnitOfWork
+from backend.persistence.planning import SQLitePlanningUnitOfWork, SQLitePlanningUnitOfWorkFactory
 from backend.persistence.store import Store
 from backend.planning import (
     ConfirmedPlanChange,
@@ -70,6 +71,38 @@ class PlanningTests(unittest.TestCase):
 
         self.assertEqual("settings_missing", error.exception.issues[0].code)
         unit_of_work.replace_proposal.assert_not_called()
+
+    def test_read_unit_of_work_pins_consistent_planning_snapshot(self) -> None:
+        with TempDatabase() as db_path:
+            factory = SQLitePlanningUnitOfWorkFactory(
+                db_path,
+                identity_snapshot_factory=SQLiteIdentityPlanningSnapshotFactory(),
+            )
+            with factory() as reader:
+                before = reader.planning_context(1)
+                assert before.settings is not None
+                original_exams_per_day = before.settings["exams_per_day"]
+
+                with session_scope(db_path, begin_immediate=True) as writer:
+                    writer.execute(
+                        text(
+                            "UPDATE planning_settings "
+                            "SET exams_per_day = exams_per_day + 1 "
+                            "WHERE exam_round_id = :round_id"
+                        ),
+                        {"round_id": 1},
+                    )
+
+                after = reader.planning_context(1)
+
+            assert after.settings is not None
+            self.assertEqual(original_exams_per_day, after.settings["exams_per_day"])
+
+            with session_scope(db_path) as session:
+                current_settings = Store(session).first(PLANNING_SETTINGS, exam_round_id=1)
+
+        assert current_settings is not None
+        self.assertEqual(original_exams_per_day + 1, current_settings["exams_per_day"])
 
     def test_request_availabilities_moves_prepared_draft_into_coordination(self) -> None:
         with TempDatabase() as db_path:

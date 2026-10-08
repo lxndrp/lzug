@@ -47,13 +47,23 @@ class CandidateSnapshot(TypedDict):
 
 
 class CommitteeMemberSnapshot(TypedDict):
-    """Committee membership facts needed for scheduling and authorization."""
+    """Identity facts needed for planning and assignment validation."""
 
     id: int
     person_id: int
     committee_id: int
     representing_side: str
     is_active: int
+
+
+class PlanningIdentitySnapshots(Protocol):
+    """Identity-owned membership snapshots consumed by Planning use cases."""
+
+    def active_committee_members(
+        self, committee_id: int
+    ) -> Mapping[int, CommitteeMemberSnapshot]: ...
+
+    def members_by_id(self, member_ids: Sequence[int]) -> Mapping[int, CommitteeMemberSnapshot]: ...
 
 
 class CandidateDaySnapshot(TypedDict):

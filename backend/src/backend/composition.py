@@ -25,6 +25,7 @@ from backend.persistence.candidate_days import SQLiteCandidateDayUnitOfWorkFacto
 from backend.persistence.committee_admin import SQLiteCommitteeAdminUnitOfWorkFactory
 from backend.persistence.database import DEFAULT_DB_PATH
 from backend.persistence.identity import (
+    SQLiteIdentityPlanningSnapshotFactory,
     SQLiteIdentityQueryFactory,
     SQLiteIdentityUnitOfWorkFactory,
 )
@@ -76,6 +77,7 @@ def planning_service(
     return PlanningService(
         SQLitePlanningUnitOfWorkFactory(
             db_path,
+            identity_snapshot_factory=SQLiteIdentityPlanningSnapshotFactory(),
             require_confirmed_coordinates=require_confirmed_coordinates,
         )
     )
