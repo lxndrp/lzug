@@ -37,7 +37,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.sha }}
-      - uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
+      - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
         with:
           install: false
       - run: mise install aqua:go-task/task@3.52.0 aqua:rhysd/actionlint@1.7.12
@@ -133,7 +133,7 @@ jobs:
       - env:
           LZUG_SOCKET_TEST_BINARY: ${{ runner.temp }}/lzug-admin-socket-tests
         run: task backend:quality
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: backend-coverage
           path: coverage.xml
@@ -156,7 +156,7 @@ jobs:
         with:
           version: "0.11.x"
           enable-cache: true
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version-file: frontend/.node-version
           cache: npm
@@ -164,14 +164,14 @@ jobs:
       - uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e # v2.2.0
         with:
           version: 3.52.0
-      - uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
+      - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
         with:
           install: false
       - run: mise install aqua:PowerShell/PowerShell@7.5.3
       - run: uv sync --locked --extra dev
       - run: npm ci --prefix frontend
       - run: task brand:check frontend:quality
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: frontend-coverage
           path: frontend/coverage/frontend/lcov.info
@@ -194,12 +194,12 @@ jobs:
         with:
           version: "0.11.x"
           enable-cache: true
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version-file: frontend/.node-version
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
+      - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
         with:
           install: false
       - run: mise install aqua:PowerShell/PowerShell@7.5.3
@@ -225,7 +225,7 @@ jobs:
         with:
           version: "0.11.x"
           enable-cache: true
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version-file: frontend/.node-version
           cache: npm
@@ -235,7 +235,7 @@ jobs:
           version: 3.52.0
       - run: uv sync --locked --extra dev && npm ci --prefix frontend
       - run: task docs
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: lzug-documentation
           path: site
@@ -339,13 +339,13 @@ jobs:
       - uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e # v2.2.0
         with:
           version: 3.52.0
-      - uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
+      - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
         with:
           install: false
       - run: mise install aqua:PowerShell/PowerShell@7.5.3
       - run: uv sync --locked --extra dev
       - id: syft
-        uses: anchore/sbom-action/download-syft@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
+        uses: anchore/sbom-action/download-syft@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
         with:
           syft-version: v1.51.0
       - env:
@@ -353,13 +353,13 @@ jobs:
         run: task quality:oci quality:pester quality:demo
       - name: Publish Pester test report
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: pester-results
           path: build/quality/pester/pester.xml
           if-no-files-found: error
           retention-days: 7
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: lzug-sboms
           path: |
@@ -370,7 +370,7 @@ jobs:
         run: |
           set -euo pipefail
           docker save "$IMAGE_REF" | gzip > "$RUNNER_TEMP/quality-container-image.tar.gz"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: quality-container-image
           path: ${{ runner.temp }}/quality-container-image.tar.gz
@@ -425,7 +425,7 @@ jobs:
         with:
           version: "0.11.x"
           enable-cache: true
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version-file: frontend/.node-version
           cache: npm
@@ -449,7 +449,7 @@ jobs:
           test "$(sysctl -n kernel.apparmor_restrict_unprivileged_userns)" = 0
       - run: task frontend:e2e
       - run: task frontend:ui-review
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         if: failure()
         with:
           name: playwright-e2e-report
@@ -473,7 +473,7 @@ jobs:
         with:
           version: "0.11.x"
           enable-cache: true
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version-file: frontend/.node-version
           cache: npm
@@ -496,7 +496,7 @@ jobs:
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           test "$(sysctl -n kernel.apparmor_restrict_unprivileged_userns)" = 0
       - run: task frontend:a11y
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         if: failure()
         with:
           name: playwright-a11y-report
@@ -551,7 +551,7 @@ jobs:
         with:
           version: "0.11.x"
           enable-cache: true
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version-file: frontend/.node-version
           cache: npm
@@ -588,7 +588,7 @@ jobs:
           jq -n --arg revision "$QUALITY_REVISION" --arg run_id "$QUALITY_RUN_ID" \
             '{contract: "quality-evidence-v2", revision: $revision, run_id: ($run_id | tonumber)}' \
             > build/quality-evidence/quality-evidence.json
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: quality-evidence-v2
           path: build/quality-evidence/quality-evidence.json
