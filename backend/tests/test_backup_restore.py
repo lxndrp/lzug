@@ -512,7 +512,7 @@ class BackupRestoreTests(unittest.TestCase):
                 connection.execute("SELECT first_name FROM candidate WHERE id = 1").fetchone()[0],
             )
 
-    def test_failed_restore_rollback_preserves_unmarked_retired_data(self) -> None:
+    def test_failed_restore_rollback_preserves_retired_data(self) -> None:
         _source_paths, source, _token = self.prepare_source()
         package_copy, _result = self.write_package(source, "backup.zip")
 

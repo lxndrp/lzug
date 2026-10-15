@@ -48,8 +48,6 @@ class _Schema:
 class SQLiteFileInstanceStorage:
     """Implement instance persistence and maintenance with SQLite and local files."""
 
-    _RETIRED_CLEANUP_MARKER = ".lzug-retired-cleanup-safe"
-
     def __init__(self, *, busy_timeout_ms: int = 5000) -> None:
         self.busy_timeout_ms = busy_timeout_ms
 
@@ -393,6 +391,7 @@ class SQLiteFileInstanceStorage:
         retired = self.create_workspace(retirement_directory, ".lzug-retired-")
         moved: list[tuple[Path, Path]] = []
         installed: list[Path] = []
+        cleanup_safe = False
         try:
             self.checkpoint(active_database)
             for target in (
@@ -414,11 +413,11 @@ class SQLiteFileInstanceStorage:
                 os.replace(source, target)
                 installed.append(target)
             validate()
-            self._mark_retired_workspace_cleanup_safe(retired)
+            cleanup_safe = True
         except Exception as error:
             rollback_error = self._rollback_restore(installed, moved)
             if rollback_error is None:
-                self._mark_retired_workspace_cleanup_safe(retired)
+                cleanup_safe = True
             else:
                 raise InstanceStorageError(
                     "activation_failed", "Restore rollback failed"
@@ -427,7 +426,7 @@ class SQLiteFileInstanceStorage:
                 raise
             raise InstanceStorageError("activation_failed", "Restore activation failed") from error
         finally:
-            if self._retired_workspace_cleanup_safe(retired):
+            if cleanup_safe:
                 self._cleanup_retired_workspace(retired)
 
     @staticmethod
@@ -448,23 +447,6 @@ class SQLiteFileInstanceStorage:
             except OSError as error:
                 failure = failure or error
         return failure
-
-    @classmethod
-    def _mark_retired_workspace_cleanup_safe(cls, retired: Path) -> None:
-        marker = retired / cls._RETIRED_CLEANUP_MARKER
-        try:
-            with marker.open("xb") as file:
-                file.flush()
-                os.fsync(file.fileno())
-        except OSError as error:
-            raise InstanceStorageError(
-                "artifact_cleanup_failed", "Restore cleanup failed"
-            ) from error
-
-    @classmethod
-    def _retired_workspace_cleanup_safe(cls, retired: Path) -> bool:
-        marker = retired / cls._RETIRED_CLEANUP_MARKER
-        return marker.is_file() and not marker.is_symlink()
 
     @staticmethod
     def _cleanup_retired_workspace(retired: Path) -> None:
