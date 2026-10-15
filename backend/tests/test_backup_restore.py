@@ -127,6 +127,19 @@ class BackupRestoreTests(unittest.TestCase):
         self.assertEqual(paths.database, double.database)
         self.assertEqual("009_harden_migration_history.sql", double.minimum_supported)
 
+    def test_database_snapshot_sqlite_error_uses_stable_artifact_error(self) -> None:
+        _paths, service = self.runtime("snapshot-error", seed=True)
+        with patch.object(
+            SQLiteFileInstanceStorage,
+            "_connection",
+            side_effect=sqlite3.OperationalError("disk I/O error"),
+        ):
+            with self.assertRaises(ArtifactError) as raised:
+                with service._capture_snapshot(include_authentication_key=True):
+                    self.fail("snapshot should not be yielded")
+
+        self.assertEqual("snapshot_failed", raised.exception.code)
+
     @staticmethod
     def copy_package(source: Path, target: Path) -> None:
         target.write_bytes(source.read_bytes())

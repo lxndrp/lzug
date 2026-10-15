@@ -352,10 +352,13 @@ class SQLiteFileInstanceStorage:
             ) from error
 
     def copy_database(self, source: Path, destination: Path) -> None:
-        with closing(self._connection(source)) as source_connection:
-            with closing(self._connection(destination, read_only=False)) as target:
-                source_connection.backup(target)
-                target.commit()
+        try:
+            with closing(self._connection(source)) as source_connection:
+                with closing(self._connection(destination, read_only=False)) as target:
+                    source_connection.backup(target)
+                    target.commit()
+        except (OSError, sqlite3.Error) as error:
+            raise InstanceStorageError("snapshot_failed", "Instance snapshot failed") from error
 
     def snapshot_lease(self, database: Path):
         return snapshot_scope(database)
