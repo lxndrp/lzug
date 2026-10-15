@@ -495,6 +495,15 @@ class BackupRestoreTests(unittest.TestCase):
                 connection.execute("SELECT first_name FROM candidate WHERE id = 1").fetchone()[0],
             )
 
+        self.assertTrue(tuple(target_paths.data_dir.glob(".lzug-retired-*")))
+        target.restore_package(
+            package_copy,
+            replace=True,
+            safety_artifact="/operator/pre-restore.lzug",
+            recipient_fingerprint=FINGERPRINT,
+        )
+        self.assertFalse(tuple(target_paths.data_dir.glob(".lzug-retired-*")))
+
     def test_corrupt_and_wrong_type_packages_are_rejected(self) -> None:
         _paths, service, _token = self.prepare_source()
         package, _result = self.write_package(service, "export.zip", export=True)

@@ -388,6 +388,7 @@ class SQLiteFileInstanceStorage:
         retirement_directory: Path,
         validate: Callable[[], None],
     ) -> None:
+        self._cleanup_retired_workspaces(retirement_directory)
         retired = self.create_workspace(retirement_directory, ".lzug-retired-")
         moved: list[tuple[Path, Path]] = []
         installed: list[Path] = []
@@ -426,6 +427,19 @@ class SQLiteFileInstanceStorage:
             raise InstanceStorageError("activation_failed", "Restore activation failed") from error
         finally:
             self._cleanup_retired_workspace(retired)
+
+    @staticmethod
+    def _cleanup_retired_workspaces(directory: Path) -> None:
+        """Remove data left by an earlier restore before recovery can be reported ready."""
+        try:
+            for retired in directory.glob(".lzug-retired-*"):
+                if not retired.is_dir() or retired.is_symlink():
+                    raise OSError("Retired restore workspace is not a directory")
+                shutil.rmtree(retired)
+        except OSError as error:
+            raise InstanceStorageError(
+                "artifact_cleanup_failed", "Restore cleanup failed"
+            ) from error
 
     @staticmethod
     def _cleanup_retired_workspace(retired: Path) -> None:
