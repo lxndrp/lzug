@@ -16,11 +16,14 @@ from unittest.mock import patch
 import pyotp
 from cryptography.fernet import Fernet
 
-from backend.composition import local_auth_service
+from backend.composition import (
+    document_snapshot_factory,
+    document_use_cases,
+    local_auth_service,
+)
+from backend.documents.commands import CreateDocument
 from backend.identity.auth import SESSION_TTL
 from backend.identity.local_auth import PASSWORD_HASHER
-from backend.integrations.document_storage import FilesystemDocumentStorage
-from backend.integrations.documents import DocumentService
 from backend.operations.artifact_packages import ClearArtifactService
 from backend.operations.backup_restore import FULL_EXPORT_SCHEMA, ArtifactError
 from backend.persistence.auth import SQLiteAuthenticationRepository
@@ -70,6 +73,7 @@ class BackupRestoreTests(unittest.TestCase):
             paths,
             environment=environment or {},
             fault_injector=fault_injector,
+            document_snapshots=document_snapshot_factory(paths.database, paths.documents),
         )
 
     def prepare_source(self) -> tuple[PersistencePaths, ClearArtifactService, str]:
@@ -92,10 +96,12 @@ class BackupRestoreTests(unittest.TestCase):
             )
             connection.commit()
         credentials = SQLiteAuthenticationRepository(paths.database).create_session(1)
-        DocumentService(FilesystemDocumentStorage(paths.documents), paths.database).create(
-            b"document-content",
-            original_filename="evidence.txt",
-            media_type="text/plain",
+        document_use_cases(paths.database, paths.documents).create(
+            CreateDocument(
+                b"document-content",
+                original_filename="evidence.txt",
+                media_type="text/plain",
+            )
         )
         return paths, service, credentials.token
 
@@ -356,7 +362,11 @@ class BackupRestoreTests(unittest.TestCase):
                     documents=root / "documents",
                     backups=root / "backups",
                 )
-                target = ClearArtifactService(paths, environment={})
+                target = ClearArtifactService(
+                    paths,
+                    environment={},
+                    document_snapshots=document_snapshot_factory(paths.database, paths.documents),
+                )
                 runtime = None
                 if managed:
                     runtime = RuntimeCoordinator(

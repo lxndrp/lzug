@@ -7,6 +7,7 @@ import unittest
 import zipfile
 from unittest.mock import patch
 
+from backend.composition import document_snapshot_factory
 from backend.operations.artifact_packages import MAX_PACKAGE_METADATA, ClearArtifactService
 from backend.operations.backup_restore import MANIFEST_NAME, ArtifactError, _database_connection
 from backend.persistence.artifact_limits import artifact_database_limit
@@ -24,7 +25,12 @@ class ArtifactLimitsTests(unittest.TestCase):
     def test_bounded_service_roundtrip_and_quota_rejection_cleanup(self):
         paths, source, _ = self.prepare_source()
         package, _ = self.write_package(source, "backup.zip")
-        bounded = ClearArtifactService(paths, environment={}, package_limit=32 * 1024 * 1024)
+        bounded = ClearArtifactService(
+            paths,
+            environment={},
+            package_limit=32 * 1024 * 1024,
+            document_snapshots=document_snapshot_factory(paths.database, paths.documents),
+        )
         self.assertEqual("backup", bounded.verify_package(package)["artifact_type"])
         bounded.package_limit = package.stat().st_size - 1
         with self.assertRaises(ArtifactError) as failure:
@@ -39,7 +45,12 @@ class ArtifactLimitsTests(unittest.TestCase):
 
     def test_central_directory_budget_checked_before_zipfile_allocation(self):
         paths, _ = self.runtime("source", seed=False)
-        service = ClearArtifactService(paths, environment={}, package_limit=16 * 1024 * 1024)
+        service = ClearArtifactService(
+            paths,
+            environment={},
+            package_limit=16 * 1024 * 1024,
+            document_snapshots=document_snapshot_factory(paths.database, paths.documents),
+        )
         for name, trailer in (
             ("members", struct.pack("<4s4H2IH", b"PK\x05\x06", 0, 0, 4097, 4097, 1, 0, 0)),
             (
@@ -62,7 +73,12 @@ class ArtifactLimitsTests(unittest.TestCase):
 
     def test_oversize_metadata_and_compressed_payload_never_extract(self):
         paths, _ = self.runtime("source", seed=False)
-        service = ClearArtifactService(paths, environment={}, package_limit=32 * 1024 * 1024)
+        service = ClearArtifactService(
+            paths,
+            environment={},
+            package_limit=32 * 1024 * 1024,
+            document_snapshots=document_snapshot_factory(paths.database, paths.documents),
+        )
         for compression, content in (
             (zipfile.ZIP_DEFLATED, b"compressed"),
             (zipfile.ZIP_STORED, b"x" * (MAX_PACKAGE_METADATA + 1)),
@@ -76,7 +92,12 @@ class ArtifactLimitsTests(unittest.TestCase):
 
     def test_cleanup_failure_is_explicit_and_does_not_claim_success(self):
         paths, _ = self.runtime("source", seed=False)
-        service = ClearArtifactService(paths, environment={}, package_limit=1024 * 1024)
+        service = ClearArtifactService(
+            paths,
+            environment={},
+            package_limit=1024 * 1024,
+            document_snapshots=document_snapshot_factory(paths.database, paths.documents),
+        )
         root = self.root / "cleanup"
         root.mkdir()
         with patch(

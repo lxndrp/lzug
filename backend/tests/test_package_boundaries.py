@@ -25,6 +25,7 @@ CORE_PACKAGES = frozenset(
         "application",
         "assessment",
         "calendar",
+        "documents",
         "execution",
         "identity",
         "integrations",
@@ -78,6 +79,7 @@ ALLOWED_PACKAGE_DEPENDENCIES = {
         {
             "assessment",
             "calendar",
+            "documents",
             "execution",
             "identity",
             "integrations",
@@ -89,14 +91,15 @@ ALLOWED_PACKAGE_DEPENDENCIES = {
     ),
     "assessment": frozenset(),
     "calendar": frozenset(),
+    "documents": frozenset(),
     "execution": frozenset(
         {"calendar", "identity", "integrations", "notifications", "persistence", "presentation"}
     ),
     "identity": frozenset(),
-    "integrations": frozenset({"identity", "notifications", "persistence"}),
+    "integrations": frozenset({"documents", "identity", "notifications", "persistence"}),
     "notifications": frozenset(),
-    "operations": frozenset({"identity", "integrations", "persistence"}),
-    "persistence": frozenset({"calendar", "identity", "notifications"}),
+    "operations": frozenset({"documents", "identity", "integrations", "persistence"}),
+    "persistence": frozenset({"calendar", "documents", "identity", "notifications"}),
     "presentation": frozenset(),
     "planning": frozenset({"calendar", "integrations", "notifications", "persistence"}),
 }

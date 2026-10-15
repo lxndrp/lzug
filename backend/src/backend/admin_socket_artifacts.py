@@ -170,6 +170,7 @@ class SocketArtifacts:
             environment=configured.environment,
             settings=configured.settings,
             package_limit=self.limit,
+            document_snapshots=configured.document_snapshots,
         )
         try:
             if command in PRODUCE_COMMANDS:

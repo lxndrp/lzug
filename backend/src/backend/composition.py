@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from datetime import timedelta
 from pathlib import Path
 
@@ -10,6 +10,7 @@ from backend.application.exam_venue_api import ExamVenueApi
 from backend.application.venue_consequences import VenueConsequenceService
 from backend.assessment.service import ExamResultService
 from backend.calendar.service import CalendarService
+from backend.documents.commands import DocumentUseCases
 from backend.execution.exam_day_closures import (
     complete_day_mutation,
     guard_day_mutation,
@@ -22,6 +23,7 @@ from backend.identity.authorization import AuthorizationService
 from backend.identity.committee_admin import CommitteeAdminService
 from backend.identity.local_auth import LocalAuthService
 from backend.identity.people import IdentityService
+from backend.integrations.document_storage import FilesystemDocumentStorage
 from backend.integrations.holiday_provider import PythonHolidaysProvider
 from backend.integrations.map_provider import MapProviderConfig, NominatimGeocoder
 from backend.integrations.notification_delivery import NotificationDeliveryGateway
@@ -37,6 +39,10 @@ from backend.persistence.calendar_lifecycle import SQLiteCalendarLifecycleWork
 from backend.persistence.candidate_days import SQLiteCandidateDayUnitOfWorkFactory
 from backend.persistence.committee_admin import SQLiteCommitteeAdminUnitOfWorkFactory
 from backend.persistence.database import DEFAULT_DB_PATH
+from backend.persistence.documents import (
+    SQLiteDocumentSnapshotFactory,
+    SQLiteDocumentUnitOfWorkFactory,
+)
 from backend.persistence.exam_lifecycle import SQLiteExamLifecycleUnitOfWorkFactory
 from backend.persistence.execution import SQLiteExecutionUnitOfWorkFactory
 from backend.persistence.identity import (
@@ -475,3 +481,26 @@ class _VenueAuditFollowUp(VenueChangeFollowUp):
 
     def process(self, change: VenueChange):
         return self.consequences.process_audit(change.audit_id)
+
+
+def document_snapshot_factory(database: Path, documents: Path) -> SQLiteDocumentSnapshotFactory:
+    """Wire the Documents-owned technical snapshot capability for Operations."""
+    return SQLiteDocumentSnapshotFactory(database, documents)
+
+
+def document_use_cases(
+    db_path: Path,
+    documents_path: Path,
+    *,
+    settings: RuntimeSettings | None = None,
+    max_size_bytes: int | None = None,
+    allowed_media_types: Collection[str] | None = None,
+) -> DocumentUseCases:
+    """Wire Documents-owned contracts to SQLite and filesystem adapters."""
+    return DocumentUseCases(
+        SQLiteDocumentUnitOfWorkFactory(db_path),
+        FilesystemDocumentStorage(documents_path),
+        settings=settings.documents if settings else None,
+        max_size_bytes=max_size_bytes,
+        allowed_media_types=allowed_media_types,
+    )

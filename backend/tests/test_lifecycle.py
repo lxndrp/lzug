@@ -14,6 +14,7 @@ from uuid import uuid4
 from fastapi.testclient import TestClient
 
 from backend.application.admin import AdminActorContext
+from backend.composition import document_snapshot_factory
 from backend.fastapi_assembly import FastAPIConfig, create_admin_application, create_app
 from backend.operations.artifact_packages import ClearArtifactService
 from backend.operations.backup_recipients import BackupRecipientRepository, recipient_fingerprint
@@ -50,7 +51,11 @@ class LifecycleTests(unittest.TestCase):
         self.service = LifecycleService(
             self.paths, environment={}, metadata=BuildMetadata.create("a" * 40, "v0.9.0")
         )
-        self.artifacts = ClearArtifactService(self.paths, environment={})
+        self.artifacts = ClearArtifactService(
+            self.paths,
+            environment={},
+            document_snapshots=document_snapshot_factory(self.paths.database, self.paths.documents),
+        )
         self.job_id = str(uuid4())
         self.plan = self.service.status()["plan_id"]
         self.package = self.paths.backups / "test.zip"

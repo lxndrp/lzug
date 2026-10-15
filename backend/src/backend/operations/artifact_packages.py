@@ -31,7 +31,6 @@ from backend.operations.backup_restore import (
     LoadedArtifact,
     _canonical_json,
     _database_connection,
-    _document_rows,
     _totp_key_binding,
 )
 from backend.persistence.artifact_limits import artifact_database_limit
@@ -165,19 +164,19 @@ class ClearArtifactService(ArtifactService):
                 export_root = snapshot.root / "export"
                 export_root.mkdir(mode=0o700)
                 data, value_lists = self._export_data(snapshot)
-                documents = _document_rows(snapshot.database)
+                documents = self.document_snapshots.export_metadata(snapshot.database)
                 document_list = {
                     "format": "lzug-full-export-documents",
                     "format_version": 1,
                     "documents": [
                         {
-                            "export_id": f"document:{row['id']}",
-                            "source_document_id": row["id"],
-                            "content_path": f"documents/{row['storage_id']}",
-                            "original_filename": row["original_filename"],
-                            "media_type": row["media_type"],
-                            "size_bytes": row["size_bytes"],
-                            "checksum_sha256": row["checksum_sha256"],
+                            "export_id": f"document:{row.id}",
+                            "source_document_id": row.id,
+                            "content_path": f"documents/{row.storage_id}",
+                            "original_filename": row.original_filename,
+                            "media_type": row.media_type,
+                            "size_bytes": row.size_bytes,
+                            "checksum_sha256": row.checksum_sha256,
                             "relationships": [],
                         }
                         for row in documents

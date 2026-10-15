@@ -7,53 +7,35 @@ import os
 import re
 import tempfile
 from contextlib import suppress
-from dataclasses import dataclass
 from pathlib import Path
-from typing import BinaryIO, Protocol
+from typing import BinaryIO
 from uuid import uuid4
 
+from backend.documents.storage import (
+    DocumentNotFoundError,
+    DocumentStorage,
+    DocumentStorageCollisionError,
+    DocumentStorageError,
+    InvalidDocumentFilenameError,
+    InvalidStorageIdError,
+    StoredDocument,
+    validate_document_filename,
+)
+
 STORAGE_ID_PATTERN = re.compile(r"^[0-9a-f]{32}$")
-MAX_FILENAME_LENGTH = 255
-
-
-class DocumentStorageError(RuntimeError):
-    """Base error for document storage failures."""
-
-
-class DocumentNotFoundError(DocumentStorageError):
-    """The requested internal document does not exist."""
-
-
-class DocumentStorageCollisionError(DocumentStorageError):
-    """A storage ID is already occupied and will never be overwritten."""
-
-
-class InvalidStorageIdError(DocumentStorageError):
-    """The caller supplied a value that is not an internal storage ID."""
-
-
-class InvalidDocumentFilenameError(ValueError):
-    """A display filename contains path or control characters."""
-
-
-@dataclass(frozen=True)
-class StoredDocument:
-    size_bytes: int
-    checksum_sha256: str
-
-
-class DocumentStorage(Protocol):
-    """Minimal content boundary usable by a future remote adapter."""
-
-    def put(
-        self,
-        storage_id: str,
-        content: bytes | bytearray | memoryview | BinaryIO,
-    ) -> StoredDocument: ...
-
-    def read(self, storage_id: str) -> bytes: ...
-
-    def delete(self, storage_id: str) -> bool: ...
+__all__ = [
+    "DocumentNotFoundError",
+    "DocumentStorageCollisionError",
+    "DocumentStorageError",
+    "FileSystemDocumentStorage",
+    "FilesystemDocumentStorage",
+    "InvalidDocumentFilenameError",
+    "InvalidStorageIdError",
+    "StoredDocument",
+    "new_storage_id",
+    "validate_document_filename",
+    "validate_storage_id",
+]
 
 
 def new_storage_id() -> str:
@@ -67,19 +49,7 @@ def validate_storage_id(storage_id: str) -> str:
     return storage_id
 
 
-def validate_document_filename(filename: str) -> str:
-    if not isinstance(filename, str) or not filename or len(filename) > MAX_FILENAME_LENGTH:
-        raise InvalidDocumentFilenameError("Document filename must contain 1 to 255 characters")
-    if filename in {".", ".."} or "/" in filename or "\\" in filename or "\x00" in filename:
-        raise InvalidDocumentFilenameError("Document filename must not contain a path")
-    if any(ord(character) < 32 or ord(character) == 127 for character in filename):
-        raise InvalidDocumentFilenameError("Document filename must not contain control characters")
-    if filename.endswith((".", " ")):
-        raise InvalidDocumentFilenameError("Document filename must not end with a dot or space")
-    return filename
-
-
-class FilesystemDocumentStorage:
+class FilesystemDocumentStorage(DocumentStorage):
     """Store opaque document IDs as atomically published files in one directory."""
 
     def __init__(self, root: Path):
@@ -95,6 +65,11 @@ class FilesystemDocumentStorage:
         if not root.is_dir():
             raise DocumentStorageError(f"Document storage root is not a directory: {root}")
         self.root = root.resolve()
+
+    @staticmethod
+    def new_id() -> str:
+        """Create an opaque, non-user-controlled file name."""
+        return uuid4().hex
 
     def _path(self, storage_id: str) -> Path:
         validate_storage_id(storage_id)
