@@ -458,6 +458,38 @@ class BackupRestoreTests(unittest.TestCase):
                 connection.execute("SELECT first_name FROM candidate WHERE id = 1").fetchone()[0],
             )
 
+    def test_restore_preserves_typed_post_activation_validation_error(self) -> None:
+        _source_paths, source, _token = self.prepare_source()
+        package_copy, _result = self.write_package(source, "backup.zip")
+
+        def fail_validation(phase: str) -> None:
+            if phase == "activation":
+                raise ArtifactError(
+                    "document_relation_failed", "Document relation validation failed"
+                )
+
+        target_paths, target = self.runtime(
+            "target-validation", seed=True, fault_injector=fail_validation
+        )
+        with closing(sqlite3.connect(target_paths.database)) as connection:
+            connection.execute("UPDATE candidate SET first_name = 'TargetOnly' WHERE id = 1")
+            connection.commit()
+
+        with self.assertRaises(ArtifactError) as raised:
+            target.restore_package(
+                package_copy,
+                replace=True,
+                safety_artifact="/operator/pre-restore.lzug",
+                recipient_fingerprint=FINGERPRINT,
+            )
+
+        self.assertEqual("document_relation_failed", raised.exception.code)
+        with closing(sqlite3.connect(target_paths.database)) as connection:
+            self.assertEqual(
+                "TargetOnly",
+                connection.execute("SELECT first_name FROM candidate WHERE id = 1").fetchone()[0],
+            )
+
     def test_retired_workspace_cleanup_failure_uses_cleanup_error_contract(self) -> None:
         source_paths, source, _token = self.prepare_source()
         with closing(sqlite3.connect(source_paths.database)) as connection:

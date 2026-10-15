@@ -73,9 +73,16 @@ class ClearArtifactService(ArtifactService):
             return super()._copy_snapshot_locked(root, key)
         database_size = self.instance_storage.database_size(self.paths.database)
         self._check_size(database_size, MAX_PACKAGE_DATABASE)
-        with self.document_snapshots.snapshot() as document_snapshot:
-            document_count = document_snapshot.content_count()
-            document_size = document_snapshot.content_size_bytes()
+        try:
+            with self.document_snapshots.snapshot() as document_snapshot:
+                document_count = document_snapshot.content_count()
+                document_size = document_snapshot.content_size_bytes()
+        except ValueError as error:
+            raise ArtifactError(
+                "document_relation_failed", "Document references or content are invalid"
+            ) from error
+        except OSError as error:
+            raise ArtifactError("snapshot_failed", "Document snapshot failed") from error
         if document_count + 6 > MAX_PACKAGE_MEMBERS:
             raise ArtifactError("artifact_limit_exceeded", "Artifact resource limit exceeded")
         self._check_size(

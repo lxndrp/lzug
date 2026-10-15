@@ -392,6 +392,7 @@ class SQLiteFileInstanceStorage:
         moved: list[tuple[Path, Path]] = []
         installed: list[Path] = []
         cleanup_safe = False
+        validation_failed = False
         try:
             self.checkpoint(active_database)
             for target in (
@@ -412,7 +413,11 @@ class SQLiteFileInstanceStorage:
             ):
                 os.replace(source, target)
                 installed.append(target)
-            validate()
+            try:
+                validate()
+            except Exception:
+                validation_failed = True
+                raise
             cleanup_safe = True
         except Exception as error:
             rollback_error = self._rollback_restore(installed, moved)
@@ -422,7 +427,7 @@ class SQLiteFileInstanceStorage:
                 raise InstanceStorageError(
                     "activation_failed", "Restore rollback failed"
                 ) from rollback_error
-            if isinstance(error, InstanceStorageError):
+            if isinstance(error, InstanceStorageError) or validation_failed:
                 raise
             raise InstanceStorageError("activation_failed", "Restore activation failed") from error
         finally:

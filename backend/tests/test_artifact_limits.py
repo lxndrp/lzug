@@ -100,6 +100,26 @@ class ArtifactLimitsTests(unittest.TestCase):
                 service.verify_package(package)
             self.assertEqual([], list(paths.backups.glob(".lzug-*")))
 
+    def test_invalid_document_entry_uses_artifact_error_contract(self):
+        paths, _ = self.runtime("invalid-documents", seed=False)
+        outside = self.root / "outside.txt"
+        outside.write_text("private content")
+        (paths.documents / "linked.txt").symlink_to(outside)
+        bounded = ClearArtifactService(
+            paths,
+            environment={},
+            package_limit=32 * 1024 * 1024,
+            instance_storage=SQLiteFileInstanceStorage(),
+            maintenance=SQLiteInstanceMaintenance(),
+            document_snapshots=document_snapshot_factory(paths.database, paths.documents),
+        )
+
+        with self.assertRaises(packages.ArtifactError) as failure:
+            bounded.write_backup_package(io.BytesIO(), packages.FINGERPRINT)
+
+        self.assertEqual("document_relation_failed", failure.exception.code)
+        self.assertEqual([], list(paths.backups.glob(".lzug-snapshot-*")))
+
     def test_cleanup_failure_is_explicit_and_does_not_claim_success(self):
         paths, _ = self.runtime("source", seed=False)
         service = ClearArtifactService(

@@ -262,8 +262,15 @@ class ArtifactService:
     def _capture_snapshot(self, *, include_authentication_key: bool) -> Iterator[CapturedSnapshot]:
         self._ensure_runtime_paths()
         estimated = self.instance_storage.database_file_size(self.paths.database)
-        with self.document_snapshots.snapshot() as documents:
-            estimated += documents.content_size_bytes()
+        try:
+            with self.document_snapshots.snapshot() as documents:
+                estimated += documents.content_size_bytes()
+        except ValueError as error:
+            raise ArtifactError(
+                "document_relation_failed", "Document references or content are invalid"
+            ) from error
+        except OSError as error:
+            raise ArtifactError("snapshot_failed", "Document snapshot failed") from error
         self._ensure_space(self.paths.backups, max(estimated * 3, 1024 * 1024))
         key = (
             self.instance_storage.authentication_key(
