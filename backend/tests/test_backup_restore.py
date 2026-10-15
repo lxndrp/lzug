@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import os
 import shutil
 import sqlite3
 import tempfile
@@ -495,14 +496,80 @@ class BackupRestoreTests(unittest.TestCase):
                 connection.execute("SELECT first_name FROM candidate WHERE id = 1").fetchone()[0],
             )
 
-        self.assertTrue(tuple(target_paths.data_dir.glob(".lzug-retired-*")))
+        retired = next(target_paths.data_dir.glob(".lzug-retired-*"))
+        retired_database = retired / target_paths.database.name
+        self.assertTrue(retired_database.exists())
         target.restore_package(
             package_copy,
             replace=True,
             safety_artifact="/operator/pre-restore.lzug",
             recipient_fingerprint=FINGERPRINT,
         )
-        self.assertFalse(tuple(target_paths.data_dir.glob(".lzug-retired-*")))
+        self.assertTrue(retired_database.exists())
+        with closing(sqlite3.connect(retired_database)) as connection:
+            self.assertEqual(
+                "TargetOnly",
+                connection.execute("SELECT first_name FROM candidate WHERE id = 1").fetchone()[0],
+            )
+
+    def test_failed_restore_rollback_preserves_unmarked_retired_data(self) -> None:
+        _source_paths, source, _token = self.prepare_source()
+        package_copy, _result = self.write_package(source, "backup.zip")
+
+        injected = False
+
+        def fail_activation(phase: str) -> None:
+            nonlocal injected
+            if phase == "activation" and not injected:
+                injected = True
+                raise RuntimeError("injected activation failure")
+
+        target_paths, target = self.runtime(
+            "target-rollback", seed=True, fault_injector=fail_activation
+        )
+        with closing(sqlite3.connect(target_paths.database)) as connection:
+            connection.execute("UPDATE candidate SET first_name = 'OriginalOnly' WHERE id = 1")
+            connection.commit()
+
+        original_replace = os.replace
+
+        def fail_database_rollback(source_path, target_path) -> None:
+            source_path = Path(source_path)
+            if (
+                source_path.parent.name.startswith(".lzug-retired-")
+                and Path(target_path) == target_paths.database
+            ):
+                raise PermissionError("injected database rollback failure")
+            original_replace(source_path, target_path)
+
+        with patch(
+            "backend.persistence.instance_storage.os.replace",
+            side_effect=fail_database_rollback,
+        ):
+            with self.assertRaises(ArtifactError) as raised:
+                target.restore_package(
+                    package_copy,
+                    replace=True,
+                    safety_artifact="/operator/pre-restore.lzug",
+                    recipient_fingerprint=FINGERPRINT,
+                )
+        self.assertEqual("activation_failed", raised.exception.code)
+
+        retired = next(target_paths.data_dir.glob(".lzug-retired-*"))
+        retired_database = retired / target_paths.database.name
+        with closing(sqlite3.connect(retired_database)) as connection:
+            self.assertEqual(
+                "OriginalOnly",
+                connection.execute("SELECT first_name FROM candidate WHERE id = 1").fetchone()[0],
+            )
+
+        target.restore_package(
+            package_copy,
+            replace=True,
+            safety_artifact="/operator/pre-restore.lzug",
+            recipient_fingerprint=FINGERPRINT,
+        )
+        self.assertTrue(retired_database.exists())
 
     def test_corrupt_and_wrong_type_packages_are_rejected(self) -> None:
         _paths, service, _token = self.prepare_source()

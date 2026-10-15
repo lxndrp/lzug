@@ -48,6 +48,8 @@ class _Schema:
 class SQLiteFileInstanceStorage:
     """Implement instance persistence and maintenance with SQLite and local files."""
 
+    _RETIRED_CLEANUP_MARKER = ".lzug-retired-cleanup-safe"
+
     def __init__(self, *, busy_timeout_ms: int = 5000) -> None:
         self.busy_timeout_ms = busy_timeout_ms
 
@@ -388,7 +390,6 @@ class SQLiteFileInstanceStorage:
         retirement_directory: Path,
         validate: Callable[[], None],
     ) -> None:
-        self._cleanup_retired_workspaces(retirement_directory)
         retired = self.create_workspace(retirement_directory, ".lzug-retired-")
         moved: list[tuple[Path, Path]] = []
         installed: list[Path] = []
@@ -413,33 +414,57 @@ class SQLiteFileInstanceStorage:
                 os.replace(source, target)
                 installed.append(target)
             validate()
+            self._mark_retired_workspace_cleanup_safe(retired)
         except Exception as error:
-            for target in reversed(installed):
-                if target.is_dir():
-                    shutil.rmtree(target, ignore_errors=True)
-                else:
-                    target.unlink(missing_ok=True)
-            for source, target in reversed(moved):
-                if source.exists():
-                    os.replace(source, target)
+            rollback_error = self._rollback_restore(installed, moved)
+            if rollback_error is None:
+                self._mark_retired_workspace_cleanup_safe(retired)
+            else:
+                raise InstanceStorageError(
+                    "activation_failed", "Restore rollback failed"
+                ) from rollback_error
             if isinstance(error, InstanceStorageError):
                 raise
             raise InstanceStorageError("activation_failed", "Restore activation failed") from error
         finally:
-            self._cleanup_retired_workspace(retired)
+            if self._retired_workspace_cleanup_safe(retired):
+                self._cleanup_retired_workspace(retired)
 
     @staticmethod
-    def _cleanup_retired_workspaces(directory: Path) -> None:
-        """Remove data left by an earlier restore before recovery can be reported ready."""
+    def _rollback_restore(installed: list[Path], moved: list[tuple[Path, Path]]) -> OSError | None:
+        failure = None
+        for target in reversed(installed):
+            try:
+                if target.is_dir():
+                    shutil.rmtree(target)
+                else:
+                    target.unlink(missing_ok=True)
+            except OSError as error:
+                failure = failure or error
+        for source, target in reversed(moved):
+            try:
+                if source.exists():
+                    os.replace(source, target)
+            except OSError as error:
+                failure = failure or error
+        return failure
+
+    @classmethod
+    def _mark_retired_workspace_cleanup_safe(cls, retired: Path) -> None:
+        marker = retired / cls._RETIRED_CLEANUP_MARKER
         try:
-            for retired in directory.glob(".lzug-retired-*"):
-                if not retired.is_dir() or retired.is_symlink():
-                    raise OSError("Retired restore workspace is not a directory")
-                shutil.rmtree(retired)
+            with marker.open("xb") as file:
+                file.flush()
+                os.fsync(file.fileno())
         except OSError as error:
             raise InstanceStorageError(
                 "artifact_cleanup_failed", "Restore cleanup failed"
             ) from error
+
+    @classmethod
+    def _retired_workspace_cleanup_safe(cls, retired: Path) -> bool:
+        marker = retired / cls._RETIRED_CLEANUP_MARKER
+        return marker.is_file() and not marker.is_symlink()
 
     @staticmethod
     def _cleanup_retired_workspace(retired: Path) -> None:
