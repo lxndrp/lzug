@@ -80,7 +80,12 @@ from .operations.backup_restore import ArtifactService
 from .operations.diagnostics import run_diagnostics
 from .operations.lifecycle import LifecycleService
 from .persistence.auth import SQLiteAuthenticationRepository
-from .persistence.database import PersistencePaths, database_readiness, persistence_paths
+from .persistence.backup_recipient_store import SQLiteBackupRecipientStore
+from .persistence.database import PersistencePaths, persistence_paths
+from .persistence.instance_storage import (
+    SQLiteFileInstanceStorage,
+    SQLiteInstanceMaintenance,
+)
 from .persistence.resource_access import SQLiteResourceAccessQueryFactory
 from .planning import PlanningService
 from .planning.candidate_days import CandidateDayService
@@ -117,6 +122,8 @@ def create_admin_application(
         if active_settings is not None
         else PersistencePaths()
     )
+    instance_storage = SQLiteFileInstanceStorage()
+    instance_maintenance = SQLiteInstanceMaintenance()
 
     def require_settings() -> RuntimeSettings:
         return active_settings or RuntimeSettings.from_environment()
@@ -125,10 +132,15 @@ def create_admin_application(
         if service is not None:
             return {"ready": True}
         require_settings()
-        return database_readiness(db_path)
+        return instance_maintenance.readiness(db_path)
 
     services = AdminServices(
-        diagnostics=lambda command, client: run_diagnostics(command, client),
+        diagnostics=lambda command, client: run_diagnostics(
+            command,
+            client,
+            storage=instance_storage,
+            maintenance=instance_maintenance,
+        ),
         readiness_probe=ready,
         operator_auth_factory=lambda db_path: service or compose_operator_auth_service(db_path),
         notification_factory=lambda db_path: (
@@ -151,17 +163,28 @@ def create_admin_application(
             or ArtifactService(
                 persistence,
                 settings=require_settings(),
+                instance_storage=instance_storage,
+                maintenance=instance_maintenance,
                 document_snapshots=compose_document_snapshot_factory(
                     persistence.database, persistence.documents
                 ),
             )
         ),
         recipient_repository_factory=lambda artifact_service: BackupRecipientRepository(
-            artifact_service.paths.database,
+            SQLiteBackupRecipientStore(artifact_service.paths.database),
             environment=artifact_service.environment,
         ),
         lifecycle_factory=lambda persistence: (
-            lifecycle or LifecycleService(persistence, settings=require_settings())
+            lifecycle
+            or LifecycleService(
+                persistence,
+                settings=require_settings(),
+                maintenance=instance_maintenance,
+                backup_recipients=BackupRecipientRepository(
+                    SQLiteBackupRecipientStore(persistence.database),
+                    environment=require_settings().environment_values(),
+                ),
+            )
         ),
         venue_consequence_factory=lambda db_path, notification_service: (
             compose_venue_consequence_service(

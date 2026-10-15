@@ -26,8 +26,13 @@ from backend.identity.auth import SESSION_TTL
 from backend.identity.local_auth import PASSWORD_HASHER
 from backend.operations.artifact_packages import ClearArtifactService
 from backend.operations.backup_restore import FULL_EXPORT_SCHEMA, ArtifactError
+from backend.operations.instance_storage import InstanceSchema
 from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.persistence.database import PersistencePaths, database_readiness, initialize
+from backend.persistence.instance_storage import (
+    SQLiteFileInstanceStorage,
+    SQLiteInstanceMaintenance,
+)
 from backend.persistence.local_auth import SQLiteLocalAuthenticationKey
 from backend.runtime import Operation, RuntimeConflictError, RuntimeCoordinator
 from backend.tests.fixture_data import DEMO_ROLES
@@ -73,6 +78,8 @@ class BackupRestoreTests(unittest.TestCase):
             paths,
             environment=environment or {},
             fault_injector=fault_injector,
+            instance_storage=SQLiteFileInstanceStorage(),
+            maintenance=SQLiteInstanceMaintenance(),
             document_snapshots=document_snapshot_factory(paths.database, paths.documents),
         )
 
@@ -104,6 +111,21 @@ class BackupRestoreTests(unittest.TestCase):
             )
         )
         return paths, service, credentials.token
+
+    def test_schema_contract_accepts_a_port_double(self) -> None:
+        paths, service = self.runtime("schema-double", seed=True)
+
+        class MaintenanceDouble:
+            def schema(self, database: Path, minimum_supported: str) -> InstanceSchema:
+                self.database = database
+                self.minimum_supported = minimum_supported
+                return InstanceSchema("027_test.sql", (), "028_test.sql")
+
+        double = MaintenanceDouble()
+        service.maintenance = double
+        self.assertEqual(("027_test.sql", []), service._schema_compatibility(paths.database))
+        self.assertEqual(paths.database, double.database)
+        self.assertEqual("009_harden_migration_history.sql", double.minimum_supported)
 
     @staticmethod
     def copy_package(source: Path, target: Path) -> None:
@@ -365,6 +387,8 @@ class BackupRestoreTests(unittest.TestCase):
                 target = ClearArtifactService(
                     paths,
                     environment={},
+                    instance_storage=SQLiteFileInstanceStorage(),
+                    maintenance=SQLiteInstanceMaintenance(),
                     document_snapshots=document_snapshot_factory(paths.database, paths.documents),
                 )
                 runtime = None

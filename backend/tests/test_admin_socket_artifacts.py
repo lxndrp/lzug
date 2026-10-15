@@ -25,6 +25,7 @@ from backend.admin_socket_protocol import (
     write_data,
 )
 from backend.operations.backup_restore import ArtifactError
+from backend.persistence.backup_recipient_store import SQLiteBackupRecipientStore
 from backend.persistence.database import activation_scope, initialize
 from backend.persistence.local_auth import SQLiteLocalAuthenticationKey
 from backend.runtime import RuntimeConflictError
@@ -373,7 +374,9 @@ class SocketMigrationTests(unittest.TestCase):
         SQLiteLocalAuthenticationKey(self.paths.database).get_key()
         recipient = recipient or RECIPIENT
         self.fingerprint = recipient_fingerprint(recipient)
-        BackupRecipientRepository(self.paths.database).set(recipient, self.fingerprint)
+        BackupRecipientRepository(SQLiteBackupRecipientStore(self.paths.database)).set(
+            recipient, self.fingerprint
+        )
         with closing(sqlite3.connect(self.paths.database)) as db, db:
             db.execute("DELETE FROM schema_migration_checksum WHERE name LIKE '028_%'")
             db.execute("DELETE FROM schema_migration WHERE name LIKE '028_%'")

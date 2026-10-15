@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import os
-import shutil
 import subprocess
-import tempfile
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -18,10 +15,10 @@ from backend.integrations.notification_delivery import (
     NotificationDeliveryGateway,
     NotificationProviderConfigurationError,
 )
+from backend.operations.instance_storage import InstanceMaintenance, InstanceStorage
 from backend.persistence.database import (
     DEFAULT_MIN_FREE_BYTES,
     PersistencePaths,
-    database_readiness,
     persistence_paths,
 )
 from backend.security import RuntimeSecurityConfig
@@ -315,7 +312,9 @@ def _configuration_checks() -> tuple[list[dict[str, Any]], PersistencePaths | No
     )
 
 
-def _schema_check(paths: PersistencePaths | None) -> dict[str, Any]:
+def _schema_check(
+    paths: PersistencePaths | None, maintenance: InstanceMaintenance
+) -> dict[str, Any]:
     if paths is None:
         return _check(
             "schema",
@@ -323,7 +322,7 @@ def _schema_check(paths: PersistencePaths | None) -> dict[str, Any]:
             "configuration_invalid",
             "Schema compatibility cannot be checked with invalid storage configuration",
         )
-    readiness = database_readiness(paths.database)
+    readiness = maintenance.readiness(paths.database)
     migration = readiness.get("migration")
     details: dict[str, Any] = {"state": str(readiness.get("reason", "unknown"))}
     if isinstance(migration, Mapping):
@@ -354,20 +353,7 @@ def _schema_check(paths: PersistencePaths | None) -> dict[str, Any]:
     )
 
 
-def _probe_directory(path: Path) -> bool:
-    if path.is_symlink() or not path.is_dir():
-        return False
-    try:
-        with tempfile.NamedTemporaryFile(dir=path, prefix=".lzug-doctor-") as probe:
-            probe.write(b"lzug")
-            probe.flush()
-            os.fsync(probe.fileno())
-    except OSError:
-        return False
-    return True
-
-
-def _permissions_check(paths: PersistencePaths | None) -> dict[str, Any]:
+def _permissions_check(paths: PersistencePaths | None, storage: InstanceStorage) -> dict[str, Any]:
     if paths is None:
         return _check(
             "data_permissions",
@@ -382,7 +368,7 @@ def _permissions_check(paths: PersistencePaths | None) -> dict[str, Any]:
         "database_parent": paths.database.parent,
     }
     for scope, path in scopes.items():
-        if not _probe_directory(path):
+        if not storage.writable_directory(path):
             return _check(
                 "data_permissions",
                 "error",
@@ -390,14 +376,7 @@ def _permissions_check(paths: PersistencePaths | None) -> dict[str, Any]:
                 "A required persistent directory is not writable",
                 details={"scope": scope},
             )
-    database_writable = paths.database.is_file() and not paths.database.is_symlink()
-    if database_writable:
-        try:
-            descriptor = os.open(paths.database, os.O_WRONLY | os.O_APPEND)
-        except OSError:
-            database_writable = False
-        else:
-            os.close(descriptor)
+    database_writable = storage.writable_database(paths.database)
     if not database_writable:
         return _check(
             "data_permissions",
@@ -414,7 +393,7 @@ def _permissions_check(paths: PersistencePaths | None) -> dict[str, Any]:
     )
 
 
-def _free_space_check(paths: PersistencePaths | None) -> dict[str, Any]:
+def _free_space_check(paths: PersistencePaths | None, storage: InstanceStorage) -> dict[str, Any]:
     if paths is None:
         return _check(
             "free_space",
@@ -430,7 +409,7 @@ def _free_space_check(paths: PersistencePaths | None) -> dict[str, Any]:
             if resolved in checked:
                 continue
             checked.add(resolved)
-            available.append(shutil.disk_usage(directory).free)
+            available.append(storage.free_space(directory))
     except OSError:
         return _check(
             "free_space",
@@ -489,6 +468,9 @@ def _health_check(environment: Mapping[str, str] | None = None) -> dict[str, Any
 def run_diagnostics(
     command: str,
     client: Mapping[str, str] | None = None,
+    *,
+    storage: InstanceStorage,
+    maintenance: InstanceMaintenance,
 ) -> tuple[dict[str, Any], int]:
     """Run one allowlisted diagnostic command and return payload plus exit code."""
     if command == "config":
@@ -499,15 +481,19 @@ def run_diagnostics(
 
     if command == "status":
         _persistence, paths = _persistence_configuration()
-        checks = [_runtime_check(client), _schema_check(paths), _health_check()]
+        checks = [
+            _runtime_check(client),
+            _schema_check(paths, maintenance),
+            _health_check(),
+        ]
     else:
         configuration, paths = _configuration_checks()
         checks = [
             _runtime_check(client),
             *configuration,
-            _schema_check(paths),
-            _permissions_check(paths),
-            _free_space_check(paths),
+            _schema_check(paths, maintenance),
+            _permissions_check(paths, storage),
+            _free_space_check(paths, storage),
             _health_check(),
         ]
     return _summary(command, checks)

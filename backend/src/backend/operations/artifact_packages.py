@@ -14,7 +14,7 @@ import struct
 import tempfile
 import zipfile
 from collections.abc import Iterator, Mapping
-from contextlib import closing, contextmanager
+from contextlib import contextmanager
 from pathlib import Path, PurePosixPath
 from typing import Any
 from uuid import uuid4
@@ -30,11 +30,8 @@ from backend.operations.backup_restore import (
     ArtifactService,
     LoadedArtifact,
     _canonical_json,
-    _database_connection,
-    _totp_key_binding,
 )
 from backend.persistence.artifact_limits import artifact_database_limit
-from backend.persistence.database import activation_scope, snapshot_scope
 from backend.runtime import runtime_for
 
 MAX_PACKAGE_MEMBERS = 4096
@@ -74,19 +71,15 @@ class ClearArtifactService(ArtifactService):
         # preflight and the existing snapshot copy. Documents are hardlinked.
         if self.package_limit is None:
             return super()._copy_snapshot_locked(root, key)
-        with closing(_database_connection(self.paths.database)) as connection:
-            database_size = (
-                connection.execute("PRAGMA page_count").fetchone()[0]
-                * connection.execute("PRAGMA page_size").fetchone()[0]
-            )
+        database_size = self.instance_storage.database_size(self.paths.database)
         self._check_size(database_size, MAX_PACKAGE_DATABASE)
-        documents = []
-        for path in self.paths.documents.iterdir():
-            documents.append(path)
-            if len(documents) + 6 > MAX_PACKAGE_MEMBERS:
-                raise ArtifactError("artifact_limit_exceeded", "Artifact resource limit exceeded")
+        with self.document_snapshots.snapshot() as document_snapshot:
+            document_count = document_snapshot.content_count()
+            document_size = document_snapshot.content_size_bytes()
+        if document_count + 6 > MAX_PACKAGE_MEMBERS:
+            raise ArtifactError("artifact_limit_exceeded", "Artifact resource limit exceeded")
         self._check_size(
-            database_size + sum(path.stat().st_size for path in documents),
+            database_size + document_size,
             self.package_limit or 0,
         )
         return super()._copy_snapshot_locked(root, key)
@@ -140,7 +133,7 @@ class ClearArtifactService(ArtifactService):
                     artifact_id=artifact_id,
                     artifact_type="backup",
                     entries=entries,
-                    authentication_key_binding=_totp_key_binding(
+                    authentication_key_binding=self._totp_key_binding(
                         snapshot.database, snapshot.authentication_key
                     ),
                     purpose="complete_instance_restore",
@@ -247,7 +240,9 @@ class ClearArtifactService(ArtifactService):
         if (not replace or not safety_artifact) and inspectable and self.paths.documents.is_dir():
             try:
                 inspection = (
-                    runtime.inspect_storage() if runtime else snapshot_scope(self.paths.database)
+                    runtime.inspect_storage()
+                    if runtime
+                    else self.instance_storage.activation_lease(self.paths.database)
                 )
                 with inspection:
                     self._require_restore_confirmation(replace, safety_artifact)
@@ -256,7 +251,7 @@ class ClearArtifactService(ArtifactService):
                 raise
         # Own the whole restore, including preparation, postcheck and audit.
         # The inner activation uses the same reentrant lock and job admission.
-        with activation_scope(self.paths.database):
+        with self.instance_storage.activation_lease(self.paths.database):
             return self._restore_package(
                 package,
                 replace=replace,
@@ -307,7 +302,7 @@ class ClearArtifactService(ArtifactService):
                     self._verify_prepared(prepared_db, prepared_documents, prepared_key, manifest)
                     configuration = self._configuration_report(manifest)
                     phase = "activation"
-                    with activation_scope(self.paths.database):
+                    with self.instance_storage.activation_lease(self.paths.database):
                         if not replace and not self._target_is_empty():
                             raise ArtifactError(
                                 "target_changed",

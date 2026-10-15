@@ -9,9 +9,13 @@ from unittest.mock import patch
 
 from backend.composition import document_snapshot_factory
 from backend.operations.artifact_packages import MAX_PACKAGE_METADATA, ClearArtifactService
-from backend.operations.backup_restore import MANIFEST_NAME, ArtifactError, _database_connection
+from backend.operations.backup_restore import MANIFEST_NAME, ArtifactError
 from backend.persistence.artifact_limits import artifact_database_limit
 from backend.persistence.database import engine_for
+from backend.persistence.instance_storage import (
+    SQLiteFileInstanceStorage,
+    SQLiteInstanceMaintenance,
+)
 from backend.tests import test_backup_restore as packages
 
 
@@ -29,6 +33,8 @@ class ArtifactLimitsTests(unittest.TestCase):
             paths,
             environment={},
             package_limit=32 * 1024 * 1024,
+            instance_storage=SQLiteFileInstanceStorage(),
+            maintenance=SQLiteInstanceMaintenance(),
             document_snapshots=document_snapshot_factory(paths.database, paths.documents),
         )
         self.assertEqual("backup", bounded.verify_package(package)["artifact_type"])
@@ -49,6 +55,8 @@ class ArtifactLimitsTests(unittest.TestCase):
             paths,
             environment={},
             package_limit=16 * 1024 * 1024,
+            instance_storage=SQLiteFileInstanceStorage(),
+            maintenance=SQLiteInstanceMaintenance(),
             document_snapshots=document_snapshot_factory(paths.database, paths.documents),
         )
         for name, trailer in (
@@ -77,6 +85,8 @@ class ArtifactLimitsTests(unittest.TestCase):
             paths,
             environment={},
             package_limit=32 * 1024 * 1024,
+            instance_storage=SQLiteFileInstanceStorage(),
+            maintenance=SQLiteInstanceMaintenance(),
             document_snapshots=document_snapshot_factory(paths.database, paths.documents),
         )
         for compression, content in (
@@ -96,6 +106,8 @@ class ArtifactLimitsTests(unittest.TestCase):
             paths,
             environment={},
             package_limit=1024 * 1024,
+            instance_storage=SQLiteFileInstanceStorage(),
+            maintenance=SQLiteInstanceMaintenance(),
             document_snapshots=document_snapshot_factory(paths.database, paths.documents),
         )
         root = self.root / "cleanup"
@@ -122,7 +134,7 @@ class ArtifactLimitsTests(unittest.TestCase):
                     connection = engine.raw_connection()
                 else:
                     engine = None
-                    connection = _database_connection(path, read_only=False)
+                    connection = SQLiteFileInstanceStorage()._connection(path, read_only=False)
                 try:
                     connection.execute("CREATE TABLE content(value BLOB)")
                     with self.assertRaises(sqlite3.DatabaseError):
@@ -134,7 +146,7 @@ class ArtifactLimitsTests(unittest.TestCase):
             self.assertLessEqual(path.stat().st_size, 64 * 1024)
         outside = self.root / "outside.sqlite"
         with artifact_database_limit(root, 64 * 1024):
-            connection = _database_connection(outside, read_only=False)
+            connection = SQLiteFileInstanceStorage()._connection(outside, read_only=False)
             try:
                 connection.execute("CREATE TABLE content(value BLOB)")
                 connection.execute("INSERT INTO content VALUES (zeroblob(131072))")

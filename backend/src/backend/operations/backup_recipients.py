@@ -6,15 +6,9 @@ import base64
 import hashlib
 import re
 from collections.abc import Mapping
-from datetime import UTC, datetime
-from pathlib import Path
 
-from sqlalchemy import inspect
-from sqlalchemy.exc import IntegrityError
-
+from backend.operations.backup_recipient_store import BackupRecipientStore
 from backend.operations.backup_restore import BACKUP_PUBLIC_KEY_ENV, ArtifactError
-from backend.persistence.database import DEFAULT_DB_PATH, connection_scope, session_scope
-from backend.persistence.models import BackupRecipient, BackupRecipientAudit
 
 _AGE_X25519 = re.compile(r"^age1[023456789acdefghjklmnpqrstuvwxyz]{58}$")
 
@@ -36,32 +30,26 @@ def validate_recipient(recipient: object) -> str:
 
 
 class BackupRecipientRepository:
-    """Manage the singleton public recipient and append-only audit evidence."""
+    """Validate public recipient changes and delegate durable state to its port."""
 
     def __init__(
         self,
-        db_path: Path = DEFAULT_DB_PATH,
+        store: BackupRecipientStore,
         *,
         environment: Mapping[str, str] | None = None,
     ) -> None:
-        self.db_path = Path(db_path)
+        self.store = store
         self.environment = environment or {}
 
     def show(self) -> dict[str, str] | None:
         self.migrate_environment()
-        with session_scope(self.db_path) as session:
-            current = session.get(BackupRecipient, 1)
-            return self._result(current) if current is not None else None
+        return self.store.inspect()
 
     def inspect(self) -> dict[str, str] | None:
         """Read a recipient on a pending schema without persisting environment migration."""
-        with connection_scope(self.db_path) as connection:
-            present = inspect(connection).has_table(BackupRecipient.__tablename__)
-        if present:
-            with session_scope(self.db_path) as session:
-                current = session.get(BackupRecipient, 1)
-                if current is not None:
-                    return self._result(current)
+        current = self.store.inspect()
+        if current is not None:
+            return current
         value = self.environment.get(BACKUP_PUBLIC_KEY_ENV)
         if not value:
             return None
@@ -84,26 +72,7 @@ class BackupRecipientRepository:
             return
         recipient = _migrate_legacy_recipient(value)
         fingerprint = recipient_fingerprint(recipient)
-        try:
-            with session_scope(self.db_path) as session:
-                if session.get(BackupRecipient, 1) is not None:
-                    return
-                current = BackupRecipient(
-                    id=1,
-                    recipient=recipient,
-                    fingerprint=fingerprint,
-                )
-                session.add(current)
-                session.add(
-                    BackupRecipientAudit(
-                        action="migrate",
-                        previous_fingerprint=None,
-                        fingerprint=fingerprint,
-                    )
-                )
-        except IntegrityError:
-            # A concurrent initializer won the singleton insertion.
-            return
+        self.store.migrate(recipient, fingerprint)
 
     def _change(self, recipient: str, fingerprint: str, *, replace: bool) -> dict[str, str]:
         self.migrate_environment()
@@ -112,57 +81,9 @@ class BackupRecipientRepository:
         if fingerprint != expected:
             raise ArtifactError("recipient_key_mismatch", "Recipient fingerprint does not match")
         try:
-            with session_scope(self.db_path) as session:
-                current = session.get(BackupRecipient, 1)
-                if current is None and replace:
-                    raise ArtifactError(
-                        "recipient_not_configured", "No backup recipient is configured"
-                    )
-                if current is not None and not replace:
-                    raise ArtifactError(
-                        "recipient_already_configured", "A backup recipient is configured"
-                    )
-                previous = current.fingerprint if current is not None else None
-                now = datetime.now(UTC).isoformat(timespec="seconds")
-                if current is None:
-                    current = BackupRecipient(
-                        id=1,
-                        recipient=canonical,
-                        fingerprint=expected,
-                        activated_at=now,
-                        updated_at=now,
-                    )
-                    session.add(current)
-                else:
-                    current.recipient = canonical
-                    current.fingerprint = expected
-                    current.activated_at = now
-                    current.updated_at = now
-                session.add(
-                    BackupRecipientAudit(
-                        action="replace" if replace else "set",
-                        previous_fingerprint=previous,
-                        fingerprint=expected,
-                    )
-                )
-                session.flush()
-                result = self._result(current)
-                if previous is not None:
-                    result["previous_fingerprint"] = previous
-                return result
-        except IntegrityError as error:
-            raise ArtifactError(
-                "recipient_already_configured", "A backup recipient is configured"
-            ) from error
-
-    @staticmethod
-    def _result(recipient: BackupRecipient) -> dict[str, str]:
-        return {
-            "recipient": recipient.recipient,
-            "protection": "age-x25519-v1",
-            "fingerprint": recipient.fingerprint,
-            "activated_at": recipient.activated_at,
-        }
+            return self.store.change(canonical, expected, replace=replace)
+        except RuntimeError as error:
+            raise ArtifactError(getattr(error, "code", "persistence_error"), str(error)) from error
 
 
 def _migrate_legacy_recipient(value: str) -> str:
