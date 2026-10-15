@@ -425,7 +425,17 @@ class SQLiteFileInstanceStorage:
                 raise
             raise InstanceStorageError("activation_failed", "Restore activation failed") from error
         finally:
-            shutil.rmtree(retired, ignore_errors=True)
+            self._cleanup_retired_workspace(retired)
+
+    @staticmethod
+    def _cleanup_retired_workspace(retired: Path) -> None:
+        """Preserve the socket cleanup fence when retired restore data remains."""
+        try:
+            shutil.rmtree(retired)
+        except OSError as error:
+            raise InstanceStorageError(
+                "artifact_cleanup_failed", "Restore cleanup failed"
+            ) from error
 
     def is_empty(self, database: Path, documents: Path) -> bool:
         if any(documents.iterdir()):

@@ -982,6 +982,10 @@ class ArtifactService:
         except Exception as error:
             if isinstance(error, ArtifactError):
                 raise
+            if getattr(error, "code", None) == "artifact_cleanup_failed":
+                raise ArtifactError(
+                    "artifact_cleanup_failed", "Restore cleanup failed", phase="cleanup"
+                ) from error
             raise ArtifactError(
                 "activation_failed", "Restore activation failed", phase="activation"
             ) from error

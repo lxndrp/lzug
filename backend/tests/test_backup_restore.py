@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import shutil
 import sqlite3
 import tempfile
 import unittest
@@ -453,6 +454,44 @@ class BackupRestoreTests(unittest.TestCase):
         with closing(sqlite3.connect(target_paths.database)) as connection:
             self.assertEqual(
                 "TargetOnly",
+                connection.execute("SELECT first_name FROM candidate WHERE id = 1").fetchone()[0],
+            )
+
+    def test_retired_workspace_cleanup_failure_uses_cleanup_error_contract(self) -> None:
+        source_paths, source, _token = self.prepare_source()
+        with closing(sqlite3.connect(source_paths.database)) as connection:
+            connection.execute("UPDATE candidate SET first_name = 'SourceOnly' WHERE id = 1")
+            connection.commit()
+        package_copy, _result = self.write_package(source, "backup.zip")
+
+        target_paths, target = self.runtime("target-cleanup", seed=True)
+        with closing(sqlite3.connect(target_paths.database)) as connection:
+            connection.execute("UPDATE candidate SET first_name = 'TargetOnly' WHERE id = 1")
+            connection.commit()
+
+        original_rmtree = shutil.rmtree
+
+        def fail_retired_workspace(path, *args, **kwargs) -> None:
+            if Path(path).name.startswith(".lzug-retired-"):
+                raise PermissionError("injected retired workspace cleanup failure")
+            original_rmtree(path, *args, **kwargs)
+
+        with patch(
+            "backend.persistence.instance_storage.shutil.rmtree",
+            side_effect=fail_retired_workspace,
+        ):
+            with self.assertRaises(ArtifactError) as raised:
+                target.restore_package(
+                    package_copy,
+                    replace=True,
+                    safety_artifact="/operator/pre-restore.lzug",
+                    recipient_fingerprint=FINGERPRINT,
+                )
+
+        self.assertEqual("artifact_cleanup_failed", raised.exception.code)
+        with closing(sqlite3.connect(target_paths.database)) as connection:
+            self.assertEqual(
+                "SourceOnly",
                 connection.execute("SELECT first_name FROM candidate WHERE id = 1").fetchone()[0],
             )
 
