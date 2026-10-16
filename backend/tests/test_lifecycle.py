@@ -20,7 +20,12 @@ from backend.operations.artifact_packages import ClearArtifactService
 from backend.operations.backup_recipients import BackupRecipientRepository, recipient_fingerprint
 from backend.operations.backup_restore import ArtifactError
 from backend.operations.lifecycle import LifecycleError, LifecycleService
+from backend.persistence.backup_recipient_store import SQLiteBackupRecipientStore
 from backend.persistence.database import database_readiness, initialize, persistence_paths
+from backend.persistence.instance_storage import (
+    SQLiteFileInstanceStorage,
+    SQLiteInstanceMaintenance,
+)
 from backend.persistence.local_auth import SQLiteLocalAuthenticationKey
 from backend.runtime import RuntimeConflictError, RuntimeCoordinator
 from backend.tests.test_backup_recipients import RECIPIENT
@@ -39,7 +44,9 @@ class LifecycleTests(unittest.TestCase):
         initialize(self.paths.database)
         SQLiteLocalAuthenticationKey(self.paths.database).get_key()
         self.fingerprint = recipient_fingerprint(RECIPIENT)
-        BackupRecipientRepository(self.paths.database).set(RECIPIENT, self.fingerprint)
+        BackupRecipientRepository(SQLiteBackupRecipientStore(self.paths.database)).set(
+            RECIPIENT, self.fingerprint
+        )
         with closing(sqlite3.connect(self.paths.database)) as db, db:
             db.execute("DELETE FROM schema_migration_checksum WHERE name = ?", (LAST,))
             db.execute("DELETE FROM schema_migration WHERE name = ?", (LAST,))
@@ -48,12 +55,22 @@ class LifecycleTests(unittest.TestCase):
         )
         self.runtime.start()
         self.addCleanup(self.runtime.stop)
+        self.instance_storage = SQLiteFileInstanceStorage()
+        self.maintenance = SQLiteInstanceMaintenance()
         self.service = LifecycleService(
-            self.paths, environment={}, metadata=BuildMetadata.create("a" * 40, "v0.9.0")
+            self.paths,
+            environment={},
+            metadata=BuildMetadata.create("a" * 40, "v0.9.0"),
+            maintenance=self.maintenance,
+            backup_recipients=BackupRecipientRepository(
+                SQLiteBackupRecipientStore(self.paths.database), environment={}
+            ),
         )
         self.artifacts = ClearArtifactService(
             self.paths,
             environment={},
+            instance_storage=self.instance_storage,
+            maintenance=self.maintenance,
             document_snapshots=document_snapshot_factory(self.paths.database, self.paths.documents),
         )
         self.job_id = str(uuid4())
@@ -166,7 +183,13 @@ class LifecycleTests(unittest.TestCase):
             self.service.recipient()
         self.assertEqual("recipient_not_configured", error.exception.code)
         development = LifecycleService(
-            self.paths, environment={}, metadata=BuildMetadata.create("b" * 40)
+            self.paths,
+            environment={},
+            metadata=BuildMetadata.create("b" * 40),
+            maintenance=self.maintenance,
+            backup_recipients=BackupRecipientRepository(
+                SQLiteBackupRecipientStore(self.paths.database), environment={}
+            ),
         )
         self.assertFalse(development.status()["supported"])
         self.assert_unmutated()
@@ -214,7 +237,15 @@ class LifecycleTests(unittest.TestCase):
         self.backup()
         self.runtime.stop()
         self.runtime.start()
-        self.service = LifecycleService(self.paths, environment={}, metadata=self.service.metadata)
+        self.service = LifecycleService(
+            self.paths,
+            environment={},
+            metadata=self.service.metadata,
+            maintenance=self.maintenance,
+            backup_recipients=BackupRecipientRepository(
+                SQLiteBackupRecipientStore(self.paths.database), environment={}
+            ),
+        )
         with self.assertRaises(LifecycleError) as error:
             self.apply()
         self.assertEqual("upgrade_backup_invalid", error.exception.code)

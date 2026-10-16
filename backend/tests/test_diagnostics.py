@@ -6,7 +6,6 @@ import os
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
-from types import SimpleNamespace
 from unittest.mock import patch
 
 from backend.identity.admin_service import OperatorAuthService
@@ -106,7 +105,7 @@ class OperatorDiagnosticsTests(unittest.TestCase):
                 patch.dict(os.environ, environment, clear=True),
                 patch("backend.operations.diagnostics.build_metadata", return_value=self.metadata),
                 patch(
-                    "backend.operations.diagnostics.database_readiness",
+                    "backend.persistence.instance_storage.SQLiteInstanceMaintenance.readiness",
                     return_value={
                         "ready": False,
                         "reason": "migration_error",
@@ -133,7 +132,10 @@ class OperatorDiagnosticsTests(unittest.TestCase):
                 patch.dict(os.environ, environment, clear=True),
                 patch("backend.operations.diagnostics.build_metadata", return_value=self.metadata),
                 patch("backend.operations.diagnostics.public_health_ready", return_value=True),
-                patch("backend.operations.diagnostics._probe_directory", return_value=False),
+                patch(
+                    "backend.persistence.instance_storage.SQLiteFileInstanceStorage.writable_directory",
+                    return_value=False,
+                ),
             ):
                 rights_code, rights_output = self._invoke("doctor", {"client": self.client})
             with (
@@ -141,8 +143,8 @@ class OperatorDiagnosticsTests(unittest.TestCase):
                 patch("backend.operations.diagnostics.build_metadata", return_value=self.metadata),
                 patch("backend.operations.diagnostics.public_health_ready", return_value=True),
                 patch(
-                    "backend.operations.diagnostics.shutil.disk_usage",
-                    return_value=SimpleNamespace(free=1),
+                    "backend.persistence.instance_storage.SQLiteFileInstanceStorage.free_space",
+                    return_value=1,
                 ),
             ):
                 space_code, space_output = self._invoke("doctor", {"client": self.client})

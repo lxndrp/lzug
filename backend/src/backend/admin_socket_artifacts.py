@@ -170,6 +170,8 @@ class SocketArtifacts:
             environment=configured.environment,
             settings=configured.settings,
             package_limit=self.limit,
+            instance_storage=configured.instance_storage,
+            maintenance=configured.maintenance,
             document_snapshots=configured.document_snapshots,
         )
         try:

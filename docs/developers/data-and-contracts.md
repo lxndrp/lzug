@@ -199,6 +199,14 @@ SQLite läuft im Self-Hosting-Modell mit dem persistenten Dokumentbestand und
 dem anwendungseigenen Authentifizierungsschlüssel unter `/data`.
 Ein vollständiges Backup hält Datenbank, Dokumente und Schlüssel an einem
 gemeinsamen Snapshot-Zeitpunkt geschützt zusammen.
+Operations koordiniert diesen Bestand über den Operations-eigenen
+`InstanceStorage`-Vertrag.
+Der SQLite-/Dateiadapter hält Snapshot-, Aktivierungs- und Mutation-Sperren
+über Datenbank und Dokumentbestand gemeinsam.
+`InstanceMaintenance` kapselt Schema-Status, Bereitschaft und Vorwärtsmigration;
+Admission und dauerhafte Worker-Ownership bleiben beim RuntimeCoordinator.
+Backup-Empfängerzustand und Audit laufen über einen eigenen Operations-Port und
+einen SQLAlchemy-Adapter.
 Ein Vollexport ist dagegen ein geschütztes offenes Fachartefakt ohne
 Authentifizierungs-, Sitzungs-, Zustell- oder Betriebsgeheimnisse und kein
 Restore-Eingang.

@@ -8,37 +8,26 @@ Go operator CLI.
 from __future__ import annotations
 
 import hashlib
-import hmac
 import json
 import os
 import re
 import shutil
-import sqlite3
-import tempfile
 from collections.abc import Callable, Iterator, Mapping
-from contextlib import closing, contextmanager, nullcontext
+from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any
 from uuid import UUID, uuid4
 
-from cryptography.fernet import Fernet, InvalidToken
+from cryptography.fernet import Fernet
 
 from backend.operations.document_snapshot import DocumentSnapshotFactory
-from backend.persistence.artifact_limits import configure_artifact_database
+from backend.operations.instance_storage import InstanceMaintenance, InstanceStorage
 from backend.persistence.database import (
-    BUSY_TIMEOUT_MS,
-    MIGRATIONS_PATH,
     PersistencePaths,
-    apply_migrations,
-    database_readiness,
-    migration_status,
-    mutation_scope,
     persistence_paths,
-    snapshot_scope,
 )
-from backend.persistence.local_auth import SQLiteLocalAuthenticationKey
 from backend.runtime import runtime_for
 from backend.settings import RuntimeSettings
 from backend.version import application_version
@@ -201,135 +190,6 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _database_connection(path: Path, *, read_only: bool = True) -> sqlite3.Connection:
-    if read_only:
-        uri = f"file:{path.resolve().as_posix()}?mode=ro"
-        connection = sqlite3.connect(uri, uri=True, timeout=BUSY_TIMEOUT_MS / 1000)
-    else:
-        connection = sqlite3.connect(path, timeout=BUSY_TIMEOUT_MS / 1000)
-    connection.row_factory = sqlite3.Row
-    connection.execute("PRAGMA foreign_keys = ON")
-    try:
-        configure_artifact_database(connection, path)
-    except Exception:
-        connection.close()
-        raise
-    return connection
-
-
-def _database_integrity(path: Path) -> None:
-    try:
-        with closing(_database_connection(path)) as connection:
-            result = connection.execute("PRAGMA integrity_check").fetchall()
-            if [row[0] for row in result] != ["ok"]:
-                raise ArtifactError("database_integrity_failed", "Database integrity check failed")
-            if connection.execute("PRAGMA foreign_key_check").fetchone() is not None:
-                raise ArtifactError("database_integrity_failed", "Database relations are invalid")
-    except ArtifactError:
-        raise
-    except sqlite3.Error as error:
-        raise ArtifactError(
-            "database_integrity_failed", "Database integrity check failed"
-        ) from error
-
-
-def _migration_names(path: Path) -> tuple[str, ...]:
-    try:
-        with closing(_database_connection(path)) as connection:
-            rows = connection.execute("SELECT name FROM schema_migration ORDER BY rowid").fetchall()
-    except sqlite3.Error as error:
-        raise ArtifactError("schema_incompatible", "Schema history is unavailable") from error
-    return tuple(str(row[0]) for row in rows)
-
-
-def _available_migrations() -> tuple[str, ...]:
-    return tuple(
-        migration.name
-        for migration in sorted(MIGRATIONS_PATH.glob("[0-9][0-9][0-9]_*.sql"))
-        if not migration.name.startswith("000_")
-    )
-
-
-def _schema_compatibility(path: Path) -> tuple[str, list[str]]:
-    available = _available_migrations()
-    applied = _migration_names(path)
-    if not applied or applied != available[: len(applied)]:
-        unknown = set(applied) - set(available)
-        code = "source_newer" if unknown else "schema_incompatible"
-        raise ArtifactError(code, "Artifact schema is not supported")
-    if available.index(applied[-1]) < available.index(MIN_SUPPORTED_SCHEMA):
-        raise ArtifactError("source_unsupported", "Artifact source schema is no longer supported")
-    status = migration_status(path)
-    if status["state"] not in {"ready", "migration_required"}:
-        raise ArtifactError("schema_incompatible", "Artifact schema metadata is invalid")
-    current = status.get("current")
-    pending = status.get("pending")
-    if current != applied[-1] or not isinstance(pending, list):
-        raise ArtifactError("schema_incompatible", "Artifact schema metadata is invalid")
-    return applied[-1], [str(name) for name in pending]
-
-
-def _table_names(connection: sqlite3.Connection) -> list[str]:
-    return [
-        str(row[0])
-        for row in connection.execute(
-            "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' "
-            "ORDER BY name"
-        )
-    ]
-
-
-def _database_record_count(path: Path) -> int:
-    with closing(_database_connection(path)) as connection:
-        total = 0
-        for table in _table_names(connection):
-            total += int(connection.execute(f'SELECT count(*) FROM "{table}"').fetchone()[0])
-        return total
-
-
-def _instance_id(path: Path) -> str:
-    try:
-        with closing(_database_connection(path)) as connection:
-            value = connection.execute(
-                "SELECT instance_id FROM instance_metadata WHERE id = 1"
-            ).fetchone()
-    except sqlite3.Error as error:
-        raise ArtifactError("schema_incompatible", "Instance identity is unavailable") from error
-    if value is None or not isinstance(value[0], str):
-        raise ArtifactError("schema_incompatible", "Instance identity is unavailable")
-    return value[0]
-
-
-def _snapshot_instance_id(path: Path) -> str:
-    if "024_add_artifact_operations.sql" not in _migration_names(path):
-        return str(uuid4())
-    return _instance_id(path)
-
-
-def _totp_key_binding(database: Path, key: bytes) -> str:
-    database_digest = bytes.fromhex(_sha256(database))
-    return "hmac-sha256:" + hmac.new(key, database_digest, hashlib.sha256).hexdigest()
-
-
-def _validate_totp_secrets(database: Path, key: bytes) -> int:
-    try:
-        cipher = Fernet(key)
-        with closing(_database_connection(database)) as connection:
-            rows = connection.execute(
-                "SELECT totp_secret_encrypted FROM user_account "
-                "WHERE totp_secret_encrypted IS NOT NULL"
-            ).fetchall()
-        for row in rows:
-            secret = cipher.decrypt(str(row[0]).encode("ascii"))
-            if not secret or not secret.isascii():
-                raise InvalidToken
-        return len(rows)
-    except (InvalidToken, ValueError, OSError, sqlite3.Error) as error:
-        raise ArtifactError(
-            "authentication_key_invalid", "Authentication key validation failed"
-        ) from error
-
-
 class ArtifactService:
     """Clear-package domain service shared by the backend stream boundary."""
 
@@ -341,6 +201,8 @@ class ArtifactService:
         settings: RuntimeSettings | None = None,
         fault_injector: Callable[[str], None] | None = None,
         document_snapshots: DocumentSnapshotFactory,
+        instance_storage: InstanceStorage,
+        maintenance: InstanceMaintenance,
     ) -> None:
         self.settings = settings
         self.paths = paths or persistence_paths(
@@ -354,6 +216,41 @@ class ArtifactService:
         )
         self.fault_injector = fault_injector
         self.document_snapshots = document_snapshots
+        self.instance_storage = instance_storage
+        self.maintenance = maintenance
+
+    def _storage_call(self, action):
+        try:
+            return action()
+        except RuntimeError as error:
+            code = getattr(error, "code", "persistence_error")
+            raise ArtifactError(code, str(error)) from error
+
+    def _schema_compatibility(self, path: Path) -> tuple[str, list[str]]:
+        schema = self._storage_call(lambda: self.maintenance.schema(path, MIN_SUPPORTED_SCHEMA))
+        return schema.current, list(schema.pending)
+
+    def _verify_database_integrity(self, path: Path) -> None:
+        self._storage_call(lambda: self.instance_storage.integrity(path))
+
+    def _instance_id(self, path: Path) -> str:
+        return self._storage_call(lambda: self.instance_storage.instance_id(path))
+
+    def _snapshot_instance_id(self, path: Path) -> str:
+        return self._storage_call(
+            lambda: self.instance_storage.snapshot_instance_id(path, str(uuid4()))
+        )
+
+    def _database_record_count(self, path: Path) -> int:
+        return self._storage_call(lambda: self.instance_storage.record_count(path))
+
+    def _validate_authentication_key(self, database: Path, key: bytes) -> int:
+        return self._storage_call(
+            lambda: self.instance_storage.validate_authentication_key(database, key)
+        )
+
+    def _totp_key_binding(self, database: Path, key: bytes) -> str:
+        return self._storage_call(lambda: self.instance_storage.totp_key_binding(database, key))
 
     def _staging_limits(self, root: Path):
         return nullcontext()
@@ -364,19 +261,27 @@ class ArtifactService:
     @contextmanager
     def _capture_snapshot(self, *, include_authentication_key: bool) -> Iterator[CapturedSnapshot]:
         self._ensure_runtime_paths()
-        estimated = self.paths.database.stat().st_size if self.paths.database.exists() else 0
-        with self.document_snapshots.snapshot() as documents:
-            estimated += documents.content_size_bytes()
-        self._ensure_space(self.paths.backups, max(estimated * 3, 1024 * 1024))
-        key_store = SQLiteLocalAuthenticationKey(
-            self.paths.database,
-            settings=self.settings.local_auth if self.settings else None,
-        )
-        key = key_store.get_key() if include_authentication_key else None
-        root = Path(tempfile.mkdtemp(prefix=".lzug-snapshot-", dir=self.paths.backups))
-        os.chmod(root, 0o700)
+        estimated = self.instance_storage.database_file_size(self.paths.database)
         try:
-            with snapshot_scope(self.paths.database):
+            with self.document_snapshots.snapshot() as documents:
+                estimated += documents.content_size_bytes()
+        except ValueError as error:
+            raise ArtifactError(
+                "document_relation_failed", "Document references or content are invalid"
+            ) from error
+        except OSError as error:
+            raise ArtifactError("snapshot_failed", "Document snapshot failed") from error
+        self._ensure_space(self.paths.backups, max(estimated * 3, 1024 * 1024))
+        key = (
+            self.instance_storage.authentication_key(
+                self.paths.database, self.settings.local_auth if self.settings else None
+            )
+            if include_authentication_key
+            else None
+        )
+        root = self.instance_storage.create_workspace(self.paths.backups, ".lzug-snapshot-")
+        try:
+            with self.instance_storage.snapshot_lease(self.paths.database):
                 snapshot = self._copy_snapshot_locked(root, key)
             self._verify_snapshot(snapshot)
             yield snapshot
@@ -385,15 +290,13 @@ class ArtifactService:
 
     @contextmanager
     def _capture_snapshot_locked(self) -> Iterator[CapturedSnapshot]:
-        root = Path(tempfile.mkdtemp(prefix=".lzug-safety-", dir=self.paths.backups))
-        os.chmod(root, 0o700)
+        root = self.instance_storage.create_workspace(self.paths.backups, ".lzug-safety-")
         try:
-            with snapshot_scope(self.paths.database):
-                key_path = SQLiteLocalAuthenticationKey(
-                    self.paths.database,
-                    settings=self.settings.local_auth if self.settings else None,
-                ).path
-                key = key_path.read_bytes() if key_path.exists() else Fernet.generate_key()
+            with self.instance_storage.snapshot_lease(self.paths.database):
+                key = (
+                    self.instance_storage.existing_authentication_key(self.paths.database)
+                    or Fernet.generate_key()
+                )
                 snapshot = self._copy_snapshot_locked(root, key)
             self._verify_snapshot(snapshot)
             yield snapshot
@@ -407,12 +310,9 @@ class ArtifactService:
         documents = root / "documents"
         documents.mkdir(mode=0o700)
         try:
-            with closing(_database_connection(self.paths.database)) as source:
-                with closing(_database_connection(database, read_only=False)) as target:
-                    source.backup(target)
-                    target.commit()
-        except sqlite3.Error as error:
-            raise ArtifactError("snapshot_failed", "SQLite snapshot failed") from error
+            self.instance_storage.copy_database(self.paths.database, database)
+        except RuntimeError as error:
+            raise ArtifactError("snapshot_failed", "Instance snapshot failed") from error
         snapshot_at = _timestamp()
         try:
             with self.document_snapshots.snapshot() as snapshot_queries:
@@ -424,24 +324,24 @@ class ArtifactService:
             ) from error
         except OSError as error:
             raise ArtifactError("snapshot_failed", "Document snapshot failed") from error
-        schema_version, _pending = _schema_compatibility(database)
+        schema_version, _pending = self._schema_compatibility(database)
         return CapturedSnapshot(
             root=root,
             database=database,
             documents=documents,
             authentication_key=key,
             snapshot_at=snapshot_at,
-            instance_id=_snapshot_instance_id(database),
+            instance_id=self._snapshot_instance_id(database),
             schema_version=schema_version,
-            database_records=_database_record_count(database),
+            database_records=self._database_record_count(database),
             document_count=document_count,
         )
 
     def _verify_snapshot(self, snapshot: CapturedSnapshot) -> None:
-        _database_integrity(snapshot.database)
+        self._verify_database_integrity(snapshot.database)
         self._inspect_document_snapshot(snapshot.database, snapshot.documents)
         if snapshot.authentication_key is not None:
-            _validate_totp_secrets(snapshot.database, snapshot.authentication_key)
+            self._validate_authentication_key(snapshot.database, snapshot.authentication_key)
 
     def _inspect_document_snapshot(self, database: Path, documents: Path) -> int:
         try:
@@ -496,7 +396,7 @@ class ArtifactService:
             "operator_configuration": self._configuration_manifest(),
             "compatibility": {
                 "minimum_schema": MIN_SUPPORTED_SCHEMA,
-                "maximum_schema": _available_migrations()[-1],
+                "maximum_schema": self.maintenance.latest_schema(),
                 "restore": artifact_type == "backup",
                 "purpose": purpose,
             },
@@ -678,18 +578,18 @@ class ArtifactService:
                 documents.mkdir(parents=True)
             if not database.is_file() or not key_path.is_file() or not documents.is_dir():
                 raise ArtifactError("artifact_content_invalid", "Backup content is incomplete")
-            source_schema, pending = _schema_compatibility(database)
-            _database_integrity(database)
+            source_schema, pending = self._schema_compatibility(database)
+            self._verify_database_integrity(database)
             document_count = self._inspect_document_snapshot(database, documents)
             key = key_path.read_bytes()
-            totp_count = _validate_totp_secrets(database, key)
-            if manifest["authentication_key_binding"] != _totp_key_binding(database, key):
+            totp_count = self._validate_authentication_key(database, key)
+            if manifest["authentication_key_binding"] != self._totp_key_binding(database, key):
                 raise ArtifactError(
                     "authentication_key_invalid", "Authentication key binding is invalid"
                 )
             if document_count != manifest["counts"]["documents"]:
                 raise ArtifactError("manifest_invalid", "Backup document count is invalid")
-            if _database_record_count(database) != manifest["counts"]["database_records"]:
+            if self._database_record_count(database) != manifest["counts"]["database_records"]:
                 raise ArtifactError("manifest_invalid", "Backup record count is invalid")
         else:
             source_schema = str(manifest["schema_version"])
@@ -703,7 +603,7 @@ class ArtifactService:
             "source_application_version": manifest["application_version"],
             "target_application_version": application_version(),
             "source_schema_version": source_schema,
-            "target_schema_version": _available_migrations()[-1],
+            "target_schema_version": self.maintenance.latest_schema(),
             "pending_migrations": pending,
             "snapshot_at": manifest["snapshot_at"],
             "records": manifest["counts"]["database_records"],
@@ -943,62 +843,51 @@ class ArtifactService:
         tables: dict[str, Any] = {}
         value_lists: dict[str, list[dict[str, str]]] = {}
         record_count = 0
-        with closing(_database_connection(snapshot.database)) as connection:
-            included = [
-                table for table in _table_names(connection) if table not in _EXCLUDED_EXPORT_TABLES
-            ]
-            for table in included:
-                columns = [
-                    str(row[1]) for row in connection.execute(f'PRAGMA table_info("{table}")')
-                ]
-                if set(columns) & _FORBIDDEN_EXPORT_FIELDS:
-                    raise ArtifactError(
-                        "export_secret_detected", "Full export table contains secret fields"
-                    )
-                foreign_keys = {
-                    str(row[3]): (str(row[2]), str(row[4]))
-                    for row in connection.execute(f'PRAGMA foreign_key_list("{table}")')
-                    if str(row[2]) in included
-                }
-                order = "id" if "id" in columns else "rowid"
-                source_rows = connection.execute(
-                    f'SELECT * FROM "{table}" ORDER BY "{order}"'
-                ).fetchall()
-                exported_rows = []
-                for index, row in enumerate(source_rows, start=1):
-                    values = dict(row)
-                    identifier = values.get("id", index)
-                    relationships = {
-                        column: {
-                            "export_id": f"{target_table}:{values[column]}",
-                            "target_column": target_column,
-                        }
-                        for column, (target_table, target_column) in foreign_keys.items()
-                        if values.get(column) is not None
+        source_tables = self.instance_storage.export_tables(
+            snapshot.database, _EXCLUDED_EXPORT_TABLES
+        )
+        for table, source in source_tables.items():
+            columns = source["columns"]
+            if set(columns) & _FORBIDDEN_EXPORT_FIELDS:
+                raise ArtifactError(
+                    "export_secret_detected", "Full export table contains secret fields"
+                )
+            foreign_keys = source["foreign_keys"]
+            source_rows = source["rows"]
+            exported_rows = []
+            for index, values in enumerate(source_rows, start=1):
+                identifier = values.get("id", index)
+                relationships = {
+                    column: {
+                        "export_id": f"{target_table}:{values[column]}",
+                        "target_column": target_column,
                     }
-                    exported_rows.append(
-                        {
-                            "export_id": f"{table}:{identifier}",
-                            "attributes": values,
-                            "relationships": relationships,
-                        }
-                    )
-                record_count += len(exported_rows)
-                tables[table] = {"columns": columns, "rows": exported_rows}
-                for column in columns:
-                    if not any(
-                        marker in column
-                        for marker in ("status", "type", "kind", "role", "season", "action")
-                    ):
-                        continue
-                    values = sorted(
-                        {str(row[column]) for row in source_rows if row[column] is not None}
-                    )
-                    if values:
-                        value_lists[f"{table}.{column}"] = [
-                            {"code": value, "meaning": f"Code value {value} for {table}.{column}"}
-                            for value in values
-                        ]
+                    for column, (target_table, target_column) in foreign_keys.items()
+                    if values.get(column) is not None
+                }
+                exported_rows.append(
+                    {
+                        "export_id": f"{table}:{identifier}",
+                        "attributes": values,
+                        "relationships": relationships,
+                    }
+                )
+            record_count += len(exported_rows)
+            tables[table] = {"columns": columns, "rows": exported_rows}
+            for column in columns:
+                if not any(
+                    marker in column
+                    for marker in ("status", "type", "kind", "role", "season", "action")
+                ):
+                    continue
+                values = sorted(
+                    {str(row[column]) for row in source_rows if row[column] is not None}
+                )
+                if values:
+                    value_lists[f"{table}.{column}"] = [
+                        {"code": value, "meaning": f"Code value {value} for {table}.{column}"}
+                        for value in values
+                    ]
         return (
             {
                 "format": "lzug-full-export",
@@ -1019,8 +908,7 @@ class ArtifactService:
     def _prepared_restore(
         self, loaded: LoadedArtifact
     ) -> Iterator[tuple[Path, Path, Path, list[str], dict[str, int]]]:
-        root = Path(tempfile.mkdtemp(prefix=".lzug-restore-", dir=self.paths.data_dir))
-        os.chmod(root, 0o700)
+        root = self.instance_storage.create_workspace(self.paths.data_dir, ".lzug-restore-")
         with self._staging_limits(root):
             try:
                 database = root / "lzug.sqlite"
@@ -1030,56 +918,29 @@ class ArtifactService:
                 shutil.copytree(loaded.root / "payload/documents", documents)
                 shutil.copy2(loaded.root / KEY_NAME, key)
                 os.chmod(key, 0o600)
-                source_schema, migrations = _schema_compatibility(database)
+                source_schema, migrations = self._schema_compatibility(database)
                 if source_schema != loaded.manifest["schema_version"]:
                     raise ArtifactError("manifest_invalid", "Manifest schema version is invalid")
                 if migrations:
                     try:
-                        apply_migrations(database, root / "migration-backups")
+                        self.maintenance.apply(database, root / "migration-backups")
                     except Exception as error:
                         raise ArtifactError(
                             "migration_failed",
                             "Prepared restore migration failed",
                             phase="migration",
                         ) from error
-                with closing(_database_connection(database, read_only=False)) as connection:
-                    connection.execute(
-                        "UPDATE instance_metadata SET instance_id = ? WHERE id = 1",
-                        (loaded.manifest["instance_id"],),
+                try:
+                    reset = self.instance_storage.prepare_restore(
+                        database, loaded.manifest["instance_id"]
                     )
-                    reset = {
-                        "sessions": connection.execute("DELETE FROM auth_session").rowcount,
-                        "invitations": connection.execute(
-                            "DELETE FROM auth_token WHERE kind = 'invitation' "
-                            "AND consumed_at IS NULL"
-                        ).rowcount,
-                        "recovery_operations": connection.execute(
-                            "DELETE FROM auth_token WHERE kind = 'recovery' AND consumed_at IS NULL"
-                        ).rowcount,
-                        "recovery_codes": connection.execute(
-                            "DELETE FROM auth_recovery_code"
-                        ).rowcount,
-                        "technical_claims": connection.execute(
-                            "UPDATE notification_delivery SET claim_token = NULL, "
-                            "claimed_at = NULL, "
-                            "claim_expires_at = NULL WHERE claim_token IS NOT NULL"
-                        ).rowcount,
-                    }
-                    now = _timestamp()
-                    for task_table, reopening_table in (
-                        ("exam_day_task", "exam_day_reopening"),
-                        ("exam_round_task", "exam_round_reopening"),
-                    ):
-                        connection.execute(
-                            f"UPDATE \"{task_table}\" SET status = 'completed', completed_at = ? "
-                            f"WHERE status = 'open' AND reopening_id IN "
-                            f"(SELECT id FROM \"{reopening_table}\" WHERE status != 'open')",
-                            (now,),
-                        )
-                    connection.commit()
-                    connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-                Path(f"{database}-wal").unlink(missing_ok=True)
-                Path(f"{database}-shm").unlink(missing_ok=True)
+                except RuntimeError as error:
+                    raise ArtifactError(
+                        "restore_prepare_failed",
+                        "Prepared restore could not be initialized",
+                        phase="precheck",
+                    ) from error
+                self.instance_storage.seal_prepared_database(database)
                 yield database, documents, key, migrations, reset
             finally:
                 self._cleanup_workspace(root)
@@ -1091,15 +952,15 @@ class ArtifactService:
         key: Path,
         manifest: dict[str, Any],
     ) -> None:
-        _database_integrity(database)
+        self._verify_database_integrity(database)
         self._inspect_document_snapshot(database, documents)
-        _validate_totp_secrets(database, key.read_bytes())
-        if _instance_id(database) != manifest["instance_id"]:
+        self._validate_authentication_key(database, self.instance_storage.read_key(key))
+        if self._instance_id(database) != manifest["instance_id"]:
             raise ArtifactError("postcheck_failed", "Restored instance identity is invalid")
-        schema, pending = _schema_compatibility(database)
-        if pending or schema != _available_migrations()[-1]:
+        schema = self._storage_call(lambda: self.maintenance.schema(database, MIN_SUPPORTED_SCHEMA))
+        if schema.pending or schema.current != schema.target:
             raise ArtifactError("postcheck_failed", "Restored schema is not current")
-        readiness = database_readiness(database)
+        readiness = self.maintenance.readiness(database)
         if not readiness["ready"]:
             raise ArtifactError("postcheck_failed", "Restored database is not ready")
 
@@ -1110,111 +971,49 @@ class ArtifactService:
         key: Path,
         manifest: dict[str, Any],
     ) -> None:
-        retired = Path(tempfile.mkdtemp(prefix=".lzug-retired-", dir=self.paths.data_dir))
-        os.chmod(retired, 0o700)
-        target_key = SQLiteLocalAuthenticationKey(
-            self.paths.database,
-            settings=self.settings.local_auth if self.settings else None,
-        ).path
-        moved: list[tuple[Path, Path]] = []
-        installed: list[Path] = []
+        target_key = self.instance_storage.authentication_key_path(self.paths.database)
         try:
-            self._checkpoint_target_database()
-            self._retire_restore_targets(retired, target_key, moved)
-            self._install_prepared_restore(database, documents, key, target_key, installed)
-            self._validate_activated_restore(target_key, manifest)
-            self._fault("activation")
+            self.instance_storage.activate_restore(
+                database,
+                documents,
+                key,
+                self.paths.database,
+                self.paths.documents,
+                target_key,
+                self.paths.data_dir,
+                lambda: (
+                    self._validate_activated_restore(target_key, manifest),
+                    self._fault("activation"),
+                ),
+            )
         except Exception as error:
-            self._rollback_restore_activation(installed, moved)
             if isinstance(error, ArtifactError):
                 raise
+            if getattr(error, "code", None) == "artifact_cleanup_failed":
+                raise ArtifactError(
+                    "artifact_cleanup_failed", "Restore cleanup failed", phase="cleanup"
+                ) from error
             raise ArtifactError(
                 "activation_failed", "Restore activation failed", phase="activation"
             ) from error
-        finally:
-            self._cleanup_workspace(retired)
-
-    def _checkpoint_target_database(self) -> None:
-        if not self.paths.database.exists():
-            return
-        with closing(_database_connection(self.paths.database, read_only=False)) as connection:
-            connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-
-    def _retire_restore_targets(
-        self, retired: Path, target_key: Path, moved: list[tuple[Path, Path]]
-    ) -> None:
-        for target in (
-            self.paths.database,
-            Path(f"{self.paths.database}-wal"),
-            Path(f"{self.paths.database}-shm"),
-            self.paths.documents,
-            target_key,
-        ):
-            if target.exists():
-                destination = retired / target.name
-                os.replace(target, destination)
-                moved.append((destination, target))
-
-    def _install_prepared_restore(
-        self, database: Path, documents: Path, key: Path, target_key: Path, installed: list[Path]
-    ) -> None:
-        destinations = (
-            (database, self.paths.database),
-            (documents, self.paths.documents),
-            (key, target_key),
-        )
-        for source, target in destinations:
-            os.replace(source, target)
-            installed.append(target)
 
     def _validate_activated_restore(self, target_key: Path, manifest: dict[str, Any]) -> None:
-        _database_integrity(self.paths.database)
+        self._verify_database_integrity(self.paths.database)
         self._inspect_document_snapshot(self.paths.database, self.paths.documents)
-        _validate_totp_secrets(self.paths.database, target_key.read_bytes())
-        if _instance_id(self.paths.database) != manifest["instance_id"]:
+        self._validate_authentication_key(
+            self.paths.database, self.instance_storage.read_key(target_key)
+        )
+        if self._instance_id(self.paths.database) != manifest["instance_id"]:
             raise ArtifactError(
                 "activation_failed",
                 "Activated instance identity is invalid",
                 phase="activation",
             )
 
-    def _rollback_restore_activation(
-        self, installed: list[Path], moved: list[tuple[Path, Path]]
-    ) -> None:
-        for target in reversed(installed):
-            if target.is_dir():
-                shutil.rmtree(target, ignore_errors=True)
-            else:
-                target.unlink(missing_ok=True)
-        for source, target in reversed(moved):
-            if source.exists():
-                os.replace(source, target)
-
     def _target_is_empty(self) -> bool:
-        if any(self.paths.documents.iterdir()):
-            return False
-        if not self.paths.database.exists() or self.paths.database.stat().st_size == 0:
-            return True
-        try:
-            with closing(_database_connection(self.paths.database)) as connection:
-                excluded = {
-                    "artifact_operation",
-                    "exam_venue_migration_report",
-                    "instance_metadata",
-                    "schema_migration",
-                    "schema_migration_checksum",
-                }
-                for table in _table_names(connection):
-                    if (
-                        table not in excluded
-                        and connection.execute(f'SELECT 1 FROM "{table}" LIMIT 1').fetchone()
-                    ):
-                        return False
-                return True
-        except sqlite3.Error as error:
-            raise ArtifactError(
-                "target_invalid", "Existing target cannot be inspected safely"
-            ) from error
+        return self._storage_call(
+            lambda: self.instance_storage.is_empty(self.paths.database, self.paths.documents)
+        )
 
     def _configuration_manifest(self) -> dict[str, Any]:
         required_names = [
@@ -1309,8 +1108,6 @@ class ArtifactService:
         # the source schema while preparing its pre-migration safety backup.
         if runtime is not None and runtime.snapshot()["state"] == "migration_required":
             return
-        if not self.paths.database.exists():
-            return
         artifact_id = result.get("artifact_id") if result else None
         artifact_type = result.get("artifact_type") if result else None
         snapshot_at = result.get("snapshot_at") if result else None
@@ -1320,52 +1117,37 @@ class ArtifactService:
             artifact_type = artifact_type or manifest.get("artifact_type")
             snapshot_at = snapshot_at or manifest.get("snapshot_at")
         try:
-            with mutation_scope(self.paths.database):
-                with closing(
-                    _database_connection(self.paths.database, read_only=False)
-                ) as connection:
-                    tables = set(_table_names(connection))
-                    if "artifact_operation" not in tables:
-                        return
-                    connection.execute(
-                        "INSERT INTO artifact_operation "
-                        "(operation_type, artifact_id, artifact_type, snapshot_at, "
-                        "recipient_key_fingerprint, result, error_code) "
-                        "VALUES (?, ?, ?, ?, ?, ?, ?)",
-                        (
-                            operation_type,
-                            artifact_id,
-                            artifact_type,
-                            snapshot_at,
-                            fingerprint,
-                            "failed" if error else "succeeded",
-                            error.code if error else None,
-                        ),
-                    )
-                    connection.commit()
-        except sqlite3.Error:
+            self.instance_storage.record_artifact_operation(
+                self.paths.database,
+                operation_type=operation_type,
+                artifact_id=artifact_id,
+                artifact_type=artifact_type,
+                snapshot_at=snapshot_at,
+                recipient_fingerprint=fingerprint,
+                succeeded=error is None,
+                error_code=error.code if error else None,
+            )
+        except RuntimeError:
             return
 
     def _artifact_path(self, artifact_name: str) -> Path:
         if not isinstance(artifact_name, str) or _ARTIFACT_NAME.fullmatch(artifact_name) is None:
             raise ArtifactError("artifact_name_invalid", "Artifact name is invalid")
-        artifact = self.paths.backups / artifact_name
-        if artifact.is_symlink() or not artifact.is_file():
+        artifact = self.instance_storage.resolve_artifact(self.paths.backups, artifact_name)
+        if artifact is None:
             raise ArtifactError("artifact_not_found", "Artifact does not exist")
         return artifact
 
     def _ensure_runtime_paths(self) -> None:
-        for directory in (self.paths.data_dir, self.paths.documents, self.paths.backups):
-            if directory.exists() and directory.is_symlink():
-                raise ArtifactError("persistence_error", "Persistent directory is invalid")
-            directory.mkdir(parents=True, exist_ok=True)
-            if not directory.is_dir():
-                raise ArtifactError("persistence_error", "Persistent path is invalid")
+        self._storage_call(
+            lambda: self.instance_storage.ensure_paths(
+                self.paths.data_dir, self.paths.documents, self.paths.backups
+            )
+        )
 
-    @staticmethod
-    def _ensure_space(directory: Path, required_bytes: int) -> None:
+    def _ensure_space(self, directory: Path, required_bytes: int) -> None:
         try:
-            available = shutil.disk_usage(directory).free
+            available = self.instance_storage.free_space(directory)
         except OSError as error:
             raise ArtifactError("persistence_error", "Free storage could not be checked") from error
         if available < required_bytes:

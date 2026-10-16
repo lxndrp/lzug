@@ -14,7 +14,12 @@ from backend.application.admin import EXIT_CONFLICT, EXIT_OK
 from backend.composition import document_snapshot_factory
 from backend.operations.backup_recipients import BackupRecipientRepository, recipient_fingerprint
 from backend.operations.backup_restore import BACKUP_PUBLIC_KEY_ENV, ArtifactError, ArtifactService
+from backend.persistence.backup_recipient_store import SQLiteBackupRecipientStore
 from backend.persistence.database import PersistencePaths, initialize
+from backend.persistence.instance_storage import (
+    SQLiteFileInstanceStorage,
+    SQLiteInstanceMaintenance,
+)
 from backend.tests.helpers import run_admin
 
 run = run_admin
@@ -41,7 +46,7 @@ class BackupRecipientTests(unittest.TestCase):
         self.temporary.cleanup()
 
     def test_set_show_replace_and_append_only_audit(self) -> None:
-        repository = BackupRecipientRepository(self.paths.database)
+        repository = BackupRecipientRepository(SQLiteBackupRecipientStore(self.paths.database))
         self.assertIsNone(repository.show())
 
         current = repository.set(RECIPIENT, recipient_fingerprint(RECIPIENT))
@@ -65,7 +70,7 @@ class BackupRecipientTests(unittest.TestCase):
         self.assertIsNone(audit[0][1])
 
     def test_fingerprint_mismatch_and_invalid_recipient_fail_closed(self) -> None:
-        repository = BackupRecipientRepository(self.paths.database)
+        repository = BackupRecipientRepository(SQLiteBackupRecipientStore(self.paths.database))
         with self.assertRaises(ArtifactError) as mismatch:
             repository.set(RECIPIENT, "sha256:" + "0" * 64)
         self.assertEqual("recipient_key_mismatch", mismatch.exception.code)
@@ -78,7 +83,7 @@ class BackupRecipientTests(unittest.TestCase):
         outcomes: list[str] = []
 
         def set_recipient() -> None:
-            repository = BackupRecipientRepository(self.paths.database)
+            repository = BackupRecipientRepository(SQLiteBackupRecipientStore(self.paths.database))
             barrier.wait(timeout=2)
             try:
                 repository.set(RECIPIENT, recipient_fingerprint(RECIPIENT))
@@ -103,7 +108,7 @@ class BackupRecipientTests(unittest.TestCase):
         raw = bytes(range(32))
         legacy = "x25519:" + base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
         repository = BackupRecipientRepository(
-            self.paths.database,
+            SQLiteBackupRecipientStore(self.paths.database),
             environment={BACKUP_PUBLIC_KEY_ENV: legacy},
         )
         migrated = repository.show()
@@ -120,7 +125,7 @@ class BackupRecipientTests(unittest.TestCase):
         raw = bytes(range(32))
         legacy = "x25519:" + base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
         repository = BackupRecipientRepository(
-            self.paths.database,
+            SQLiteBackupRecipientStore(self.paths.database),
             environment={BACKUP_PUBLIC_KEY_ENV: legacy},
         )
 
@@ -134,6 +139,8 @@ class BackupRecipientTests(unittest.TestCase):
         artifacts = ArtifactService(
             self.paths,
             environment={},
+            instance_storage=SQLiteFileInstanceStorage(),
+            maintenance=SQLiteInstanceMaintenance(),
             document_snapshots=document_snapshot_factory(self.paths.database, self.paths.documents),
         )
         arguments = {
@@ -177,6 +184,8 @@ class BackupRecipientTests(unittest.TestCase):
         artifacts = ArtifactService(
             self.paths,
             environment={},
+            instance_storage=SQLiteFileInstanceStorage(),
+            maintenance=SQLiteInstanceMaintenance(),
             document_snapshots=document_snapshot_factory(self.paths.database, self.paths.documents),
         )
         output = io.BytesIO()

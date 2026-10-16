@@ -553,6 +553,14 @@ bleibt als Entscheidung in #1079 offen.
 Backup, migrationsspezifischer Vorbereitung, SQL-Ausführung und Historiennachweis.
 Diese Phasen bleiben unter derselben Migrationssperre; historische SQL-Skripte
 behalten ihre eigenen Commit- und Rollbackgrenzen.
+`operations.instance_storage` definiert den Instanzspeicher- und
+Wartungsvertrag für Snapshot, Schema-Prüfung, Restore-Vorbereitung,
+Aktivierung, Bereitschaft und Migration.
+`persistence.instance_storage` hält SQLite-, Dateisystem- und Sperrdetails
+hinter diesem Vertrag; der RuntimeCoordinator behält Admission und Workerbesitz.
+`operations.backup_recipient_store` besitzt den Empfänger-Port,
+während `persistence.backup_recipient_store` SQLAlchemy-Modelle und Audit-UoWs
+kapselt.
 Der Prüfungsort-Preflight liest zunächst den Altbestand, leitet daraus Gruppen,
 Konflikte und Berichte ab und veröffentlicht die Berichte vor dem SQL-Lauf.
 Ein Konflikt bleibt damit diagnostizierbar, ohne die Migration zu beginnen.

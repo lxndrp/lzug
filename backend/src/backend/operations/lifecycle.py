@@ -11,10 +11,9 @@ from typing import Any
 from backend.operations.artifact_packages import ClearArtifactService
 from backend.operations.backup_recipients import BackupRecipientRepository
 from backend.operations.backup_restore import MIN_SUPPORTED_SCHEMA
+from backend.operations.instance_storage import InstanceMaintenance
 from backend.persistence.database import (
     PersistencePaths,
-    apply_migrations,
-    migration_status,
     persistence_paths,
 )
 from backend.runtime import Operation, RuntimeCoordinator, runtime_for
@@ -58,7 +57,9 @@ class LifecycleService:
         environment: Mapping[str, str] | None = None,
         settings: RuntimeSettings | None = None,
         metadata: BuildMetadata | None = None,
-        migration_runner: Callable[[Path, Path | None], None] = apply_migrations,
+        maintenance: InstanceMaintenance,
+        backup_recipients: BackupRecipientRepository,
+        migration_runner: Callable[[Path, Path | None], None] | None = None,
     ) -> None:
         self.paths = paths or persistence_paths(
             settings=settings.persistence if settings else None,
@@ -70,7 +71,9 @@ class LifecycleService:
             else (settings or RuntimeSettings.from_environment()).environment_values()
         )
         self.metadata = metadata or build_metadata()
-        self.migration_runner = migration_runner
+        self.maintenance = maintenance
+        self.backup_recipients = backup_recipients
+        self.migration_runner = migration_runner or maintenance.apply
         self._backup: tuple[str, str, str] | None = None
 
     def _runtime(self) -> RuntimeCoordinator:
@@ -116,9 +119,7 @@ class LifecycleService:
 
     def recipient(self) -> dict[str, str]:
         """Read the configured recipient without migrating legacy configuration."""
-        current = BackupRecipientRepository(
-            self.paths.database, environment=self.environment
-        ).inspect()
+        current = self.backup_recipients.inspect()
         if current is None:
             raise LifecycleError(
                 "recipient_not_configured", "Configure a backup recipient before the image change"
@@ -183,7 +184,7 @@ class LifecycleService:
         self._backup = None
         try:
             with runtime.operation(Operation.MIGRATION, job_id=job_id):
-                current = migration_status(self.paths.database)
+                current = self.maintenance.schema_status(self.paths.database)
                 if any(
                     current.get(key) != before.get(key)
                     for key in ("state", "current", "target", "pending")

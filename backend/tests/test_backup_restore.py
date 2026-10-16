@@ -3,6 +3,8 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import os
+import shutil
 import sqlite3
 import tempfile
 import unittest
@@ -26,8 +28,13 @@ from backend.identity.auth import SESSION_TTL
 from backend.identity.local_auth import PASSWORD_HASHER
 from backend.operations.artifact_packages import ClearArtifactService
 from backend.operations.backup_restore import FULL_EXPORT_SCHEMA, ArtifactError
+from backend.operations.instance_storage import InstanceSchema
 from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.persistence.database import PersistencePaths, database_readiness, initialize
+from backend.persistence.instance_storage import (
+    SQLiteFileInstanceStorage,
+    SQLiteInstanceMaintenance,
+)
 from backend.persistence.local_auth import SQLiteLocalAuthenticationKey
 from backend.runtime import Operation, RuntimeConflictError, RuntimeCoordinator
 from backend.tests.fixture_data import DEMO_ROLES
@@ -73,6 +80,8 @@ class BackupRestoreTests(unittest.TestCase):
             paths,
             environment=environment or {},
             fault_injector=fault_injector,
+            instance_storage=SQLiteFileInstanceStorage(),
+            maintenance=SQLiteInstanceMaintenance(),
             document_snapshots=document_snapshot_factory(paths.database, paths.documents),
         )
 
@@ -104,6 +113,34 @@ class BackupRestoreTests(unittest.TestCase):
             )
         )
         return paths, service, credentials.token
+
+    def test_schema_contract_accepts_a_port_double(self) -> None:
+        paths, service = self.runtime("schema-double", seed=True)
+
+        class MaintenanceDouble:
+            def schema(self, database: Path, minimum_supported: str) -> InstanceSchema:
+                self.database = database
+                self.minimum_supported = minimum_supported
+                return InstanceSchema("027_test.sql", (), "028_test.sql")
+
+        double = MaintenanceDouble()
+        service.maintenance = double
+        self.assertEqual(("027_test.sql", []), service._schema_compatibility(paths.database))
+        self.assertEqual(paths.database, double.database)
+        self.assertEqual("009_harden_migration_history.sql", double.minimum_supported)
+
+    def test_database_snapshot_sqlite_error_uses_stable_artifact_error(self) -> None:
+        _paths, service = self.runtime("snapshot-error", seed=True)
+        with patch.object(
+            SQLiteFileInstanceStorage,
+            "_connection",
+            side_effect=sqlite3.OperationalError("disk I/O error"),
+        ):
+            with self.assertRaises(ArtifactError) as raised:
+                with service._capture_snapshot(include_authentication_key=True):
+                    self.fail("snapshot should not be yielded")
+
+        self.assertEqual("snapshot_failed", raised.exception.code)
 
     @staticmethod
     def copy_package(source: Path, target: Path) -> None:
@@ -365,6 +402,8 @@ class BackupRestoreTests(unittest.TestCase):
                 target = ClearArtifactService(
                     paths,
                     environment={},
+                    instance_storage=SQLiteFileInstanceStorage(),
+                    maintenance=SQLiteInstanceMaintenance(),
                     document_snapshots=document_snapshot_factory(paths.database, paths.documents),
                 )
                 runtime = None
@@ -418,6 +457,151 @@ class BackupRestoreTests(unittest.TestCase):
                 "TargetOnly",
                 connection.execute("SELECT first_name FROM candidate WHERE id = 1").fetchone()[0],
             )
+
+    def test_restore_preserves_typed_post_activation_validation_error(self) -> None:
+        _source_paths, source, _token = self.prepare_source()
+        package_copy, _result = self.write_package(source, "backup.zip")
+
+        def fail_validation(phase: str) -> None:
+            if phase == "activation":
+                raise ArtifactError(
+                    "document_relation_failed", "Document relation validation failed"
+                )
+
+        target_paths, target = self.runtime(
+            "target-validation", seed=True, fault_injector=fail_validation
+        )
+        with closing(sqlite3.connect(target_paths.database)) as connection:
+            connection.execute("UPDATE candidate SET first_name = 'TargetOnly' WHERE id = 1")
+            connection.commit()
+
+        with self.assertRaises(ArtifactError) as raised:
+            target.restore_package(
+                package_copy,
+                replace=True,
+                safety_artifact="/operator/pre-restore.lzug",
+                recipient_fingerprint=FINGERPRINT,
+            )
+
+        self.assertEqual("document_relation_failed", raised.exception.code)
+        with closing(sqlite3.connect(target_paths.database)) as connection:
+            self.assertEqual(
+                "TargetOnly",
+                connection.execute("SELECT first_name FROM candidate WHERE id = 1").fetchone()[0],
+            )
+
+    def test_retired_workspace_cleanup_failure_uses_cleanup_error_contract(self) -> None:
+        source_paths, source, _token = self.prepare_source()
+        with closing(sqlite3.connect(source_paths.database)) as connection:
+            connection.execute("UPDATE candidate SET first_name = 'SourceOnly' WHERE id = 1")
+            connection.commit()
+        package_copy, _result = self.write_package(source, "backup.zip")
+
+        target_paths, target = self.runtime("target-cleanup", seed=True)
+        with closing(sqlite3.connect(target_paths.database)) as connection:
+            connection.execute("UPDATE candidate SET first_name = 'TargetOnly' WHERE id = 1")
+            connection.commit()
+
+        original_rmtree = shutil.rmtree
+
+        def fail_retired_workspace(path, *args, **kwargs) -> None:
+            if Path(path).name.startswith(".lzug-retired-"):
+                raise PermissionError("injected retired workspace cleanup failure")
+            original_rmtree(path, *args, **kwargs)
+
+        with patch(
+            "backend.persistence.instance_storage.shutil.rmtree",
+            side_effect=fail_retired_workspace,
+        ):
+            with self.assertRaises(ArtifactError) as raised:
+                target.restore_package(
+                    package_copy,
+                    replace=True,
+                    safety_artifact="/operator/pre-restore.lzug",
+                    recipient_fingerprint=FINGERPRINT,
+                )
+
+        self.assertEqual("artifact_cleanup_failed", raised.exception.code)
+        with closing(sqlite3.connect(target_paths.database)) as connection:
+            self.assertEqual(
+                "SourceOnly",
+                connection.execute("SELECT first_name FROM candidate WHERE id = 1").fetchone()[0],
+            )
+
+        retired = next(target_paths.data_dir.glob(".lzug-retired-*"))
+        retired_database = retired / target_paths.database.name
+        self.assertTrue(retired_database.exists())
+        target.restore_package(
+            package_copy,
+            replace=True,
+            safety_artifact="/operator/pre-restore.lzug",
+            recipient_fingerprint=FINGERPRINT,
+        )
+        self.assertTrue(retired_database.exists())
+        with closing(sqlite3.connect(retired_database)) as connection:
+            self.assertEqual(
+                "TargetOnly",
+                connection.execute("SELECT first_name FROM candidate WHERE id = 1").fetchone()[0],
+            )
+
+    def test_failed_restore_rollback_preserves_retired_data(self) -> None:
+        _source_paths, source, _token = self.prepare_source()
+        package_copy, _result = self.write_package(source, "backup.zip")
+
+        injected = False
+
+        def fail_activation(phase: str) -> None:
+            nonlocal injected
+            if phase == "activation" and not injected:
+                injected = True
+                raise RuntimeError("injected activation failure")
+
+        target_paths, target = self.runtime(
+            "target-rollback", seed=True, fault_injector=fail_activation
+        )
+        with closing(sqlite3.connect(target_paths.database)) as connection:
+            connection.execute("UPDATE candidate SET first_name = 'OriginalOnly' WHERE id = 1")
+            connection.commit()
+
+        original_replace = os.replace
+
+        def fail_database_rollback(source_path, target_path) -> None:
+            source_path = Path(source_path)
+            if (
+                source_path.parent.name.startswith(".lzug-retired-")
+                and Path(target_path) == target_paths.database
+            ):
+                raise PermissionError("injected database rollback failure")
+            original_replace(source_path, target_path)
+
+        with patch(
+            "backend.persistence.instance_storage.os.replace",
+            side_effect=fail_database_rollback,
+        ):
+            with self.assertRaises(ArtifactError) as raised:
+                target.restore_package(
+                    package_copy,
+                    replace=True,
+                    safety_artifact="/operator/pre-restore.lzug",
+                    recipient_fingerprint=FINGERPRINT,
+                )
+        self.assertEqual("activation_failed", raised.exception.code)
+
+        retired = next(target_paths.data_dir.glob(".lzug-retired-*"))
+        retired_database = retired / target_paths.database.name
+        with closing(sqlite3.connect(retired_database)) as connection:
+            self.assertEqual(
+                "OriginalOnly",
+                connection.execute("SELECT first_name FROM candidate WHERE id = 1").fetchone()[0],
+            )
+
+        target.restore_package(
+            package_copy,
+            replace=True,
+            safety_artifact="/operator/pre-restore.lzug",
+            recipient_fingerprint=FINGERPRINT,
+        )
+        self.assertTrue(retired_database.exists())
 
     def test_corrupt_and_wrong_type_packages_are_rejected(self) -> None:
         _paths, service, _token = self.prepare_source()
