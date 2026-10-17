@@ -266,14 +266,20 @@ def _imported_modules(path: Path, root: Path) -> set[str]:
 
 
 def _package_dependencies(package: str) -> set[str]:
-    dependencies: set[str] = set()
+    return set(_package_dependency_imports(package))
+
+
+def _package_dependency_imports(package: str) -> dict[str, set[str]]:
+    imports_by_dependency: dict[str, set[str]] = {}
     for path in (BACKEND_ROOT / package).rglob("*.py"):
         for name in _imported_modules(path, BACKEND_ROOT):
             parts = name.split(".")
             if len(parts) >= 2 and parts[0] == "backend" and parts[1] in CORE_PACKAGES:
-                dependencies.add(parts[1])
-    dependencies.discard(package)
-    return dependencies
+                imports_by_dependency.setdefault(parts[1], set()).add(
+                    f"{path.relative_to(BACKEND_ROOT)}: {name}"
+                )
+    imports_by_dependency.pop(package, None)
+    return imports_by_dependency
 
 
 def _unexpected_dependencies(package: str, modules: set[str]) -> set[str]:
@@ -615,13 +621,17 @@ class BackendPackageBoundaryTests(unittest.TestCase):
         )
 
     def test_core_packages_follow_allowed_dependency_directions(self) -> None:
-        actual = {package: _package_dependencies(package) for package in CORE_PACKAGES}
+        actual = {package: _package_dependency_imports(package) for package in CORE_PACKAGES}
         unexpected = {
-            package: dependencies - ALLOWED_PACKAGE_DEPENDENCIES[package]
+            package: {
+                dependency: imports
+                for dependency, imports in dependencies.items()
+                if dependency not in ALLOWED_PACKAGE_DEPENDENCIES[package]
+            }
             for package, dependencies in actual.items()
-            if dependencies - ALLOWED_PACKAGE_DEPENDENCIES[package]
+            if dependencies.keys() - ALLOWED_PACKAGE_DEPENDENCIES[package]
         }
-        self.assertEqual(unexpected, {})
+        self.assertEqual({}, unexpected, f"Forbidden backend imports by file: {unexpected}")
 
     def test_assessment_core_has_no_persistence_http_or_renderer_dependencies(self) -> None:
         forbidden = (
