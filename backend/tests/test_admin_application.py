@@ -4,6 +4,7 @@ import io
 import json
 import unittest
 from contextlib import redirect_stdout
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -146,6 +147,26 @@ class AdminApplicationTests(unittest.TestCase):
         self.assertEqual(EXIT_CONFLICT, result.exit_code)
         self.assertEqual("account_exists", result.response["error"]["class"])
         self.assertEqual("An account already exists", result.response["error"]["message"])
+
+    def test_composition_classifies_adapter_persistence_errors(self) -> None:
+        class AdapterPersistenceError(Exception):
+            pass
+
+        services = self.services(
+            diagnostics=lambda _command, _client: (_ for _ in ()).throw(AdapterPersistenceError())
+        )
+        services = replace(
+            services,
+            persistence_error=lambda error: isinstance(error, AdapterPersistenceError),
+        )
+
+        result = self.application(services).execute(
+            {"version": 1, "command": "config", "arguments": {}},
+            AdminActorContext("verified-peer", True),
+        )
+
+        self.assertEqual(25, result.exit_code)
+        self.assertEqual("persistence_error", result.response["error"]["class"])
 
 
 if __name__ == "__main__":

@@ -11,6 +11,7 @@ from functools import partial
 from pathlib import Path
 
 from fastapi import FastAPI
+from sqlalchemy.exc import SQLAlchemyError
 
 from .application.admin import AdminApplication, AdminServices
 from .application.calendar_ports import CalendarApplicationPort
@@ -83,7 +84,7 @@ from .operations.diagnostics import run_diagnostics
 from .operations.lifecycle import LifecycleService
 from .persistence.auth import SQLiteAuthenticationRepository
 from .persistence.backup_recipient_store import SQLiteBackupRecipientStore
-from .persistence.database import PersistencePaths, persistence_paths
+from .persistence.database import MigrationError, PersistencePaths, persistence_paths
 from .persistence.instance_storage import (
     SQLiteFileInstanceStorage,
     SQLiteInstanceMaintenance,
@@ -189,6 +190,7 @@ def create_admin_application(
                 ),
             )
         ),
+        persistence_error=lambda error: isinstance(error, (MigrationError, SQLAlchemyError)),
         venue_consequence_factory=lambda db_path, notification_service: (
             compose_venue_consequence_service(
                 db_path,

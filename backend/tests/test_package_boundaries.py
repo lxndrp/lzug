@@ -11,6 +11,7 @@ from typing import get_type_hints
 
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Query, Session
+from sqlalchemy.pool import NullPool
 
 from backend.application.exam_lifecycle import ExamLifecycleApplication
 from backend.application.exam_lifecycle_contracts import (
@@ -96,7 +97,6 @@ ALLOWED_PACKAGE_DEPENDENCIES = {
             "execution",
             "identity",
             "operations",
-            "persistence",
             "planning",
             "notifications",
         }
@@ -294,7 +294,7 @@ class BackendPackageBoundaryTests(unittest.TestCase):
         class Result:
             payload: object
 
-        engine = create_engine("sqlite://")
+        engine = create_engine("sqlite://", poolclass=NullPool)
         with engine.connect() as connection, Session(engine) as session:
             leaked_values = (
                 Session,
@@ -533,6 +533,22 @@ class BackendPackageBoundaryTests(unittest.TestCase):
                 any(name.startswith(("backend.http_", "fastapi")) for name in imported_modules),
                 f"Application module {path.name} imports an HTTP contract",
             )
+
+    def test_application_has_no_persistence_or_sqlalchemy_imports(self) -> None:
+        forbidden = ("backend.persistence", "sqlalchemy")
+        for path in sorted((BACKEND_ROOT / "application").rglob("*.py")):
+            imports = _imported_modules(path, BACKEND_ROOT)
+            with self.subTest(module=path.relative_to(BACKEND_ROOT)):
+                self.assertFalse(
+                    {
+                        module
+                        for module in imports
+                        if any(
+                            module == prefix or module.startswith(f"{prefix}.")
+                            for prefix in forbidden
+                        )
+                    }
+                )
 
     def test_notification_consumers_receive_composition_instead_of_importing_it(self) -> None:
         modules = (

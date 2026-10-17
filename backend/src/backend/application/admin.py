@@ -8,9 +8,7 @@ from collections.abc import Callable, Mapping
 from contextlib import nullcontext
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
-
-from sqlalchemy.exc import SQLAlchemyError
+from typing import Any, Protocol
 
 from backend.application.plan_consequences import PlanConsequenceService
 from backend.application.venue_consequences import VenueConsequenceService
@@ -20,10 +18,6 @@ from backend.notifications.service import NotificationService
 from backend.operations.backup_recipients import BackupRecipientRepository
 from backend.operations.backup_restore import ArtifactError, ArtifactService
 from backend.operations.lifecycle import LifecycleError, LifecycleService
-from backend.persistence.database import (
-    MigrationError,
-    PersistencePaths,
-)
 from backend.runtime import RuntimeConflictError, RuntimeCoordinator
 
 PROTOCOL_VERSION = 1
@@ -161,6 +155,18 @@ class AdminApplicationResult:
         )
 
 
+class AdminPersistencePaths(Protocol):
+    """Path values required by admin use cases, supplied by the composition root."""
+
+    data_dir: Path
+    database: Path
+    documents: Path
+    backups: Path
+
+    @property
+    def directories(self) -> tuple[Path, ...]: ...
+
+
 @dataclass(frozen=True)
 class AdminServices:
     """Explicit factories for every service used by the administrator core."""
@@ -171,9 +177,10 @@ class AdminServices:
     notification_factory: Callable[[Path], NotificationService]
     committee_factory: Callable[[Path], CommitteeAdminService]
     consequence_factory: Callable[[Path, NotificationService], PlanConsequenceService]
-    artifact_factory: Callable[[PersistencePaths], ArtifactService]
+    artifact_factory: Callable[[AdminPersistencePaths], ArtifactService]
     recipient_repository_factory: Callable[[ArtifactService], BackupRecipientRepository]
-    lifecycle_factory: Callable[[PersistencePaths], LifecycleService]
+    lifecycle_factory: Callable[[AdminPersistencePaths], LifecycleService]
+    persistence_error: Callable[[Exception], bool] = lambda _error: False
     venue_consequence_factory: (
         Callable[[Path, NotificationService], VenueConsequenceService] | None
     ) = None
@@ -390,7 +397,7 @@ def _execute_account(
 def _run_command(
     command: str,
     arguments: Mapping[str, Any],
-    paths: PersistencePaths,
+    paths: AdminPersistencePaths,
     services: AdminServices,
 ) -> tuple[dict[str, Any], int]:
     if command in _DIAGNOSTIC_COMMANDS:
@@ -447,7 +454,7 @@ class AdminApplication:
 
     def __init__(
         self,
-        paths: PersistencePaths,
+        paths: AdminPersistencePaths,
         services: AdminServices,
         *,
         runtime: RuntimeCoordinator | None = None,
@@ -503,9 +510,11 @@ class AdminApplication:
                 phase=error.phase,
                 details=error.details,
             )
-        except MigrationError, OSError, SQLAlchemyError, ValueError:
+        except OSError, ValueError:
             return _error("persistence_error", "Admin operation failed")
-        except Exception:
+        except Exception as error:
+            if self.services.persistence_error(error):
+                return _error("persistence_error", "Admin operation failed")
             return _error("internal_error", "Admin operation failed")
 
     def _inspect(self, command: str, arguments: Mapping[str, Any]) -> AdminApplicationResult:

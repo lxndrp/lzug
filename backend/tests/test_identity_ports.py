@@ -17,6 +17,7 @@ from backend.identity.people import (
 from backend.persistence.identity import SQLiteIdentityQueryFactory
 from backend.persistence.models import PERSON
 from backend.tests.helpers import TempDatabase
+from backend.tests.support.port_contracts import assert_materialized_port_value
 from backend.tests.support.resource_fixture_store import ResourceFixtureStore
 
 
@@ -110,6 +111,8 @@ class IdentityPortTests(unittest.TestCase):
                 memberships[0].committee_role,
             ),
         )
+        assert_materialized_port_value(self, login_person)
+        assert_materialized_port_value(self, memberships)
 
 
 class _IdentityDouble:
