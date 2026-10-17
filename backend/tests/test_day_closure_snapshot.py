@@ -7,6 +7,7 @@ from backend.persistence.day_closure_snapshot import SQLiteExamDayClosureReadSna
 from backend.persistence.models import ExamDayExport
 from backend.tests.fixture_data import prepare_exam_protocol_scenario
 from backend.tests.helpers import TempDatabase
+from backend.tests.support.port_contracts import assert_materialized_port_value
 
 
 class ExamDayClosureSnapshotTests(unittest.TestCase):
@@ -54,4 +55,4 @@ class ExamDayClosureSnapshotTests(unittest.TestCase):
             ("machine", "human"), tuple(item["export_kind"] for item in snapshot.history)
         )
         self.assertEqual((), snapshot.tasks)
-        self.assertTrue(all(not hasattr(value, "_sa_instance_state") for value in snapshot.history))
+        assert_materialized_port_value(self, snapshot)
