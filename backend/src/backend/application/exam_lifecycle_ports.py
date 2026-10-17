@@ -64,6 +64,7 @@ class ExamLifecycleExecutionUnitOfWork(ExecutionUnitOfWork, Protocol):
         scope: AuthorizationScope,
         round_id: int,
         pending_consequence_ids: Sequence[int],
+        facts: RoundLifecycleFacts,
     ) -> dict | None: ...
 
     def set_round_candidate_terminal_status(

@@ -19,6 +19,7 @@ from backend.persistence.execution import SQLiteExecutionUnitOfWorkFactory
 from backend.persistence.identity_lifecycle import SQLiteIdentityLifecycleWork
 from backend.persistence.models import ExamDay, ExamDayClosure, ExamDayExport
 from backend.persistence.planning_lifecycle import SQLitePlanningLifecycleWork
+from backend.persistence.round_lifecycle_snapshot import SQLiteExamRoundLifecycleReadSnapshotReader
 
 
 class SQLiteExamLifecycleUnitOfWorkFactory:
@@ -151,13 +152,11 @@ class _SQLiteExamLifecycleExecution:
         ).load_day_closure_read_snapshot(day_id)
         return service.get_from_read_snapshot(scope, facts, snapshot)
 
-    def read_round_lifecycle(self, service, scope, round_id: int, pending_consequence_ids):
-        return service.get_in_session(
-            self._session,
-            scope,
-            round_id,
-            pending_consequence_ids=pending_consequence_ids,
-        )
+    def read_round_lifecycle(self, service, scope, round_id: int, pending_consequence_ids, facts):
+        snapshot = SQLiteExamRoundLifecycleReadSnapshotReader(
+            self._session
+        ).load_round_lifecycle_read_snapshot(round_id)
+        return service.get_from_read_snapshot(scope, facts, pending_consequence_ids, snapshot)
 
     def set_round_candidate_terminal_status(
         self, service, scope, round_id: int, candidate_id: int, payload

@@ -43,7 +43,10 @@ class ExamLifecycleApplication:
             round_id = unit_of_work.execution.exam_day_round_id(day_id)
             if round_id is None:
                 return None
-            facts = self._day_closure_facts(unit_of_work, day_id, round_id)
+            committee_id = unit_of_work.planning_lifecycle.round_committee_id(round_id)
+            if committee_id is None or not scope.can_read_committee(committee_id):
+                raise PermissionError("Forbidden.")
+            facts = self._day_closure_facts(unit_of_work, day_id, round_id, committee_id)
             return unit_of_work.execution.read_day_closure(service, scope, day_id, facts)
 
     def get_exam_round_lifecycle(
@@ -53,9 +56,15 @@ class ExamLifecycleApplication:
             raise RuntimeError("Round lifecycle service factory is not configured")
         service = self._round_lifecycle_service_factory()
         with self._unit_of_work_factory.read_scope() as unit_of_work:
+            exam_round = unit_of_work.planning_lifecycle.round_lifecycle_snapshot(round_id)
+            if exam_round is None:
+                return None
+            if not scope.can_read_committee(exam_round.committee_id):
+                raise PermissionError("Forbidden.")
             pending_consequence_ids = unit_of_work.consequences.pending_ids_for_round(round_id)
+            facts = self._round_facts(unit_of_work, round_id, exam_round=exam_round)
             return unit_of_work.execution.read_round_lifecycle(
-                service, scope, round_id, pending_consequence_ids
+                service, scope, round_id, pending_consequence_ids, facts
             )
 
     def assert_mutation_allowed(self, command: MutationLockCommand) -> None:
@@ -305,9 +314,9 @@ class ExamLifecycleApplication:
         return outcome.response
 
     @staticmethod
-    def _round_facts(unit_of_work, round_id: int) -> RoundLifecycleFacts:
+    def _round_facts(unit_of_work, round_id: int, *, exam_round=None) -> RoundLifecycleFacts:
         planning = unit_of_work.planning_lifecycle
-        exam_round = planning.round_lifecycle_snapshot(round_id)
+        exam_round = exam_round or planning.round_lifecycle_snapshot(round_id)
         if exam_round is None:
             raise ValueError("Prüfungsrunde nicht gefunden")
         day_ids = tuple(unit_of_work.execution.exam_day_ids_for_round(round_id))

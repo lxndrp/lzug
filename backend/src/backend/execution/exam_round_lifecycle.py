@@ -28,6 +28,7 @@ from backend.execution.lifecycle_ports import (
     RoundLifecycleFacts,
     RoundReopenCommand,
 )
+from backend.execution.round_lifecycle_snapshot import ExamRoundLifecycleReadSnapshot
 from backend.identity.authorization import AuthorizationScope
 from backend.notifications.service import NotificationService
 from backend.persistence.database import DEFAULT_DB_PATH, session_scope
@@ -168,31 +169,264 @@ class ExamRoundLifecycleService:
         self.calendar_lifecycle_work_factory = calendar_lifecycle_work_factory
         self.pending_consequence_ids = pending_consequence_ids or (lambda _round_id: ())
 
-    def get(self, scope: AuthorizationScope, round_id: int) -> dict[str, Any] | None:
-        with session_scope(self.db_path) as session:
-            return self.get_in_session(session, scope, round_id)
-
-    def get_in_session(
+    def get_from_read_snapshot(
         self,
-        session: Session,
         scope: AuthorizationScope,
-        round_id: int,
-        *,
-        pending_consequence_ids: Sequence[int] | None = None,
+        facts: RoundLifecycleFacts,
+        pending_consequence_ids: Sequence[int],
+        snapshot: ExamRoundLifecycleReadSnapshot | None,
     ) -> dict[str, Any] | None:
-        """Read lifecycle state from an Application-owned SQLite snapshot."""
-        planning = self.planning_lifecycle_work_factory(session)
-        exam_round = planning.round_lifecycle_snapshot(round_id)
-        if exam_round is None:
+        """Render the lifecycle view from detached facts and a detached read projection."""
+        if snapshot is None:
             return None
-        self._require_access(exam_round, scope)
-        return self._view(
-            session,
-            exam_round,
-            scope,
-            planning_work=planning,
-            pending_consequence_ids=pending_consequence_ids,
+        exam_round = facts.round
+        actor_id = self._require_access(exam_round, scope)
+        records = snapshot.records
+        decisions = records["decisions"]
+        candidates = facts.round_candidates(exam_round.id)
+        days = records["days"]
+        formal_day_ids = set(records["current_closure_day_ids"])
+        incomplete_days = [
+            item["id"]
+            for item in days
+            if item["closure_status"] not in {"closed", "closed_exception", "historical"}
+            or (item["closure_status"] != "historical" and item["id"] not in formal_day_ids)
+        ]
+        results = facts.results_for_round(exam_round.id)
+        open_corrections = [
+            correction["id"]
+            for result in results
+            for correction in result["corrections"]
+            if correction["status"] == "open"
+        ]
+        non_terminal = [item["id"] for item in candidates if item["terminal_status"] == "open"]
+        invalid_terminal = [
+            item["id"]
+            for item in candidates
+            if not self._candidate_terminal_valid(None, dict(item), None, facts)
+        ]
+        open_absences = [
+            item["id"]
+            for item in records["absences"]
+            if item["status"] not in TERMINAL_ABSENCE_STATUSES
+        ]
+        open_slots = [
+            item.id
+            for item in facts.slots
+            if item.execution_status not in {"completed", "cancelled"}
+        ]
+        evaluation_items = [
+            (
+                "round_has_confirmed_plan",
+                "Die Prüfungsrunde besitzt einen bestätigten oder begonnenen Plan",
+                exam_round.status in {"plan_confirmed", "in_progress", "completed"} and bool(days),
+                {"planning_status": exam_round.status, "exam_day_count": len(days)},
+            ),
+            (
+                "days_closed",
+                "Alle Prüfungstage sind mit Nachweis geschlossen",
+                not incomplete_days,
+                incomplete_days,
+            ),
+            (
+                "no_day_reopening",
+                "Kein Prüfungstag ist wieder geöffnet",
+                all(item["closure_status"] != "reopening" for item in days),
+                [item["id"] for item in days if item["closure_status"] == "reopening"],
+            ),
+            (
+                "no_protocol_follow_up",
+                "Keine Protokoll-Nachfassaufgabe ist offen",
+                not records["follow_up_task_ids"],
+                list(records["follow_up_task_ids"]),
+            ),
+            (
+                "candidates_terminal",
+                "Jeder Prüfling besitzt einen wirksamen terminalen Status",
+                not non_terminal and not invalid_terminal,
+                sorted(set(non_terminal + invalid_terminal)),
+            ),
+            (
+                "no_corrections",
+                "Keine Protokoll-, Bewertungs- oder Ergebniskorrektur ist offen",
+                not open_corrections and not records["protocol_correction_ids"],
+                open_corrections + list(records["protocol_correction_ids"]),
+            ),
+            (
+                "absence_processes_complete",
+                "Alle Ausfall- und Ersatzvorgänge sind abgeschlossen",
+                not open_absences,
+                open_absences,
+            ),
+            (
+                "slots_terminal",
+                "Keine offenen Prüfungsslots verbleiben",
+                not open_slots,
+                open_slots,
+            ),
+            (
+                "plan_consequences_complete",
+                "Alle Planänderungsfolgen sind verarbeitet",
+                not pending_consequence_ids,
+                tuple(pending_consequence_ids),
+            ),
+        ]
+        items: list[dict[str, Any]] = []
+        for code, label, ok, details in evaluation_items:
+            self._finding(items, code, label, bool(ok), details)
+        return {
+            "round_id": exam_round.id,
+            "revision": exam_round.revision,
+            "status": exam_round.lifecycle_status,
+            "legacy_status": exam_round.legacy_status,
+            "historical_without_formal_evidence": exam_round.lifecycle_status == "historical"
+            and not decisions,
+            "evaluation": {"ready": all(item["ok"] for item in items), "items": items},
+            "candidates": [
+                {
+                    "round_candidate_id": item["id"],
+                    "candidate_id": item["candidate_id"],
+                    "terminal_status": item["terminal_status"],
+                    "terminal_reason": item["terminal_reason"],
+                    "effective_new_round_id": item["effective_new_round_id"],
+                    "postponed_until": item["postponed_until"],
+                    "ihk_decision_reference": item["ihk_decision_reference"],
+                    "terminal_at": item["terminal_at"],
+                }
+                for item in candidates
+            ],
+            "current_decision": next(
+                (self._decision_mapping(item) for item in decisions if item["status"] == "current"),
+                None,
+            ),
+            "decisions": [self._decision_mapping(item) for item in decisions],
+            "reopenings": [self._reopening_mapping(item) for item in records["reopenings"]],
+            "history": [self._event_mapping(item) for item in records["history"]],
+            "tasks": [self._task_mapping(item) for item in records["tasks"]],
+            "exports": [self._export_mapping(item) for item in records["exports"]],
+            "ihk_statuses": [
+                {
+                    "id": item["id"],
+                    "exam_result_id": item["exam_result_id"],
+                    "document_status": item["document_status"],
+                    "document_reference": item["document_reference"],
+                    "recorded_by_member_id": item["recorded_by_member_id"],
+                    "recorded_at": item["recorded_at"],
+                }
+                for item in records["ihk_statuses"]
+            ],
+            "retention": self._retention_mapping(records, results),
+            "permissions": {
+                "close": scope.can_manage_committee(exam_round.committee_id)
+                and exam_round.lifecycle_status in {"open", "reopening"},
+                "cancel": scope.can_manage_committee(exam_round.committee_id)
+                and exam_round.lifecycle_status in {"open", "reopening"},
+                "reopen": scope.can_manage_committee(exam_round.committee_id)
+                and exam_round.lifecycle_status in TERMINAL_LIFECYCLE_STATUSES,
+                "delete": scope.can_manage_committee(exam_round.committee_id)
+                and exam_round.status == "draft"
+                and exam_round.lifecycle_status == "open",
+                "export": actor_id is not None,
+            },
+            "_links": {
+                "self": {"href": f"/api/exam-rounds/{exam_round.id}/lifecycle"},
+                "machine_export": {
+                    "href": f"/api/exam-rounds/{exam_round.id}/lifecycle/export.json"
+                },
+                "human_export": {"href": f"/api/exam-rounds/{exam_round.id}/lifecycle/export.txt"},
+            },
+        }
+
+    @staticmethod
+    def _decision_mapping(item):
+        return {
+            "id": item["id"],
+            "decision_type": item["decision_type"],
+            "requested_revision": item["requested_revision"],
+            "resulting_revision": item["resulting_revision"],
+            "actor_member_id": item["actor_member_id"],
+            "reason": item["reason"],
+            "checklist": item["checklist_json"],
+            "snapshot": item["snapshot_json"],
+            "previous_decision_id": item["previous_decision_id"],
+            "status": item["status"],
+            "decided_at": item["decided_at"],
+        }
+
+    @staticmethod
+    def _reopening_mapping(item):
+        return {
+            "id": item["id"],
+            "requested_revision": item["requested_revision"],
+            "resulting_revision": item["resulting_revision"],
+            "occasion": item["occasion"],
+            "source": item["source"],
+            "reason": item["reason"],
+            "requested_scope": item["requested_scope_json"],
+            "scope": item["scope_json"],
+            "impacts": item["impacts_json"],
+            "actor_member_id": item["actor_member_id"],
+            "status": item["status"],
+            "opened_at": item["opened_at"],
+            "completed_at": item["completed_at"],
+        }
+
+    @staticmethod
+    def _event_mapping(item):
+        return {
+            "id": item["id"],
+            "round_revision": item["round_revision"],
+            "event_type": item["event_type"],
+            "actor_member_id": item["actor_member_id"],
+            "decision_id": item["decision_id"],
+            "reopening_id": item["reopening_id"],
+            "reason": item["reason"],
+            "scope": item["scope_json"],
+            "created_at": item["created_at"],
+        }
+
+    @staticmethod
+    def _task_mapping(item):
+        return {
+            "id": item["id"],
+            "reopening_id": item["reopening_id"],
+            "recipient_member_id": item["recipient_member_id"],
+            "task_type": item["task_type"],
+            "details": item["details_json"],
+            "status": item["status"],
+            "created_at": item["created_at"],
+            "completed_at": item["completed_at"],
+        }
+
+    @staticmethod
+    def _export_mapping(item):
+        return {
+            "id": item["id"],
+            "decision_id": item["decision_id"],
+            "round_revision": item["round_revision"],
+            "export_kind": item["export_kind"],
+            "lifecycle_status": item["lifecycle_status"],
+            "generated_by_member_id": item["generated_by_member_id"],
+            "generated_at": item["generated_at"],
+            "superseded_at": item["superseded_at"],
+            "superseded_by_revision": item["superseded_by_revision"],
+            "obsolete": item["superseded_at"] is not None,
+        }
+
+    @staticmethod
+    def _retention_mapping(records, results):
+        sources = list(records["protocol_retention"])
+        sources.extend(
+            {"kind": "result", "id": item["id"], **item["retention"]}
+            for item in results
+            if item["retention"] is not None
         )
+        values = [item["retain_until"] for item in sources if item["retain_until"] is not None]
+        return {
+            "retain_until": max(values) if values else None,
+            "legal_hold": any(item["legal_hold"] for item in sources),
+            "sources": sources,
+        }
 
     def publish_decision_notifications(self, outcome: ExamRoundDecisionOutcome) -> None:
         """Publish cancellation notices only after the caller has committed."""

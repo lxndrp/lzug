@@ -180,9 +180,18 @@ class ExamDayClosureTests(unittest.TestCase):
                 day_closure_service, scope, 2, lifecycle_facts
             )
             pending_consequence_ids = unit_of_work.consequences.pending_ids_for_round(1)
+            round_facts = ExamLifecycleApplication._round_facts(unit_of_work, 1)
             lifecycle_round = unit_of_work.execution.read_round_lifecycle(
-                round_lifecycle_service, scope, 1, pending_consequence_ids
+                round_lifecycle_service, scope, 1, pending_consequence_ids, round_facts
             )
+            expected_round_view = round_lifecycle_service._view(
+                unit_of_work.execution._session,
+                round_facts.round,
+                scope,
+                facts=round_facts,
+                pending_consequence_ids=pending_consequence_ids,
+            )
+            self.assertEqual(expected_round_view, lifecycle_round)
             day_export = unit_of_work.execution.export_day(
                 day_closure_service, scope, 2, human=False, facts=lifecycle_facts
             )
@@ -197,6 +206,9 @@ class ExamDayClosureTests(unittest.TestCase):
             assert result_by_id is not None
             self.assertEqual(result_id, result_by_id["id"])
             self.assertTrue(round_results)
+            assert_materialized_port_value(self, lifecycle_round)
+            self.assertFalse(hasattr(round_lifecycle_service, "get"))
+            self.assertFalse(hasattr(round_lifecycle_service, "get_in_session"))
             self.assertTrue(any(item["id"] == result_id for item in round_results))
             self.assertIsNotNone(candidate_result)
             assert candidate_result is not None
