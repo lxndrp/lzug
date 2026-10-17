@@ -302,14 +302,28 @@ def _dotted_name(node: ast.expr) -> str | None:
 
 def _annotation_import_targets(tree: ast.Module) -> dict[str, str]:
     targets: dict[str, str] = {}
-    for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and node.module:
-            for alias in node.names:
-                targets[alias.asname or alias.name] = f"{node.module}.{alias.name}"
-        elif isinstance(node, ast.Import):
+
+    class ModuleScopeImports(ast.NodeVisitor):
+        def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+            return
+
+        def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+            return
+
+        def visit_ClassDef(self, node: ast.ClassDef) -> None:
+            return
+
+        def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+            if node.module:
+                for alias in node.names:
+                    targets[alias.asname or alias.name] = f"{node.module}.{alias.name}"
+
+        def visit_Import(self, node: ast.Import) -> None:
             for alias in node.names:
                 bound_name = alias.asname or alias.name.split(".", maxsplit=1)[0]
                 targets[bound_name] = alias.name if alias.asname else bound_name
+
+    ModuleScopeImports().visit(tree)
     return targets
 
 
@@ -346,6 +360,16 @@ def _forbidden_port_annotation_references(
         if resolved.endswith("Resource.model"):
             leaks.add(resolved)
     return leaks
+
+
+def _is_protocol_base(base: ast.expr, import_targets: dict[str, str]) -> bool:
+    expression = base.value if isinstance(base, ast.Subscript) else base
+    name = _dotted_name(expression)
+    if name is None:
+        return False
+    first, *tail = name.split(".")
+    resolved = ".".join((import_targets.get(first, first), *tail))
+    return resolved in {"typing.Protocol", "typing_extensions.Protocol"}
 
 
 class BackendPackageBoundaryTests(unittest.TestCase):
@@ -435,9 +459,10 @@ class BackendPackageBoundaryTests(unittest.TestCase):
                 continue
             for path in package.rglob("*.py"):
                 tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+                import_targets = _annotation_import_targets(tree)
                 for node in ast.walk(tree):
                     if not isinstance(node, ast.ClassDef) or not any(
-                        isinstance(base, ast.Name) and base.id == "Protocol" for base in node.bases
+                        _is_protocol_base(base, import_targets) for base in node.bases
                     ):
                         continue
                     for method in node.body:
@@ -458,24 +483,35 @@ class BackendPackageBoundaryTests(unittest.TestCase):
                             leaks.extend(
                                 f"{path.relative_to(BACKEND_ROOT)}:{reference}"
                                 for reference in _forbidden_port_annotation_references(
-                                    annotation, _annotation_import_targets(tree)
+                                    annotation, import_targets
                                 )
                             )
         self.assertEqual(leaks, [])
 
     def test_port_annotation_scanner_rejects_import_aliases_and_forward_references(self) -> None:
         tree = ast.parse(
-            "from typing import Protocol\n"
+            "from typing import Protocol as Contract, TypeVar\n"
             "from sqlalchemy.orm import Session as DbSession\n"
             "import sqlalchemy as sa\n"
             "from backend.api_contracts import Resource as PublicResource\n"
-            "class Port(Protocol):\n"
+            "T = TypeVar('T')\n"
+            "def unrelated():\n"
+            "    from builtins import str as DbSession\n"
+            "class Unrelated:\n"
+            "    from builtins import str as DbSession\n"
+            "class Port(Contract[T]):\n"
             "    def first(self, session: 'DbSession') -> None: ...\n"
             "    def second(self, query: 'sa.orm.Query') -> None: ...\n"
             "    def third(self, resource: 'PublicResource.model') -> None: ...\n"
         )
         imports = _annotation_import_targets(tree)
-        protocol = next(node for node in tree.body if isinstance(node, ast.ClassDef))
+        self.assertEqual("sqlalchemy.orm.Session", imports["DbSession"])
+        protocol = next(
+            node
+            for node in tree.body
+            if isinstance(node, ast.ClassDef)
+            and any(_is_protocol_base(base, imports) for base in node.bases)
+        )
         annotations = [
             node.annotation
             for method in protocol.body
