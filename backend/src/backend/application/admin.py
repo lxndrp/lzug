@@ -10,11 +10,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
+from backend.application.consequence_ports import NotificationApplicationPort
 from backend.application.plan_consequences import PlanConsequenceService
 from backend.application.venue_consequences import VenueConsequenceService
 from backend.identity.admin_service import AdminOperationError, OperatorAuthService
 from backend.identity.committee_admin import CommitteeAdminService
-from backend.notifications.service import NotificationService
 from backend.operations.backup_recipients import BackupRecipientRepository
 from backend.operations.backup_restore import ArtifactError, ArtifactService
 from backend.operations.lifecycle import LifecycleError, LifecycleService
@@ -167,6 +167,14 @@ class AdminPersistencePaths(Protocol):
     def directories(self) -> tuple[Path, ...]: ...
 
 
+class AdminNotificationPort(NotificationApplicationPort, Protocol):
+    """Expose the delivery and inspection actions used by Admin commands."""
+
+    def process_due_events(self) -> dict[str, Any]: ...
+
+    def synthetic_test(self, member_id: int, channel: str) -> dict[str, Any]: ...
+
+
 @dataclass(frozen=True)
 class AdminServices:
     """Explicit factories for every service used by the administrator core."""
@@ -174,15 +182,15 @@ class AdminServices:
     diagnostics: Callable[[str, Mapping[str, str] | None], tuple[dict[str, Any], int]]
     readiness_probe: Callable[[Path], Mapping[str, object]]
     operator_auth_factory: Callable[[Path], OperatorAuthService]
-    notification_factory: Callable[[Path], NotificationService]
+    notification_factory: Callable[[Path], AdminNotificationPort]
     committee_factory: Callable[[Path], CommitteeAdminService]
-    consequence_factory: Callable[[Path, NotificationService], PlanConsequenceService]
+    consequence_factory: Callable[[Path, NotificationApplicationPort], PlanConsequenceService]
     artifact_factory: Callable[[AdminPersistencePaths], ArtifactService]
     recipient_repository_factory: Callable[[ArtifactService], BackupRecipientRepository]
     lifecycle_factory: Callable[[AdminPersistencePaths], LifecycleService]
     persistence_error: Callable[[Exception], bool] = lambda _error: False
     venue_consequence_factory: (
-        Callable[[Path, NotificationService], VenueConsequenceService] | None
+        Callable[[Path, NotificationApplicationPort], VenueConsequenceService] | None
     ) = None
 
 
@@ -337,7 +345,7 @@ def _execute_committee(
 
 
 def _execute_notification_processing(
-    notifications: NotificationService,
+    notifications: AdminNotificationPort,
     consequences: PlanConsequenceService,
     venue_consequences: VenueConsequenceService | None = None,
 ) -> dict[str, Any]:
@@ -362,7 +370,7 @@ def _execute_plan_consequences(
 
 def _execute_notification_test(
     arguments: Mapping[str, Any],
-    notifications: NotificationService,
+    notifications: AdminNotificationPort,
 ) -> dict[str, Any]:
     channel = _require_string(arguments, "channel")
     if channel not in {"web_push", "email"}:

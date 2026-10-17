@@ -94,7 +94,6 @@ ALLOWED_PACKAGE_DEPENDENCIES = {
             "assessment",
             "execution",
             "identity",
-            "notifications",
             "operations",
             "planning",
         }
@@ -675,7 +674,7 @@ class BackendPackageBoundaryTests(unittest.TestCase):
             "Application dependency policy must not authorize concrete adapters",
         )
         self.assertEqual(
-            {"assessment", "execution", "identity", "notifications", "operations", "planning"},
+            {"assessment", "execution", "identity", "operations", "planning"},
             _package_dependencies("application"),
         )
 

@@ -834,7 +834,7 @@ Zyklen zwischen den elf Kernpaketen.
 
 | Paket | Verantwortung | Darf abhängen von |
 | --- | --- | --- |
-| `application/` | frameworkneutrale Use-Case-Orchestrierung, Ports und materialisierte Werte; keine HTTP-Status-, HATEOAS-, Admin-Wire- oder konkreten Adapterverträge | `assessment`, `execution`, `identity`, `notifications`, `operations`, `planning` |
+| `application/` | frameworkneutrale Use-Case-Orchestrierung, Ports und materialisierte Werte; keine HTTP-Status-, HATEOAS-, Admin-Wire- oder konkreten Adapterverträge | `assessment`, `execution`, `identity`, `operations`, `planning` |
 | `documents/` | Dokumentkommandos, Upload-Policy, Metadatenprojektionen und eigene Repository-/UoW-Verträge; keine eigene fachliche Ownership oder Autorisierung | keine anderen Kernpakete |
 | `planning/` | Planaggregate, mögliche Prüfungstage, Prüfungsorte und Folgen bestätigter Änderungen; Kandidatentage beginnen mit einem adapterfreien Port-Pilot | `integrations`, `notifications`, `persistence` (Legacy-Aufrufe) |
 | `execution/` | Ausfall und Ersatz, Protokolle, Tagesabschluss und Rundenlebenszyklus | `calendar`, `identity`, `integrations`, `notifications`, `persistence` (direkte SQLAlchemy-/Persistence-Aufrufe in `absence.py`, `exam_day_closures.py` und `exam_round_lifecycle.py` bleiben als Phase-3-Migration offen), `presentation` |
