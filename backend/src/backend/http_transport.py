@@ -41,7 +41,7 @@ from backend.execution.lifecycle_ports import (
 )
 from backend.execution.slot_service import ExecutionService
 from backend.http_application import ApplicationResult, ApplicationServices, ReadApplication
-from backend.http_contract import REST_RESOURCES
+from backend.http_resources import REST_RESOURCES
 from backend.http_planning_payloads import (
     confirmed_plan_change_from_payload as confirmed_plan_change_from_payload,
 )
