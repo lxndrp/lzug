@@ -148,6 +148,9 @@ Die Prüfung zählt Laufzeitimports; `TYPE_CHECKING`-Imports erzeugen keine
 Laufzeitabhängigkeit.
 Zusätzlich kontrolliert sie Port-Annotations auf SQLAlchemy-Sessions,
 Queries, Engines und Connections sowie auf `Resource.model`.
+Ausgewählte Adaptertests prüfen außerdem verschachtelte Laufzeitwerte aus
+ResourceAccess- und Planning-Ports nach dem Schließen ihres Adapterkontexts
+auf Sessions, Queries, SQL-Ausdrücke und gemappte ORM-Werte.
 Verbotene Richtungen müssen mit dem konkreten Modul sichtbar fehlschlagen;
 zulässige Portverträge und Composition-Root-Verdrahtung bleiben Teil des
 positiven Graphen.
@@ -711,6 +714,14 @@ bevor der zugehörige Kompatibilitätsadapter entfernt wird.
 | 4. Identity | `identity` | Konto-, Personen-, Mitgliedschafts- und Ausschusszugriffe aus generischem Resource-Zugriff lösen; `/api/committees`, `committee-*` und Bootstrap-/Einladungs-/Recovery-Kommandos über Identity-Commands abbilden; Auth-Atomarität, Membership-Scope und nicht offenlegende HTTP-Fehler belegen; Identity-Adapter nach letztem alten Aufrufer entfernen |
 | 5. Supporting und Operations | `calendar`, `notifications`, `documents`, `operations`; Planning/Execution liefern fachliche Folgeauftragsbeschreibungen, Application besitzt ihren dauerhaften Ausführungszustand | Calendar erhält Planungsdaten über seinen typisierten Planning-Snapshot-Port und aktive Membership-/Committee-Scopes über seinen Calendar-eigenen Identity-Port. Ein Identity-Adapter implementiert diesen Port; Sync-Projektion und Event-/ICS-Reads bleiben strikt auf die aktiven IDs begrenzt. Der Application-Port deckt Rundenrefresh, einzelne Zuweisungssynchronisierung, Zuweisungsstorno und Storno künftiger Rundentermine mit typisierten Ergebnissen ab. Feedstatus, Aktivierung, Rotation, Widerruf und ICS-Reads bleiben Calendar-Use-Cases; initiale Aktivierung reserviert eine nicht-geheime Pending-Generation unter kurzem Lock, synchronisiert außerhalb und speichert das aktive Credential nach erfolgreicher CAS-Revalidierung; `DELETE` fencet die Pending-Generation. Alle Sync-Auslöser laufen durch den je Feed serialisierten Coordinator; ein prozesslokaler Revocation-Fence bricht den aktiven UoW ab und verwirft wartende Sync-Aufträge. `DELETE` committet den dauerhaften Widerruf erst nach Abschluss oder Rollback des einzelnen aktiven UoW. Rotation widerruft das bisherige Credential vor dem Sync in einem eigenen UoW und persistiert einen nicht-geheimen Pending-Stand; nach Sync wird eine neue Token-Generation nur per CAS auf diesen Stand aktiviert. Der pro-Feed Lifecycle-Lock schützt nur kurze Credential-Prüfungen und Commits; Sync/Rendering liegen außerhalb und Generation-Revalidierung schützt konkurrierende Requests; Secret-Ausgabe erfolgt genau einmal nach Finalisierungscommit. Planning behält die Ableitung, Execution die fachlichen Zustandsänderungen; Application speichert Folgeaufträge, stabile Ursprungsidentitäten, Claim/Retry und Ergebnisse in seinem consumer-eigenen Vertrag. Notification-Beschreibung und ursprüngliche Empfänger-IDs committen mit Execution-Fachzustand/Audit atomar und sind Application-Recovery-Quelle. Geplante Reminder/Deadline-Verarbeitung läuft über Application mit Planning-Snapshot-Port und explizitem Admin-Processing-Befehl. Alle direkten `CalendarService`-Aufrufe und `CalendarEvent`-Reads/-Mutationen außerhalb Calendar werden nach Handoff entfernt. Notifications erhalten Ports für Kanalübersicht und synthetische Zustellung; Operations behält `config`-/`doctor`-Checks über secret-freie Ports zu Dokumenten-, Notifications- und Planning-Adaptern. Backup-Empfängerverwaltung samt Environment-Migration und atomarem Audit in Operations aufnehmen; die aktuelle fehlende Empfänger-/Ereignis-Revalidierung am Notification-Claim als offenes Risiko in #1079 entscheiden; Dokumentkompensation sowie Runtime-/Restore-Sperr- und Crash-Recovery-Verfahren nachweisen |
 | 6. Adapterbereinigung | `application` komponiert; jeweiliger Adaptereigentümer entfernt | `GET /api/round-summary`, `GET /api/notification-channels`, Admin `test-notification`, `config` und `doctor` auf die beschriebenen Query-/Command-/Diagnostic-Ports abbilden. HTTP und Admin auf dieselben Commands/Ergebnisse mappen; `RequestContext`-/Transport-Kompatibilitätsmethoden nach Wegfall des letzten Legacy-Aufrufers entfernen; Wire- und OpenAPI-Verträge unverändert prüfen |
+
+Slotstatus und Planbestätigung stoßen den Kalender-Rundenabgleich nach dem
+jeweiligen Fach-Commit über `application.execution_operations` beziehungsweise
+`application.planning_operations` und den Calendar-Port an.
+Ein fehlgeschlagener Post-Commit-Abgleich ändert weder den bestätigten Zustand
+noch die HTTP-Antwort.
+Die Assignment-Replacement- und Replay-Migration aus Phase 3 bleibt
+ausstehend.
 
 Execution besitzt Notification-Folgequellen für seine eigenen Zustandswechsel.
 Die Rundungsabsage ist davon ausgenommen: Planning speichert ihre einzige

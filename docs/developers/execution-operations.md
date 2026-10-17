@@ -29,7 +29,11 @@ Anwesenheit akzeptiert weiterhin `open`, `present`, `late` und `absent`.
 inhaltlich unveränderter Write erhöht die Tagesrevision nicht. Slotstatus,
 Begründung, tatsächliche Zeitangaben, erlaubte Übergänge und der Schutz
 bestätigter beziehungsweise wiedergeöffneter Tage behalten den vorhandenen
-Fachvertrag.
+Fachvertrag. Nach einem Slotstatus-Commit stößt Application für offene Tage
+den Calendar-Rundenabgleich über den Application-eigenen Calendar-Port an.
+Ein Fehler dieses Post-Commit-Schritts ändert weder die erfolgreiche
+HTTP-Antwort noch den bereits gespeicherten Slotstatus; er wird als
+`calendar_processing`-Fehler protokolliert.
 
 `ExamProtocolService` verwaltet Inhalt, Teilnehmende, Versionierung,
 Reaktionen, Korrekturen, Berechtigungen und Aufbewahrung über einen

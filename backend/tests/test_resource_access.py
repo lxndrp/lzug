@@ -43,6 +43,7 @@ from backend.persistence.resource_access import SQLiteResourceAccessQueryFactory
 from backend.persistence.store import Store
 from backend.tests.helpers import TempDatabase, create_committee_record
 from backend.tests.planning_support import planning_resource_service
+from backend.tests.support.port_contracts import assert_materialized_port_value
 from backend.tests.support.resource_fixture_store import ResourceFixtureStore
 
 
@@ -462,7 +463,8 @@ class ResourceAccessTests(unittest.TestCase):
         self.assertIsNotNone(half_year.committee_id)
         self.assertIsNone(half_year.round_id)
         self.assertTrue(all(isinstance(row, dict) for row in rows))
-        self.assertTrue(all(not hasattr(row, "_sa_instance_state") for row in rows))
+        for value in (owner, rows, round_row, half_year):
+            assert_materialized_port_value(self, value)
 
     def test_resource_creation_ignores_client_actor_and_binds_session_member(self) -> None:
         result = self.authorizer.authorize(

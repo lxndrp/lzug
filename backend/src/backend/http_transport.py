@@ -19,8 +19,10 @@ from backend.application.calendar_ports import CalendarApplicationPort
 from backend.application.consequence_ports import ApplicationConsequenceStoreFactory
 from backend.application.exam_lifecycle import ExamLifecycleApplication
 from backend.application.exam_lifecycle_ports import ExamLifecycleUnitOfWorkFactory
+from backend.application.execution_operations import ExecutionOperations
 from backend.application.plan_consequences import PlanConsequenceService
 from backend.application.planning_calendar_reads import PlanningCalendarReadService
+from backend.application.planning_operations import PlanningOperations
 from backend.application.resource_access import (
     ResourceAccessQueryFactory,
     ResourceKind,
@@ -289,6 +291,14 @@ class RequestContext:
     @property
     def execution_service(self) -> ExecutionService:
         return self.execution_service_factory(self.db_path)
+
+    @property
+    def execution_operations(self) -> ExecutionOperations:
+        return ExecutionOperations(self.calendar_service)
+
+    @property
+    def planning_operations(self) -> PlanningOperations:
+        return PlanningOperations(self.calendar_service)
 
     @property
     def exam_result_service(self) -> ExamResultService:

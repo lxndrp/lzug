@@ -666,8 +666,8 @@ class ApiTests(unittest.TestCase):
 
             with (
                 patch(
-                    "backend.calendar.service.CalendarService.sync_round",
-                    side_effect=RuntimeError("calendar unavailable"),
+                    "backend.application.execution_operations.ExecutionOperations.sync_slot_status_calendar",
+                    return_value=False,
                 ) as sync_round,
                 patch("backend.fastapi_execution.emit_event") as emit_event,
             ):

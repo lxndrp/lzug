@@ -28,6 +28,7 @@ from backend.planning.resources import (
     RoundCandidateInUseError,
 )
 from backend.tests.helpers import TempDatabase
+from backend.tests.support.port_contracts import assert_materialized_port_value
 
 
 class PlanningResourceAdapterTests(unittest.TestCase):
@@ -440,6 +441,7 @@ class PlanningResourceAdapterTests(unittest.TestCase):
         self.assertIsInstance(snapshot.half_year.values, Mapping)
         self.assertTrue(all(isinstance(row.values, Mapping) for row in snapshot.candidates))
         self.assertFalse(hasattr(snapshot.exam_round, "model"))
+        assert_materialized_port_value(self, snapshot)
 
 
 if __name__ == "__main__":

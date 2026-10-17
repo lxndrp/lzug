@@ -5,8 +5,12 @@ from __future__ import annotations
 import ast
 import tempfile
 import unittest
+from dataclasses import dataclass
 from pathlib import Path
 from typing import get_type_hints
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from backend.application.exam_lifecycle import ExamLifecycleApplication
 from backend.application.exam_lifecycle_contracts import (
@@ -17,6 +21,8 @@ from backend.application.exam_lifecycle_contracts import (
 )
 from backend.execution.protocol_ports import ProtocolReferencesSnapshot
 from backend.execution.slot_ports import DayMutationRequest
+from backend.persistence.models import Candidate
+from backend.tests.support.port_contracts import assert_materialized_port_value
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1] / "src" / "backend"
 TEST_ROOT = Path(__file__).resolve().parent
@@ -137,6 +143,8 @@ TEST_OWNERS = {
     "application": frozenset(
         {
             "test_exam_venue_api.py",
+            "test_execution_operations.py",
+            "test_planning_operations.py",
             "test_admin_application.py",
             "test_person_memberships.py",
             "test_repository.py",
@@ -282,6 +290,34 @@ def _unexpected_dependencies(package: str, modules: set[str]) -> set[str]:
 
 
 class BackendPackageBoundaryTests(unittest.TestCase):
+    def test_runtime_port_contract_rejects_nested_sqlalchemy_values(self) -> None:
+        @dataclass
+        class Result:
+            payload: object
+
+        for leaked in (Session, select(Candidate), Candidate):
+            with self.subTest(value=leaked):
+                with self.assertRaises(AssertionError):
+                    assert_materialized_port_value(self, Result({"nested": [leaked]}))
+
+    def test_runtime_port_contract_accepts_materialized_values(self) -> None:
+        assert_materialized_port_value(self, {"id": 1, "nested": ("ready", None)})
+
+    def test_http_command_routes_do_not_call_calendar_sync_directly(self) -> None:
+        for relative in ("fastapi_execution.py", "fastapi_planning_router.py"):
+            tree = ast.parse((BACKEND_ROOT / relative).read_text(encoding="utf-8"))
+            direct_calls = [
+                node
+                for node in ast.walk(tree)
+                if isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "sync_round"
+                and isinstance(node.func.value, ast.Attribute)
+                and node.func.value.attr == "calendar_service"
+            ]
+            with self.subTest(module=relative):
+                self.assertEqual([], direct_calls)
+
     def test_recursive_boundary_scanner_resolves_relative_and_absolute_imports(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
