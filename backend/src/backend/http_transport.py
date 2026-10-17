@@ -108,6 +108,7 @@ class RequestContext:
     authentication_repository_factory: Callable[[Path], AuthenticationRepository]
     local_auth_service_factory: Callable[..., LocalAuthService]
     calendar_service_factory: Callable[[Path], CalendarApplicationPort]
+    planning_calendar_read_service_factory: Callable[[Path], PlanningCalendarReadService]
     consequence_store_factory: ApplicationConsequenceStoreFactory
     notification_service_factory: Callable[[Path], NotificationService]
     auth_rate_limiter: RequestRateLimiter
@@ -325,22 +326,10 @@ class RequestContext:
 
     @property
     def read_application(self) -> ReadApplication:
-        from backend.persistence.planning_calendar_reads import (
-            SQLitePlanningCalendarReadUnitOfWorkFactory,
-        )
-
-        closure_service = self.exam_day_closure_service
         return ReadApplication(
             self.db_path,
             ApplicationServices(
-                planning_calendar_read_service_factory=lambda path: PlanningCalendarReadService(
-                    SQLitePlanningCalendarReadUnitOfWorkFactory(
-                        path,
-                        closure_view=lambda session, day_id, scope: closure_service.get_in_session(
-                            session, scope, day_id
-                        ),
-                    )
-                ),
+                planning_calendar_read_service_factory=self.planning_calendar_read_service_factory,
                 planning_resource_service_factory=lambda path: PlanningResourceService(
                     self.planning_resource_unit_of_work_factory(path)
                 ),

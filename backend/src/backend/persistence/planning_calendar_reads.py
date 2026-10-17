@@ -133,16 +133,20 @@ class _SQLitePlanningCalendarQueries:
                         ("id", "name", "status", "committee_id", "exam_half_year_id"),
                     )
                 ),
-                _SQLiteCalendarRecord(half_years[row["exam_half_year_id"]])
-                if row.get("exam_half_year_id") in half_years
-                else None,
-                _SQLiteCalendarRecord(
-                    self._select(
-                        settings[row["id"]], ("calendar_week_from", "calendar_week_to")
+                (
+                    _SQLiteCalendarRecord(half_years[row["exam_half_year_id"]])
+                    if row.get("exam_half_year_id") in half_years
+                    else None
+                ),
+                (
+                    _SQLiteCalendarRecord(
+                        self._select(
+                            settings[row["id"]], ("calendar_week_from", "calendar_week_to")
+                        )
                     )
-                )
-                if row["id"] in settings
-                else None,
+                    if row["id"] in settings
+                    else None
+                ),
             )
             for row in self._store.all(EXAM_ROUND)
             if row["committee_id"] in committee_ids
@@ -153,12 +157,12 @@ class _SQLitePlanningCalendarQueries:
         return {key: row[key] for key in keys}
 
     def confirmed_plans(self, committee_ids: frozenset[int]) -> tuple[PlanningConfirmedPlan, ...]:
-        plans = []
-        for exam_round in self._store.where(EXAM_ROUND, status="plan_confirmed"):
-            if exam_round["committee_id"] not in committee_ids:
-                continue
-            plans.append(self._plan(exam_round))
-        return tuple(plans)
+        exam_rounds = [
+            row
+            for row in self._store.where(EXAM_ROUND, status="plan_confirmed")
+            if row["committee_id"] in committee_ids
+        ]
+        return self._plans(exam_rounds)
 
     def confirmed_plan(
         self, day_id: int, committee_ids: frozenset[int]
@@ -173,21 +177,30 @@ class _SQLitePlanningCalendarQueries:
             or exam_round["committee_id"] not in committee_ids
         ):
             return None
-        return self._plan(exam_round, (day_id,))
+        return self._plans([exam_round], {day_id})[0]
 
-    def _plan(
-        self, exam_round: dict[str, Any], day_ids: tuple[int, ...] | None = None
-    ) -> PlanningConfirmedPlan:
-        half_year = self._store.get(EXAM_HALF_YEAR, exam_round["exam_half_year_id"])
-        days = self._store.where(EXAM_DAY, exam_round_id=exam_round["id"])
-        if day_ids is not None:
-            requested = set(day_ids)
-            days = [row for row in days if row["id"] in requested]
-        calendar_days = []
+    def _plans(
+        self,
+        exam_rounds: list[dict[str, Any]],
+        requested_day_ids: set[int] | None = None,
+    ) -> tuple[PlanningConfirmedPlan, ...]:
+        """Materialize a calendar request's shared context once for all rounds."""
+        half_years = {row["id"]: row for row in self._store.all(EXAM_HALF_YEAR)}
+        days_by_round: dict[int, list[dict[str, Any]]] = {}
+        for row in self._store.all(EXAM_DAY):
+            if requested_day_ids is not None and row["id"] not in requested_day_ids:
+                continue
+            days_by_round.setdefault(row["exam_round_id"], []).append(row)
+        slots_by_day: dict[int, list[dict[str, Any]]] = {}
+        for row in self._store.all(EXAM_SLOT):
+            slots_by_day.setdefault(row["exam_day_id"], []).append(row)
+        assignments_by_day: dict[int, list[dict[str, Any]]] = {}
+        for row in self._store.all(EXAM_DAY_ASSIGNMENT):
+            assignments_by_day.setdefault(row["exam_day_id"], []).append(row)
+        calendar_days: list[PlanningCalendarDay] = []
         candidates = {
             row["id"]: {
-                key: row[key]
-                for key in ("id", "first_name", "last_name", "ihk_exam_number")
+                key: row[key] for key in ("id", "first_name", "last_name", "ihk_exam_number")
             }
             for row in self._store.all(CANDIDATE)
         }
@@ -196,94 +209,109 @@ class _SQLitePlanningCalendarQueries:
         }
         rooms = {row["id"]: row for row in self._store.all(EXAM_ROOM)}
         venues = {row["id"]: row for row in self._store.all(EXAM_VENUE)}
-        for day in sorted(days, key=lambda row: (row["date"], row["id"])):
-            if day["status"] not in {"confirmed", "completed", "cancelled"}:
-                continue
-            room = rooms.get(day["room_id"])
-            venue = venues.get(room["venue_id"]) if room else None
-            slots = []
-            for slot in sorted(
-                self._store.where(EXAM_SLOT, exam_day_id=day["id"]),
-                key=lambda row: (row["starts_at"], row["sequence_number"], row["id"]),
-            ):
-                if slot["status"] not in {"confirmed", "completed", "cancelled"}:
+        plans = []
+        for exam_round in exam_rounds:
+            calendar_days = []
+            half_year = half_years.get(exam_round["exam_half_year_id"])
+            days = sorted(
+                days_by_round.get(exam_round["id"], []),
+                key=lambda row: (row["date"], row["id"]),
+            )
+            for day in days:
+                if day["status"] not in {"confirmed", "completed", "cancelled"}:
                     continue
-                candidate_id = round_candidates.get(slot["round_candidate_id"])
-                candidate = candidates.get(candidate_id) if candidate_id is not None else None
-                slots.append(
-                    _SQLiteCalendarSlot(
+                room = rooms.get(day["room_id"])
+                venue = venues.get(room["venue_id"]) if room else None
+                slots = []
+                for slot in sorted(
+                    slots_by_day.get(day["id"], []),
+                    key=lambda row: (row["starts_at"], row["sequence_number"], row["id"]),
+                ):
+                    if slot["status"] not in {"confirmed", "completed", "cancelled"}:
+                        continue
+                    candidate_id = round_candidates.get(slot["round_candidate_id"])
+                    candidate = candidates.get(candidate_id) if candidate_id is not None else None
+                    slots.append(
+                        _SQLiteCalendarSlot(
+                            _SQLiteCalendarRecord(
+                                {
+                                    key: slot[key]
+                                    for key in (
+                                        "id",
+                                        "starts_at",
+                                        "ends_at",
+                                        "sequence_number",
+                                        "slot_type",
+                                        "status",
+                                    )
+                                }
+                            ),
+                            _SQLiteCalendarRecord(candidate) if candidate else None,
+                        )
+                    )
+                assignments = tuple(
+                    _SQLiteCalendarAssignment(
                         _SQLiteCalendarRecord(
                             {
-                                key: slot[key]
+                                key: row[key]
                                 for key in (
                                     "id",
-                                    "starts_at",
-                                    "ends_at",
-                                    "sequence_number",
-                                    "slot_type",
+                                    "assignment_role",
+                                    "day_part",
+                                    "fallback_status",
+                                )
+                            }
+                        ),
+                        row["committee_member_id"],
+                    )
+                    for row in assignments_by_day.get(day["id"], [])
+                )
+                calendar_days.append(
+                    _SQLiteCalendarDay(
+                        _SQLiteCalendarRecord(
+                            {
+                                key: day[key]
+                                for key in (
+                                    "id",
+                                    "date",
+                                    "revision",
+                                    "closure_status",
+                                    "room_id",
                                     "status",
                                 )
                             }
                         ),
-                        _SQLiteCalendarRecord(candidate) if candidate else None,
+                        (
+                            _SQLiteCalendarRecord(
+                                {key: room[key] for key in ("id", "name", "venue_id")}
+                            )
+                            if room
+                            else None
+                        ),
+                        (
+                            _SQLiteCalendarRecord(
+                                {key: venue[key] for key in ("id", "name", "city")}
+                            )
+                            if venue
+                            else None
+                        ),
+                        tuple(slots),
+                        assignments,
                     )
                 )
-            assignments = tuple(
-                _SQLiteCalendarAssignment(
+            plans.append(
+                _SQLiteConfirmedPlan(
                     _SQLiteCalendarRecord(
                         {
-                            key: row[key]
-                            for key in (
-                                "id",
-                                "assignment_role",
-                                "day_part",
-                                "fallback_status",
-                            )
+                            key: exam_round[key]
+                            for key in ("id", "name", "committee_id", "exam_half_year_id")
                         }
                     ),
-                    row["committee_member_id"],
-                )
-                for row in self._store.where(EXAM_DAY_ASSIGNMENT, exam_day_id=day["id"])
-            )
-            calendar_days.append(
-                _SQLiteCalendarDay(
-                    _SQLiteCalendarRecord(
-                        {
-                            key: day[key]
-                            for key in (
-                                "id",
-                                "date",
-                                "revision",
-                                "closure_status",
-                                "room_id",
-                                "status",
-                            )
-                        }
-                    ),
-                    _SQLiteCalendarRecord(
-                        {key: room[key] for key in ("id", "name", "venue_id")}
-                    )
-                    if room
-                    else None,
-                    _SQLiteCalendarRecord(
-                        {key: venue[key] for key in ("id", "name", "city")}
-                    )
-                    if venue
-                    else None,
-                    tuple(slots),
-                    assignments,
+                    _SQLiteCalendarRecord(half_year) if half_year else None,
+                    tuple(calendar_days),
                 )
             )
-        return _SQLiteConfirmedPlan(
-            _SQLiteCalendarRecord(
-                {
-                    key: exam_round[key]
-                    for key in ("id", "name", "committee_id", "exam_half_year_id")
-                }
-            ),
-            _SQLiteCalendarRecord(half_year) if half_year else None,
-            tuple(calendar_days),
-        )
+        return tuple(plans)
 
 
 class _SQLiteIdentityCalendarQueries:

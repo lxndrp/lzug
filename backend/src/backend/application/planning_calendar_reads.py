@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from contextlib import AbstractContextManager
-from typing import Any, Protocol
+from typing import Any, Protocol, TypedDict
 
 from backend.identity.authorization import AuthorizationScope
 from backend.identity.calendar_reads import IdentityCalendarMember
@@ -13,6 +13,31 @@ from backend.planning.calendar_reads import (
     PlanningCalendarRecord,
     PlanningConfirmedPlan,
 )
+
+
+class SchedulingOverviewItem(TypedDict):
+    id: int
+    name: str
+    status: str
+    status_group: str
+    committee_name: str
+    exam_half_year: dict[str, Any] | None
+    calendar_week_from: int | None
+    calendar_week_to: int | None
+    can_continue: bool
+
+
+class ConfirmedPlanItem(TypedDict):
+    id: int
+    name: str
+    committee: dict[str, Any]
+    exam_half_year: dict[str, Any] | None
+    days: list[dict[str, Any]]
+
+
+class ConfirmedPlanDayItem(TypedDict):
+    plan: dict[str, Any]
+    day: dict[str, Any]
 
 
 class PlanningCalendarQueries(Protocol):
@@ -65,7 +90,7 @@ class PlanningCalendarReadService:
     def __init__(self, unit_of_work_factory: PlanningCalendarReadUnitOfWorkFactory):
         self._unit_of_work_factory = unit_of_work_factory
 
-    def scheduling_overview(self, scope: AuthorizationScope) -> list[dict[str, Any]]:
+    def scheduling_overview(self, scope: AuthorizationScope) -> list[SchedulingOverviewItem]:
         groups = {
             "draft": "draft",
             "availability_requested": "coordination",
@@ -78,7 +103,7 @@ class PlanningCalendarReadService:
             rounds = unit_of_work.planning.scheduling_rounds(scope.committee_ids)
             committee_ids = frozenset(int(row[0].values["committee_id"]) for row in rounds)
             committees = unit_of_work.identity.committees(committee_ids)
-            overview = []
+            overview: list[SchedulingOverviewItem] = []
             for exam_round, half_year, settings in rounds:
                 round_values = exam_round.values
                 status_group = groups.get(round_values["status"])
@@ -101,7 +126,7 @@ class PlanningCalendarReadService:
                 )
             return sorted(overview, key=lambda row: (row["status_group"], row["name"], row["id"]))
 
-    def confirmed_plans(self, scope: AuthorizationScope) -> list[dict[str, Any]]:
+    def confirmed_plans(self, scope: AuthorizationScope) -> list[ConfirmedPlanItem]:
         with self._unit_of_work_factory() as unit_of_work:
             plans = unit_of_work.planning.confirmed_plans(scope.committee_ids)
             committee_ids = frozenset(int(plan.exam_round.values["committee_id"]) for plan in plans)
@@ -116,7 +141,7 @@ class PlanningCalendarReadService:
             execution = unit_of_work.execution.day_execution(
                 frozenset(day.day.values["id"] for plan in plans for day in plan.days)
             )
-            result = [
+            result: list[ConfirmedPlanItem] = [
                 self._plan_view(plan, committees, members, execution)
                 for plan in plans
                 if int(plan.exam_round.values["committee_id"]) in committees
@@ -126,7 +151,9 @@ class PlanningCalendarReadService:
                 key=lambda plan: (plan["committee"]["name"], plan["name"], plan["id"]),
             )
 
-    def confirmed_plan_day(self, day_id: int, scope: AuthorizationScope) -> dict[str, Any] | None:
+    def confirmed_plan_day(
+        self, day_id: int, scope: AuthorizationScope
+    ) -> ConfirmedPlanDayItem | None:
         with self._unit_of_work_factory() as unit_of_work:
             plan = unit_of_work.planning.confirmed_plan(day_id, scope.committee_ids)
             if plan is None:
@@ -161,7 +188,7 @@ class PlanningCalendarReadService:
         committees: Mapping[int, Mapping[str, Any]],
         members: Mapping[int, IdentityCalendarMember],
         execution: Mapping[int, Mapping[str, Any]],
-    ) -> dict[str, Any]:
+    ) -> ConfirmedPlanItem:
         round_values = plan.exam_round.as_dict()
         committee = committees[int(round_values["committee_id"])]
         return {
@@ -170,7 +197,7 @@ class PlanningCalendarReadService:
             "committee": {"id": committee["id"], "name": committee["name"]},
             "exam_half_year": plan.half_year.as_dict() if plan.half_year else None,
             "days": [cls._day_view(day, members, execution) for day in plan.days],
-        }
+        }  # type: ignore[return-value]
 
     @staticmethod
     def _day_view(

@@ -313,7 +313,15 @@ def scheduling_overview(items: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "items": [
             {
-                **item,
+                "id": item["id"],
+                "name": item["name"],
+                "status": item["status"],
+                "status_group": item["status_group"],
+                "committee_name": item["committee_name"],
+                "exam_half_year": item["exam_half_year"],
+                "calendar_week_from": item["calendar_week_from"],
+                "calendar_week_to": item["calendar_week_to"],
+                "can_continue": item["can_continue"],
                 "_links": {
                     "self": {"href": f"/api/exam-rounds/{item['id']}"},
                     "planning": {"href": f"/api/exam-rounds/{item['id']}"},
@@ -331,7 +339,16 @@ def scheduling_overview(items: list[dict[str, Any]]) -> dict[str, Any]:
 
 def confirmed_plans(items: list[dict[str, Any]]) -> dict[str, Any]:
     return {
-        "items": items,
+        "items": [
+            {
+                "id": item["id"],
+                "name": item["name"],
+                "committee": item["committee"],
+                "exam_half_year": item["exam_half_year"],
+                "days": item["days"],
+            }
+            for item in items
+        ],
         "_links": {
             "self": {"href": "/api/confirmed-plans"},
             "api": {"href": "/api"},
