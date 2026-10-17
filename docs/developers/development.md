@@ -86,7 +86,7 @@ wird dort an eine feste Revision und vollständige Artefakte gebunden.
 
 | Änderung | Lokaler Einstieg |
 | --- | --- |
-| Backend | Betroffener Test unter `backend/tests/`, danach `task quality:backend:pr` bei breiterer Änderung |
+| Backend | Betroffener Test unter `backend/tests/`; fokussiert `task backend:test:unit`, danach `task quality:backend:pr` bei breiterer Änderung |
 | Frontend oder API-Transport | Betroffener Vitest-Test, `task quality:frontend` und bei Vertragsänderung `task frontend:transport` |
 | Betreiber-CLI | `task test:operator`, bei Packaging-Änderung `task quality:operator-packaging-and-reproducibility` |
 | Demo oder synthetische Fixtures | Betroffene Tests unter `packaging/demo/tests/` oder `backend/tests/`, danach `task quality:demo` bei Runtime-Änderung |
@@ -94,6 +94,14 @@ wird dort an eine feste Revision und vollständige Artefakte gebunden.
 | Dokumentation und Site | `task docs`; für öffentliche Seiten zusätzlich die passenden `docs:publication:*`-Tasks |
 | Infrastruktur | `task quality:infra` |
 | Sichtbarer Browserablauf | `task quality:e2e` und getrennt `task quality:a11y`; vorher `task doctor` und `task doctor:playwright` |
+
+Backendtests sind nach ihrer höchsten geprüften Grenze gruppiert:
+`task backend:test:unit` benötigt keine echte Datenbank, keinen HTTP-Client und
+keinen Kindprozess; Komponenten-, in-process HTTP- und Prozess-/Sockettests
+haben eigene Einstiege.
+`task backend:test` führt alle Ebenen parallel aus, während Coverage weiterhin
+die vollständige Suite gemeinsam ausführt. Gemischte Module gehören zur
+höchsten von ihnen geprüften Ebene, bis sie sinnvoll getrennt werden.
 
 Die vollständige Taskliste mit Beschreibungen steht im Taskfile und unter
 `task --list`.

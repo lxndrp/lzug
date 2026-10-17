@@ -148,9 +148,11 @@ TEST_OWNERS = {
             "fixture_data.py",
             "helpers.py",
             "runner.py",
+            "suites.py",
             "test_synthetic_fixtures.py",
             "test_operator_cli_layout.py",
             "test_package_boundaries.py",
+            "test_tiers.py",
             "test_exam_export_renderers.py",
         }
     ),

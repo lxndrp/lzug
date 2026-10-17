@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import argparse
 import sys
 import time
 import unittest
 from collections.abc import Iterable
 from typing import override
+
+from backend.tests.suites import TEST_MODULES_BY_TIER, TEST_TIERS
 
 SLOW_TEST_SECONDS = 1.0
 
@@ -42,10 +45,22 @@ class TimedTextTestRunner(unittest.TextTestRunner):
 
 
 def main(argv: Iterable[str] | None = None) -> int:
-    """Run the requested unittest discovery arguments with output buffering."""
-    args = list(argv if argv is not None else sys.argv[1:])
+    """Run all tests, one declared tier, or explicitly named unittest targets."""
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--suite", choices=(*sorted(TEST_TIERS), "all"))
+    parser.add_argument("tests", nargs="*")
+    args = parser.parse_args(list(argv if argv is not None else sys.argv[1:]))
+    if args.suite and args.tests:
+        parser.error("--suite cannot be combined with explicit test targets")
+
     loader = unittest.TestLoader()
-    suite = loader.loadTestsFromNames(args) if args else loader.discover("backend/tests")
+    if args.suite and args.suite != "all":
+        targets = [f"backend.tests.{module}" for module in sorted(TEST_MODULES_BY_TIER[args.suite])]
+        suite = loader.loadTestsFromNames(targets)
+    elif args.tests:
+        suite = loader.loadTestsFromNames(args.tests)
+    else:
+        suite = loader.discover("backend/tests")
     result = TimedTextTestRunner(verbosity=1, buffer=True).run(suite)
     return 0 if result.wasSuccessful() else 1
 

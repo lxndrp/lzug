@@ -5,9 +5,32 @@ vars:
 
 tasks:
   test:
-    desc: Run backend unit tests
+    desc: Run every backend test tier in parallel
+    deps:
+      - test:unit
+      - test:component
+      - test:http
+      - test:process
+
+  test:unit:
+    desc: Run isolated backend unit and policy tests
     cmds:
-      - "{{.UV}} python -m backend.tests.runner"
+      - "{{.UV}} python -m backend.tests.runner --suite unit"
+
+  test:component:
+    desc: Run backend component tests with real SQLite or assembled adapters
+    cmds:
+      - "{{.UV}} python -m backend.tests.runner --suite component"
+
+  test:http:
+    desc: Run in-process FastAPI and HTTP contract integration tests
+    cmds:
+      - "{{.UV}} python -m backend.tests.runner --suite http"
+
+  test:process:
+    desc: Run backend subprocess and local socket integration tests
+    cmds:
+      - "{{.UV}} python -m backend.tests.runner --suite process"
 
   quality:
     desc: Run backend lint, audit, tests, and coverage
