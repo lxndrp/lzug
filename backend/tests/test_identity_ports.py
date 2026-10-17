@@ -5,7 +5,6 @@ from __future__ import annotations
 import unittest
 from typing import NamedTuple
 
-from backend.application.repositories import ResourceRepository
 from backend.composition import identity_service
 from backend.errors import TransactionConflictError
 from backend.identity.auth import AuthContext
@@ -18,6 +17,7 @@ from backend.identity.people import (
 from backend.persistence.identity import SQLiteIdentityQueryFactory
 from backend.persistence.models import PERSON
 from backend.tests.helpers import TempDatabase
+from backend.tests.support.resource_fixture_store import ResourceFixtureStore
 
 
 class IdentityPortTests(unittest.TestCase):
@@ -56,7 +56,7 @@ class IdentityPortTests(unittest.TestCase):
 
     def test_sqlite_membership_write_rolls_back_person_when_membership_fails(self) -> None:
         with TempDatabase(with_seed=False) as db_path:
-            repository = ResourceRepository(db_path)
+            repository = ResourceFixtureStore(db_path)
             with self.assertRaises(TransactionConflictError):
                 identity_service(db_path).create_membership(
                     {

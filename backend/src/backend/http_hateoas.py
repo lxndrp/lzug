@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from backend.application.repositories import REST_RESOURCES
+from backend.http_contract import REST_RESOURCES
 from backend.persistence.models import Resource
 from backend.version import application_version, build_revision
 

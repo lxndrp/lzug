@@ -397,6 +397,38 @@ class SQLitePlanningResourceUnitOfWork:
         row = self._store.get(CANDIDATE, candidate_id)
         return _record(row) if row is not None else None
 
+    def list_candidate_days(
+        self,
+        filters: Mapping[str, PlanningValue],
+        visible_ids: frozenset[int] | None = None,
+    ) -> tuple[PlanningRecord, ...]:
+        return tuple(
+            map(
+                _record,
+                self._store.where(
+                    CANDIDATE_EXAM_DAY,
+                    *self._visible_id_condition(CANDIDATE_EXAM_DAY, visible_ids),
+                    **dict(filters),
+                ),
+            )
+        )
+
+    def get_candidate_day(self, candidate_day_id: int) -> PlanningRecord | None:
+        row = self._store.get(CANDIDATE_EXAM_DAY, candidate_day_id)
+        return _record(row) if row is not None else None
+
+    def create_candidate_day(self, values: Mapping[str, PlanningValue]) -> PlanningRecord:
+        return _record(self._store.create(CANDIDATE_EXAM_DAY, dict(values)))
+
+    def update_candidate_day(
+        self, candidate_day_id: int, values: Mapping[str, PlanningValue]
+    ) -> PlanningRecord | None:
+        row = self._store.update(CANDIDATE_EXAM_DAY, candidate_day_id, dict(values))
+        return _record(row) if row is not None else None
+
+    def delete_candidate_day(self, candidate_day_id: int) -> bool:
+        return self._store.delete(CANDIDATE_EXAM_DAY, candidate_day_id)
+
     def create_candidate(self, values: Mapping[str, PlanningValue]) -> PlanningRecord:
         return _record(self._store.create(CANDIDATE, dict(values)))
 

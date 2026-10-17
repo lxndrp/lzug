@@ -300,6 +300,22 @@ class PlanningResourceUnitOfWork(Protocol):
 
     def get_candidate(self, candidate_id: int) -> PlanningRecord | None: ...
 
+    def list_candidate_days(
+        self,
+        filters: Mapping[str, PlanningValue],
+        visible_ids: frozenset[int] | None = None,
+    ) -> tuple[PlanningRecord, ...]: ...
+
+    def get_candidate_day(self, candidate_day_id: int) -> PlanningRecord | None: ...
+
+    def create_candidate_day(self, values: Mapping[str, PlanningValue]) -> PlanningRecord: ...
+
+    def update_candidate_day(
+        self, candidate_day_id: int, values: Mapping[str, PlanningValue]
+    ) -> PlanningRecord | None: ...
+
+    def delete_candidate_day(self, candidate_day_id: int) -> bool: ...
+
     def create_candidate(self, values: Mapping[str, PlanningValue]) -> PlanningRecord: ...
 
     def update_candidate(
@@ -1021,6 +1037,7 @@ class PlanningResourceService:
                 visibility_pages = collection_visibility
             if resource != "exam_half_year":
                 list_method_name = {
+                    "candidate_exam_day": "list_candidate_days",
                     "exam_round": "list_rounds",
                     "round_candidate": "list_round_candidates",
                     "candidate": "list_candidates",
@@ -1048,6 +1065,7 @@ class PlanningResourceService:
     def get_visible_record(self, resource: str, resource_id: int) -> PlanningRecord | None:
         with self._unit_of_work_factory() as unit_of_work:
             get_method_name = {
+                "candidate_exam_day": "get_candidate_day",
                 "exam_half_year": "get_half_year",
                 "exam_round": "get_round",
                 "candidate": "get_candidate",
@@ -1091,3 +1109,20 @@ class PlanningResourceService:
             if resource == "candidate":
                 record = self.present_candidates((record,))[0]
             return record
+
+    def create_candidate_day(self, values: Mapping[str, PlanningValue]) -> PlanningRecord:
+        with self._write_unit_of_work() as unit_of_work:
+            payload = self._authorized(unit_of_work, "candidate_exam_day", None, values)
+            return unit_of_work.create_candidate_day(payload)
+
+    def update_candidate_day(
+        self, candidate_day_id: int, values: Mapping[str, PlanningValue]
+    ) -> PlanningRecord | None:
+        with self._write_unit_of_work() as unit_of_work:
+            payload = self._authorized(unit_of_work, "candidate_exam_day", candidate_day_id, values)
+            return unit_of_work.update_candidate_day(candidate_day_id, payload)
+
+    def delete_candidate_day(self, candidate_day_id: int) -> bool:
+        with self._write_unit_of_work() as unit_of_work:
+            self._authorized(unit_of_work, "candidate_exam_day", candidate_day_id, {})
+            return unit_of_work.delete_candidate_day(candidate_day_id)

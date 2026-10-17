@@ -34,9 +34,13 @@ Diese Referenz entsteht beim Dokumentationsbuild aus Google-Style-Docstrings. Si
 
 ::: backend.application.venue_consequences
 
-## Repository und Persistenz
+## Calendar-Read-Use-Case
 
-::: backend.application.repositories
+::: backend.application.planning_calendar_reads
+
+::: backend.persistence.planning_calendar_reads
+
+## Persistenz
 
 ::: backend.persistence.store
 
@@ -55,6 +59,8 @@ Diese Referenz entsteht beim Dokumentationsbuild aus Google-Style-Docstrings. Si
 ::: backend.fastapi_app
 
 ::: backend.fastapi_http
+
+::: backend.http_contract
 
 ::: backend.fastapi_operations_routes
 

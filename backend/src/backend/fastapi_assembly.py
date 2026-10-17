@@ -12,7 +12,6 @@ from pathlib import Path
 
 from fastapi import FastAPI
 
-from .http_application import ApplicationServices, ReadApplication
 from .application.admin import AdminApplication, AdminServices
 from .application.calendar_ports import CalendarApplicationPort
 from .application.consequence_ports import ApplicationConsequenceStoreFactory
@@ -70,6 +69,7 @@ from .fastapi_dependencies import (
 )
 from .fastapi_http import APPLICATION_ERROR_RESPONSES
 from .fastapi_runtime import RuntimeAdmissionMiddleware
+from .http_application import ApplicationServices, ReadApplication
 from .identity.admin_service import OperatorAuthService
 from .identity.authorization import AuthorizationService
 from .identity.committee_admin import CommitteeAdminService

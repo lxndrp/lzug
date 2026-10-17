@@ -617,9 +617,12 @@ class BackendPackageBoundaryTests(unittest.TestCase):
             for module in visited
             if module.startswith("backend.persistence")
             or module.startswith("backend.fastapi")
-            or module.startswith("backend.application.repositories")
+            or module.startswith("backend.tests.support")
         )
         self.assertEqual(forbidden, [])
+
+    def test_generic_resource_repository_module_is_removed(self) -> None:
+        self.assertFalse((BACKEND_ROOT / "application" / "repositories.py").exists())
 
     def test_every_backend_test_has_exactly_one_owner(self) -> None:
         assigned = [name for names in TEST_OWNERS.values() for name in names]

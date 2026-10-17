@@ -7,7 +7,6 @@ from tempfile import TemporaryDirectory
 from fastapi.routing import APIRoute
 
 from backend.application import AuthenticationRequiredError
-from backend.http_application import ApplicationServices, ReadApplication
 from backend.fastapi_assembly import FastAPIConfig, create_app
 from backend.fastapi_operations_routes import (
     create_auth_router,
@@ -16,6 +15,7 @@ from backend.fastapi_operations_routes import (
     create_operations_router,
     create_runtime_router,
 )
+from backend.http_application import ApplicationServices, ReadApplication
 from backend.tests.helpers import openapi_document
 
 

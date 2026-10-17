@@ -47,8 +47,8 @@ from .fastapi_http import (
 from .observability import emit_event
 
 if TYPE_CHECKING:
-    from .http_application import ReadApplication
     from .fastapi_app import FastAPIConfig
+    from .http_application import ReadApplication
 
 
 def create_runtime_router(application: ReadApplication) -> APIRouter:

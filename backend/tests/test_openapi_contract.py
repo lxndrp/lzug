@@ -13,11 +13,10 @@ from fastapi.testclient import TestClient
 from sqlalchemy import text
 
 from backend.api_contracts import ExamResultResponse
-from backend.http_application import ApplicationResult
-from backend.http_contract import ContractValidationError, validate_response
-from backend.application.repositories import REST_RESOURCES
 from backend.fastapi_assembly import FastAPIConfig, create_app
 from backend.fastapi_http import finish
+from backend.http_application import ApplicationResult
+from backend.http_contract import REST_RESOURCES, ContractValidationError, validate_response
 from backend.persistence.database import connect
 from backend.tests.helpers import ApiServer, TempDatabase, openapi_document
 

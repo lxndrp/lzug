@@ -12,7 +12,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 
 from backend import http_hateoas as hateoas
 from backend.application import AuthenticationRequiredError, ForbiddenRequestError
-from backend.application.repositories import ResourceRepository
+from backend.application.planning_calendar_reads import PlanningCalendarReadService
 from backend.identity.auth import AuthenticationRepository
 from backend.identity.authorization import AuthorizationScope, AuthorizationService
 from backend.identity.local_auth import LocalAuthService
@@ -34,7 +34,9 @@ class ApplicationServices:
     """Injectable factories for the HTTP application adapter."""
 
     readiness_probe: Callable[[Path], dict[str, object]] = database_readiness
-    repository_factory: Callable[[Path], ResourceRepository] = ResourceRepository
+    planning_calendar_read_service_factory: Callable[[Path], PlanningCalendarReadService] | None = (
+        None
+    )
     authentication_factory: Callable[[Path], AuthenticationRepository] | None = None
     local_authentication_factory: Callable[..., LocalAuthService] | None = None
     authorization_factory: Callable[[Path], AuthorizationService] | None = None
@@ -101,6 +103,26 @@ class ReadApplication:
         if summary is None:
             raise ForbiddenRequestError("Forbidden.")
         return ApplicationResult(hateoas.round_summary(summary.as_payload(), round_id))
+
+    def scheduling_overview(self, scope: AuthorizationScope) -> list[dict[str, Any]]:
+        """Return the established scheduling overview through the read boundary."""
+        return self._planning_calendar_reads().scheduling_overview(scope)
+
+    def confirmed_plans(self, scope: AuthorizationScope) -> list[dict[str, Any]]:
+        """Return published plans through the read boundary."""
+        return self._planning_calendar_reads().confirmed_plans(scope)
+
+    def confirmed_plan_day(self, day_id: int, scope: AuthorizationScope) -> dict[str, Any] | None:
+        """Return one published day through the read boundary."""
+        return self._planning_calendar_reads().confirmed_plan_day(day_id, scope)
+
+    def _planning_calendar_reads(self) -> PlanningCalendarReadService:
+        factory = self.services.planning_calendar_read_service_factory
+        if factory is None:
+            raise RuntimeError(
+                "Planning calendar read service factory must be injected by composition"
+            )
+        return factory(self.db_path)
 
 
 def database_error_result(error: SQLAlchemyError) -> ApplicationResult:
