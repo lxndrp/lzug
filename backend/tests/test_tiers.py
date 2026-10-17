@@ -25,6 +25,7 @@ class BackendTestTierTests(unittest.TestCase):
 
     def test_unit_tier_does_not_include_modules_using_runtime_adapters(self) -> None:
         forbidden_modules = {
+            "backend.tests.helpers",
             "fastapi.testclient",
             "sqlite3",
             "sqlalchemy",
@@ -43,6 +44,10 @@ class BackendTestTierTests(unittest.TestCase):
                     imports.update(alias.name for alias in node.names)
                 elif isinstance(node, ast.ImportFrom):
                     imports.add(node.module or "")
+                    if node.module == "backend.tests" and any(
+                        alias.name == "helpers" for alias in node.names
+                    ):
+                        imports.add("backend.tests.helpers")
                     if node.module == "backend.tests.helpers":
                         helpers.update(alias.name for alias in node.names)
 
