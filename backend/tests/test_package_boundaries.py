@@ -304,9 +304,16 @@ def _annotation_import_targets(tree: ast.Module) -> dict[str, str]:
     targets: dict[str, str] = {}
 
     class ModuleScopeImports(ast.NodeVisitor):
-        @staticmethod
-        def _is_type_checking(node: ast.expr) -> bool:
-            return _dotted_name(node) in {"TYPE_CHECKING", "typing.TYPE_CHECKING"}
+        def _is_type_checking(self, node: ast.expr) -> bool:
+            name = _dotted_name(node)
+            if name is None:
+                return False
+            first, *tail = name.split(".")
+            resolved = ".".join((targets.get(first, first), *tail))
+            return resolved in {
+                "typing.TYPE_CHECKING",
+                "typing_extensions.TYPE_CHECKING",
+            }
 
         def visit_If(self, node: ast.If) -> None:
             if self._is_type_checking(node.test):
@@ -510,7 +517,8 @@ class BackendPackageBoundaryTests(unittest.TestCase):
     def test_port_annotation_scanner_rejects_import_aliases_and_forward_references(self) -> None:
         tree = ast.parse(
             "from typing import Protocol as Contract, TypeVar\n"
-            "from typing import TYPE_CHECKING\n"
+            "from typing import TYPE_CHECKING as TC\n"
+            "import typing as typing_alias\n"
             "from sqlalchemy.orm import Session as DbSession\n"
             "import sqlalchemy as sa\n"
             "from backend.api_contracts import Resource as PublicResource\n"
@@ -519,7 +527,9 @@ class BackendPackageBoundaryTests(unittest.TestCase):
             "    from builtins import str as DbSession\n"
             "class Unrelated:\n"
             "    from builtins import str as DbSession\n"
-            "if TYPE_CHECKING:\n"
+            "if TC:\n"
+            "    from builtins import str as DbSession\n"
+            "if typing_alias.TYPE_CHECKING:\n"
             "    from builtins import str as DbSession\n"
             "class Port(Contract[T]):\n"
             "    def first(self, session: 'DbSession') -> None: ...\n"
