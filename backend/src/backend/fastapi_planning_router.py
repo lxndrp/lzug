@@ -9,9 +9,9 @@ from http import HTTPStatus
 from fastapi import APIRouter, FastAPI, Request
 from fastapi.responses import Response
 
-from backend.application import hateoas
-from backend.application.repositories import REST_RESOURCES
-from backend.application.transport import (
+from backend import http_hateoas as hateoas
+from backend.http_resources import REST_RESOURCES
+from backend.http_transport import (
     RequestContext,
     confirmed_plan_change_from_payload,
     planning_proposal_from_payload,
@@ -34,7 +34,7 @@ from .api_contracts import (
     PlanningRoundRequest,
     PlanningSettingsRequest,
 )
-from .application import ApplicationResult, ForbiddenRequestError
+from .application import ForbiddenRequestError
 from .fastapi_dependencies import (
     BoundedBodyRoute,
     EmptyWriteContext,
@@ -48,6 +48,7 @@ from .fastapi_dependencies import (
     resource_identifier,
 )
 from .fastapi_http import payload_data
+from .http_application import ApplicationResult
 from .observability import emit_event
 
 MIGRATED_PLANNING_RESOURCES = (
@@ -59,6 +60,7 @@ MIGRATED_PLANNING_RESOURCES = (
 PLANNING_DOMAIN_RESOURCES = ("planning-settings", "member-availabilities")
 PLANNING_RESOURCE_TABLES = frozenset(
     {
+        "candidate_exam_day",
         "exam_half_year",
         "exam_round",
         "round_candidate",
@@ -133,7 +135,7 @@ def _register_schedule_routes(router: APIRouter, finish: Finish, not_found: NotF
             context,
             context.respond(
                 hateoas.scheduling_overview(
-                    context.repository.scheduling_overview(context.authorization_scope)
+                    context.read_application.scheduling_overview(context.authorization_scope)
                 )
             ),
         )
@@ -144,18 +146,14 @@ def _register_schedule_routes(router: APIRouter, finish: Finish, not_found: NotF
             context,
             context.respond(
                 hateoas.confirmed_plans(
-                    context.repository.confirmed_plans(context.authorization_scope)
+                    context.read_application.confirmed_plans(context.authorization_scope)
                 )
             ),
         )
 
     @router.get("/api/confirmed-plan-days/{id}")
     def confirmed_day(context: ReadContext, id: int):
-        day = context.repository.confirmed_plan_day(id, context.authorization_scope)
-        if day is not None:
-            day["day"]["closure"] = context.exam_day_closure_service.get(
-                context.authorization_scope, id
-            )
+        day = context.read_application.confirmed_plan_day(id, context.authorization_scope)
         return (
             not_found()
             if day is None
@@ -264,7 +262,7 @@ def _register_confirmed_plan_routes(
         id: int,
         payload: ConfirmedPlanChangeRequest,
     ):
-        committee_id = context.repository.committee_id_for_resource(EXAM_ROUND, id)
+        committee_id = context.resource_ownership(EXAM_ROUND, id).committee_id
         actor_member_id = context.authorization_scope.member_for_committee(committee_id)
         if actor_member_id is None:
             raise ForbiddenRequestError("Forbidden.")
@@ -411,7 +409,7 @@ def _planning_collection(
         rows = (
             context.visible_planning_records(resource, filters)
             if resource.table in PLANNING_RESOURCE_TABLES
-            else context.repository.list_visible(resource, context.authorization_scope, filters)
+            else context.visible_resource_records(resource, filters)
         )
         return finish(
             context,
@@ -437,7 +435,7 @@ def _planning_item(resource_name: str, finish: Finish, not_found: NotFound, *, m
         row = (
             context.visible_planning_record(resource, id)
             if resource.table in PLANNING_RESOURCE_TABLES
-            else context.repository.get_visible(resource, id, context.authorization_scope)
+            else context.visible_resource_record(resource, id)
         )
         return (
             not_found()
@@ -473,9 +471,7 @@ def _planning_create(resource_name: str, finish: Finish):
             row = context.planning_resource_service.save_availability(payload).as_payload()
             status = HTTPStatus.OK
         else:
-            row = context.repository.create(
-                resource, payload, authorization_scope=context.authorization_scope
-            )
+            row = context.planning_resource_service.create_candidate_day(payload).as_payload()
         return finish(
             context,
             context.respond(hateoas.resource_item(resource_name, resource, row), status),
@@ -502,14 +498,11 @@ def _planning_update(
             row = context.planning_resource_service.update_settings(identifier, payload)
         elif resource_name == "member-availabilities":
             row = context.planning_resource_service.update_availability(identifier, payload)
+        elif resource_name == "candidate-exam-days":
+            row = context.planning_resource_service.update_candidate_day(identifier, payload)
         else:
-            row = context.repository.update(
-                resource,
-                identifier,
-                payload,
-                authorization_scope=context.authorization_scope,
-            )
-        if resource_name in {"planning-settings", "member-availabilities"} and row is not None:
+            raise RuntimeError(f"No Planning update use case for {resource_name}")
+        if row is not None:
             row = row.as_payload()
         return (
             not_found()
@@ -530,18 +523,16 @@ def _planning_delete(
     finish: Finish,
     not_found: NotFound,
 ):
-    resource = REST_RESOURCES[resource_name]
-
     def delete(context: EmptyWriteContext, id: int):
         context.authorize_resource_action(resource_name, id, {}, "delete")
         if resource_name == "member-availabilities":
             deleted = context.planning_resource_service.delete_availability(id)
         elif resource_name == "planning-settings":
             deleted = context.planning_resource_service.delete_settings(id)
+        elif resource_name == "candidate-exam-days":
+            deleted = context.planning_resource_service.delete_candidate_day(id)
         else:
-            deleted = context.repository.delete(
-                resource, id, authorization_scope=context.authorization_scope
-            )
+            raise RuntimeError(f"No Planning delete use case for {resource_name}")
         return (
             not_found()
             if not deleted

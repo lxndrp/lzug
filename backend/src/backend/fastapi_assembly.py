@@ -12,11 +12,11 @@ from pathlib import Path
 
 from fastapi import FastAPI
 
-from .application import ApplicationServices, ReadApplication
 from .application.admin import AdminApplication, AdminServices
 from .application.calendar_ports import CalendarApplicationPort
 from .application.consequence_ports import ApplicationConsequenceStoreFactory
 from .application.plan_consequences import PlanConsequenceService
+from .application.planning_calendar_reads import PlanningCalendarReadService
 from .application.resource_access import ResourceAccessQueryFactory
 from .assessment.service import ExamResultService
 from .composition import SQLiteAssessmentLifecycleAdapter
@@ -56,6 +56,7 @@ from .composition import (
 )
 from .composition import planning_service as compose_planning_service
 from .composition import venue_consequence_service as compose_venue_consequence_service
+from .execution.exam_day_closures import ExamDayClosureService
 from .execution.exam_protocols import ExamProtocolService
 from .execution.slot_service import ExecutionService
 from .fastapi_app import (
@@ -70,6 +71,7 @@ from .fastapi_dependencies import (
 )
 from .fastapi_http import APPLICATION_ERROR_RESPONSES
 from .fastapi_runtime import RuntimeAdmissionMiddleware
+from .http_application import ApplicationServices, ReadApplication
 from .identity.admin_service import OperatorAuthService
 from .identity.authorization import AuthorizationService
 from .identity.committee_admin import CommitteeAdminService
@@ -86,6 +88,7 @@ from .persistence.instance_storage import (
     SQLiteFileInstanceStorage,
     SQLiteInstanceMaintenance,
 )
+from .persistence.planning_calendar_reads import SQLitePlanningCalendarReadUnitOfWorkFactory
 from .persistence.resource_access import SQLiteResourceAccessQueryFactory
 from .planning import PlanningService
 from .planning.candidate_days import CandidateDayService
@@ -317,6 +320,25 @@ def create_app(
         external_delivery_enabled=resolved.runtime_policy.external_notifications_enabled(),
         settings=resolved.runtime_settings,
     )
+
+    def planning_calendar_read_service_factory(db_path: Path) -> PlanningCalendarReadService:
+        closure_service = ExamDayClosureService(
+            db_path,
+            notification_service=app.state.notification_service_factory(db_path),
+            assessment_lifecycle_factory=app.state.assessment_lifecycle,
+            planning_lifecycle_work_factory=app.state.planning_lifecycle_work_factory,
+            identity_lifecycle_work_factory=app.state.identity_lifecycle_work_factory,
+        )
+        return PlanningCalendarReadService(
+            SQLitePlanningCalendarReadUnitOfWorkFactory(
+                db_path,
+                closure_view=lambda session, day_id, scope: closure_service.get_in_session(
+                    session, scope, day_id
+                ),
+            )
+        )
+
+    app.state.planning_calendar_read_service_factory = planning_calendar_read_service_factory
     app.state.auth_rate_limiter = resolved.auth_rate_limiter or RequestRateLimiter(
         resolved.auth_rate_limit, resolved.auth_rate_window
     )

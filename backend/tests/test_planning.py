@@ -10,7 +10,6 @@ from unittest.mock import Mock, patch
 
 from sqlalchemy import text
 
-from backend.application.repositories import ResourceRepository
 from backend.composition import identity_service, planning_service
 from backend.persistence.database import connect, session_scope
 from backend.persistence.identity import SQLiteIdentityPlanningSnapshotFactory
@@ -38,6 +37,7 @@ from backend.planning import (
 from backend.planning.proposals import PlanningService
 from backend.tests.helpers import TempDatabase, create_committee_record
 from backend.tests.planning_support import planning_resource_service
+from backend.tests.support.resource_fixture_store import ResourceFixtureStore
 
 
 class PlanningTests(unittest.TestCase):
@@ -106,7 +106,7 @@ class PlanningTests(unittest.TestCase):
 
     def test_request_availabilities_moves_prepared_draft_into_coordination(self) -> None:
         with TempDatabase() as db_path:
-            repository = ResourceRepository(db_path)
+            repository = ResourceFixtureStore(db_path)
             with session_scope(db_path) as session:
                 Store(session).update(EXAM_ROUND, 1, {"status": "draft"})
 
@@ -132,7 +132,7 @@ class PlanningTests(unittest.TestCase):
 
     def test_missing_default_room_is_rejected_before_proposal_building(self) -> None:
         with TempDatabase() as db_path:
-            repository = ResourceRepository(db_path)
+            repository = ResourceFixtureStore(db_path)
             settings = repository.list_filtered(PLANNING_SETTINGS, {"exam_round_id": 1})[0]
             planning_resource_service(db_path).update_settings(
                 settings["id"], {"default_room_id": None}
@@ -158,7 +158,7 @@ class PlanningTests(unittest.TestCase):
     def test_generate_proposal_persists_days_slots_assignments(self) -> None:
         with TempDatabase() as db_path:
             proposal = planning_service(db_path).generate_proposal(1)
-            repository = ResourceRepository(db_path)
+            repository = ResourceFixtureStore(db_path)
             exam_days = repository.list_filtered(EXAM_DAY, {"exam_round_id": 1})
             exam_slots = repository.list(EXAM_SLOT)
             assignments = repository.list(EXAM_DAY_ASSIGNMENT)
@@ -174,7 +174,7 @@ class PlanningTests(unittest.TestCase):
     def test_mep_slots_are_at_the_end_of_each_day(self) -> None:
         with TempDatabase() as db_path:
             planning_service(db_path).generate_proposal(1)
-            repository = ResourceRepository(db_path)
+            repository = ResourceFixtureStore(db_path)
             exam_days = repository.list_filtered(EXAM_DAY, {"exam_round_id": 1})
             slots = repository.list(EXAM_SLOT)
 
@@ -191,7 +191,7 @@ class PlanningTests(unittest.TestCase):
             service = planning_service(db_path)
             first = service.generate_proposal(1)
             second = service.generate_proposal(1)
-            repository = ResourceRepository(db_path)
+            repository = ResourceFixtureStore(db_path)
             exam_slots = repository.list(EXAM_SLOT)
 
         self.assertEqual(16, first.counts.planned_slots)
@@ -546,7 +546,7 @@ class PlanningTests(unittest.TestCase):
 
             with self.assertRaises(PlanValidationError) as error:
                 service.confirm_plan(1)
-            repository = ResourceRepository(db_path)
+            repository = ResourceFixtureStore(db_path)
             exam_round = repository.get(EXAM_ROUND, 1)
             exam_days = repository.list_filtered(EXAM_DAY, {"exam_round_id": 1})
 
@@ -559,7 +559,7 @@ class PlanningTests(unittest.TestCase):
             service = planning_service(db_path)
             service.generate_proposal(1)
             proposal = service.get_proposal(1)
-            repository = ResourceRepository(db_path)
+            repository = ResourceFixtureStore(db_path)
 
             for resource, resource_id in (
                 (EXAM_DAY, proposal.days[0].id),
@@ -579,7 +579,7 @@ class PlanningTests(unittest.TestCase):
             service = planning_service(db_path)
             service.generate_proposal(1)
             proposal = service.get_proposal(1)
-            repository = ResourceRepository(db_path)
+            repository = ResourceFixtureStore(db_path)
 
             invalid_room = replace(
                 proposal,
@@ -672,7 +672,7 @@ class PlanningTests(unittest.TestCase):
             service = planning_service(db_path)
             service.generate_proposal(1)
             proposal = service.get_proposal(1)
-            repository = ResourceRepository(db_path)
+            repository = ResourceFixtureStore(db_path)
             settings = repository.list_filtered(PLANNING_SETTINGS, {"exam_round_id": 1})[0]
             planning_resource_service(db_path).update_settings(
                 settings["id"], {"max_exam_days_per_week": 1}
@@ -749,7 +749,7 @@ class PlanningTests(unittest.TestCase):
             service = planning_service(db_path)
             service.generate_proposal(1)
             confirmed = service.confirm_plan(1)
-            repository = ResourceRepository(db_path)
+            repository = ResourceFixtureStore(db_path)
             exam_round = repository.get(EXAM_ROUND, 1)
             exam_days = repository.list_filtered(EXAM_DAY, {"exam_round_id": 1})
             exam_slots = repository.list(EXAM_SLOT)
@@ -773,7 +773,7 @@ class PlanningTests(unittest.TestCase):
 
     def test_confirmed_other_committee_reservation_blocks_proposal(self) -> None:
         with TempDatabase() as db_path:
-            repository = ResourceRepository(db_path)
+            repository = ResourceFixtureStore(db_path)
             other_round = self._create_overlapping_round(repository)
             with session_scope(db_path) as session:
                 for member_id in range(5, 9):
@@ -797,7 +797,7 @@ class PlanningTests(unittest.TestCase):
 
     def test_other_proposal_and_fallback_reserve_person_before_confirmation(self) -> None:
         with TempDatabase() as db_path:
-            repository = ResourceRepository(db_path)
+            repository = ResourceFixtureStore(db_path)
             other_round = self._create_overlapping_round(repository)
             with session_scope(db_path) as session:
                 for member_id in range(5, 9):
@@ -814,7 +814,7 @@ class PlanningTests(unittest.TestCase):
         self.assertEqual("availability_requested", exam_round["status"])
         self.assertEqual([], exam_days)
 
-    def _create_overlapping_round(self, repository: ResourceRepository) -> dict[str, object]:
+    def _create_overlapping_round(self, repository: ResourceFixtureStore) -> dict[str, object]:
         committee = create_committee_record(
             repository.db_path, {"name": "PA 2", "occupation": "FI"}
         )

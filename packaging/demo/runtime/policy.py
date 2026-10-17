@@ -12,7 +12,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import select
 
 from backend.application import ForbiddenRequestError
-from backend.application.transport import RequestContext
+from backend.http_transport import RequestContext
 from backend.identity.auth import AuthContext, AuthenticationError
 from backend.persistence.database import session_scope
 from backend.persistence.models import (

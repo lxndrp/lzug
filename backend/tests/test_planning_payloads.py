@@ -6,7 +6,7 @@ import unittest
 from copy import deepcopy
 from unittest.mock import patch
 
-from backend.application.planning_payloads import (
+from backend.http_planning_payloads import (
     confirmed_plan_change_from_payload,
     planning_proposal_from_payload,
 )

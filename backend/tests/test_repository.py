@@ -4,7 +4,6 @@ import unittest
 
 from sqlalchemy.exc import IntegrityError
 
-from backend.application.repositories import ResourceRepository
 from backend.composition import identity_service
 from backend.persistence.database import session_scope
 from backend.persistence.models import (
@@ -20,12 +19,13 @@ from backend.persistence.models import (
 )
 from backend.tests.helpers import TempDatabase, create_committee_record
 from backend.tests.planning_support import planning_resource_service
+from backend.tests.support.resource_fixture_store import ResourceFixtureStore
 
 
 class RepositoryTests(unittest.TestCase):
     def test_generic_repository_cannot_mutate_identity_resources(self) -> None:
         with TempDatabase() as db_path:
-            repository = ResourceRepository(db_path)
+            repository = ResourceFixtureStore(db_path)
             for operation in (
                 lambda: repository.create(COMMITTEE, {"name": "Generic"}),
                 lambda: repository.update(COMMITTEE, 1, {"name": "Generic"}),
@@ -78,7 +78,7 @@ class RepositoryTests(unittest.TestCase):
 
     def test_delete_candidate_removes_round_link_first(self) -> None:
         with TempDatabase() as db_path:
-            repository = ResourceRepository(db_path)
+            repository = ResourceFixtureStore(db_path)
             self.assertTrue(planning_resource_service(db_path).delete_candidate(1))
             summary = planning_resource_service(db_path).round_summary(1).as_payload()
             candidate = repository.get(CANDIDATE, 1)
@@ -88,7 +88,7 @@ class RepositoryTests(unittest.TestCase):
 
     def test_update_candidate_updates_round_data_atomically(self) -> None:
         with TempDatabase() as db_path:
-            repository = ResourceRepository(db_path)
+            repository = ResourceFixtureStore(db_path)
             planning = planning_resource_service(db_path)
             updated = planning.update_candidate(
                 1,
@@ -123,7 +123,7 @@ class RepositoryTests(unittest.TestCase):
 
     def test_candidate_committee_change_preserves_history_and_deactivates_old_round(self) -> None:
         with TempDatabase() as db_path:
-            repository = ResourceRepository(db_path)
+            repository = ResourceFixtureStore(db_path)
             planning = planning_resource_service(db_path)
             committee = create_committee_record(
                 db_path,
@@ -198,7 +198,7 @@ class RepositoryTests(unittest.TestCase):
 
     def test_update_exam_round_updates_metadata_and_timestamp(self) -> None:
         with TempDatabase() as db_path:
-            repository = ResourceRepository(db_path)
+            repository = ResourceFixtureStore(db_path)
             planning = planning_resource_service(db_path)
             before = repository.get(EXAM_ROUND, 1)
             updated = planning.update_round(
@@ -234,7 +234,7 @@ class RepositoryTests(unittest.TestCase):
     def test_exam_round_creation_rejects_unresolved_and_inactive_committees(self) -> None:
         for committee_state in ("unresolved", "inactive"):
             with self.subTest(committee_state=committee_state), TempDatabase() as db_path:
-                repository = ResourceRepository(db_path)
+                repository = ResourceFixtureStore(db_path)
                 planning = planning_resource_service(db_path)
                 with session_scope(db_path) as session:
                     committee = session.get(Committee, 1)
@@ -276,7 +276,7 @@ class RepositoryTests(unittest.TestCase):
 
     def test_exam_round_requires_a_unique_committee_half_year_pair(self) -> None:
         with TempDatabase() as db_path:
-            repository = ResourceRepository(db_path)
+            repository = ResourceFixtureStore(db_path)
             planning = planning_resource_service(db_path)
             created = planning.create_round(
                 {
@@ -317,7 +317,7 @@ class RepositoryTests(unittest.TestCase):
 
     def test_planning_settings_upsert_treats_deputy_chair_as_equal_actor(self) -> None:
         with TempDatabase() as db_path:
-            repository = ResourceRepository(db_path)
+            repository = ResourceFixtureStore(db_path)
             planning = planning_resource_service(db_path)
             updated = planning.save_settings(
                 {
@@ -388,7 +388,7 @@ class RepositoryTests(unittest.TestCase):
 
     def test_availability_upsert_manages_response_timestamp(self) -> None:
         with TempDatabase() as db_path:
-            repository = ResourceRepository(db_path)
+            repository = ResourceFixtureStore(db_path)
             planning = planning_resource_service(db_path)
             answered = planning.save_availability(
                 {
@@ -418,7 +418,7 @@ class RepositoryTests(unittest.TestCase):
 
     def test_availability_is_shared_by_person_only_within_the_same_half_year(self) -> None:
         with TempDatabase() as db_path:
-            repository = ResourceRepository(db_path)
+            repository = ResourceFixtureStore(db_path)
             planning = planning_resource_service(db_path)
             committee = create_committee_record(db_path, {"name": "PA 2", "occupation": "FI"})
             membership = identity_service(db_path).create_membership(

@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
-    from backend.application.transport import RequestContext
+    from backend.http_transport import RequestContext
     from backend.identity.auth import AuthContext
 
 
