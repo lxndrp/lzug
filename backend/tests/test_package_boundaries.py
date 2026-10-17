@@ -360,6 +360,18 @@ class BackendPackageBoundaryTests(unittest.TestCase):
         imports = _imported_modules(module, BACKEND_ROOT)
         self.assertIn("backend.execution.calendar_ports", imports)
 
+    def test_composition_root_wires_adapters_while_application_uses_ports(self) -> None:
+        composition_imports = _imported_modules(
+            BACKEND_ROOT / "composition.py", BACKEND_ROOT.parent
+        )
+        application_port_imports = _imported_modules(
+            BACKEND_ROOT / "application" / "exam_lifecycle_ports.py", BACKEND_ROOT
+        )
+        self.assertIn("backend.persistence.execution", composition_imports)
+        self.assertIn("backend.integrations.notification_delivery", composition_imports)
+        self.assertIn("backend.execution.slot_ports", application_port_imports)
+        self.assertNotIn("backend.persistence", application_port_imports)
+
     def test_public_port_annotations_do_not_expose_orm_or_sql_values(self) -> None:
         forbidden_names = {"Session", "Query", "Select", "Engine", "Connection"}
         leaks: list[str] = []
