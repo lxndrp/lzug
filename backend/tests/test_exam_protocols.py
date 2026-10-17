@@ -717,6 +717,48 @@ class ExecutionPortTests(unittest.TestCase):
         ):
             assert_materialized_port_value(self, value)
 
+    def test_execution_slot_port_write_results_are_materialized(self) -> None:
+        with self.execution_factory(write=True) as unit_of_work:
+            candidate_attendance = unit_of_work.save_candidate_attendance(
+                self.day_id,
+                self.slot_id,
+                {"status": "present", "arrived_at": None},
+                actor_member_id=1,
+                expected_day_revision=1,
+            )
+            assignment = unit_of_work.assignments(self.day_id)[0]
+            member_attendance = unit_of_work.save_member_attendance(
+                self.day_id,
+                assignment["id"],
+                assignment["committee_member_id"],
+                {"status": "present", "arrived_at": None},
+                actor_member_id=1,
+                expected_day_revision=2,
+            )
+            started_at = "2026-11-16T09:03:00+00:00"
+            started_slot = unit_of_work.start_slot(
+                self.day_id,
+                self.slot_id,
+                started_at=started_at,
+                participant_member_ids=frozenset({1, 2, 3}),
+                actor_member_id=1,
+                expected_day_revision=3,
+            )
+            completed_slot = unit_of_work.update_slot_status(
+                self.day_id,
+                self.slot_id,
+                status="completed",
+                changed_at="2026-11-16T10:00:00+00:00",
+                reason=None,
+                actual_started_at=started_at,
+                actual_completed_at="2026-11-16T10:00:00+00:00",
+                actor_member_id=1,
+                expected_day_revision=4,
+            )
+
+        for value in (candidate_attendance, member_attendance, started_slot, completed_slot):
+            assert_materialized_port_value(self, value)
+
     def test_quorum_failure_leaves_start_and_revision_unchanged(self) -> None:
         with session_scope(self.db_path) as session:
             session.add(
