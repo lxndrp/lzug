@@ -19,6 +19,8 @@ from backend.execution.lifecycle_ports import (
     CalendarLifecycleWorkFactory,
     IdentityLifecycleWork,
     IdentityLifecycleWorkFactory,
+    MutationLockCommand,
+    MutationLockKind,
     PlanningLifecycleWork,
     PlanningLifecycleWorkFactory,
     PlanningRoundLifecycleSnapshot,
@@ -897,51 +899,12 @@ class ExamRoundLifecycleService:
             exam_round = self._required_round(planning, round_id)
             self._require_mutable_scope(session, exam_round, _token(kind, entity_id))
 
-    def assert_http_mutation_in_session(
-        self,
-        session: Session,
-        method: str,
-        path_parts: list[str],
-        payload: dict[str, Any],
+    def assert_mutation_allowed_in_session(
+        self, session: Session, command: MutationLockCommand
     ) -> None:
-        """Resolve one business HTTP mutation within the caller's lifecycle scope."""
-        if method not in {"POST", "PUT", "PATCH", "DELETE"} or not path_parts:
-            return
-        if (
-            path_parts[0] == "exam-rounds"
-            and len(path_parts) >= 3
-            and path_parts[2]
-            in {
-                "closure",
-                "cancellation",
-                "reopening-impact",
-                "reopenings",
-                "candidate-terminal-status",
-            }
-        ):
-            return
-        if (
-            path_parts[0] == "exam-rounds"
-            and len(path_parts) == 5
-            and path_parts[2] == "candidates"
-            and path_parts[4] == "terminal-status"
-        ):
-            return
-        if (
-            path_parts[0] == "exam-rounds"
-            and len(path_parts) == 5
-            and path_parts[2] == "results"
-            and path_parts[4] == "ihk-status"
-        ):
-            return
-        if (
-            path_parts[0] in {"exam-protocols", "exam-results"}
-            and len(path_parts) == 3
-            and path_parts[2] == "retention"
-        ):
-            return
+        """Enforce the shared lifecycle lock for one materialized resource command."""
         planning = self.planning_lifecycle_work_factory(session)
-        resolved = self._round_mutation_token(session, path_parts, payload)
+        resolved = self._round_mutation_token(session, command)
         if resolved is None:
             return
         round_id, token = resolved
@@ -949,44 +912,50 @@ class ExamRoundLifecycleService:
         self._require_mutable_scope(session, exam_round, token)
 
     def _round_mutation_token(
-        self, session: Session, path_parts: list[str], payload: dict[str, Any]
+        self, session: Session, command: MutationLockCommand
     ) -> tuple[int, str] | None:
-        resource = path_parts[0]
-        identifier = int(path_parts[1]) if len(path_parts) > 1 and path_parts[1].isdigit() else None
-        if resource == "exam-rounds":
+        resource = command.kind
+        identifier = command.resource_id
+        payload = command.payload
+        if resource is MutationLockKind.EXAM_ROUND:
             if identifier is None:
                 return None
             return identifier, _token("planning", identifier)
-        if resource == "planning-proposals":
+        if resource is MutationLockKind.PLANNING_PROPOSAL:
             round_id = payload.get("round_id")
             return (
                 (int(round_id), _token("planning", int(round_id)))
                 if isinstance(round_id, int) and not isinstance(round_id, bool)
                 else None
             )
-        if resource in {
-            "planning-settings",
-            "candidate-exam-days",
-            "member-availabilities",
-            "round-candidates",
-        }:
+        planning_resources = {
+            MutationLockKind.PLANNING_SETTINGS: "planning-settings",
+            MutationLockKind.CANDIDATE_EXAM_DAY: "candidate-exam-days",
+            MutationLockKind.MEMBER_AVAILABILITY: "member-availabilities",
+            MutationLockKind.ROUND_CANDIDATE: "round-candidates",
+        }
+        if resource in planning_resources:
             target = self.planning_lifecycle_work_factory(session).mutation_target(
-                resource, identifier, payload
+                planning_resources[resource], identifier, dict(payload)
             )
             if target is None:
                 return None
             round_id, entity_id = target
             kind = (
                 "availability"
-                if resource == "member-availabilities"
-                else ("candidate_assignment" if resource == "round-candidates" else "planning")
+                if resource is MutationLockKind.MEMBER_AVAILABILITY
+                else (
+                    "candidate_assignment"
+                    if resource is MutationLockKind.ROUND_CANDIDATE
+                    else "planning"
+                )
             )
             return round_id, _token(kind, entity_id)
-        if resource == "confirmed-plan-days" and identifier is not None:
+        if resource is MutationLockKind.CONFIRMED_PLAN_DAY and identifier is not None:
             row = session.get(ExamDay, identifier)
             if row is not None:
                 return row.exam_round_id, _token("exam_day", identifier)
-        if resource == "exam-protocols" and identifier is not None:
+        if resource is MutationLockKind.EXAM_PROTOCOL and identifier is not None:
             slot_id = session.scalar(
                 select(ExamProtocol.exam_slot_id).where(ExamProtocol.id == identifier)
             )
@@ -996,11 +965,11 @@ class ExamRoundLifecycleService:
                 else None
             )
             return (round_id, _token("exam_protocol", identifier)) if round_id else None
-        if resource == "exam-results" and identifier is not None:
+        if resource is MutationLockKind.EXAM_RESULT and identifier is not None:
             result = self.assessment_lifecycle_factory(session).result_by_id(identifier)
             round_id = result["round_id"] if result is not None else None
             return (round_id, _token("exam_result", identifier)) if round_id else None
-        if resource == "absence-reports" and identifier is not None:
+        if resource is MutationLockKind.ABSENCE_REPORT and identifier is not None:
             round_id = session.scalar(
                 select(ExamDay.exam_round_id)
                 .join(AbsenceReport, AbsenceReport.exam_day_id == ExamDay.id)

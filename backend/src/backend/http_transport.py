@@ -39,6 +39,8 @@ from backend.execution.lifecycle_ports import (
     AssessmentLifecycleWorkFactory,
     CalendarLifecycleWorkFactory,
     IdentityLifecycleWorkFactory,
+    MutationLockCommand,
+    MutationLockKind,
     PlanningLifecycleWorkFactory,
 )
 from backend.execution.slot_service import ExecutionService
@@ -413,11 +415,70 @@ class RequestContext:
 
     def authorize_mutation(self, method: str, path_parts: list[str], context: AuthContext) -> None:
         self.runtime_policy.authorize_mutation(self, method, path_parts, context)
-        self.exam_lifecycle_application.assert_http_mutation(
-            method,
-            path_parts,
-            self.read_json() if self._body else {},
+        command = self._mutation_lock_command(
+            method, path_parts, self.read_json() if self._body else {}
         )
+        if command is not None:
+            self.exam_lifecycle_application.assert_mutation_allowed(command)
+
+    @staticmethod
+    def _mutation_lock_command(
+        method: str, path_parts: list[str], payload: dict[str, Any]
+    ) -> MutationLockCommand | None:
+        """Translate a mutating resource route to its Execution lock reference."""
+        if method not in {"POST", "PUT", "PATCH", "DELETE"} or not path_parts:
+            return None
+        if (
+            path_parts[0] == "exam-rounds"
+            and len(path_parts) >= 3
+            and path_parts[2]
+            in {
+                "closure",
+                "cancellation",
+                "reopening-impact",
+                "reopenings",
+                "candidate-terminal-status",
+            }
+        ):
+            return None
+        if (
+            path_parts[0] == "exam-rounds"
+            and len(path_parts) == 5
+            and path_parts[2] == "candidates"
+            and path_parts[4] == "terminal-status"
+        ):
+            return None
+        if (
+            path_parts[0] == "exam-rounds"
+            and len(path_parts) == 5
+            and path_parts[2] == "results"
+            and path_parts[4] == "ihk-status"
+        ):
+            return None
+        if (
+            path_parts[0] in {"exam-protocols", "exam-results"}
+            and len(path_parts) == 3
+            and path_parts[2] == "retention"
+        ):
+            return None
+
+        kinds = {
+            "exam-rounds": MutationLockKind.EXAM_ROUND,
+            "planning-proposals": MutationLockKind.PLANNING_PROPOSAL,
+            "planning-settings": MutationLockKind.PLANNING_SETTINGS,
+            "candidate-exam-days": MutationLockKind.CANDIDATE_EXAM_DAY,
+            "member-availabilities": MutationLockKind.MEMBER_AVAILABILITY,
+            "round-candidates": MutationLockKind.ROUND_CANDIDATE,
+            "confirmed-plan-days": MutationLockKind.CONFIRMED_PLAN_DAY,
+            "exam-protocols": MutationLockKind.EXAM_PROTOCOL,
+            "exam-results": MutationLockKind.EXAM_RESULT,
+            "absence-reports": MutationLockKind.ABSENCE_REPORT,
+        }
+        kind = kinds.get(path_parts[0])
+        if kind is None:
+            return None
+        identifier = int(path_parts[1]) if len(path_parts) > 1 and path_parts[1].isdigit() else None
+        return MutationLockCommand(kind, identifier, payload)
 
     def require_round_access(self, round_id: int, *, manage: bool = False) -> None:
         ResourceAuthorizer(

@@ -33,6 +33,7 @@ from backend.execution.lifecycle_ports import (
     AssessmentLifecycleWork,
     CalendarLifecycleWork,
     IdentityLifecycleWork,
+    MutationLockCommand,
     PlanningLifecycleWork,
 )
 from backend.execution.protocol_ports import ProtocolDaySnapshot
@@ -43,12 +44,10 @@ from backend.identity.authorization import AuthorizationScope
 class ExamLifecycleExecutionUnitOfWork(ExecutionUnitOfWork, Protocol):
     """Execution capabilities required by Application lifecycle commands."""
 
-    def assert_http_mutation(
+    def assert_mutation_allowed(
         self,
         service: ExamRoundLifecycleService,
-        method: str,
-        path_parts: list[str],
-        payload: dict,
+        command: MutationLockCommand,
     ) -> None: ...
 
     def read_day_closure(

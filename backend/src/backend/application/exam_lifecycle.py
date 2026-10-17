@@ -20,6 +20,7 @@ from backend.application.exam_lifecycle_ports import (
 )
 from backend.execution.exam_day_closures import ExamDayClosureService
 from backend.execution.exam_round_lifecycle import ExamRoundLifecycleService
+from backend.execution.lifecycle_ports import MutationLockCommand
 from backend.identity.authorization import AuthorizationScope
 
 
@@ -57,13 +58,11 @@ class ExamLifecycleApplication:
                 service, scope, round_id, pending_consequence_ids
             )
 
-    def assert_http_mutation(
-        self, method: str, path_parts: list[str], payload: dict[str, Any]
-    ) -> None:
+    def assert_mutation_allowed(self, command: MutationLockCommand) -> None:
         """Apply the shared lifecycle lock through the configured Execution boundary."""
         service = self._round_lifecycle_service()
         with self._unit_of_work_factory.read_scope() as unit_of_work:
-            unit_of_work.execution.assert_http_mutation(service, method, path_parts, payload)
+            unit_of_work.execution.assert_mutation_allowed(service, command)
 
     def set_exam_round_candidate_terminal_status(
         self, scope: AuthorizationScope, round_id: int, candidate_id: int, payload: dict[str, Any]
