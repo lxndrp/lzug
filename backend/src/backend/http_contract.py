@@ -7,6 +7,7 @@ from typing import Any
 
 from jsonschema import Draft202012Validator, RefResolver
 
+
 class ContractValidationError(AssertionError):
     """A response does not match its documented OpenAPI contract."""
 
