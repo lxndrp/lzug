@@ -19,6 +19,10 @@ class BackendTestTierTests(unittest.TestCase):
         self.assertEqual(len(configured), len(set(configured)))
         self.assertEqual(discovered, set(configured))
 
+    def test_http_contract_parity_belongs_to_http_tier(self) -> None:
+        self.assertIn("test_http_contract_parity", TEST_MODULES_BY_TIER["http"])
+        self.assertNotIn("test_http_contract_parity", TEST_MODULES_BY_TIER["component"])
+
     def test_unit_tier_does_not_include_modules_using_runtime_adapters(self) -> None:
         forbidden_modules = {
             "fastapi.testclient",
