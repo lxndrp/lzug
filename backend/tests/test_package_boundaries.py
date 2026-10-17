@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import tempfile
 import unittest
 from pathlib import Path
 from typing import get_type_hints
@@ -218,45 +219,117 @@ TEST_OWNERS = {
 }
 
 
+def _imported_modules(path: Path, root: Path) -> set[str]:
+    """Return absolute import names, including resolvable relative imports."""
+    relative = path.relative_to(root).with_suffix("")
+    module_parts = ["backend", *relative.parts]
+    package_parts = module_parts[:-1]
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    modules: set[str] = set()
+
+    class RuntimeImports(ast.NodeVisitor):
+        def visit_If(self, node: ast.If) -> None:
+            if isinstance(node.test, ast.Name) and node.test.id == "TYPE_CHECKING":
+                for item in node.orelse:
+                    self.visit(item)
+                return
+            self.generic_visit(node)
+
+        def visit_Import(self, node: ast.Import) -> None:
+            modules.update(alias.name for alias in node.names)
+
+        def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+            if node.level:
+                keep = len(package_parts) - node.level + 1
+                if keep < 0:
+                    return
+                base = package_parts[:keep]
+                if node.module:
+                    base.extend(node.module.split("."))
+                    modules.add(".".join(base))
+                else:
+                    modules.update(".".join([*base, alias.name]) for alias in node.names)
+            elif node.module:
+                modules.add(node.module)
+
+    RuntimeImports().visit(tree)
+    return modules
+
+
 def _package_dependencies(package: str) -> set[str]:
     dependencies: set[str] = set()
-    for path in (BACKEND_ROOT / package).glob("*.py"):
-        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-
-        class RuntimeImports(ast.NodeVisitor):
-            def __init__(self) -> None:
-                self.nodes: list[ast.AST] = []
-
-            def visit_If(self, node: ast.If) -> None:
-                if isinstance(node.test, ast.Name) and node.test.id == "TYPE_CHECKING":
-                    for item in node.orelse:
-                        self.visit(item)
-                    return
-                self.generic_visit(node)
-
-            def visit_Import(self, node: ast.Import) -> None:
-                self.nodes.append(node)
-
-            def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
-                self.nodes.append(node)
-
-        visitor = RuntimeImports()
-        visitor.visit(tree)
-        for node in visitor.nodes:
-            names: list[str] = []
-            if isinstance(node, ast.Import):
-                names.extend(alias.name for alias in node.names)
-            elif isinstance(node, ast.ImportFrom) and node.module:
-                names.append(node.module)
-            for name in names:
-                parts = name.split(".")
-                if len(parts) >= 2 and parts[0] == "backend" and parts[1] in CORE_PACKAGES:
-                    dependencies.add(parts[1])
+    for path in (BACKEND_ROOT / package).rglob("*.py"):
+        for name in _imported_modules(path, BACKEND_ROOT):
+            parts = name.split(".")
+            if len(parts) >= 2 and parts[0] == "backend" and parts[1] in CORE_PACKAGES:
+                dependencies.add(parts[1])
     dependencies.discard(package)
     return dependencies
 
 
 class BackendPackageBoundaryTests(unittest.TestCase):
+    def test_recursive_boundary_scanner_resolves_relative_and_absolute_imports(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            nested = root / "execution" / "submodule"
+            nested.mkdir(parents=True)
+            path = nested / "example.py"
+            path.write_text(
+                "from ...persistence.models import ExamDay\n"
+                "from ... import persistence\n"
+                "from backend.assessment import Result\n",
+                encoding="utf-8",
+            )
+            imports = _imported_modules(path, root)
+        self.assertIn("backend.persistence.models", imports)
+        self.assertIn("backend.persistence", imports)
+        self.assertIn("backend.assessment", imports)
+
+    def test_relative_import_resolution_reports_target_package(self) -> None:
+        module = BACKEND_ROOT / "execution" / "absence.py"
+        imports = _imported_modules(module, BACKEND_ROOT)
+        self.assertIn("backend.execution.calendar_ports", imports)
+
+    def test_public_port_annotations_do_not_expose_orm_or_sql_values(self) -> None:
+        forbidden_names = {"Session", "Query", "Select", "Engine", "Connection"}
+        leaks: list[str] = []
+        for package in (BACKEND_ROOT / name for name in CORE_PACKAGES):
+            if package.name in {"persistence", "integrations", "operations"}:
+                continue
+            for path in package.rglob("*.py"):
+                tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+                for node in ast.walk(tree):
+                    if not isinstance(node, ast.ClassDef) or not any(
+                        isinstance(base, ast.Name) and base.id == "Protocol" for base in node.bases
+                    ):
+                        continue
+                    for method in node.body:
+                        if not isinstance(method, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                            continue
+                        annotations = [
+                            arg.annotation
+                            for arg in (
+                                *method.args.posonlyargs,
+                                *method.args.args,
+                                *method.args.kwonlyargs,
+                            )
+                            if arg.annotation is not None
+                        ]
+                        if method.returns is not None:
+                            annotations.append(method.returns)
+                        for annotation in annotations:
+                            for item in ast.walk(annotation):
+                                if isinstance(item, ast.Name) and item.id in forbidden_names:
+                                    leaks.append(f"{path.relative_to(BACKEND_ROOT)}:{item.id}")
+                                if (
+                                    isinstance(item, ast.Attribute)
+                                    and item.attr == "model"
+                                    and isinstance(item.value, ast.Name)
+                                    and item.value.id == "Resource"
+                                ):
+                                    leaks.append(f"{path.relative_to(BACKEND_ROOT)}:Resource.model")
+        self.assertEqual(leaks, [])
+
     def test_consequence_orchestration_uses_public_ports_not_models_or_adapters(self) -> None:
         modules = (
             "application/plan_consequences.py",
@@ -375,13 +448,13 @@ class BackendPackageBoundaryTests(unittest.TestCase):
 
         for path in sorted((BACKEND_ROOT / "application").glob("*.py")):
             tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-            imports = [
+            imported_modules = [
                 node.module
                 for node in ast.walk(tree)
                 if isinstance(node, ast.ImportFrom) and node.module is not None
             ]
             self.assertFalse(
-                any(name.startswith(("backend.http_", "fastapi")) for name in imports),
+                any(name.startswith(("backend.http_", "fastapi")) for name in imported_modules),
                 f"Application module {path.name} imports an HTTP contract",
             )
 
@@ -468,7 +541,7 @@ class BackendPackageBoundaryTests(unittest.TestCase):
         )
         for path in sorted((BACKEND_ROOT / "assessment").glob("*.py")):
             tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-            imports = []
+            imports: list[str] = []
             for node in ast.walk(tree):
                 if isinstance(node, ast.Import):
                     imports.extend(alias.name for alias in node.names)

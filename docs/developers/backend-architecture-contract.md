@@ -141,6 +141,17 @@ Die Composition Root verdrahtet Port und Adapter.
 Zusammengehörige Abfragen und Mutationen werden über einen explizit
 komponierten UoW verbunden.
 
+`backend/tests/test_package_boundaries.py` prüft den Importgraph rekursiv bis
+in verschachtelte Paketverzeichnisse und löst absolute sowie relative
+`backend`-Imports auf.
+Die Prüfung zählt Laufzeitimports; `TYPE_CHECKING`-Imports erzeugen keine
+Laufzeitabhängigkeit.
+Zusätzlich kontrolliert sie Port-Annotations auf SQLAlchemy-Sessions,
+Queries, Engines und Connections sowie auf `Resource.model`.
+Verbotene Richtungen müssen mit dem konkreten Modul sichtbar fehlschlagen;
+zulässige Portverträge und Composition-Root-Verdrahtung bleiben Teil des
+positiven Graphen.
+
 HTTP-Statuscodes, HATEOAS-Linkprojektionen, Request-/Response-Schemas,
 OpenAPI-Validierung und Requestnormalisierung gehören den Root-Adaptern
 `http_application`, `http_hateoas`, `api_contracts`, `http_contract`,
