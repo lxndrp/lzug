@@ -77,6 +77,28 @@ class ConfirmedLocationRead(TypedDict):
     city: str
 
 
+class CommitteeRead(TypedDict):
+    id: int
+    name: str
+
+
+class ExamHalfYearRead(TypedDict):
+    id: int
+    season: str
+    year: int
+    status: str
+    legacy_status: str | None
+    created_at: str
+    updated_at: str
+
+
+class ConfirmedPlanMetadata(TypedDict):
+    id: int
+    name: str
+    committee: CommitteeRead
+    exam_half_year: ExamHalfYearRead | None
+
+
 class ConfirmedCalendarDayRead(TypedDict):
     id: int
     date: str
@@ -86,19 +108,19 @@ class ConfirmedCalendarDayRead(TypedDict):
     room_id: int | None
     slots: list[ConfirmedSlotRead]
     assignments: list[ConfirmedAssignmentRead]
-    closure: NotRequired[dict[str, Any]]
+    closure: NotRequired[Mapping[str, Any]]
 
 
 class ConfirmedPlanItem(TypedDict):
     id: int
     name: str
-    committee: dict[str, Any]
-    exam_half_year: dict[str, Any] | None
+    committee: CommitteeRead
+    exam_half_year: ExamHalfYearRead | None
     days: list[ConfirmedCalendarDayRead]
 
 
 class ConfirmedPlanDayItem(TypedDict):
-    plan: dict[str, Any]
+    plan: ConfirmedPlanMetadata
     day: ConfirmedCalendarDayRead
 
 
@@ -238,8 +260,14 @@ class PlanningCalendarReadService:
             if closure is None:
                 return None
             day["closure"] = closure
+            plan_metadata: ConfirmedPlanMetadata = {
+                "id": view["id"],
+                "name": view["name"],
+                "committee": view["committee"],
+                "exam_half_year": view["exam_half_year"],
+            }
             return {
-                "plan": {key: view[key] for key in ("id", "name", "committee", "exam_half_year")},
+                "plan": plan_metadata,
                 "day": day,
             }
 
@@ -257,9 +285,26 @@ class PlanningCalendarReadService:
             "id": round_values["id"],
             "name": round_values["name"],
             "committee": {"id": committee["id"], "name": committee["name"]},
-            "exam_half_year": plan.half_year.as_dict() if plan.half_year else None,
+            "exam_half_year": (
+                PlanningCalendarReadService._half_year_view(plan.half_year)
+                if plan.half_year
+                else None
+            ),
             "days": [cls._day_view(day, members, execution) for day in plan.days],
-        }  # type: ignore[return-value]
+        }
+
+    @staticmethod
+    def _half_year_view(record: PlanningCalendarRecord) -> ExamHalfYearRead:
+        values = record.values
+        return {
+            "id": values["id"],
+            "season": values["season"],
+            "year": values["year"],
+            "status": values["status"],
+            "legacy_status": values["legacy_status"],
+            "created_at": values["created_at"],
+            "updated_at": values["updated_at"],
+        }
 
     @staticmethod
     def _day_view(
@@ -334,22 +379,24 @@ class PlanningCalendarReadService:
                     "member": member_view,
                 }
             )
-        return {
+        location: ConfirmedLocationRead | None = (
+            {
+                "id": venue["id"],
+                "name": venue["name"],
+                "room": room["name"],
+                "city": venue["city"],
+            }
+            if venue is not None and room is not None
+            else None
+        )
+        result: ConfirmedCalendarDayRead = {
             "id": day_values["id"],
             "date": day_values["date"],
             "revision": day_values["revision"],
             "closure_status": day_values["closure_status"],
-            "location": (
-                {
-                    "id": venue["id"],
-                    "name": venue["name"],
-                    "room": room["name"],
-                    "city": venue["city"],
-                }
-                if venue is not None and room is not None
-                else None
-            ),
+            "location": location,
             "room_id": room["id"] if room else None,
             "slots": slots,
             "assignments": assignments,
-        }  # type: ignore[return-value]
+        }
+        return result
