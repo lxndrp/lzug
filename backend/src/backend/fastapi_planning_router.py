@@ -10,7 +10,7 @@ from fastapi import APIRouter, FastAPI, Request
 from fastapi.responses import Response
 
 from backend import http_hateoas as hateoas
-from backend.http_contract import REST_RESOURCES
+from backend.http_resources import REST_RESOURCES
 from backend.http_transport import (
     RequestContext,
     confirmed_plan_change_from_payload,
