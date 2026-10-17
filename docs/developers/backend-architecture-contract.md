@@ -23,8 +23,10 @@ Verträge:
   FastAPI-Yield-Dependency deckt diese Grenze nicht ab.
 - `AdminSocket` besitzt Socket-Worker, Verbindungsplätze und Jobstatus bis zum
   Ende der Ausführung. Ein Disconnect beendet die Antwortzustellung, aber weder
-  den bereits gestarteten Worker noch seine RuntimeAdmission. `stop()` schließt
-  neue Annahme und I/O und gibt Socket-Ownership erst nach Worker-Ende frei.
+  den bereits gestarteten Worker noch seine bereits erworbenen Runtime- oder
+  Storage-Leases. Welcher Lease gilt, bestimmt der jeweilige Anwendungspfad.
+  `stop()` schließt neue Annahme und I/O und gibt Socket-Ownership erst nach
+  Worker-Ende frei.
 - `RuntimeCoordinator.operation()` besitzt Drain, Exklusivität, Cancellation
   während des Wartens, Fehler-/Recoverystatus und die Nachprüfung. Eine laufende
   Operation wird bei Disconnect oder Cancellation nicht freigegeben oder
