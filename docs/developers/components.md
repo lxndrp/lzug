@@ -837,7 +837,7 @@ Zyklen zwischen den elf Kernpaketen.
 | `application/` | frameworkneutrale Use-Case-Orchestrierung, Ports und materialisierte Werte; keine HTTP-Status-, HATEOAS-, Admin-Wire- oder konkreten Adapterverträge | `assessment`, `execution`, `identity`, `notifications`, `operations`, `planning` |
 | `documents/` | Dokumentkommandos, Upload-Policy, Metadatenprojektionen und eigene Repository-/UoW-Verträge; keine eigene fachliche Ownership oder Autorisierung | keine anderen Kernpakete |
 | `planning/` | Planaggregate, mögliche Prüfungstage, Prüfungsorte und Folgen bestätigter Änderungen; Kandidatentage beginnen mit einem adapterfreien Port-Pilot | `integrations`, `notifications`, `persistence` (Legacy-Aufrufe) |
-| `execution/` | Ausfall und Ersatz, Protokolle, Tagesabschluss und Rundenlebenszyklus | `identity`, `integrations`, `notifications`, `persistence` |
+| `execution/` | Ausfall und Ersatz, Protokolle, Tagesabschluss und Rundenlebenszyklus | `calendar`, `identity`, `integrations`, `notifications`, `persistence` (direkte SQLAlchemy-/Persistence-Aufrufe in `absence.py`, `exam_day_closures.py` und `exam_round_lifecycle.py` bleiben als Phase-3-Migration offen), `presentation` |
 | `assessment/` | individuelle Bewertungen und festgestellte Ergebnisse über eigene Use Cases und Ports | keine anderen Kernpakete |
 | `identity/` | Authentisierung, Autorisierung, Mitgliedschaften und lokale Betreiberidentität | keine anderen Kernpakete |
 | `integrations/` | Kalender (Übergangspfad), Dateisystem-Dokumentablage, Feiertage, Kartenanbieter und künftige externe Adapter | `documents`, `identity`, `notifications`, `persistence` |
