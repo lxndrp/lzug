@@ -45,7 +45,10 @@ class ExamLifecycleApplication:
             raise RuntimeError("Round lifecycle service factory is not configured")
         service = self._round_lifecycle_service_factory()
         with self._unit_of_work_factory.read_scope() as unit_of_work:
-            return unit_of_work.execution.read_round_lifecycle(service, scope, round_id)
+            pending_consequence_ids = unit_of_work.consequences.pending_ids_for_round(round_id)
+            return unit_of_work.execution.read_round_lifecycle(
+                service, scope, round_id, pending_consequence_ids
+            )
 
     def set_exam_round_candidate_terminal_status(
         self, scope: AuthorizationScope, round_id: int, candidate_id: int, payload: dict[str, Any]

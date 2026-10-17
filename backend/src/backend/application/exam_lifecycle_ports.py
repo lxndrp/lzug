@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from contextlib import AbstractContextManager
 from typing import Protocol
 
+from backend.application.consequence_ports import LifecycleConsequenceReadPort
 from backend.application.exam_lifecycle_contracts import (
     DayCloseCommand,
     DayClosureFacts,
@@ -45,7 +47,11 @@ class ExamLifecycleExecutionUnitOfWork(ExecutionUnitOfWork, Protocol):
     ) -> dict | None: ...
 
     def read_round_lifecycle(
-        self, service: ExamRoundLifecycleService, scope: AuthorizationScope, round_id: int
+        self,
+        service: ExamRoundLifecycleService,
+        scope: AuthorizationScope,
+        round_id: int,
+        pending_consequence_ids: Sequence[int],
     ) -> dict | None: ...
 
     def set_round_candidate_terminal_status(
@@ -229,6 +235,9 @@ class ExamLifecycleUnitOfWork(Protocol):
 
     @property
     def calendar_lifecycle(self) -> CalendarLifecycleWork: ...
+
+    @property
+    def consequences(self) -> LifecycleConsequenceReadPort: ...
 
 
 class ExamLifecycleUnitOfWorkFactory(Protocol):
