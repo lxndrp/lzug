@@ -33,6 +33,7 @@ from backend.persistence.models import (
     ExamDayReopening,
     ExamDayTask,
     ExamResult,
+    ExamRound,
     ExamRoundAssessmentBinding,
     ExamSlot,
     MemberExamAttendance,
@@ -175,6 +176,28 @@ class ExamDayClosureTests(unittest.TestCase):
 
         for value in values:
             assert_materialized_port_value(self, value)
+
+    def test_exam_lifecycle_read_scope_pins_one_snapshot_without_write_intent(self) -> None:
+        factory = SQLiteExamLifecycleUnitOfWorkFactory(
+            SQLiteExecutionUnitOfWorkFactory(
+                self.db_path,
+                identity_snapshot_factory=SQLiteIdentityExecutionSnapshotFactory(),
+            ),
+            SQLiteAssessmentUnitOfWorkFactory(self.db_path),
+            self.db_path,
+            SQLiteAssessmentLifecycleAdapter(SQLiteAssessmentUnitOfWorkFactory(self.db_path)),
+        )
+        with factory.read_scope() as unit_of_work:
+            before = unit_of_work.planning_lifecycle.round_lifecycle_snapshot(1)
+            self.assertIsNotNone(before)
+            with session_scope(self.db_path, begin_immediate=True) as writer:
+                writer.get(ExamRound, 1).revision += 1
+            after = unit_of_work.planning_lifecycle.round_lifecycle_snapshot(1)
+
+        self.assertIsNotNone(after)
+        self.assertEqual(before.revision, after.revision)
+        with session_scope(self.db_path) as session:
+            self.assertEqual(before.revision + 1, session.get(ExamRound, 1).revision)
 
     def test_closure_evaluation_keeps_finding_order(self) -> None:
         with session_scope(self.db_path) as session:

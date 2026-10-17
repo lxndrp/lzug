@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from backend.persistence.assessment import SQLiteAssessmentUnitOfWorkFactory
 from backend.persistence.calendar_lifecycle import SQLiteCalendarLifecycleWork
-from backend.persistence.database import DEFAULT_DB_PATH, session_scope
+from backend.persistence.database import DEFAULT_DB_PATH, read_session_scope, session_scope
 from backend.persistence.execution import SQLiteExecutionUnitOfWorkFactory
 from backend.persistence.identity_lifecycle import SQLiteIdentityLifecycleWork
 from backend.persistence.models import ExamDay
@@ -62,7 +62,7 @@ class SQLiteExamLifecycleUnitOfWorkFactory:
 
     @contextmanager
     def _read_scope(self) -> Iterator[_SQLiteExamLifecycleUnitOfWork]:
-        with session_scope(self._db_path) as session:
+        with read_session_scope(self._db_path) as session:
             yield self.in_session(session)
 
 
