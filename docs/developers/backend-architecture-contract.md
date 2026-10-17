@@ -8,6 +8,43 @@ Sie ergänzt die aktuelle Implementierungsbeschreibung unter
 Langfristige Leitplanken und ihre Begründung stehen in
 [ADR-0041](decisions/0041-backend-modulverantwortung-und-use-case-vertraege.md).
 
+## Technische Ausführungskontexte
+
+Die technische Ablaufsteuerung bleibt bei dem Adapter oder der Infrastruktur,
+die ihre Lebensdauer und Fehlersemantik besitzt. Nach der Verlagerung der
+HTTP-Verträge in #1083 bestehen hier keine weiteren wiederholten
+Admin-/Cleanup-/Ereignisabläufe, die einen gemeinsamen Wrapper rechtfertigen.
+Die ähnlich aussehenden `with`-Blöcke sind unterschiedliche, nicht austauschbare
+Verträge:
+
+- `RuntimeAdmissionMiddleware` hält RuntimeAdmission über den gesamten ASGI-Aufruf,
+  einschließlich der Bereinigung und des tatsächlichen Endes eines abgeschirmten
+  Workers. Die Admission gehört diesem Adapterlebenszyklus; eine kurzlebige
+  FastAPI-Yield-Dependency deckt diese Grenze nicht ab.
+- `AdminSocket` besitzt Socket-Worker, Verbindungsplätze und Jobstatus bis zum
+  Ende der Ausführung. Ein Disconnect beendet die Antwortzustellung, aber weder
+  den bereits gestarteten Worker noch seine RuntimeAdmission. `stop()` schließt
+  neue Annahme und I/O und gibt Socket-Ownership erst nach Worker-Ende frei.
+- `RuntimeCoordinator.operation()` besitzt Drain, Exklusivität, Cancellation
+  während des Wartens, Fehler-/Recoverystatus und die Nachprüfung. Eine laufende
+  Operation wird bei Disconnect oder Cancellation nicht freigegeben oder
+  wiederholt.
+- Persistenzkontexte in `persistence.database` besitzen ihre jeweilige
+  Transaktion, Aktivierungs- und Snapshotlocks sowie Commit/Rollback und
+  Ressourcenfreigabe. Sie sind keine generische Admin- oder Ereignissteuerung.
+- `emit_event()` ist der explizite, allowlist-basierte Ausgabepunkt. Aufrufer
+  wählen die freigegebenen Ereignisse und Felder; eine zweite Middleware oder
+  ein globaler Interceptor würde doppelte Ausgabe beziehungsweise nicht
+  freigegebene Daten riskieren.
+
+Es wird deshalb kein Decorator oder Kontextmanager ergänzt. Das würde nur eine
+weitere Aufrufschicht hinzufügen und könnte Ownership, Fehlerabbildung,
+Cancellation oder die Unterscheidung zwischen Commit und verlorener Antwort
+verdecken. Die bestehenden Runtime-, Admin-Socket-, Persistenz- und
+Observability-Erweiterungspunkte bleiben ausdrücklich benannt. Fachliche
+Autorisierung, Retry und Transaktionsentscheidungen bleiben bei ihren jeweiligen
+Anwendungsfällen.
+
 ## Zielgraph
 
 ```mermaid
