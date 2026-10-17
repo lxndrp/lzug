@@ -413,7 +413,7 @@ class RequestContext:
 
     def authorize_mutation(self, method: str, path_parts: list[str], context: AuthContext) -> None:
         self.runtime_policy.authorize_mutation(self, method, path_parts, context)
-        self.exam_round_lifecycle_service.assert_http_mutation(
+        self.exam_lifecycle_application.assert_http_mutation(
             method,
             path_parts,
             self.read_json() if self._body else {},

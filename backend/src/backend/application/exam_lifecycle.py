@@ -57,6 +57,14 @@ class ExamLifecycleApplication:
                 service, scope, round_id, pending_consequence_ids
             )
 
+    def assert_http_mutation(
+        self, method: str, path_parts: list[str], payload: dict[str, Any]
+    ) -> None:
+        """Apply the shared lifecycle lock through the configured Execution boundary."""
+        service = self._round_lifecycle_service()
+        with self._unit_of_work_factory.read_scope() as unit_of_work:
+            unit_of_work.execution.assert_http_mutation(service, method, path_parts, payload)
+
     def set_exam_round_candidate_terminal_status(
         self, scope: AuthorizationScope, round_id: int, candidate_id: int, payload: dict[str, Any]
     ) -> dict[str, Any]:

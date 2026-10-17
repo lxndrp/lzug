@@ -43,6 +43,14 @@ from backend.identity.authorization import AuthorizationScope
 class ExamLifecycleExecutionUnitOfWork(ExecutionUnitOfWork, Protocol):
     """Execution capabilities required by Application lifecycle commands."""
 
+    def assert_http_mutation(
+        self,
+        service: ExamRoundLifecycleService,
+        method: str,
+        path_parts: list[str],
+        payload: dict,
+    ) -> None: ...
+
     def read_day_closure(
         self,
         service: ExamDayClosureService,

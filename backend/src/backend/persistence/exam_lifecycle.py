@@ -140,6 +140,9 @@ class _SQLiteExamLifecycleExecution:
             )
         )
 
+    def assert_http_mutation(self, service, method: str, path_parts: list[str], payload) -> None:
+        service.assert_http_mutation_in_session(self._session, method, path_parts, payload)
+
     def read_day_closure(self, service, scope, day_id: int, facts):
         return service.get_in_session(self._session, scope, day_id, facts=facts)
 

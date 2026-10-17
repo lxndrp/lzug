@@ -897,10 +897,14 @@ class ExamRoundLifecycleService:
             exam_round = self._required_round(planning, round_id)
             self._require_mutable_scope(session, exam_round, _token(kind, entity_id))
 
-    def assert_http_mutation(
-        self, method: str, path_parts: list[str], payload: dict[str, Any]
+    def assert_http_mutation_in_session(
+        self,
+        session: Session,
+        method: str,
+        path_parts: list[str],
+        payload: dict[str, Any],
     ) -> None:
-        """Resolve one business HTTP mutation and enforce the round-wide lock."""
+        """Resolve one business HTTP mutation within the caller's lifecycle scope."""
         if method not in {"POST", "PUT", "PATCH", "DELETE"} or not path_parts:
             return
         if (
@@ -936,14 +940,13 @@ class ExamRoundLifecycleService:
             and path_parts[2] == "retention"
         ):
             return
-        with session_scope(self.db_path) as session:
-            planning = self.planning_lifecycle_work_factory(session)
-            resolved = self._round_mutation_token(session, path_parts, payload)
-            if resolved is None:
-                return
-            round_id, token = resolved
-            exam_round = self._required_round(planning, round_id)
-            self._require_mutable_scope(session, exam_round, token)
+        planning = self.planning_lifecycle_work_factory(session)
+        resolved = self._round_mutation_token(session, path_parts, payload)
+        if resolved is None:
+            return
+        round_id, token = resolved
+        exam_round = self._required_round(planning, round_id)
+        self._require_mutable_scope(session, exam_round, token)
 
     def _round_mutation_token(
         self, session: Session, path_parts: list[str], payload: dict[str, Any]
