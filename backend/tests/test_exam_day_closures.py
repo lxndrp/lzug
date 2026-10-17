@@ -178,6 +178,7 @@ class ExamDayClosureTests(unittest.TestCase):
                 unit_of_work.planning_lifecycle.exam_day_slot_ids((2,)),
                 unit_of_work.execution.exam_day_round_id(2),
                 unit_of_work.execution.exam_day_ids_for_round(1),
+                unit_of_work.consequences.pending_ids_for_round(1),
                 unit_of_work.assessment_lifecycle.day_completion(2),
                 unit_of_work.assessment_lifecycle.results_for_day_slots(2, slot_ids),
                 reopening_impacts,
