@@ -78,18 +78,22 @@ class ExamLifecycleApplication:
     ) -> dict[str, Any]:
         service = self._round_lifecycle_service()
         with self._unit_of_work_factory() as unit_of_work:
-            return unit_of_work.execution.set_round_candidate_terminal_status(
+            unit_of_work.execution.set_round_candidate_terminal_status(
                 service, scope, round_id, candidate_id, payload
             )
+            response = self._read_round_lifecycle_response(unit_of_work, service, scope, round_id)
+        return response
 
     def document_exam_round_ihk_status(
         self, scope: AuthorizationScope, round_id: int, result_id: int, payload: dict[str, Any]
     ) -> dict[str, Any]:
         service = self._round_lifecycle_service()
         with self._unit_of_work_factory() as unit_of_work:
-            return unit_of_work.execution.document_round_ihk_status(
+            unit_of_work.execution.document_round_ihk_status(
                 service, scope, round_id, result_id, payload
             )
+            response = self._read_round_lifecycle_response(unit_of_work, service, scope, round_id)
+        return response
 
     def delete_empty_exam_round_draft(self, scope: AuthorizationScope, round_id: int) -> bool:
         service = self._round_lifecycle_service()
@@ -330,8 +334,9 @@ class ExamLifecycleApplication:
                 outcome = unit_of_work.execution.apply_round_decision(
                     service, scope, intent, facts, recipients
                 )
+            response = self._read_round_lifecycle_response(unit_of_work, service, scope, round_id)
         service.publish_decision_notifications(outcome)
-        return outcome.response
+        return response
 
     @staticmethod
     def _round_facts(unit_of_work, round_id: int, *, exam_round=None) -> RoundLifecycleFacts:
@@ -389,8 +394,32 @@ class ExamLifecycleApplication:
                         "Die Prüfungsrunde wurde zwischenzeitlich geändert"
                     )
                 outcome = unit_of_work.execution.apply_round_reopen(service, scope, intent, facts)
+            response = self._read_round_lifecycle_response(unit_of_work, service, scope, round_id)
         service.publish_decision_notifications(outcome)
-        return outcome.response
+        return response
+
+    def _read_round_lifecycle_response(
+        self,
+        unit_of_work,
+        service: ExamRoundLifecycleService,
+        scope: AuthorizationScope,
+        round_id: int,
+    ) -> dict[str, Any]:
+        exam_round = unit_of_work.planning_lifecycle.round_lifecycle_snapshot(round_id)
+        if exam_round is None:
+            raise RuntimeError("Exam round disappeared before its lifecycle response was read")
+        facts = self._round_facts(unit_of_work, round_id, exam_round=exam_round)
+        pending_consequence_ids = unit_of_work.consequences.pending_ids_for_round(round_id)
+        response = unit_of_work.execution.read_round_lifecycle(
+            service,
+            scope,
+            round_id,
+            pending_consequence_ids,
+            facts,
+        )
+        if response is None:
+            raise RuntimeError("Exam round disappeared before its lifecycle response was read")
+        return response
 
     def round_reopening_impact(
         self, scope: AuthorizationScope, round_id: int, raw_scope: Any

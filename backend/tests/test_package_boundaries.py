@@ -168,6 +168,7 @@ TEST_OWNERS = {
             "test_exam_protocols.py",
             "test_exam_round_lifecycle.py",
             "test_round_lifecycle_export_snapshot.py",
+            "test_round_lifecycle_mutation_snapshot.py",
         }
     ),
     "identity": frozenset(

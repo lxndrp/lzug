@@ -74,7 +74,7 @@ class ExamLifecycleExecutionUnitOfWork(ExecutionUnitOfWork, Protocol):
         round_id: int,
         candidate_id: int,
         payload: dict,
-    ) -> dict: ...
+    ) -> None: ...
 
     def document_round_ihk_status(
         self,
@@ -83,7 +83,7 @@ class ExamLifecycleExecutionUnitOfWork(ExecutionUnitOfWork, Protocol):
         round_id: int,
         result_id: int,
         payload: dict,
-    ) -> dict: ...
+    ) -> None: ...
 
     def delete_empty_draft_round(
         self, service: ExamRoundLifecycleService, scope: AuthorizationScope, round_id: int
@@ -96,6 +96,8 @@ class ExamLifecycleExecutionUnitOfWork(ExecutionUnitOfWork, Protocol):
         round_id: int,
         *,
         human: bool,
+        facts: RoundLifecycleFacts | None = None,
+        pending_consequence_ids: Sequence[int] | None = None,
     ) -> dict | str: ...
 
     def export_day(

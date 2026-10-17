@@ -547,8 +547,12 @@ class ExamRoundLifecycleTests(unittest.TestCase):
         )
         close = round_decision_command({"revision": 1, "confirmed": True})
         with (
-            patch.object(service, "_view", side_effect=RuntimeError("test view failure")),
-            self.assertRaisesRegex(RuntimeError, "test view failure"),
+            patch.object(
+                service,
+                "get_from_read_snapshot",
+                side_effect=RuntimeError("test snapshot failure"),
+            ),
+            self.assertRaisesRegex(RuntimeError, "test snapshot failure"),
         ):
             application.close_exam_round(scope, 1, close)
         with session_scope(self.db_path) as session:
@@ -569,9 +573,13 @@ class ExamRoundLifecycleTests(unittest.TestCase):
         }
         command = round_reopen_command(command_payload)
         with (
-            patch.object(service, "_view", side_effect=RuntimeError("test view failure")),
+            patch.object(
+                service,
+                "get_from_read_snapshot",
+                side_effect=RuntimeError("test snapshot failure"),
+            ),
             patch.object(service, "_notify") as notify,
-            self.assertRaisesRegex(RuntimeError, "test view failure"),
+            self.assertRaisesRegex(RuntimeError, "test snapshot failure"),
         ):
             application.reopen_exam_round(scope, 1, command)
         notify.assert_not_called()

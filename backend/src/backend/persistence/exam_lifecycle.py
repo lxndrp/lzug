@@ -167,12 +167,12 @@ class _SQLiteExamLifecycleExecution:
     def set_round_candidate_terminal_status(
         self, service, scope, round_id: int, candidate_id: int, payload
     ):
-        return service.set_candidate_terminal_status_in_session(
+        return service.set_candidate_terminal_status_command_in_session(
             self._session, scope, round_id, candidate_id, payload
         )
 
     def document_round_ihk_status(self, service, scope, round_id: int, result_id: int, payload):
-        return service.document_ihk_status_in_session(
+        return service.document_ihk_status_command_in_session(
             self._session, scope, round_id, result_id, payload
         )
 

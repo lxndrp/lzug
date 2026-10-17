@@ -91,9 +91,8 @@ class ExamRoundValidationError(ValueError):
 
 @dataclass(frozen=True)
 class ExamRoundDecisionOutcome:
-    """Decision response and deferred cancellation notification input."""
+    """Deferred notification input for one committed round decision."""
 
-    response: dict[str, Any]
     committee_id: int | None = None
     round_id: int | None = None
     recipient_member_ids: frozenset[int] = frozenset()
@@ -551,7 +550,7 @@ class ExamRoundLifecycleService:
         intent: ExamRoundDecisionIntent,
         facts: RoundLifecycleFacts,
     ) -> ExamRoundDecisionOutcome:
-        return ExamRoundDecisionOutcome(self._view(session, facts.round, scope, facts=facts))
+        return ExamRoundDecisionOutcome()
 
     def refresh_decision_snapshot(
         self,
@@ -638,7 +637,7 @@ class ExamRoundLifecycleService:
         )
 
     def replay_reopen_intent(self, session, scope, intent, facts):
-        return ExamRoundDecisionOutcome(self._view(session, facts.round, scope, facts=facts))
+        return ExamRoundDecisionOutcome()
 
     def apply_reopen_intent(self, session, scope, intent, facts):
         previous = self._current_or_latest_decision(session, intent.round_id)
@@ -682,7 +681,6 @@ class ExamRoundLifecycleService:
             )
         )
         return ExamRoundDecisionOutcome(
-            response=self._view(session, updated, scope, facts=replace(facts, round=updated)),
             committee_id=intent.impact and updated.committee_id if recipients else None,
             round_id=intent.round_id if recipients else None,
             recipient_member_ids=frozenset(recipients),
@@ -756,9 +754,7 @@ class ExamRoundLifecycleService:
             )
         )
         recipients = cancelled_recipients or set()
-        response = self._view(session, updated, scope, facts=replace(facts, round=updated))
         return ExamRoundDecisionOutcome(
-            response=response,
             committee_id=intent.committee_id if recipients else None,
             round_id=intent.round_id if recipients else None,
             recipient_member_ids=frozenset(recipients),
@@ -925,6 +921,7 @@ class ExamRoundLifecycleService:
         round_candidate_id: int,
         payload: dict[str, Any],
     ) -> dict[str, Any]:
+        """Direct-service compatibility API; Application callers use the UoW read port."""
         with session_scope(self.db_path) as session:
             return self.set_candidate_terminal_status_in_session(
                 session, scope, round_id, round_candidate_id, payload
@@ -938,6 +935,22 @@ class ExamRoundLifecycleService:
         round_candidate_id: int,
         payload: dict[str, Any],
     ) -> dict[str, Any]:
+        """Compatibility wrapper; the Application uses the command-only port method."""
+        self.set_candidate_terminal_status_command_in_session(
+            session, scope, round_id, round_candidate_id, payload
+        )
+        planning = self.planning_lifecycle_work_factory(session)
+        exam_round = self._required_round(planning, round_id)
+        return self._view(session, exam_round, scope, planning_work=planning)
+
+    def set_candidate_terminal_status_command_in_session(
+        self,
+        session: Session,
+        scope: AuthorizationScope,
+        round_id: int,
+        round_candidate_id: int,
+        payload: dict[str, Any],
+    ) -> None:
         expected_revision = self._required_revision(payload)
         status = payload.get("terminal_status")
         if status not in TERMINAL_CANDIDATE_STATUSES | {"open"}:
@@ -989,9 +1002,7 @@ class ExamRoundLifecycleService:
             raise ValueError("Prüfling gehört nicht zur Prüfungsrunde")
         if not planning.advance_round_lifecycle(round_id, expected_revision, now):
             raise ExamRoundConflictError("Die Prüfungsrunde wurde zwischenzeitlich geändert")
-        exam_round = replace(exam_round, revision=exam_round.revision + 1)
         session.flush()
-        return self._view(session, exam_round, scope, planning_work=planning)
 
     @staticmethod
     def _require_terminal_details(
@@ -1078,6 +1089,7 @@ class ExamRoundLifecycleService:
         result_id: int,
         payload: dict[str, Any],
     ) -> dict[str, Any]:
+        """Direct-service compatibility API; Application callers use the UoW read port."""
         with session_scope(self.db_path) as session:
             return self.document_ihk_status_in_session(session, scope, round_id, result_id, payload)
 
@@ -1089,6 +1101,19 @@ class ExamRoundLifecycleService:
         result_id: int,
         payload: dict[str, Any],
     ) -> dict[str, Any]:
+        """Compatibility wrapper; the Application uses the command-only port method."""
+        self.document_ihk_status_command_in_session(session, scope, round_id, result_id, payload)
+        exam_round = self._required_round(self.planning_lifecycle_work_factory(session), round_id)
+        return self._view(session, exam_round, scope)
+
+    def document_ihk_status_command_in_session(
+        self,
+        session: Session,
+        scope: AuthorizationScope,
+        round_id: int,
+        result_id: int,
+        payload: dict[str, Any],
+    ) -> None:
         document_status = self._required_text(
             payload.get("document_status"), "document_status", 300
         )
@@ -1125,7 +1150,6 @@ class ExamRoundLifecycleService:
                 )
             )
             session.flush()
-        return self._view(session, exam_round, scope)
 
     def _export(self, scope: AuthorizationScope, round_id: int, export_kind: str) -> dict[str, Any]:
         with session_scope(self.db_path) as session:
