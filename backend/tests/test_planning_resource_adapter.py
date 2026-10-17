@@ -233,7 +233,7 @@ class PlanningResourceAdapterTests(unittest.TestCase):
                     "training_company": "Port-Test",
                 }
             )
-            planning.create_candidate(
+            hidden = planning.create_candidate(
                 {
                     "first_name": "Hidden",
                     "last_name": "Candidate",
@@ -257,6 +257,8 @@ class PlanningResourceAdapterTests(unittest.TestCase):
             with patch.object(Store, "where", capture_where):
                 visible = scoped_service.list_visible_records("candidate")
 
+        assert_materialized_port_value(self, first)
+        assert_materialized_port_value(self, hidden)
         self.assertEqual([first.values["id"]], [record.values["id"] for record in visible])
         self.assertTrue(conditions)
         self.assertTrue(
@@ -289,6 +291,9 @@ class PlanningResourceAdapterTests(unittest.TestCase):
             sum(row.values["season"] == "winter" for row in half_years),
         )
         self.assertEqual(half_years[0].values["id"], created_round.values["exam_half_year_id"])
+        assert_materialized_port_value(self, created_round)
+        for half_year in half_years:
+            assert_materialized_port_value(self, half_year)
 
     def test_concurrent_duplicate_round_writes_serialize_half_year_creation(self) -> None:
         with TempDatabase() as db_path:
@@ -319,6 +324,8 @@ class PlanningResourceAdapterTests(unittest.TestCase):
 
         self.assertCountEqual(["created", "duplicate"], outcomes)
         self.assertEqual(1, len(half_years))
+        for half_year in half_years:
+            assert_materialized_port_value(self, half_year)
 
     def test_read_unit_of_work_does_not_reserve_sqlite_writer_intent(self) -> None:
         with TempDatabase() as db_path:
@@ -342,6 +349,7 @@ class PlanningResourceAdapterTests(unittest.TestCase):
                 }
             )
             half_year_id = round_record.values["exam_half_year_id"]
+            assert_materialized_port_value(self, round_record)
 
             with factory() as unit_of_work:
                 self.assertIsNotNone(unit_of_work.get_round(round_record.values["id"]))
