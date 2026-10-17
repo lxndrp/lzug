@@ -28,10 +28,12 @@ class BackendTestTierTests(unittest.TestCase):
 
     def test_http_tier_shards_are_complete_and_non_overlapping(self) -> None:
         modules = TEST_MODULES_BY_TIER["http"]
-        shards = partition_test_modules(modules, 2)
+        shards = partition_test_modules(modules, 3)
 
         self.assertEqual(set().union(*map(set, shards)), modules)
-        self.assertFalse(set(shards[0]) & set(shards[1]))
+        for index, shard in enumerate(shards):
+            remaining = set().union(*(set(other) for other in shards[index + 1 :]))
+            self.assertFalse(set(shard) & remaining)
 
     def test_shard_count_cannot_exceed_selected_suite_modules(self) -> None:
         stderr = io.StringIO()
