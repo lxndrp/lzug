@@ -645,61 +645,73 @@ class ExamRoundLifecycleService:
         round_candidate_id: int,
         payload: dict[str, Any],
     ) -> dict[str, Any]:
+        with session_scope(self.db_path) as session:
+            return self.set_candidate_terminal_status_in_session(
+                session, scope, round_id, round_candidate_id, payload
+            )
+
+    def set_candidate_terminal_status_in_session(
+        self,
+        session: Session,
+        scope: AuthorizationScope,
+        round_id: int,
+        round_candidate_id: int,
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
         expected_revision = self._required_revision(payload)
         status = payload.get("terminal_status")
         if status not in TERMINAL_CANDIDATE_STATUSES | {"open"}:
             raise ValueError("Unbekannter abschließender Kandidatenstatus")
-        with session_scope(self.db_path) as session:
-            planning = self.planning_lifecycle_work_factory(session)
-            exam_round = self._required_round(planning, round_id)
-            self._require_management(exam_round, scope)
-            candidate = planning.round_candidate(round_id, round_candidate_id)
-            if candidate is None:
-                raise ValueError("Prüfling gehört nicht zur Prüfungsrunde")
-            self._require_mutable_scope(
-                session, exam_round, _token("candidate_assignment", candidate["id"])
-            )
-            if exam_round.revision != expected_revision:
-                raise ExamRoundConflictError("Die Prüfungsrunde wurde zwischenzeitlich geändert")
-            reason = self._optional_text(payload.get("reason"), 3000)
-            target_round_id = payload.get("effective_new_round_id")
-            postponed_until = self._optional_text(payload.get("postponed_until"), 100)
-            ihk_reference = self._optional_text(payload.get("ihk_decision_reference"), 1000)
-            self._require_terminal_details(
-                status, reason, target_round_id, postponed_until, ihk_reference
-            )
-            if status == "result_communicated":
-                self._assert_result_communicated(session, candidate)
-            elif status == "transferred":
-                if not isinstance(target_round_id, int) or isinstance(target_round_id, bool):
-                    raise ValueError("Ein Ausschusswechsel benötigt eine wirksame neue Runde")
-                self._require_effective_transfer(planning, exam_round, candidate, target_round_id)
-            now = _now()
-            values = {
-                "terminal_status": status,
-                "terminal_reason": reason,
-                "effective_new_round_id": target_round_id if status == "transferred" else None,
-                "postponed_until": postponed_until if status == "postponed" else None,
-                "ihk_decision_reference": ihk_reference if status == "ihk_terminated" else None,
-                "terminal_at": now if status != "open" else None,
-                "updated_at": now,
-            }
-            ends_assignment = status in {"transferred", "postponed", "ihk_terminated"}
-            if ends_assignment:
-                values["is_active"] = 0
-            if not planning.update_candidate_terminal(
-                round_id,
-                candidate["id"],
-                values,
-                ended_at=now if ends_assignment else None,
-                change_reason=reason,
-            ):
-                raise ValueError("Prüfling gehört nicht zur Prüfungsrunde")
-            if not planning.advance_round_lifecycle(round_id, expected_revision, now):
-                raise ExamRoundConflictError("Die Prüfungsrunde wurde zwischenzeitlich geändert")
-            exam_round = replace(exam_round, revision=exam_round.revision + 1)
-            session.flush()
-            return self._view(session, exam_round, scope, planning_work=planning)
+        planning = self.planning_lifecycle_work_factory(session)
+        exam_round = self._required_round(planning, round_id)
+        self._require_management(exam_round, scope)
+        candidate = planning.round_candidate(round_id, round_candidate_id)
+        if candidate is None:
+            raise ValueError("Prüfling gehört nicht zur Prüfungsrunde")
+        self._require_mutable_scope(
+            session, exam_round, _token("candidate_assignment", candidate["id"])
+        )
+        if exam_round.revision != expected_revision:
+            raise ExamRoundConflictError("Die Prüfungsrunde wurde zwischenzeitlich geändert")
+        reason = self._optional_text(payload.get("reason"), 3000)
+        target_round_id = payload.get("effective_new_round_id")
+        postponed_until = self._optional_text(payload.get("postponed_until"), 100)
+        ihk_reference = self._optional_text(payload.get("ihk_decision_reference"), 1000)
+        self._require_terminal_details(
+            status, reason, target_round_id, postponed_until, ihk_reference
+        )
+        if status == "result_communicated":
+            self._assert_result_communicated(session, candidate)
+        elif status == "transferred":
+            if not isinstance(target_round_id, int) or isinstance(target_round_id, bool):
+                raise ValueError("Ein Ausschusswechsel benötigt eine wirksame neue Runde")
+            self._require_effective_transfer(planning, exam_round, candidate, target_round_id)
+        now = _now()
+        values = {
+            "terminal_status": status,
+            "terminal_reason": reason,
+            "effective_new_round_id": target_round_id if status == "transferred" else None,
+            "postponed_until": postponed_until if status == "postponed" else None,
+            "ihk_decision_reference": ihk_reference if status == "ihk_terminated" else None,
+            "terminal_at": now if status != "open" else None,
+            "updated_at": now,
+        }
+        ends_assignment = status in {"transferred", "postponed", "ihk_terminated"}
+        if ends_assignment:
+            values["is_active"] = 0
+        if not planning.update_candidate_terminal(
+            round_id,
+            candidate["id"],
+            values,
+            ended_at=now if ends_assignment else None,
+            change_reason=reason,
+        ):
+            raise ValueError("Prüfling gehört nicht zur Prüfungsrunde")
+        if not planning.advance_round_lifecycle(round_id, expected_revision, now):
+            raise ExamRoundConflictError("Die Prüfungsrunde wurde zwischenzeitlich geändert")
+        exam_round = replace(exam_round, revision=exam_round.revision + 1)
+        session.flush()
+        return self._view(session, exam_round, scope, planning_work=planning)
 
     @staticmethod
     def _require_terminal_details(
@@ -735,34 +747,63 @@ class ExamRoundLifecycleService:
 
     def delete_empty_draft(self, scope: AuthorizationScope, round_id: int) -> bool:
         with session_scope(self.db_path) as session:
-            planning = self.planning_lifecycle_work_factory(session)
-            exam_round = planning.round_lifecycle_snapshot(round_id)
-            if exam_round is None:
-                return False
-            self._require_management(exam_round, scope)
-            if exam_round.status != "draft" or exam_round.lifecycle_status != "open":
-                raise ValueError("Nur eine offene Entwurfsrunde kann gelöscht werden")
-            dependencies = self._dependency_counts(session, exam_round, planning)
-            present = [name for name, count in dependencies.items() if count]
-            if present:
-                raise ValueError(
-                    "Die Prüfungsrunde besitzt abhängige Fachdaten: " + ", ".join(present)
-                )
-            if not planning.delete_empty_draft_round(round_id, exam_round.revision):
-                raise ExamRoundConflictError("Die Prüfungsrunde wurde zwischenzeitlich geändert")
-            return True
+            return self.delete_empty_draft_in_session(session, scope, round_id)
+
+    def delete_empty_draft_in_session(
+        self, session: Session, scope: AuthorizationScope, round_id: int
+    ) -> bool:
+        planning = self.planning_lifecycle_work_factory(session)
+        exam_round = planning.round_lifecycle_snapshot(round_id)
+        if exam_round is None:
+            return False
+        self._require_management(exam_round, scope)
+        if exam_round.status != "draft" or exam_round.lifecycle_status != "open":
+            raise ValueError("Nur eine offene Entwurfsrunde kann gelöscht werden")
+        dependencies = self._dependency_counts(session, exam_round, planning)
+        present = [name for name, count in dependencies.items() if count]
+        if present:
+            raise ValueError("Die Prüfungsrunde besitzt abhängige Fachdaten: " + ", ".join(present))
+        if not planning.delete_empty_draft_round(round_id, exam_round.revision):
+            raise ExamRoundConflictError("Die Prüfungsrunde wurde zwischenzeitlich geändert")
+        return True
 
     def machine_export(self, scope: AuthorizationScope, round_id: int) -> dict[str, Any]:
         return self._export(scope, round_id, "machine")
 
+    def machine_export_in_session(
+        self, session: Session, scope: AuthorizationScope, round_id: int
+    ) -> dict[str, Any]:
+        return self._export_in_session(session, scope, round_id, "machine")
+
     def human_export(self, scope: AuthorizationScope, round_id: int) -> str:
         export = self._export(scope, round_id, "human")
+        return self._render_human_export(round_id, export)
+
+    def human_export_in_session(
+        self, session: Session, scope: AuthorizationScope, round_id: int
+    ) -> str:
+        export = self._export_in_session(session, scope, round_id, "human")
+        return self._render_human_export(round_id, export)
+
+    @staticmethod
+    def _render_human_export(round_id: int, export: dict[str, Any]) -> str:
         lifecycle = export["lifecycle"]
         snapshot = export["snapshot"]
         return render_round_lifecycle_export(round_id, lifecycle, snapshot)
 
     def document_ihk_status(
         self,
+        scope: AuthorizationScope,
+        round_id: int,
+        result_id: int,
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        with session_scope(self.db_path) as session:
+            return self.document_ihk_status_in_session(session, scope, round_id, result_id, payload)
+
+    def document_ihk_status_in_session(
+        self,
+        session: Session,
         scope: AuthorizationScope,
         round_id: int,
         result_id: int,
@@ -782,59 +823,61 @@ class ExamRoundLifecycleService:
                 "document_reference": reference,
             }
         )
-        with session_scope(self.db_path) as session:
-            planning = self.planning_lifecycle_work_factory(session)
-            exam_round = self._required_round(planning, round_id)
-            actor_id = self._require_management(exam_round, scope)
-            result = self.assessment_lifecycle_factory(session).result_by_id(result_id)
-            if result is None or result["round_id"] != round_id:
-                raise ValueError("Ergebnis gehört nicht zur Prüfungsrunde")
-            existing = session.scalar(
-                select(ExamRoundIhkStatus).where(
-                    ExamRoundIhkStatus.command_fingerprint == fingerprint
+        planning = self.planning_lifecycle_work_factory(session)
+        exam_round = self._required_round(planning, round_id)
+        actor_id = self._require_management(exam_round, scope)
+        result = self.assessment_lifecycle_factory(session).result_by_id(result_id)
+        if result is None or result["round_id"] != round_id:
+            raise ValueError("Ergebnis gehört nicht zur Prüfungsrunde")
+        existing = session.scalar(
+            select(ExamRoundIhkStatus).where(ExamRoundIhkStatus.command_fingerprint == fingerprint)
+        )
+        if existing is None:
+            session.add(
+                ExamRoundIhkStatus(
+                    exam_round_id=round_id,
+                    exam_result_id=result_id,
+                    document_status=document_status,
+                    document_reference=reference,
+                    recorded_by_member_id=actor_id,
+                    command_fingerprint=fingerprint,
+                    recorded_at=_now(),
                 )
             )
-            if existing is None:
-                session.add(
-                    ExamRoundIhkStatus(
-                        exam_round_id=round_id,
-                        exam_result_id=result_id,
-                        document_status=document_status,
-                        document_reference=reference,
-                        recorded_by_member_id=actor_id,
-                        command_fingerprint=fingerprint,
-                        recorded_at=_now(),
-                    )
-                )
-                session.flush()
-            return self._view(session, exam_round, scope)
+            session.flush()
+        return self._view(session, exam_round, scope)
 
     def _export(self, scope: AuthorizationScope, round_id: int, export_kind: str) -> dict[str, Any]:
         with session_scope(self.db_path) as session:
-            planning = self.planning_lifecycle_work_factory(session)
-            exam_round = self._required_round(planning, round_id)
-            actor_id = self._require_access(exam_round, scope)
-            if actor_id is None:
-                raise PermissionError("Forbidden.")
-            decision = self._current_or_latest_decision(session, round_id)
-            row = ExamRoundExport(
-                exam_round_id=round_id,
-                decision_id=decision.id if decision else None,
-                round_revision=exam_round.revision,
-                export_kind=export_kind,
-                lifecycle_status=exam_round.lifecycle_status,
-                generated_by_member_id=actor_id,
-                generated_at=_now(),
-            )
-            session.add(row)
-            session.flush()
-            view = self._view(session, exam_round, scope)
-            return {
-                "export_version": 1,
-                "export": self._export_view(row),
-                "lifecycle": view,
-                "snapshot": self._snapshot(session, exam_round),
-            }
+            return self._export_in_session(session, scope, round_id, export_kind)
+
+    def _export_in_session(
+        self, session: Session, scope: AuthorizationScope, round_id: int, export_kind: str
+    ) -> dict[str, Any]:
+        planning = self.planning_lifecycle_work_factory(session)
+        exam_round = self._required_round(planning, round_id)
+        actor_id = self._require_access(exam_round, scope)
+        if actor_id is None:
+            raise PermissionError("Forbidden.")
+        decision = self._current_or_latest_decision(session, round_id)
+        row = ExamRoundExport(
+            exam_round_id=round_id,
+            decision_id=decision.id if decision else None,
+            round_revision=exam_round.revision,
+            export_kind=export_kind,
+            lifecycle_status=exam_round.lifecycle_status,
+            generated_by_member_id=actor_id,
+            generated_at=_now(),
+        )
+        session.add(row)
+        session.flush()
+        view = self._view(session, exam_round, scope)
+        return {
+            "export_version": 1,
+            "export": self._export_view(row),
+            "lifecycle": view,
+            "snapshot": self._snapshot(session, exam_round),
+        }
 
     def assert_mutable(self, round_id: int, kind: str, entity_id: int) -> None:
         """Enforce the shared lock for direct business API mutations."""

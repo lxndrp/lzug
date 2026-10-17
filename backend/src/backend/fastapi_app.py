@@ -846,7 +846,7 @@ def _register_exam_round_routes(app, resolved, application, read_security, write
         candidate_id: int,
         payload: DomainResourceWrite,
     ):
-        result = context.exam_round_lifecycle_service.set_candidate_terminal_status(
+        result = context.exam_lifecycle_application.set_exam_round_candidate_terminal_status(
             context.authorization_scope,
             id,
             candidate_id,
@@ -864,7 +864,7 @@ def _register_exam_round_routes(app, resolved, application, read_security, write
         result_id: int,
         payload: DomainResourceWrite,
     ):
-        result = context.exam_round_lifecycle_service.document_ihk_status(
+        result = context.exam_lifecycle_application.document_exam_round_ihk_status(
             context.authorization_scope,
             id,
             result_id,
@@ -877,8 +877,8 @@ def _register_exam_round_routes(app, resolved, application, read_security, write
         openapi_extra=read_security,
     )
     def export_exam_round_json(context: ReadContext, id: int):
-        result = context.exam_round_lifecycle_service.machine_export(
-            context.authorization_scope, id
+        result = context.exam_lifecycle_application.export_exam_round(
+            context.authorization_scope, id, human=False
         )
         return _finish(context, context.respond(result))
 
@@ -888,7 +888,9 @@ def _register_exam_round_routes(app, resolved, application, read_security, write
         openapi_extra=read_security,
     )
     def export_exam_round_text(context: ReadContext, id: int):
-        result = context.exam_round_lifecycle_service.human_export(context.authorization_scope, id)
+        result = context.exam_lifecycle_application.export_exam_round(
+            context.authorization_scope, id, human=True
+        )
         return _plain_text(context, result, f"pruefungsrunde-{id}-nachweis.txt")
 
 
@@ -954,7 +956,9 @@ def _register_exam_day_routes(app, resolved, application, read_security, write_s
         openapi_extra=read_security,
     )
     def export_exam_day_json(context: ReadContext, id: int):
-        result = context.exam_day_closure_service.machine_export(context.authorization_scope, id)
+        result = context.exam_lifecycle_application.export_exam_day(
+            context.authorization_scope, id, human=False
+        )
         return _finish(
             context,
             context.respond({**result, "closure": hateoas.exam_day_closure(result["closure"])}),
@@ -966,7 +970,9 @@ def _register_exam_day_routes(app, resolved, application, read_security, write_s
         openapi_extra=read_security,
     )
     def export_exam_day_text(context: ReadContext, id: int):
-        result = context.exam_day_closure_service.human_export(context.authorization_scope, id)
+        result = context.exam_lifecycle_application.export_exam_day(
+            context.authorization_scope, id, human=True
+        )
         return _plain_text(context, result, f"pruefungstag-{id}-abschluss.txt")
 
 

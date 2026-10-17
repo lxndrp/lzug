@@ -48,6 +48,41 @@ class ExamLifecycleExecutionUnitOfWork(ExecutionUnitOfWork, Protocol):
         self, service: ExamRoundLifecycleService, scope: AuthorizationScope, round_id: int
     ) -> dict | None: ...
 
+    def set_round_candidate_terminal_status(
+        self,
+        service: ExamRoundLifecycleService,
+        scope: AuthorizationScope,
+        round_id: int,
+        candidate_id: int,
+        payload: dict,
+    ) -> dict: ...
+
+    def document_round_ihk_status(
+        self,
+        service: ExamRoundLifecycleService,
+        scope: AuthorizationScope,
+        round_id: int,
+        result_id: int,
+        payload: dict,
+    ) -> dict: ...
+
+    def delete_empty_draft_round(
+        self, service: ExamRoundLifecycleService, scope: AuthorizationScope, round_id: int
+    ) -> bool: ...
+
+    def export_round(
+        self,
+        service: ExamRoundLifecycleService,
+        scope: AuthorizationScope,
+        round_id: int,
+        *,
+        human: bool,
+    ) -> dict | str: ...
+
+    def export_day(
+        self, service: ExamDayClosureService, scope: AuthorizationScope, day_id: int, *, human: bool
+    ) -> dict | str: ...
+
     def exam_day_round_id(self, day_id: int) -> int | None: ...
 
     def exam_day_ids_for_round(self, round_id: int) -> tuple[int, ...]: ...

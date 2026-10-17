@@ -147,6 +147,22 @@ class ExamDayClosureTests(unittest.TestCase):
             candidate_ids = tuple(item["candidate_id"] for item in candidates)
             day_slots, day_assignments = unit_of_work.planning_lifecycle.exam_day_plan(2)
             slot_ids = tuple(item.id for item in day_slots)
+            reopening_impacts = unit_of_work.assessment_lifecycle.result_reopening_impacts(
+                {result_id}
+            )
+            result_by_id = unit_of_work.assessment_lifecycle.result_by_id(result_id)
+            round_results = unit_of_work.assessment_lifecycle.results_for_round(1)
+            candidate_result = unit_of_work.assessment_lifecycle.result_for_round_candidate(
+                candidates[0]["id"] if candidates else -1
+            )
+            self.assertIsNotNone(result_by_id)
+            assert result_by_id is not None
+            self.assertEqual(result_id, result_by_id["id"])
+            self.assertTrue(round_results)
+            self.assertTrue(any(item["id"] == result_id for item in round_results))
+            self.assertIsNotNone(candidate_result)
+            assert candidate_result is not None
+            self.assertEqual(result_id, candidate_result["id"])
             values = (
                 round_snapshot,
                 candidates,
@@ -164,12 +180,10 @@ class ExamDayClosureTests(unittest.TestCase):
                 unit_of_work.execution.exam_day_ids_for_round(1),
                 unit_of_work.assessment_lifecycle.day_completion(2),
                 unit_of_work.assessment_lifecycle.results_for_day_slots(2, slot_ids),
-                unit_of_work.assessment_lifecycle.result_reopening_impacts({result_id}),
-                unit_of_work.assessment_lifecycle.result_by_id(result_id),
-                unit_of_work.assessment_lifecycle.results_for_round(1),
-                unit_of_work.assessment_lifecycle.result_for_round_candidate(
-                    candidates[0]["id"] if candidates else -1
-                ),
+                reopening_impacts,
+                result_by_id,
+                round_results,
+                candidate_result,
                 unit_of_work.identity_lifecycle.committee_members(1),
                 unit_of_work.identity_lifecycle.committee(1),
             )

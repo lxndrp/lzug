@@ -984,36 +984,56 @@ class ExamDayClosureService:
     def machine_export(self, scope: AuthorizationScope, day_id: int) -> dict[str, Any]:
         return self._export(scope, day_id, "machine")
 
+    def machine_export_in_session(
+        self, session: Session, scope: AuthorizationScope, day_id: int
+    ) -> dict[str, Any]:
+        return self._export_in_session(session, scope, day_id, "machine")
+
     def _export(self, scope: AuthorizationScope, day_id: int, export_kind: str) -> dict[str, Any]:
         with session_scope(self.db_path) as session:
-            day = self._required_day(session, day_id)
-            planning = self.planning_lifecycle_work_factory(session)
-            identity = self.identity_lifecycle_work_factory(session)
-            actor_id, _committee_id, _round_id = self._require_access(session, day, scope, planning)
-            if actor_id is None:
-                raise PermissionError("Forbidden.")
-            closure = self._current_or_latest_closure(session, day.id)
-            session.add(
-                ExamDayExport(
-                    exam_day_id=day.id,
-                    closure_id=closure.id if closure else None,
-                    export_kind=export_kind,
-                    status=day.closure_status,
-                    generated_by_member_id=actor_id,
-                    generated_at=_now(),
-                )
+            return self._export_in_session(session, scope, day_id, export_kind)
+
+    def _export_in_session(
+        self, session: Session, scope: AuthorizationScope, day_id: int, export_kind: str
+    ) -> dict[str, Any]:
+        day = self._required_day(session, day_id)
+        planning = self.planning_lifecycle_work_factory(session)
+        identity = self.identity_lifecycle_work_factory(session)
+        actor_id, _committee_id, _round_id = self._require_access(session, day, scope, planning)
+        if actor_id is None:
+            raise PermissionError("Forbidden.")
+        closure = self._current_or_latest_closure(session, day.id)
+        session.add(
+            ExamDayExport(
+                exam_day_id=day.id,
+                closure_id=closure.id if closure else None,
+                export_kind=export_kind,
+                status=day.closure_status,
+                generated_by_member_id=actor_id,
+                generated_at=_now(),
             )
-            session.flush()
-            return {
-                "export_version": 1,
-                "exam_day": {"id": day.id, "date": day.date, "exam_round_id": day.exam_round_id},
-                "closure": self._view(
-                    session, day, scope, planning_work=planning, identity_work=identity
-                ),
-            }
+        )
+        session.flush()
+        return {
+            "export_version": 1,
+            "exam_day": {"id": day.id, "date": day.date, "exam_round_id": day.exam_round_id},
+            "closure": self._view(
+                session, day, scope, planning_work=planning, identity_work=identity
+            ),
+        }
 
     def human_export(self, scope: AuthorizationScope, day_id: int) -> str:
         export = self._export(scope, day_id, "human")
+        return self._render_human_export(export)
+
+    def human_export_in_session(
+        self, session: Session, scope: AuthorizationScope, day_id: int
+    ) -> str:
+        export = self._export_in_session(session, scope, day_id, "human")
+        return self._render_human_export(export)
+
+    @staticmethod
+    def _render_human_export(export: dict[str, Any]) -> str:
         day = export["exam_day"]
         closure = export["closure"]
         return render_day_closure_export(day, closure)

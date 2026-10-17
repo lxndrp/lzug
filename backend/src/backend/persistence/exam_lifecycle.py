@@ -138,6 +138,31 @@ class _SQLiteExamLifecycleExecution:
     def read_round_lifecycle(self, service, scope, round_id: int):
         return service.get_in_session(self._session, scope, round_id)
 
+    def set_round_candidate_terminal_status(
+        self, service, scope, round_id: int, candidate_id: int, payload
+    ):
+        return service.set_candidate_terminal_status_in_session(
+            self._session, scope, round_id, candidate_id, payload
+        )
+
+    def document_round_ihk_status(self, service, scope, round_id: int, result_id: int, payload):
+        return service.document_ihk_status_in_session(
+            self._session, scope, round_id, result_id, payload
+        )
+
+    def delete_empty_draft_round(self, service, scope, round_id: int):
+        return service.delete_empty_draft_in_session(self._session, scope, round_id)
+
+    def export_round(self, service, scope, round_id: int, *, human: bool):
+        if human:
+            return service.human_export_in_session(self._session, scope, round_id)
+        return service.machine_export_in_session(self._session, scope, round_id)
+
+    def export_day(self, service, scope, day_id: int, *, human: bool):
+        if human:
+            return service.human_export_in_session(self._session, scope, day_id)
+        return service.machine_export_in_session(self._session, scope, day_id)
+
     def evaluate_round_decision(self, service, scope, command, decision_type, facts):
         return service.evaluate_decision_intent(self._session, scope, command, decision_type, facts)
 

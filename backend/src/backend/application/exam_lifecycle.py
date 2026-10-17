@@ -47,6 +47,48 @@ class ExamLifecycleApplication:
         with self._unit_of_work_factory.read_scope() as unit_of_work:
             return unit_of_work.execution.read_round_lifecycle(service, scope, round_id)
 
+    def set_exam_round_candidate_terminal_status(
+        self, scope: AuthorizationScope, round_id: int, candidate_id: int, payload: dict[str, Any]
+    ) -> dict[str, Any]:
+        service = self._round_lifecycle_service()
+        with self._unit_of_work_factory() as unit_of_work:
+            return unit_of_work.execution.set_round_candidate_terminal_status(
+                service, scope, round_id, candidate_id, payload
+            )
+
+    def document_exam_round_ihk_status(
+        self, scope: AuthorizationScope, round_id: int, result_id: int, payload: dict[str, Any]
+    ) -> dict[str, Any]:
+        service = self._round_lifecycle_service()
+        with self._unit_of_work_factory() as unit_of_work:
+            return unit_of_work.execution.document_round_ihk_status(
+                service, scope, round_id, result_id, payload
+            )
+
+    def delete_empty_exam_round_draft(self, scope: AuthorizationScope, round_id: int) -> bool:
+        service = self._round_lifecycle_service()
+        with self._unit_of_work_factory() as unit_of_work:
+            return unit_of_work.execution.delete_empty_draft_round(service, scope, round_id)
+
+    def export_exam_round(
+        self, scope: AuthorizationScope, round_id: int, *, human: bool
+    ) -> dict[str, Any] | str:
+        service = self._round_lifecycle_service()
+        with self._unit_of_work_factory() as unit_of_work:
+            return unit_of_work.execution.export_round(service, scope, round_id, human=human)
+
+    def export_exam_day(
+        self, scope: AuthorizationScope, day_id: int, *, human: bool
+    ) -> dict[str, Any] | str:
+        service = self._day_closure_service_factory()
+        with self._unit_of_work_factory() as unit_of_work:
+            return unit_of_work.execution.export_day(service, scope, day_id, human=human)
+
+    def _round_lifecycle_service(self) -> ExamRoundLifecycleService:
+        if self._round_lifecycle_service_factory is None:
+            raise RuntimeError("Round lifecycle service factory is not configured")
+        return self._round_lifecycle_service_factory()
+
     def close_exam_day(
         self, scope: AuthorizationScope, day_id: int, command: DayCloseCommand
     ) -> dict[str, Any]:
