@@ -834,7 +834,7 @@ Zyklen zwischen den elf Kernpaketen.
 
 | Paket | Verantwortung | Darf abhängen von |
 | --- | --- | --- |
-| `application/` | frameworkneutrale Use-Case-Orchestrierung, Ports und materialisierte Werte; keine HTTP-Status-, HATEOAS- oder Admin-Wire-Verträge | `assessment`, `documents`, `execution`, `identity`, `integrations`, `notifications`, `operations`, `persistence`, `planning` |
+| `application/` | frameworkneutrale Use-Case-Orchestrierung, Ports und materialisierte Werte; keine HTTP-Status-, HATEOAS-, Admin-Wire- oder konkreten Adapterverträge | `assessment`, `execution`, `identity`, `notifications`, `operations`, `planning` |
 | `documents/` | Dokumentkommandos, Upload-Policy, Metadatenprojektionen und eigene Repository-/UoW-Verträge; keine eigene fachliche Ownership oder Autorisierung | keine anderen Kernpakete |
 | `planning/` | Planaggregate, mögliche Prüfungstage, Prüfungsorte und Folgen bestätigter Änderungen; Kandidatentage beginnen mit einem adapterfreien Port-Pilot | `integrations`, `notifications`, `persistence` (Legacy-Aufrufe) |
 | `execution/` | Ausfall und Ersatz, Protokolle, Tagesabschluss und Rundenlebenszyklus | `identity`, `integrations`, `notifications`, `persistence` |

@@ -92,13 +92,11 @@ ALLOWED_PACKAGE_DEPENDENCIES = {
     "application": frozenset(
         {
             "assessment",
-            "calendar",
-            "documents",
             "execution",
             "identity",
+            "notifications",
             "operations",
             "planning",
-            "notifications",
         }
     ),
     "assessment": frozenset(),
@@ -555,6 +553,22 @@ class BackendPackageBoundaryTests(unittest.TestCase):
                         )
                     }
                 )
+
+    def test_application_dependency_allowlist_excludes_concrete_adapters(self) -> None:
+        forbidden = {
+            "calendar",
+            "documents",
+            "integrations",
+            "persistence",
+        }
+        self.assertFalse(
+            forbidden & ALLOWED_PACKAGE_DEPENDENCIES["application"],
+            "Application dependency policy must not authorize concrete adapters",
+        )
+        self.assertEqual(
+            {"assessment", "execution", "identity", "notifications", "operations", "planning"},
+            _package_dependencies("application"),
+        )
 
     def test_notification_consumers_receive_composition_instead_of_importing_it(self) -> None:
         modules = (
