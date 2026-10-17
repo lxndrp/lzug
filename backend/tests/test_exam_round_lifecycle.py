@@ -47,6 +47,7 @@ from backend.tests.helpers import (
     assert_status,
     notification_service_for_test,
 )
+from backend.tests.support.port_contracts import assert_materialized_port_value
 
 
 class ExamRoundLifecycleTests(unittest.TestCase):
@@ -466,7 +467,8 @@ class ExamRoundLifecycleTests(unittest.TestCase):
             self.assertEqual(0, session.query(ExamRoundDecision).count())
             self.assertEqual(0, session.query(ExamRoundAuditEvent).count())
 
-        application.close_exam_round(scope, 1, close)
+        closed = application.close_exam_round(scope, 1, close)
+        assert_materialized_port_value(self, closed)
         service.machine_export(scope, 1)
         command_payload = {
             "revision": 2,
@@ -495,6 +497,8 @@ class ExamRoundLifecycleTests(unittest.TestCase):
         with patch.object(service, "_notify", wraps=service._notify) as notify:
             reopened = application.reopen_exam_round(scope, 1, command)
             repeated = application.reopen_exam_round(scope, 1, command)
+            assert_materialized_port_value(self, reopened)
+            assert_materialized_port_value(self, repeated)
         notify.assert_called_once()
         self.assertEqual(reopened, repeated)
         self.assertEqual(2, len(reopened["tasks"]))
