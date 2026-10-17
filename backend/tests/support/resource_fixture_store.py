@@ -1,4 +1,4 @@
-"""Resource-oriented persistence operations and business validation boundaries."""
+"""Test-only resource helpers for seeding and querying legacy contract fixtures."""
 
 from __future__ import annotations
 
@@ -19,7 +19,6 @@ from backend.persistence.models import (
     CANDIDATE,
     CANDIDATE_COMMITTEE_ASSIGNMENT,
     CANDIDATE_EXAM_ATTENDANCE,
-    CANDIDATE_EXAM_DAY,
     COMMITTEE,
     COMMITTEE_MEMBER,
     EXAM_DAY,
@@ -65,13 +64,11 @@ PLANNING_RESOURCE_WRITES = frozenset(
 )
 
 
-class ResourceRepository:
-    """Expose CRUD operations while applying resource-specific domain rules.
+class ResourceFixtureStore:
+    """Seed and inspect database rows for tests of legacy and domain contracts.
 
-    One repository call creates one :func:`session_scope`; the method either
-    completes and commits all of its related writes or rolls them back. Generic
-    ``Store`` operations remain deliberately unaware of person memberships,
-    candidate records, and cross-committee assignment conflicts.
+    This helper is test-only. Production routes and application services must
+    use their domain-owned ports instead of this generic fixture interface.
     """
 
     def __init__(
@@ -622,21 +619,3 @@ class ResourceRepository:
         scope: AuthorizationScope,
     ) -> bool:
         return exam_round is not None and scope.can_read_committee(exam_round["committee_id"])
-
-
-REST_RESOURCES = {
-    "committees": COMMITTEE,
-    "persons": PERSON,
-    "members": COMMITTEE_MEMBER,
-    "memberships": COMMITTEE_MEMBER,
-    "exam-half-years": EXAM_HALF_YEAR,
-    "exam-rounds": EXAM_ROUND,
-    "round-candidates": ROUND_CANDIDATE,
-    "candidates": CANDIDATE,
-    "planning-settings": PLANNING_SETTINGS,
-    "candidate-exam-days": CANDIDATE_EXAM_DAY,
-    "member-availabilities": MEMBER_AVAILABILITY,
-    "exam-days": EXAM_DAY,
-    "exam-slots": EXAM_SLOT,
-    "exam-day-assignments": EXAM_DAY_ASSIGNMENT,
-}

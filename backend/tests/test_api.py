@@ -274,7 +274,7 @@ class ApiTests(unittest.TestCase):
     def test_database_errors_use_public_messages(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:
             with patch(
-                "backend.application.transport.RequestContext.visible_planning_records",
+                "backend.http_transport.RequestContext.visible_planning_records",
                 side_effect=SQLAlchemyError("private database details"),
             ):
                 status, body = api.request("GET", "/api/candidates")

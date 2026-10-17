@@ -116,11 +116,16 @@ Fachlich variable generische Ressourcen teilen sich den offenen
 `DomainResourceWrite`-Vertrag, während eigenständige Befehle engere Modelle
 verwenden.
 `backend.server` startet den Prozess über Uvicorn;
-`backend.application.transport` bildet den gemeinsamen Anwendungsvertrag für
-HTTP- und Adminadapter ab.
-`backend.application.planning_payloads` konvertiert Planungsbefehle ohne
-Persistenzzugriff; `resource_authorization` prüft Ressourcenaktionen und bindet
-serverseitige Akteurfelder.
+`backend.http_transport` hält den requestbezogenen HTTP-Kontext und die
+Cookie-/Header-Verarbeitung am Adapterrand.
+`backend.http_application` bildet Ergebnisse auf Statuscodes und öffentliche
+Fehlerantworten ab; `backend.http_hateoas` besitzt die Link- und
+Wire-Projektionen, `backend.http_planning_payloads` die Konvertierung der
+validierten Requestmodelle in Planungsbefehle.
+`backend.api_contracts` bleibt Eigentümer der nativen Request-/Response- und
+Security-Schemas samt OpenAPI.
+`resource_authorization` prüft Ressourcenaktionen und bindet serverseitige
+Akteurfelder.
 `application.resource_access` besitzt die Query-Verträge und materialisierten
 Werte für Ausschuss-/Rundenbesitz, Membership-Fakten und sichtbare Projektionen.
 Die SQLite-Implementierung in `persistence.resource_access` hält Modellzugriff
@@ -829,7 +834,7 @@ Zyklen zwischen den elf Kernpaketen.
 
 | Paket | Verantwortung | Darf abhängen von |
 | --- | --- | --- |
-| `application/` | frameworkneutrale Use-Case-Orchestrierung, Ressourcenfassade, Transportobjekte und HATEOAS | `assessment`, `documents`, `execution`, `identity`, `integrations`, `notifications`, `operations`, `persistence`, `planning` |
+| `application/` | frameworkneutrale Use-Case-Orchestrierung, Ports und materialisierte Werte; keine HTTP-Status-, HATEOAS- oder Admin-Wire-Verträge | `assessment`, `documents`, `execution`, `identity`, `integrations`, `notifications`, `operations`, `persistence`, `planning` |
 | `documents/` | Dokumentkommandos, Upload-Policy, Metadatenprojektionen und eigene Repository-/UoW-Verträge; keine eigene fachliche Ownership oder Autorisierung | keine anderen Kernpakete |
 | `planning/` | Planaggregate, mögliche Prüfungstage, Prüfungsorte und Folgen bestätigter Änderungen; Kandidatentage beginnen mit einem adapterfreien Port-Pilot | `integrations`, `notifications`, `persistence` (Legacy-Aufrufe) |
 | `execution/` | Ausfall und Ersatz, Protokolle, Tagesabschluss und Rundenlebenszyklus | `identity`, `integrations`, `notifications`, `persistence` |
@@ -840,9 +845,12 @@ Zyklen zwischen den elf Kernpaketen.
 | `persistence/` | Modelle, Datenbank, Migrationen und niedrige Store-Primitive | `documents`, `identity`, `notifications` |
 | `operations/` | Backup und Export samt eigenem Dokumenten-Snapshot-Protokoll, Empfängerverwaltung, Diagnose und Lifecycle | `documents`, `identity`, `integrations`, `persistence` |
 
-Der Paketroot enthält ausschließlich gemeinsame Runtime-Verträge und die
-stabilen äußeren Einstiege für FastAPI, Prozessstart, Healthcheck und
-Admintransport.
+Der Paketroot enthält gemeinsame Runtime-Verträge und Adapter für FastAPI,
+Prozessstart, Healthcheck und Admintransport.
+`http_application`, `http_contract`, `http_hateoas`,
+`http_planning_payloads` und `http_transport` gehören zum HTTP-Adapter und
+halten die HTTP-spezifischen Ergebnis-, Fehler-, Link-, Request- und
+Response-Verträge außerhalb von `application/`.
 Die weitere Gliederung der HTTP-Schicht unter `api/` bleibt #646 vorbehalten.
 
 Neue Fachregeln beginnen in einem Service und seinen fokussierten Tests.

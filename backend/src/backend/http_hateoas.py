@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from backend.application.repositories import REST_RESOURCES
+from backend.http_contract import REST_RESOURCES
 from backend.persistence.models import Resource
 from backend.version import application_version, build_revision
 
@@ -313,7 +313,15 @@ def scheduling_overview(items: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "items": [
             {
-                **item,
+                "id": item["id"],
+                "name": item["name"],
+                "status": item["status"],
+                "status_group": item["status_group"],
+                "committee_name": item["committee_name"],
+                "exam_half_year": item["exam_half_year"],
+                "calendar_week_from": item["calendar_week_from"],
+                "calendar_week_to": item["calendar_week_to"],
+                "can_continue": item["can_continue"],
                 "_links": {
                     "self": {"href": f"/api/exam-rounds/{item['id']}"},
                     "planning": {"href": f"/api/exam-rounds/{item['id']}"},
@@ -331,7 +339,16 @@ def scheduling_overview(items: list[dict[str, Any]]) -> dict[str, Any]:
 
 def confirmed_plans(items: list[dict[str, Any]]) -> dict[str, Any]:
     return {
-        "items": items,
+        "items": [
+            {
+                "id": item["id"],
+                "name": item["name"],
+                "committee": item["committee"],
+                "exam_half_year": item["exam_half_year"],
+                "days": [_confirmed_calendar_day(day) for day in item["days"]],
+            }
+            for item in items
+        ],
         "_links": {
             "self": {"href": "/api/confirmed-plans"},
             "api": {"href": "/api"},
@@ -341,7 +358,9 @@ def confirmed_plans(items: list[dict[str, Any]]) -> dict[str, Any]:
 
 def confirmed_plan_day(item: dict[str, Any]) -> dict[str, Any]:
     plan = {
-        **item["plan"],
+        "id": item["plan"]["id"],
+        "name": item["plan"]["name"],
+        "committee": item["plan"]["committee"],
         "exam_half_year": {
             **item["plan"]["exam_half_year"],
             "_links": {
@@ -350,15 +369,103 @@ def confirmed_plan_day(item: dict[str, Any]) -> dict[str, Any]:
             },
         },
     }
-    day = item["day"]
+    day = _confirmed_calendar_day(item["day"])
     return {
-        **item,
         "plan": plan,
+        "day": day,
         "_links": {
             "self": {"href": f"/api/confirmed-plan-days/{day['id']}"},
             "api": {"href": "/api"},
             "confirmed-plan": {"href": "/api/confirmed-plans"},
             "round": {"href": f"/api/exam-rounds/{plan['id']}"},
+        },
+    }
+
+
+def _confirmed_calendar_day(day: dict[str, Any]) -> dict[str, Any]:
+    """Map a typed calendar read to its established HTTP representation."""
+    slots = [
+        {
+            "id": slot["id"],
+            "starts_at": slot["starts_at"],
+            "ends_at": slot["ends_at"],
+            "sequence_number": slot["sequence_number"],
+            "slot_type": slot["slot_type"],
+            "actual_started_at": slot["actual_started_at"],
+            "execution_status": slot["execution_status"],
+            "status_changed_at": slot["status_changed_at"],
+            "actual_completed_at": slot["actual_completed_at"],
+            "status_reason": slot["status_reason"],
+            "candidate_attendance": slot["candidate_attendance"],
+            "candidate": {
+                "id": slot["candidate"]["id"],
+                "first_name": slot["candidate"]["first_name"],
+                "last_name": slot["candidate"]["last_name"],
+                "ihk_exam_number": slot["candidate"]["ihk_exam_number"],
+            },
+        }
+        for slot in day["slots"]
+    ]
+    summary = {key: 0 for key in ("open", "running", "completed", "cancelled", "needs_follow_up")}
+    for slot in slots:
+        summary[slot["execution_status"]] += 1
+    result = {
+        "id": day["id"],
+        "date": day["date"],
+        "revision": day["revision"],
+        "closure_status": day["closure_status"],
+        "location": (
+            {
+                "id": day["location"]["id"],
+                "name": day["location"]["name"],
+                "room": day["location"]["room"],
+                "city": day["location"]["city"],
+            }
+            if day["location"] is not None
+            else None
+        ),
+        "room_id": day["room_id"],
+        "slots": slots,
+        "assignments": [
+            {
+                "id": assignment["id"],
+                "assignment_role": assignment["assignment_role"],
+                "day_part": assignment["day_part"],
+                "fallback_status": assignment["fallback_status"],
+                "attendance": assignment["attendance"],
+                "member": {
+                    "id": assignment["member"]["id"],
+                    "first_name": assignment["member"]["first_name"],
+                    "last_name": assignment["member"]["last_name"],
+                    "representing_side": assignment["member"]["representing_side"],
+                },
+            }
+            for assignment in day["assignments"]
+        ],
+        "status_summary": summary,
+    }
+    if "closure" in day:
+        result["closure"] = exam_day_closure(day["closure"])
+    return result
+
+
+def exam_day_closure(item: dict[str, Any]) -> dict[str, Any]:
+    """Map an Execution closure snapshot to its established HTTP response."""
+    day_id = item["exam_day_id"]
+    return {
+        "exam_day_id": item["exam_day_id"],
+        "revision": item["revision"],
+        "status": item["status"],
+        "legacy_status": item["legacy_status"],
+        "evaluation": item["evaluation"],
+        "active_reopening": item["active_reopening"],
+        "history": item["history"],
+        "tasks": item["tasks"],
+        "permissions": item["permissions"],
+        "_links": {
+            "self": {"href": f"/api/confirmed-plan-days/{day_id}/closure"},
+            "machine_export": {"href": f"/api/confirmed-plan-days/{day_id}/closure/export.json"},
+            "human_export": {"href": f"/api/confirmed-plan-days/{day_id}/closure/export.txt"},
         },
     }
 

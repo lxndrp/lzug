@@ -7,7 +7,7 @@ from http import HTTPStatus
 from fastapi import APIRouter, Body
 from fastapi.responses import Response
 
-from backend.application.transport import RequestContext
+from backend.http_transport import RequestContext
 from backend.presentation.exam_exports import render_result_export
 
 from .api_contracts import (

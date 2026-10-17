@@ -3,7 +3,6 @@ from __future__ import annotations
 import unittest
 from http import HTTPStatus
 
-from backend.application.repositories import ResourceRepository
 from backend.composition import identity_service, planning_service
 from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.persistence.database import session_scope
@@ -13,13 +12,14 @@ from backend.persistence.models import (
 )
 from backend.tests.helpers import ApiServer, TempDatabase, assert_status, create_committee_record
 from backend.tests.planning_support import planning_resource_service
+from backend.tests.support.resource_fixture_store import ResourceFixtureStore
 
 
 class AuthorizationTests(unittest.TestCase):
     def setUp(self) -> None:
         self.database = TempDatabase()
         self.db_path = self.database.__enter__()
-        self.repository = ResourceRepository(self.db_path)
+        self.repository = ResourceFixtureStore(self.db_path)
         self.planning = planning_resource_service(self.db_path)
         self.authentication = SQLiteAuthenticationRepository(self.db_path)
 

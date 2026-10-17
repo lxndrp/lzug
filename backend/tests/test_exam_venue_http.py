@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 from http import HTTPStatus
 
-from backend.application.contract import validate_response
+from backend.http_contract import validate_response
 from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.tests.fixture_data import FIXTURE_IDS, FIXTURE_ROOT
 from backend.tests.helpers import ApiServer, TempDatabase, openapi_document

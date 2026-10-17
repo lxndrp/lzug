@@ -7,10 +7,11 @@ from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, FastAPI, Request
 
-from backend.application import ForbiddenRequestError, hateoas
-from backend.application.repositories import PLAN_AGGREGATE_RESOURCES, REST_RESOURCES
-from backend.application.transport import RequestContext
+from backend import http_hateoas as hateoas
+from backend.application import ForbiddenRequestError
 from backend.composition import exam_venue_api
+from backend.http_contract import PLAN_AGGREGATE_RESOURCES, REST_RESOURCES
+from backend.http_transport import RequestContext
 from backend.persistence.models import CANDIDATE_COMMITTEE_ASSIGNMENT, COMMITTEE
 
 from .api_contracts import (
@@ -166,12 +167,18 @@ def _resource_collection_route(resolved: FastAPIConfig, resource_name: str, reso
             rows = context.visible_planning_records(
                 resource, context.resource_filters(resource, params)
             )
-        else:
-            rows = context.repository.list_visible(
-                resource,
-                context.authorization_scope,
-                context.resource_filters(resource, params),
+        elif resource.table in {
+            "committee",
+            "person",
+            "exam_day",
+            "exam_slot",
+            "exam_day_assignment",
+        }:
+            rows = context.visible_resource_records(
+                resource, context.resource_filters(resource, params)
             )
+        else:
+            raise RuntimeError(f"No master-data read use case for {resource_name}")
         return _finish(
             context,
             context.respond(
@@ -193,24 +200,28 @@ def _resource_collection_route(resolved: FastAPIConfig, resource_name: str, reso
 
 def _resource_item_route(resolved: FastAPIConfig, resource_name: str, resource):
     def get_item(context: ReadContext, id: int):
-        row = (
-            context.identity_service.member(id, context.authorization_scope)
-            if resource_name in {"members", "memberships"}
-            else (
-                context.visible_planning_record(resource, id)
-                if resource.table
-                in {
-                    "exam_half_year",
-                    "exam_round",
-                    "round_candidate",
-                    "candidate",
-                    "candidate_committee_assignment",
-                    "planning_settings",
-                    "member_availability",
-                }
-                else context.repository.get_visible(resource, id, context.authorization_scope)
-            )
-        )
+        if resource_name in {"members", "memberships"}:
+            row = context.identity_service.member(id, context.authorization_scope)
+        elif resource.table in {
+            "exam_half_year",
+            "exam_round",
+            "round_candidate",
+            "candidate",
+            "candidate_committee_assignment",
+            "planning_settings",
+            "member_availability",
+        }:
+            row = context.visible_planning_record(resource, id)
+        elif resource.table in {
+            "committee",
+            "person",
+            "exam_day",
+            "exam_slot",
+            "exam_day_assignment",
+        }:
+            row = context.visible_resource_record(resource, id)
+        else:
+            raise RuntimeError(f"No master-data read use case for {resource_name}")
         return (
             _not_found()
             if row is None
@@ -277,9 +288,7 @@ def _resource_create_route(resolved: FastAPIConfig, resource_name: str, resource
             except PermissionError as error:
                 raise ForbiddenRequestError("Forbidden.") from error
         else:
-            row = context.repository.create(
-                resource, payload, authorization_scope=context.authorization_scope
-            )
+            raise RuntimeError(f"No master-data create use case for {resource_name}")
         return _finish(
             context,
             context.respond(hateoas.resource_item(resource_name, resource, row), status),
@@ -357,12 +366,7 @@ def _resource_update_route(resolved: FastAPIConfig, resource_name: str, resource
         ):
             row = _identity_resource_update(context, resource_name, resource, identifier, payload)
         else:
-            row = context.repository.update(
-                resource,
-                identifier,
-                payload,
-                authorization_scope=context.authorization_scope,
-            )
+            raise RuntimeError(f"No master-data update use case for {resource_name}")
         if (
             resource_name
             in {
@@ -409,9 +413,7 @@ def _resource_delete_route(resolved: FastAPIConfig, resource_name: str, resource
             elif resource_name == "exam-rounds":
                 deleted = context.planning_resource_service.delete_round(id)
             else:
-                deleted = context.repository.delete(
-                    resource, id, authorization_scope=context.authorization_scope
-                )
+                raise RuntimeError(f"No master-data delete use case for {resource_name}")
         return (
             _not_found()
             if not deleted

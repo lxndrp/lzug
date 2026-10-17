@@ -9,8 +9,8 @@ from fastapi import APIRouter, Request
 from fastapi.responses import Response
 from pydantic import BaseModel
 
-from backend.application import hateoas
-from backend.application.transport import RequestContext, RequestTooLargeError
+from backend import http_hateoas as hateoas
+from backend.http_transport import RequestContext, RequestTooLargeError
 
 from .api_contracts import (
     ApiRootResponse,
@@ -47,8 +47,8 @@ from .fastapi_http import (
 from .observability import emit_event
 
 if TYPE_CHECKING:
-    from .application import ReadApplication
     from .fastapi_app import FastAPIConfig
+    from .http_application import ReadApplication
 
 
 def create_runtime_router(application: ReadApplication) -> APIRouter:

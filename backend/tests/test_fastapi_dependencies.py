@@ -10,8 +10,6 @@ from fastapi import APIRouter, Depends
 from fastapi.testclient import TestClient
 from starlette.requests import Request
 
-from backend.application.repositories import ResourceRepository
-from backend.application.transport import RequestContext
 from backend.composition import authorization_service, candidate_day_service, identity_service
 from backend.fastapi_assembly import FastAPIConfig, create_app
 from backend.fastapi_dependencies import (
@@ -23,6 +21,7 @@ from backend.fastapi_dependencies import (
     request_context,
     round_access,
 )
+from backend.http_transport import RequestContext
 from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.persistence.database import session_scope
 from backend.persistence.models import (
@@ -33,12 +32,13 @@ from backend.planning.candidate_days import GenerateCandidateDays
 from backend.runtime_policy import ProductRuntimePolicy
 from backend.tests.helpers import TempDatabase, create_committee_record, openapi_document
 from backend.tests.planning_support import planning_resource_service
+from backend.tests.support.resource_fixture_store import ResourceFixtureStore
 
 
 class FastAPIDependencyTests(unittest.TestCase):
     def setUp(self) -> None:
         self.db_path = self.enterContext(TempDatabase())
-        self.repository = ResourceRepository(self.db_path)
+        self.repository = ResourceFixtureStore(self.db_path)
         self.auth = SQLiteAuthenticationRepository(self.db_path)
         self.chair = self.auth.create_session(1)
         self.member = self.auth.create_session(2)
@@ -443,7 +443,7 @@ class FastAPIDependencyTests(unittest.TestCase):
         self.assertEqual("2026-W23", results["product"].calendar_week_from)
         self.assertEqual("2026-W24", results["demo"].calendar_week_from)
         for name, db_path in databases.items():
-            rows = ResourceRepository(db_path).list_filtered(
+            rows = ResourceFixtureStore(db_path).list_filtered(
                 CANDIDATE_EXAM_DAY, {"exam_round_id": 1}
             )
             self.assertEqual(5, len(results[name].created_days))

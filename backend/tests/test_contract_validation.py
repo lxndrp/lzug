@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from backend.application.contract import ContractValidationError, validate_response
+from backend.http_contract import ContractValidationError, validate_response
 
 
 class ContractValidationTests(unittest.TestCase):
