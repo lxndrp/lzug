@@ -4,7 +4,7 @@ import unittest
 from http import HTTPStatus
 from unittest.mock import patch
 
-from sqlalchemy import event, select, text
+from sqlalchemy import select, text
 
 from backend.application.exam_lifecycle import ExamLifecycleApplication
 from backend.application.exam_lifecycle_commands import day_close_command, day_reopen_command
@@ -154,6 +154,9 @@ class ExamDayClosureTests(unittest.TestCase):
             planning_lifecycle_work_factory=planning_lifecycle_work_factory(),
             identity_lifecycle_work_factory=identity_lifecycle_work_factory(),
         )
+        self.assertFalse(hasattr(day_closure_service, "get_in_session"))
+        self.assertFalse(hasattr(day_closure_service, "machine_export_in_session"))
+        self.assertFalse(hasattr(day_closure_service, "human_export_in_session"))
         round_lifecycle_service = ExamRoundLifecycleService(
             self.db_path,
             notification_service=notification_service_for_test(self.db_path),
@@ -261,18 +264,25 @@ class ExamDayClosureTests(unittest.TestCase):
             self.assertEqual(before.revision + 1, session.get(ExamRound, 1).revision)
 
     def test_closure_evaluation_keeps_finding_order(self) -> None:
-        with session_scope(self.db_path) as session:
-            evaluation = ExamDayClosureService._evaluate(
-                ExamDayClosureService(
-                    self.db_path,
-                    notification_service=notification_service_for_test(self.db_path),
-                    assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(),
-                    planning_lifecycle_work_factory=planning_lifecycle_work_factory(),
-                    identity_lifecycle_work_factory=identity_lifecycle_work_factory(),
-                ),
-                session,
-                session.get(ExamDay, 2),
-            )
+        service = ExamDayClosureService(
+            self.db_path,
+            notification_service=notification_service_for_test(self.db_path),
+            assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(),
+            planning_lifecycle_work_factory=planning_lifecycle_work_factory(),
+            identity_lifecycle_work_factory=identity_lifecycle_work_factory(),
+        )
+        factory = SQLiteExamLifecycleUnitOfWorkFactory(
+            SQLiteExecutionUnitOfWorkFactory(
+                self.db_path,
+                identity_snapshot_factory=SQLiteIdentityExecutionSnapshotFactory(),
+            ),
+            SQLiteAssessmentUnitOfWorkFactory(self.db_path),
+            self.db_path,
+            SQLiteAssessmentLifecycleAdapter(SQLiteAssessmentUnitOfWorkFactory(self.db_path)),
+        )
+        with factory.read_scope() as unit_of_work:
+            facts = ExamLifecycleApplication._day_closure_facts(unit_of_work, 2, 1)
+            evaluation = service._evaluate(facts, 2)
         self.assertEqual(
             [
                 "day_has_slots",
@@ -290,27 +300,22 @@ class ExamDayClosureTests(unittest.TestCase):
         )
 
     def test_closure_snapshot_loads_attendance_in_bounded_queries(self) -> None:
-        statements: list[str] = []
-        with session_scope(self.db_path) as session:
-            day = session.get(ExamDay, 2)
-            connection = session.connection()
-
-            def count_statement(_conn, _cursor, statement, _parameters, _context, _executemany):
-                statements.append(statement)
-
-            event.listen(connection, "before_cursor_execute", count_statement)
-            try:
-                snapshot = ExamDayClosureService._load_closure_snapshot(
-                    session,
-                    day,
-                    planning_lifecycle_work_factory()(session),
-                    identity_lifecycle_work_factory()(session),
-                )
-            finally:
-                event.remove(connection, "before_cursor_execute", count_statement)
-
+        factory = SQLiteExamLifecycleUnitOfWorkFactory(
+            SQLiteExecutionUnitOfWorkFactory(
+                self.db_path,
+                identity_snapshot_factory=SQLiteIdentityExecutionSnapshotFactory(),
+            ),
+            SQLiteAssessmentUnitOfWorkFactory(self.db_path),
+            self.db_path,
+            SQLiteAssessmentLifecycleAdapter(SQLiteAssessmentUnitOfWorkFactory(self.db_path)),
+        )
+        with factory.read_scope() as unit_of_work:
+            facts = ExamLifecycleApplication._day_closure_facts(unit_of_work, 2, 1)
+            snapshot = ExamDayClosureService._load_closure_snapshot(facts)
         self.assertEqual(1, len(snapshot.slots))
-        self.assertEqual(5, len(statements))
+        self.assertEqual("cancelled", snapshot.slots[0].execution_status)
+        self.assertTrue(all(not hasattr(value, "_sa_instance_state") for value in snapshot.slots))
+        assert_materialized_port_value(self, snapshot)
 
     def test_result_without_determination_is_not_mutated_by_reopening(self) -> None:
         with session_scope(self.db_path) as session:
@@ -501,6 +506,76 @@ class ExamDayClosureTests(unittest.TestCase):
             self.assertEqual(1, session.query(ExamDayClosure).filter_by(exam_day_id=2).count())
             self.assertEqual(2, session.query(ExamDayExport).filter_by(exam_day_id=2).count())
             self.assertEqual(2, session.get(ExamDay, 2).revision)
+
+    def test_day_export_prefers_current_closure_over_newer_noncurrent_history(self) -> None:
+        with session_scope(self.db_path) as session:
+            current = ExamDayClosure(
+                exam_day_id=3,
+                requested_revision=1,
+                resulting_revision=2,
+                closure_type="regular",
+                actor_member_id=1,
+                reason=None,
+                clarification_attempts=None,
+                checklist_json="[]",
+                warnings_json="[]",
+                protocol_references_json="[]",
+                result_references_json="[]",
+                status="current",
+                command_fingerprint="a" * 64,
+            )
+            newer = ExamDayClosure(
+                exam_day_id=3,
+                requested_revision=2,
+                resulting_revision=3,
+                closure_type="regular",
+                actor_member_id=1,
+                reason=None,
+                clarification_attempts=None,
+                checklist_json="[]",
+                warnings_json="[]",
+                protocol_references_json="[]",
+                result_references_json="[]",
+                status="superseded",
+                command_fingerprint="b" * 64,
+            )
+            session.add_all([current, newer])
+            session.flush()
+            current_closure_id = current.id
+            newer_closure_id = newer.id
+
+        factory = SQLiteExamLifecycleUnitOfWorkFactory(
+            SQLiteExecutionUnitOfWorkFactory(
+                self.db_path,
+                identity_snapshot_factory=SQLiteIdentityExecutionSnapshotFactory(),
+            ),
+            SQLiteAssessmentUnitOfWorkFactory(self.db_path),
+            self.db_path,
+            SQLiteAssessmentLifecycleAdapter(SQLiteAssessmentUnitOfWorkFactory(self.db_path)),
+        )
+        auth_context = SQLiteAuthenticationRepository(self.db_path).authenticate(self.chair.token)
+        assert auth_context is not None
+        scope = authorization_service(self.db_path).scope(auth_context)
+        service = ExamDayClosureService(
+            self.db_path,
+            notification_service=notification_service_for_test(self.db_path),
+            assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(),
+            planning_lifecycle_work_factory=planning_lifecycle_work_factory(),
+            identity_lifecycle_work_factory=identity_lifecycle_work_factory(),
+        )
+        with factory() as unit_of_work:
+            facts = ExamLifecycleApplication._day_closure_facts(unit_of_work, 3, 1)
+            exported = unit_of_work.execution.export_day(
+                service, scope, 3, human=False, facts=facts
+            )
+        self.assertLess(current_closure_id, newer_closure_id)
+        self.assertEqual(
+            [current_closure_id, newer_closure_id],
+            [item["id"] for item in exported["closure"]["history"] if item["kind"] == "closure"],
+        )
+        with session_scope(self.db_path) as session:
+            export = session.query(ExamDayExport).filter_by(exam_day_id=3).one()
+            self.assertEqual(current_closure_id, export.closure_id)
 
     def test_exception_late_response_targeted_reopening_and_reclose(self) -> None:
         with ApiServer(self.db_path) as api:

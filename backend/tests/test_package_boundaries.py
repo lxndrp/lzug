@@ -162,6 +162,7 @@ TEST_OWNERS = {
     "execution": frozenset(
         {
             "test_absence.py",
+            "test_day_closure_snapshot.py",
             "test_exam_day_closures.py",
             "test_exam_protocols.py",
             "test_exam_round_lifecycle.py",

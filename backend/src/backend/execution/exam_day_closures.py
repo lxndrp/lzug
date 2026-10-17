@@ -13,6 +13,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from backend.execution.day_closure_snapshot import ExamDayClosureReadSnapshot
 from backend.execution.lifecycle_ports import (
     AssessmentLifecycleWork,
     AssessmentLifecycleWorkFactory,
@@ -30,10 +31,9 @@ from backend.execution.protocol_ports import ExecutionProtocolSnapshot, Protocol
 from backend.identity.authorization import AuthorizationScope
 from backend.identity.lifecycle_ports import IdentityMemberLifecycleSnapshot
 from backend.notifications.service import NotificationService
-from backend.persistence.database import DEFAULT_DB_PATH, session_scope
+from backend.persistence.database import DEFAULT_DB_PATH
 from backend.persistence.models import (
     AbsenceReport,
-    CandidateExamAttendance,
     ExamDay,
     ExamDayAuditEvent,
     ExamDayClosure,
@@ -46,7 +46,6 @@ from backend.persistence.models import (
     ExamProtocolParticipant,
     ExamProtocolResponse,
     ExamProtocolRevision,
-    MemberExamAttendance,
 )
 from backend.presentation.exam_exports import render_day_closure_export
 
@@ -192,33 +191,76 @@ class ExamDayClosureService:
         self.planning_lifecycle_work_factory = planning_lifecycle_work_factory
         self.identity_lifecycle_work_factory = identity_lifecycle_work_factory
 
-    def get(self, scope: AuthorizationScope, day_id: int) -> dict[str, Any] | None:
-        with session_scope(self.db_path) as session:
-            return self.get_in_session(session, scope, day_id)
-
-    def get_in_session(
+    def get_from_read_snapshot(
         self,
-        session: Session,
         scope: AuthorizationScope,
-        day_id: int,
-        *,
-        facts: DayClosureFacts | None = None,
+        facts: DayClosureFacts,
+        read_snapshot: ExamDayClosureReadSnapshot | None,
     ) -> dict[str, Any] | None:
-        """Read closure status in an Application-owned shared snapshot."""
-        day = session.get(ExamDay, day_id)
-        if day is None:
+        """Render a day closure read from detached owner snapshots."""
+        if read_snapshot is None:
             return None
-        planning = self.planning_lifecycle_work_factory(session)
-        identity = self.identity_lifecycle_work_factory(session)
-        self._require_access(session, day, scope, planning)
-        return self._view(
-            session,
-            day,
-            scope,
-            planning_work=planning,
-            identity_work=identity,
-            facts=facts,
-        )
+        committee_id = facts.committee_id
+        if not scope.can_read_committee(committee_id):
+            raise PermissionError("Forbidden.")
+        day = read_snapshot.day
+        day_id = day["id"]
+        if not isinstance(day_id, int):
+            raise TypeError("Day read snapshot id must be an integer")
+        evaluation = self._evaluate(facts, day_id)
+        actor_id = scope.member_for_committee(committee_id)
+        history = [dict(item) for item in read_snapshot.history]
+        return {
+            "exam_day_id": day["id"],
+            "revision": day["revision"],
+            "status": day["closure_status"],
+            "legacy_status": day["status"] if day["closure_status"] == "historical" else None,
+            "evaluation": evaluation,
+            "active_reopening": next(
+                (
+                    item
+                    for item in history
+                    if item["kind"] == "reopening" and item["status"] == "open"
+                ),
+                None,
+            ),
+            "history": history,
+            "tasks": [dict(item) for item in read_snapshot.tasks],
+            "permissions": {
+                "close": scope.can_manage_committee(committee_id)
+                and day["closure_status"] in {"open", "reopening"},
+                "reopen": scope.can_manage_committee(committee_id)
+                and day["closure_status"] in CLOSED_STATUSES,
+                "export": actor_id is not None,
+            },
+        }
+
+    def export_from_read_snapshot(
+        self,
+        scope: AuthorizationScope,
+        facts: DayClosureFacts,
+        read_snapshot: ExamDayClosureReadSnapshot | None,
+        *,
+        human: bool,
+    ) -> dict[str, Any] | str:
+        if read_snapshot is None:
+            raise ValueError("Prüfungstag nicht gefunden")
+        closure = self.get_from_read_snapshot(scope, facts, read_snapshot)
+        if closure is None:
+            raise ValueError("Prüfungstag nicht gefunden")
+        day = read_snapshot.day
+        export = {
+            "export_version": 1,
+            "exam_day": {
+                "id": day["id"],
+                "date": day["date"],
+                "exam_round_id": day["exam_round_id"],
+            },
+            "closure": closure,
+        }
+        if human:
+            return self._render_human_export(export)
+        return export
 
     def evaluate_close_intent(
         self,
@@ -254,7 +296,7 @@ class ExamDayClosureService:
                 replayed=True,
             )
         reopening = self._prepare_closure(session, day, expected_revision)
-        evaluation = self._evaluate(session, day, facts=facts)
+        evaluation = self._evaluate(facts, day.id)
         ready_key = "regular_close_ready" if closure_type == "regular" else "exception_close_ready"
         if not evaluation[ready_key]:
             raise ExamDayValidationError(
@@ -824,78 +866,6 @@ class ExamDayClosureService:
             list(outcome.notification_jobs),
         )
 
-    def machine_export(self, scope: AuthorizationScope, day_id: int) -> dict[str, Any]:
-        return self._export(scope, day_id, "machine")
-
-    def machine_export_in_session(
-        self,
-        session: Session,
-        scope: AuthorizationScope,
-        day_id: int,
-        *,
-        facts: DayClosureFacts | None = None,
-    ) -> dict[str, Any]:
-        return self._export_in_session(session, scope, day_id, "machine", facts=facts)
-
-    def _export(self, scope: AuthorizationScope, day_id: int, export_kind: str) -> dict[str, Any]:
-        with session_scope(self.db_path) as session:
-            return self._export_in_session(session, scope, day_id, export_kind)
-
-    def _export_in_session(
-        self,
-        session: Session,
-        scope: AuthorizationScope,
-        day_id: int,
-        export_kind: str,
-        *,
-        facts: DayClosureFacts | None = None,
-    ) -> dict[str, Any]:
-        day = self._required_day(session, day_id)
-        planning = self.planning_lifecycle_work_factory(session)
-        identity = self.identity_lifecycle_work_factory(session)
-        actor_id, _committee_id, _round_id = self._require_access(session, day, scope, planning)
-        if actor_id is None:
-            raise PermissionError("Forbidden.")
-        closure = self._current_or_latest_closure(session, day.id)
-        session.add(
-            ExamDayExport(
-                exam_day_id=day.id,
-                closure_id=closure.id if closure else None,
-                export_kind=export_kind,
-                status=day.closure_status,
-                generated_by_member_id=actor_id,
-                generated_at=_now(),
-            )
-        )
-        session.flush()
-        return {
-            "export_version": 1,
-            "exam_day": {"id": day.id, "date": day.date, "exam_round_id": day.exam_round_id},
-            "closure": self._view(
-                session,
-                day,
-                scope,
-                planning_work=planning,
-                identity_work=identity,
-                facts=facts,
-            ),
-        }
-
-    def human_export(self, scope: AuthorizationScope, day_id: int) -> str:
-        export = self._export(scope, day_id, "human")
-        return self._render_human_export(export)
-
-    def human_export_in_session(
-        self,
-        session: Session,
-        scope: AuthorizationScope,
-        day_id: int,
-        *,
-        facts: DayClosureFacts | None = None,
-    ) -> str:
-        export = self._export_in_session(session, scope, day_id, "human", facts=facts)
-        return self._render_human_export(export)
-
     @staticmethod
     def _render_human_export(export: dict[str, Any]) -> str:
         day = export["exam_day"]
@@ -907,23 +877,14 @@ class ExamDayClosureService:
         session: Session,
         day: ExamDay,
         scope: AuthorizationScope,
-        assessment_work: AssessmentLifecycleWork | None = None,
-        planning_work: PlanningLifecycleWork | None = None,
-        identity_work: IdentityLifecycleWork | None = None,
         *,
-        facts: DayClosureFacts | None = None,
+        facts: DayClosureFacts,
     ) -> dict[str, Any]:
-        if facts is None:
-            planning = planning_work or self.planning_lifecycle_work_factory(session)
-            identity = identity_work or self.identity_lifecycle_work_factory(session)
-            actor_id, committee_id, _round_id = self._require_access(session, day, scope, planning)
-            evaluation = self._evaluate(session, day, assessment_work, planning, identity)
-        else:
-            committee_id = facts.committee_id
-            actor_id = scope.member_for_committee(committee_id)
-            if not scope.can_read_committee(committee_id):
-                raise PermissionError("Forbidden.")
-            evaluation = self._evaluate(session, day, facts=facts)
+        committee_id = facts.committee_id
+        actor_id = scope.member_for_committee(committee_id)
+        if not scope.can_read_committee(committee_id):
+            raise PermissionError("Forbidden.")
+        evaluation = self._evaluate(facts, day.id)
         closures = list(
             session.scalars(
                 select(ExamDayClosure)
@@ -1059,22 +1020,8 @@ class ExamDayClosureService:
             },
         }
 
-    def _evaluate(
-        self,
-        session: Session,
-        day: ExamDay,
-        assessment_work: AssessmentLifecycleWork | None = None,
-        planning_work: PlanningLifecycleWork | None = None,
-        identity_work: IdentityLifecycleWork | None = None,
-        *,
-        facts: DayClosureFacts | None = None,
-    ) -> dict[str, Any]:
-        if facts is None:
-            planning = planning_work or self.planning_lifecycle_work_factory(session)
-            identity = identity_work or self.identity_lifecycle_work_factory(session)
-            snapshot = self._load_closure_snapshot(session, day, planning, identity)
-        else:
-            snapshot = self._load_closure_snapshot(session, day, facts=facts)
+    def _evaluate(self, facts: DayClosureFacts, day_id: int) -> dict[str, Any]:
+        snapshot = self._load_closure_snapshot(facts)
         items: list[dict[str, Any]] = []
         warnings: list[dict[str, Any]] = []
         protocol_references: list[dict[str, Any]] = []
@@ -1082,22 +1029,21 @@ class ExamDayClosureService:
         self._evaluate_slot_execution(snapshot, items)
         self._evaluate_staffing(snapshot, items)
         self._evaluate_absence_processes(snapshot, items)
+        if facts.protocol_day_snapshot is None:
+            raise RuntimeError("Protocol day snapshot is required for closure evaluation")
         exception_candidates = self._evaluate_protocols(
-            session,
             snapshot.slots,
             items,
             warnings,
             protocol_references,
-            protocol_day_snapshot=(facts.protocol_day_snapshot if facts is not None else None),
+            protocol_day_snapshot=facts.protocol_day_snapshot,
         )
         self._evaluate_results(
-            session,
-            day.id,
+            day_id,
             snapshot.slots,
             items,
             result_references,
-            assessment_work,
-            facts.assessment_completion if facts is not None else None,
+            facts.assessment_completion,
         )
 
         regular_ready = all(item["ok"] for item in items)
@@ -1117,69 +1063,21 @@ class ExamDayClosureService:
 
     @staticmethod
     def _load_closure_snapshot(
-        session: Session,
-        day: ExamDay,
-        planning: PlanningLifecycleWork | None = None,
-        identity: IdentityLifecycleWork | None = None,
-        *,
-        facts: DayClosureFacts | None = None,
+        facts: DayClosureFacts,
     ) -> ExamDayClosureSnapshot:
-        if facts is None:
-            if identity is None:
-                raise RuntimeError("Identity snapshot is required")
-            if planning is None:
-                raise RuntimeError("Planning snapshot is required")
-            slots, plan_assignments = planning.exam_day_plan(day.id)
-            member_values = identity.committee_members_by_ids(
-                sorted(
-                    {
-                        item.committee_member_id
-                        for item in plan_assignments
-                        if item.assignment_role == "examiner"
-                    }
-                )
-            )
-        else:
-            slots = facts.slots
-            plan_assignments = facts.assignments
-            member_values = facts.members
+        slots = facts.slots
+        plan_assignments = facts.assignments
+        member_values = facts.members
         members = {member.id: member for member in member_values}
         slots = tuple(slots)
         assignments = tuple(item for item in plan_assignments if item.assignment_role == "examiner")
-        if facts is None:
-            completed_slot_ids = [slot.id for slot in slots if slot.execution_status == "completed"]
-            candidate_attendance = {
-                attendance.exam_slot_id: attendance.status
-                for attendance in session.scalars(
-                    select(CandidateExamAttendance).where(
-                        CandidateExamAttendance.exam_slot_id.in_(completed_slot_ids)
-                    )
-                )
-            }
-            member_ids = {assignment.committee_member_id for assignment in assignments}
-            member_attendance = {
-                attendance.committee_member_id: attendance.status
-                for attendance in session.scalars(
-                    select(MemberExamAttendance).where(
-                        MemberExamAttendance.exam_day_id == day.id,
-                        MemberExamAttendance.committee_member_id.in_(member_ids),
-                    )
-                )
-            }
-            absences = tuple(
-                (item.id, item.status)
-                for item in session.scalars(
-                    select(AbsenceReport).where(AbsenceReport.exam_day_id == day.id)
-                )
-            )
-        else:
-            candidate_attendance = {
-                slot_id: item["status"] for slot_id, item in facts.candidate_attendance.items()
-            }
-            member_attendance = {
-                member_id: item["status"] for member_id, item in facts.member_attendance.items()
-            }
-            absences = tuple((item["id"], item["status"]) for item in facts.absences)
+        candidate_attendance = {
+            slot_id: item["status"] for slot_id, item in facts.candidate_attendance.items()
+        }
+        member_attendance = {
+            member_id: item["status"] for member_id, item in facts.member_attendance.items()
+        }
+        absences = tuple((item["id"], item["status"]) for item in facts.absences)
         return ExamDayClosureSnapshot(
             slots=slots,
             candidate_attendance=candidate_attendance,
@@ -1326,31 +1224,23 @@ class ExamDayClosureService:
 
     def _evaluate_protocols(
         self,
-        session: Session,
         slots: Sequence[PlanSlotLifecycleSnapshot],
         items: list[dict[str, Any]],
         warnings: list[dict[str, Any]],
         references: list[dict[str, Any]],
         *,
-        protocol_day_snapshot: ProtocolDaySnapshot | None = None,
+        protocol_day_snapshot: ProtocolDaySnapshot,
     ) -> list[dict[str, Any]]:
         regular_ready = True
         exception_ready = True
         candidates: list[dict[str, Any]] = []
-        protocols_by_slot = (
-            {item["exam_slot_id"]: item["protocol"] for item in protocol_day_snapshot["slots"]}
-            if protocol_day_snapshot is not None
-            else None
-        )
+        protocols_by_slot = {
+            item["exam_slot_id"]: item["protocol"] for item in protocol_day_snapshot["slots"]
+        }
         for slot in slots:
-            if protocols_by_slot is None:
-                regular, exception, candidate = self._evaluate_slot_protocol(
-                    session, slot, warnings, references
-                )
-            else:
-                regular, exception, candidate = self._evaluate_slot_protocol_snapshot(
-                    slot, protocols_by_slot.get(slot.id), warnings, references
-                )
+            regular, exception, candidate = self._evaluate_slot_protocol_snapshot(
+                slot, protocols_by_slot.get(slot.id), warnings, references
+            )
             regular_ready &= regular
             exception_ready &= regular or exception
             if candidate is not None:
@@ -1455,138 +1345,14 @@ class ExamDayClosureService:
             else "fully_confirmed"
         )
 
-    def _evaluate_slot_protocol(
-        self,
-        session: Session,
-        slot: PlanSlotLifecycleSnapshot,
-        warnings: list[dict[str, Any]],
-        references: list[dict[str, Any]],
-    ) -> tuple[bool, bool, dict[str, Any] | None]:
-        if slot.execution_status == "cancelled":
-            return True, False, None
-        protocol = session.scalar(select(ExamProtocol).where(ExamProtocol.exam_slot_id == slot.id))
-        if protocol is None:
-            references.append(
-                {"exam_slot_id": slot.id, "exam_protocol_id": None, "state": "missing"}
-            )
-            return False, False, None
-        revision = self._current_protocol_revision(session, protocol)
-        participants = set(
-            session.scalars(
-                select(ExamProtocolParticipant.committee_member_id).where(
-                    ExamProtocolParticipant.exam_protocol_id == protocol.id
-                )
-            )
-        )
-        responses = list(
-            session.scalars(
-                select(ExamProtocolResponse).where(
-                    ExamProtocolResponse.exam_protocol_revision_id == revision.id
-                )
-            )
-        )
-        missing = sorted(participants - {item.committee_member_id for item in responses})
-        state = self._protocol_state(revision, responses, missing)
-        regular = state in COMPLETE_PROTOCOL_STATES and revision.workflow_state != "correction_open"
-        candidate = self._exception_candidate(slot, protocol, revision, state, missing)
-        self._append_protocol_warning(session, protocol, revision, responses, warnings)
-        references.append(
-            {
-                "exam_slot_id": slot.id,
-                "exam_protocol_id": protocol.id,
-                "revision_id": revision.id,
-                "version": revision.version,
-                "state": state,
-                "missing_response_member_ids": missing,
-            }
-        )
-        return regular, candidate is not None, candidate
-
-    @staticmethod
-    def _protocol_state(
-        revision: ExamProtocolRevision, responses: list[ExamProtocolResponse], missing: list[int]
-    ) -> str:
-        if revision.submitted_at is None:
-            return (
-                "correction_open" if revision.workflow_state == "correction_open" else "in_progress"
-            )
-        if not responses:
-            return "awaiting_confirmation"
-        if missing:
-            return "reaction_missing"
-        return (
-            "fully_with_reservation"
-            if any(item.response == "reservation" for item in responses)
-            else "fully_confirmed"
-        )
-
-    @staticmethod
-    def _exception_candidate(
-        slot: PlanSlotLifecycleSnapshot,
-        protocol: ExamProtocol,
-        revision: ExamProtocolRevision,
-        state: str,
-        missing: list[int],
-    ) -> dict[str, Any] | None:
-        if (
-            state != "reaction_missing"
-            or len(missing) != 1
-            or revision.declaration is None
-            or revision.workflow_state == "correction_open"
-        ):
-            return None
-        return {
-            "exam_slot_id": slot.id,
-            "exam_protocol_id": protocol.id,
-            "exam_protocol_revision_id": revision.id,
-            "protocol_version": revision.version,
-            "committee_member_id": missing[0],
-        }
-
-    @staticmethod
-    def _append_protocol_warning(
-        session: Session,
-        protocol: ExamProtocol,
-        revision: ExamProtocolRevision,
-        responses: list[ExamProtocolResponse],
-        warnings: list[dict[str, Any]],
-    ) -> None:
-        entries = list(
-            session.scalars(
-                select(ExamProtocolEntry).where(
-                    ExamProtocolEntry.exam_protocol_revision_id == revision.id
-                )
-            )
-        )
-        reservations = [
-            {"committee_member_id": item.committee_member_id, "statement": item.statement}
-            for item in responses
-            if item.response == "reservation"
-        ]
-        if entries or reservations:
-            warnings.append(
-                {
-                    "exam_protocol_id": protocol.id,
-                    "entries": [
-                        {"category": item.category, "statement": item.statement} for item in entries
-                    ],
-                    "reservations": reservations,
-                }
-            )
-
     def _evaluate_results(
         self,
-        session: Session,
         day_id: int,
         slots: Sequence[PlanSlotLifecycleSnapshot],
         items: list[dict[str, Any]],
         references: list[dict[str, Any]],
-        assessment_work: AssessmentLifecycleWork | None = None,
-        completion: dict[str, Any] | None = None,
+        completion: Mapping[str, Any],
     ) -> None:
-        if completion is None:
-            work = assessment_work or self.assessment_lifecycle_factory(session)
-            completion = work.day_completion(day_id)
         by_slot = {item["exam_slot_id"]: item for item in completion["slots"]}
         for slot in slots:
             references.append(

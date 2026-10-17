@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterator
 from contextlib import AbstractContextManager, contextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 
 from sqlalchemy import select
@@ -13,9 +14,10 @@ from backend.persistence.application_consequence_store import SQLiteLifecycleCon
 from backend.persistence.assessment import SQLiteAssessmentUnitOfWorkFactory
 from backend.persistence.calendar_lifecycle import SQLiteCalendarLifecycleWork
 from backend.persistence.database import DEFAULT_DB_PATH, read_session_scope, session_scope
+from backend.persistence.day_closure_snapshot import SQLiteExamDayClosureReadSnapshotReader
 from backend.persistence.execution import SQLiteExecutionUnitOfWorkFactory
 from backend.persistence.identity_lifecycle import SQLiteIdentityLifecycleWork
-from backend.persistence.models import ExamDay
+from backend.persistence.models import ExamDay, ExamDayClosure, ExamDayExport
 from backend.persistence.planning_lifecycle import SQLitePlanningLifecycleWork
 
 
@@ -144,7 +146,10 @@ class _SQLiteExamLifecycleExecution:
         service.assert_mutation_allowed_in_session(self._session, command)
 
     def read_day_closure(self, service, scope, day_id: int, facts):
-        return service.get_in_session(self._session, scope, day_id, facts=facts)
+        snapshot = SQLiteExamDayClosureReadSnapshotReader(
+            self._session
+        ).load_day_closure_read_snapshot(day_id)
+        return service.get_from_read_snapshot(scope, facts, snapshot)
 
     def read_round_lifecycle(self, service, scope, round_id: int, pending_consequence_ids):
         return service.get_in_session(
@@ -175,9 +180,41 @@ class _SQLiteExamLifecycleExecution:
         return service.machine_export_in_session(self._session, scope, round_id)
 
     def export_day(self, service, scope, day_id: int, *, human: bool, facts):
-        if human:
-            return service.human_export_in_session(self._session, scope, day_id, facts=facts)
-        return service.machine_export_in_session(self._session, scope, day_id, facts=facts)
+        if not scope.can_read_committee(facts.committee_id):
+            raise PermissionError("Forbidden.")
+        actor_id = scope.member_for_committee(facts.committee_id)
+        if actor_id is None:
+            raise PermissionError("Forbidden.")
+        reader = SQLiteExamDayClosureReadSnapshotReader(self._session)
+        day = reader.load_day_closure_read_snapshot(day_id)
+        if day is None:
+            raise ValueError("Prüfungstag nicht gefunden")
+        latest_closure = self._session.scalar(
+            select(ExamDayClosure)
+            .where(ExamDayClosure.exam_day_id == day_id)
+            .order_by(
+                (ExamDayClosure.status == "current").desc(),
+                ExamDayClosure.id.desc(),
+            )
+        )
+        self._session.add(
+            ExamDayExport(
+                exam_day_id=day_id,
+                closure_id=latest_closure.id if latest_closure is not None else None,
+                export_kind="human" if human else "machine",
+                status=day.day["closure_status"],
+                generated_by_member_id=actor_id,
+                generated_at=datetime.now(UTC).replace(microsecond=0).isoformat(),
+            )
+        )
+        self._session.flush()
+        snapshot = reader.load_day_closure_read_snapshot(day_id)
+        return service.export_from_read_snapshot(
+            scope,
+            facts,
+            snapshot,
+            human=human,
+        )
 
     def evaluate_round_decision(self, service, scope, command, decision_type, facts):
         return service.evaluate_decision_intent(self._session, scope, command, decision_type, facts)
