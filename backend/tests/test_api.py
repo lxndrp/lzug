@@ -50,12 +50,33 @@ class ApiTests(unittest.TestCase):
                 MutationLockKind.PLANNING_PROPOSAL,
                 None,
             ),
+            ("PUT", ["planning-settings"], MutationLockKind.PLANNING_SETTINGS, None),
+            (
+                "POST",
+                ["candidate-exam-days", "3"],
+                MutationLockKind.CANDIDATE_EXAM_DAY,
+                3,
+            ),
+            (
+                "PATCH",
+                ["member-availabilities", "4"],
+                MutationLockKind.MEMBER_AVAILABILITY,
+                4,
+            ),
+            ("DELETE", ["round-candidates", "5"], MutationLockKind.ROUND_CANDIDATE, 5),
+            (
+                "PUT",
+                ["confirmed-plan-days", "6"],
+                MutationLockKind.CONFIRMED_PLAN_DAY,
+                6,
+            ),
             (
                 "POST",
                 ["exam-protocols", "31", "entries"],
                 MutationLockKind.EXAM_PROTOCOL,
                 31,
             ),
+            ("POST", ["exam-results", "8", "determine"], MutationLockKind.EXAM_RESULT, 8),
             (
                 "DELETE",
                 ["absence-reports", "42"],
