@@ -454,6 +454,10 @@ class PlanningResourceAdapterTests(unittest.TestCase):
                     unit_of_work.get_settings(1),
                     unit_of_work.list_availabilities({}),
                     unit_of_work.get_availability(1),
+                    unit_of_work.candidate_assignment_context(1, 1),
+                    unit_of_work.settings_references(1, 1, 1),
+                    unit_of_work.availability_references(1, 1, 1),
+                    unit_of_work.availability_propagation_context(1, 1, 1),
                     unit_of_work.planning_snapshot(1),
                     unit_of_work.round_summary(1),
                 )
