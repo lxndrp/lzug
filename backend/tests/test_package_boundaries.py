@@ -929,6 +929,23 @@ class BackendPackageBoundaryTests(unittest.TestCase):
             },
             set(ProtocolReferencesSnapshot.__annotations__),
         )
+        closure_service = BACKEND_ROOT / "execution" / "exam_day_closures.py"
+        closure_tree = ast.parse(closure_service.read_text(encoding="utf-8"))
+        closure_functions = {
+            node.name for node in closure_tree.body if isinstance(node, ast.FunctionDef)
+        }
+        self.assertNotIn("guard_day_mutation", closure_functions)
+        self.assertNotIn("complete_day_mutation", closure_functions)
+
+        composition = BACKEND_ROOT / "composition.py"
+        composition_tree = ast.parse(composition.read_text(encoding="utf-8"))
+        imports = {
+            node.module
+            for node in ast.walk(composition_tree)
+            if isinstance(node, ast.ImportFrom) and node.module is not None
+        }
+        self.assertNotIn("backend.execution.exam_day_closures", imports)
+        self.assertIn("backend.persistence.execution", imports)
 
     def test_committee_identity_use_case_has_no_transitive_transport_or_persistence_imports(
         self,

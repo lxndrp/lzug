@@ -11,10 +11,6 @@ from backend.application.venue_consequences import VenueConsequenceService
 from backend.assessment.service import ExamResultService
 from backend.calendar.service import CalendarService
 from backend.documents.commands import DocumentUseCases
-from backend.execution.exam_day_closures import (
-    complete_day_mutation,
-    guard_day_mutation,
-)
 from backend.execution.exam_protocols import ExamProtocolService
 from backend.execution.slot_service import ExecutionService
 from backend.identity.admin_service import OperatorAuthService
@@ -56,7 +52,6 @@ from backend.persistence.local_auth import (
     SQLiteLocalAuthenticationKey,
     SQLiteLocalAuthUnitOfWorkFactory,
 )
-from backend.persistence.models import ExamDay
 from backend.persistence.notifications import (
     SQLiteNotificationDeliveryUnitOfWorkFactory,
     SQLiteNotificationUnitOfWorkFactory,
@@ -332,23 +327,31 @@ def _complete_assessment_day_mutation(
     days = (
         SQLiteAssessmentUnitOfWorkFactory().in_session(session).queries.days_for_result(result_id)
     )
+    execution = SQLiteExecutionUnitOfWorkFactory(
+        identity_snapshot_factory=SQLiteIdentityExecutionSnapshotFactory()
+    ).in_session(session)
     guards = []
     for snapshot in days:
-        day = session.get(ExamDay, snapshot["day_id"])
-        if day is None:
-            continue
+        revisions = payload.get("day_revisions")
+        expected_revision = (
+            revisions.get(str(snapshot["day_id"]), revisions.get(snapshot["day_id"]))
+            if isinstance(revisions, dict)
+            else payload.get("day_revision")
+        )
         guards.append(
-            guard_day_mutation(
-                session,
-                day=day,
-                kind=kind,
-                entity_id=result_id,
-                payload=payload,
-                actor_member_id=actor_member_id,
+            execution.guard_day_mutation(
+                {
+                    "day_id": snapshot["day_id"],
+                    "kind": kind,
+                    "entity_id": result_id,
+                    "expected_day_revision": expected_revision,
+                    "actor_member_id": actor_member_id,
+                    "protocol_revision_id": None,
+                }
             )
         )
     for guard in guards:
-        complete_day_mutation(session, guard, actor_member_id=actor_member_id, reason=reason)
+        execution.complete_day_mutation(guard, actor_member_id=actor_member_id, reason=reason)
 
 
 def notification_service(

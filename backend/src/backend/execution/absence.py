@@ -11,10 +11,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from backend.execution.calendar_ports import ExecutionCalendarPort
-from backend.execution.exam_day_closures import complete_day_mutation, guard_day_mutation
 from backend.identity.authorization import AuthorizationScope
 from backend.notifications.service import NotificationService
 from backend.persistence.database import DEFAULT_DB_PATH, session_scope
+from backend.persistence.day_mutations import complete_day_mutation, guard_day_mutation
 from backend.persistence.models import (
     AbsenceAuditEvent,
     AbsenceReport,
