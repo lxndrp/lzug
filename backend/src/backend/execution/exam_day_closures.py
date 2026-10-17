@@ -363,13 +363,19 @@ class ExamDayClosureService:
 
     def get(self, scope: AuthorizationScope, day_id: int) -> dict[str, Any] | None:
         with session_scope(self.db_path) as session:
-            day = session.get(ExamDay, day_id)
-            if day is None:
-                return None
-            planning = self.planning_lifecycle_work_factory(session)
-            identity = self.identity_lifecycle_work_factory(session)
-            self._require_access(session, day, scope, planning)
-            return self._view(session, day, scope, planning_work=planning, identity_work=identity)
+            return self.get_in_session(session, scope, day_id)
+
+    def get_in_session(
+        self, session: Session, scope: AuthorizationScope, day_id: int
+    ) -> dict[str, Any] | None:
+        """Read closure status in an Application-owned shared snapshot."""
+        day = session.get(ExamDay, day_id)
+        if day is None:
+            return None
+        planning = self.planning_lifecycle_work_factory(session)
+        identity = self.identity_lifecycle_work_factory(session)
+        self._require_access(session, day, scope, planning)
+        return self._view(session, day, scope, planning_work=planning, identity_work=identity)
 
     def evaluate_close_intent(
         self,
@@ -1166,13 +1172,6 @@ class ExamDayClosureService:
                 "reopen": scope.can_manage_committee(committee_id)
                 and day.closure_status in CLOSED_STATUSES,
                 "export": actor_id is not None,
-            },
-            "_links": {
-                "self": {"href": f"/api/confirmed-plan-days/{day.id}/closure"},
-                "machine_export": {
-                    "href": f"/api/confirmed-plan-days/{day.id}/closure/export.json"
-                },
-                "human_export": {"href": f"/api/confirmed-plan-days/{day.id}/closure/export.txt"},
             },
         }
 

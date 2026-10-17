@@ -628,9 +628,15 @@ class HttpContractParityTests(unittest.TestCase):
                 )
 
         with self.adapter_pair(include_legacy_routes=False) as (legacy, fastapi):
-            with patch(
-                "backend.application.repositories.ResourceRepository.confirmed_plans",
-                side_effect=SQLAlchemyError("private database details"),
+            with (
+                patch(
+                    "backend.tests.support.resource_fixture_store.ResourceFixtureStore.confirmed_plans",
+                    side_effect=SQLAlchemyError("private database details"),
+                ),
+                patch(
+                    "backend.application.planning_calendar_reads.PlanningCalendarReadService.confirmed_plans",
+                    side_effect=SQLAlchemyError("private database details"),
+                ),
             ):
                 self.assert_parity(
                     legacy.request("GET", "/api/confirmed-plans"),

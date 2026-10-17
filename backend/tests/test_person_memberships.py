@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import unittest
 
-from backend.application.repositories import ResourceRepository
 from backend.composition import identity_service, planning_service
 from backend.persistence.models import EXAM_DAY_ASSIGNMENT
 from backend.tests.helpers import TempDatabase, create_committee_record
+from backend.tests.support.resource_fixture_store import ResourceFixtureStore
 
 
 class PersonMembershipTests(unittest.TestCase):
@@ -38,7 +38,7 @@ class PersonMembershipTests(unittest.TestCase):
 
     def test_manual_assignment_cannot_bypass_plan_aggregate(self) -> None:
         with TempDatabase() as db_path:
-            repository = ResourceRepository(db_path)
+            repository = ResourceFixtureStore(db_path)
             planning_service(db_path).generate_proposal(1)
             proposal = planning_service(db_path).get_proposal(1)
             with self.assertRaisesRegex(ValueError, "planning aggregate"):

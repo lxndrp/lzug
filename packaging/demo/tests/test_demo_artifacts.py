@@ -9,11 +9,11 @@ from contextlib import closing
 from pathlib import Path
 
 from backend.application.exam_venue_api import ExamVenueApi
-from backend.application.repositories import ResourceRepository
 from backend.composition import notification_service as compose_notification_service
 from backend.identity.authorization import AuthorizationScope
 from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.persistence.models import CANDIDATE
+from backend.tests.support.resource_fixture_store import ResourceFixtureStore
 from demo.artifacts import (
     RUNTIME_CONTRACT,
     DemoArtifactError,
@@ -172,7 +172,7 @@ class DemoArtifactTests(unittest.TestCase):
             self.assertEqual(first["seed_revision"], loaded_app["seed_revision"])
             self.assertEqual(RUNTIME_CONTRACT, loaded_app["runtime_contract"])
 
-            ResourceRepository(data_dir / "lzug.sqlite").update(
+            ResourceFixtureStore(data_dir / "lzug.sqlite").update(
                 CANDIDATE, 1, {"last_name": "Laufende Änderung"}
             )
             restarted_app, restarted_seed = validate_runtime_binding(app_manifest, data_dir)
@@ -251,7 +251,7 @@ class DemoArtifactTests(unittest.TestCase):
             initialize_workdir(seed_db, seed_manifest, data_dir)
             database = data_dir / "lzug.sqlite"
             credentials = SQLiteAuthenticationRepository(database).create_session(1)
-            ResourceRepository(database).update(
+            ResourceFixtureStore(database).update(
                 CANDIDATE, candidate["id"], {"last_name": "Geändert"}
             )
             with closing(sqlite3.connect(database)) as connection, connection:

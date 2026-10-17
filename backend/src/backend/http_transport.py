@@ -14,26 +14,18 @@ from http import HTTPStatus
 from pathlib import Path
 from typing import Any, cast
 
-from backend.application import (
-    ApplicationResult,
-    ApplicationServices,
-    AuthenticationRequiredError,
-    ForbiddenRequestError,
-    ReadApplication,
-)
+from backend.application import AuthenticationRequiredError, ForbiddenRequestError
 from backend.application.calendar_ports import CalendarApplicationPort
 from backend.application.consequence_ports import ApplicationConsequenceStoreFactory
 from backend.application.exam_lifecycle import ExamLifecycleApplication
 from backend.application.exam_lifecycle_ports import ExamLifecycleUnitOfWorkFactory
 from backend.application.plan_consequences import PlanConsequenceService
-from backend.application.planning_payloads import (
-    confirmed_plan_change_from_payload as confirmed_plan_change_from_payload,
+from backend.application.planning_calendar_reads import PlanningCalendarReadService
+from backend.application.resource_access import (
+    ResourceAccessQueryFactory,
+    ResourceKind,
+    reference_changes,
 )
-from backend.application.planning_payloads import (
-    planning_proposal_from_payload as planning_proposal_from_payload,
-)
-from backend.application.repositories import REST_RESOURCES, ResourceRepository
-from backend.application.resource_access import ResourceAccessQueryFactory, ResourceKind
 from backend.application.resource_authorization import ResourceAuthorizer
 from backend.assessment.ports import AssessmentActorSnapshot
 from backend.assessment.service import ExamResultService
@@ -48,6 +40,14 @@ from backend.execution.lifecycle_ports import (
     PlanningLifecycleWorkFactory,
 )
 from backend.execution.slot_service import ExecutionService
+from backend.http_application import ApplicationResult, ApplicationServices, ReadApplication
+from backend.http_planning_payloads import (
+    confirmed_plan_change_from_payload as confirmed_plan_change_from_payload,
+)
+from backend.http_planning_payloads import (
+    planning_proposal_from_payload as planning_proposal_from_payload,
+)
+from backend.http_resources import REST_RESOURCES
 from backend.identity.auth import AuthContext, AuthenticationRepository, SessionCredentials
 from backend.identity.authorization import AuthorizationScope, AuthorizationService
 from backend.identity.committee_admin import CommitteeAdminService
@@ -108,6 +108,7 @@ class RequestContext:
     authentication_repository_factory: Callable[[Path], AuthenticationRepository]
     local_auth_service_factory: Callable[..., LocalAuthService]
     calendar_service_factory: Callable[[Path], CalendarApplicationPort]
+    planning_calendar_read_service_factory: Callable[[Path], PlanningCalendarReadService]
     consequence_store_factory: ApplicationConsequenceStoreFactory
     notification_service_factory: Callable[[Path], NotificationService]
     auth_rate_limiter: RequestRateLimiter
@@ -138,11 +139,6 @@ class RequestContext:
         }
 
     @property
-    def repository(self) -> ResourceRepository:
-        queries = self.resource_access_query_factory(self.db_path)
-        return ResourceRepository(self.db_path, queries)
-
-    @property
     def identity_service(self) -> IdentityService:
         return self.identity_service_factory(self.db_path)
 
@@ -153,6 +149,37 @@ class RequestContext:
     @property
     def resource_access_queries(self) -> ResourceAccessQueryFactory:
         return self.resource_access_query_factory(self.db_path)
+
+    def visible_resource_records(
+        self, resource: Resource, filters: dict[str, Any] | None = None
+    ) -> list[dict[str, Any]]:
+        with self.resource_access_queries.snapshot() as queries:
+            return [
+                dict(row)
+                for row in queries.list_visible(
+                    ResourceKind(resource.table), self.authorization_scope, filters or {}
+                )
+            ]
+
+    def visible_resource_record(
+        self, resource: Resource, resource_id: int
+    ) -> dict[str, Any] | None:
+        with self.resource_access_queries.snapshot() as queries:
+            row = queries.get_visible(
+                ResourceKind(resource.table), resource_id, self.authorization_scope
+            )
+            return dict(row) if row is not None else None
+
+    def resource_ownership(
+        self,
+        resource: Resource,
+        resource_id: int | None = None,
+        payload: dict[str, Any] | None = None,
+    ):
+        with self.resource_access_queries.snapshot() as queries:
+            return queries.ownership(
+                ResourceKind(resource.table), resource_id, reference_changes(payload or {})
+            )
 
     @property
     def planning_service(self) -> PlanningService:
@@ -302,6 +329,7 @@ class RequestContext:
         return ReadApplication(
             self.db_path,
             ApplicationServices(
+                planning_calendar_read_service_factory=self.planning_calendar_read_service_factory,
                 planning_resource_service_factory=lambda path: PlanningResourceService(
                     self.planning_resource_unit_of_work_factory(path)
                 ),

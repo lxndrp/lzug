@@ -6,7 +6,6 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date
 
-from backend.application.repositories import ResourceRepository
 from backend.composition import candidate_day_service
 from backend.persistence.candidate_days import SQLiteCandidateDayUnitOfWorkFactory
 from backend.persistence.models import CANDIDATE_EXAM_DAY
@@ -18,6 +17,7 @@ from backend.planning.candidate_days import (
 )
 from backend.tests.helpers import TempDatabase
 from backend.tests.planning_support import planning_resource_service
+from backend.tests.support.resource_fixture_store import ResourceFixtureStore
 
 
 class FakeHolidayProvider:
@@ -96,7 +96,7 @@ class FakeCandidateDayUnitOfWork:
 class CandidateDayServiceTests(unittest.TestCase):
     def test_generation_excludes_state_holidays_and_is_repeatable(self) -> None:
         with TempDatabase() as db_path:
-            repository = ResourceRepository(db_path)
+            repository = ResourceFixtureStore(db_path)
             self._save_settings(
                 repository,
                 calendar_week_from="2026-W23",
@@ -121,7 +121,7 @@ class CandidateDayServiceTests(unittest.TestCase):
 
     def test_generation_includes_holidays_when_exclusion_is_disabled(self) -> None:
         with TempDatabase() as db_path:
-            repository = ResourceRepository(db_path)
+            repository = ResourceFixtureStore(db_path)
             self._save_settings(
                 repository,
                 calendar_week_from="2026-W23",
@@ -138,7 +138,7 @@ class CandidateDayServiceTests(unittest.TestCase):
 
     def test_generation_preserves_a_manually_created_holiday(self) -> None:
         with TempDatabase() as db_path:
-            repository = ResourceRepository(db_path)
+            repository = ResourceFixtureStore(db_path)
             self._save_settings(
                 repository,
                 calendar_week_from="2026-W23",
@@ -160,7 +160,7 @@ class CandidateDayServiceTests(unittest.TestCase):
 
     def test_generation_rejects_invalid_calendar_week(self) -> None:
         with TempDatabase() as db_path:
-            repository = ResourceRepository(db_path)
+            repository = ResourceFixtureStore(db_path)
             self._save_settings(
                 repository,
                 calendar_week_from="2026-W54",
@@ -205,7 +205,7 @@ class CandidateDayServiceTests(unittest.TestCase):
 
     def test_sqlite_unit_of_work_rolls_back_candidate_days_on_error(self) -> None:
         with TempDatabase() as db_path:
-            repository = ResourceRepository(db_path)
+            repository = ResourceFixtureStore(db_path)
             before = repository.list_filtered(CANDIDATE_EXAM_DAY, {"exam_round_id": 1})
             unit_of_work_factory = SQLiteCandidateDayUnitOfWorkFactory(db_path)
 
@@ -248,7 +248,7 @@ class CandidateDayServiceTests(unittest.TestCase):
 
     def _save_settings(
         self,
-        repository: ResourceRepository,
+        repository: ResourceFixtureStore,
         *,
         calendar_week_from: str,
         calendar_week_to: str,

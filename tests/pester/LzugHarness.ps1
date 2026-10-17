@@ -110,7 +110,20 @@ function Start-LzugFixture {
     Invoke-LzugCompose $Fixture @('up', '-d') | Out-Null
     $Fixture.Container = (Invoke-LzugCompose $Fixture @('ps', '-q', 'lzug')).Trim()
     Update-LzugUrl $Fixture
-    Wait-LzugReady $Fixture.Url -State $State
+    try {
+        Wait-LzugReady $Fixture.Url -State $State
+    } catch {
+        Write-Host "Container fixture '$($Fixture.Name)' failed to reach state='$State'."
+        try {
+            Write-Host 'Compose service state:'
+            Invoke-LzugCompose $Fixture @('ps') | Write-Host
+            Write-Host 'Last 200 lines of application logs:'
+            Invoke-LzugCompose $Fixture @('logs', '--no-color', '--tail', '200', 'lzug') | Write-Host
+        } catch {
+            Write-Host "Could not collect container diagnostics: $($_.Exception.Message)"
+        }
+        throw
+    }
 }
 
 function Update-LzugUrl {

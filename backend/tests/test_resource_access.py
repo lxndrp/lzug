@@ -13,7 +13,6 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
 from backend.application import ForbiddenRequestError
-from backend.application.repositories import ResourceRepository
 from backend.application.resource_access import ResourceKind, ResourceOwnership
 from backend.application.resource_authorization import ResourceAuthorizer
 from backend.composition import identity_service
@@ -44,6 +43,7 @@ from backend.persistence.resource_access import SQLiteResourceAccessQueryFactory
 from backend.persistence.store import Store
 from backend.tests.helpers import TempDatabase, create_committee_record
 from backend.tests.planning_support import planning_resource_service
+from backend.tests.support.resource_fixture_store import ResourceFixtureStore
 
 
 @contextmanager
@@ -69,7 +69,7 @@ def database_activity():
 class ResourceAccessTests(unittest.TestCase):
     def setUp(self) -> None:
         self.db_path = self.enterContext(TempDatabase())
-        self.repository = ResourceRepository(self.db_path)
+        self.repository = ResourceFixtureStore(self.db_path)
         self.identity = identity_service(self.db_path)
         self.scope = AuthorizationScope(
             1, frozenset({1}), frozenset({1}), frozenset({1}), frozenset({1}), {1: 1}
