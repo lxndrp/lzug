@@ -132,6 +132,12 @@ class ExamDayClosureTests(unittest.TestCase):
                 unit_of_work.execution.exam_day_ids_for_round(1),
                 unit_of_work.assessment_lifecycle.day_completion(2),
                 unit_of_work.assessment_lifecycle.results_for_day_slots(2, slot_ids),
+                unit_of_work.assessment_lifecycle.result_reopening_impacts(set()),
+                unit_of_work.assessment_lifecycle.result_by_id(-1),
+                unit_of_work.assessment_lifecycle.results_for_round(1),
+                unit_of_work.assessment_lifecycle.result_for_round_candidate(
+                    candidate_ids[0] if candidate_ids else -1
+                ),
                 unit_of_work.identity_lifecycle.committee_members(1),
                 unit_of_work.identity_lifecycle.committee(1),
             )
