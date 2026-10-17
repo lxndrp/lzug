@@ -16,14 +16,21 @@ SLOW_TEST_SECONDS = 1.0
 
 def partition_test_modules(modules: Iterable[str], shard_count: int) -> tuple[tuple[str, ...], ...]:
     """Balance independent test modules across deterministic test-count shards."""
-    if shard_count < 2:
-        raise ValueError("shard_count must be at least 2")
-
     loader = unittest.TestLoader()
     weighted_modules = [
         (loader.loadTestsFromName(f"backend.tests.{module}").countTestCases(), module)
         for module in modules
     ]
+    return partition_weighted_modules(weighted_modules, shard_count)
+
+
+def partition_weighted_modules(
+    weighted_modules: Iterable[tuple[int, str]], shard_count: int
+) -> tuple[tuple[str, ...], ...]:
+    """Partition named work items without importing the work being balanced."""
+    weighted_modules = list(weighted_modules)
+    if shard_count < 2:
+        raise ValueError("shard_count must be at least 2")
     if shard_count > len(weighted_modules):
         raise ValueError("shard_count cannot exceed the number of test modules")
 

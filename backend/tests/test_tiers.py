@@ -8,7 +8,7 @@ import io
 import unittest
 from pathlib import Path
 
-from backend.tests.runner import main, partition_test_modules
+from backend.tests.runner import main, partition_weighted_modules
 from backend.tests.suites import TEST_MODULES_BY_TIER
 
 TEST_ROOT = Path(__file__).resolve().parent
@@ -28,12 +28,23 @@ class BackendTestTierTests(unittest.TestCase):
 
     def test_http_tier_shards_are_complete_and_non_overlapping(self) -> None:
         modules = TEST_MODULES_BY_TIER["http"]
-        shards = partition_test_modules(modules, 3)
+        shards = partition_weighted_modules([(1, module) for module in modules], 3)
 
         self.assertEqual(set().union(*map(set, shards)), modules)
         for index, shard in enumerate(shards):
             remaining = set().union(*(set(other) for other in shards[index + 1 :]))
             self.assertFalse(set(shard) & remaining)
+
+    def test_weighted_sharding_balances_and_deterministically_assigns_modules(self) -> None:
+        weights = [(7, "a"), (6, "b"), (5, "c"), (4, "d"), (3, "e"), (2, "f"), (1, "g")]
+
+        first = partition_weighted_modules(weights, 3)
+        second = partition_weighted_modules(weights, 3)
+        totals = [sum(weight for weight, module in weights if module in shard) for shard in first]
+
+        self.assertEqual(first, second)
+        self.assertEqual(set().union(*map(set, first)), {module for _, module in weights})
+        self.assertLessEqual(max(totals) - min(totals), 1)
 
     def test_shard_count_cannot_exceed_selected_suite_modules(self) -> None:
         stderr = io.StringIO()
