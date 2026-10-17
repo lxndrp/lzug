@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import ast
+import contextlib
+import io
 import unittest
 from pathlib import Path
 
-from backend.tests.runner import partition_test_modules
+from backend.tests.runner import main, partition_test_modules
 from backend.tests.suites import TEST_MODULES_BY_TIER
 
 TEST_ROOT = Path(__file__).resolve().parent
@@ -30,6 +32,14 @@ class BackendTestTierTests(unittest.TestCase):
 
         self.assertEqual(set().union(*map(set, shards)), modules)
         self.assertFalse(set(shards[0]) & set(shards[1]))
+
+    def test_shard_count_cannot_exceed_selected_suite_modules(self) -> None:
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr), self.assertRaises(SystemExit) as raised:
+            main(["--suite", "unit", "--shard-index", "0", "--shard-count", "20"])
+
+        self.assertEqual(raised.exception.code, 2)
+        self.assertIn("shard-count cannot exceed", stderr.getvalue())
 
     def test_unit_tier_does_not_include_modules_using_runtime_adapters(self) -> None:
         forbidden_modules = {

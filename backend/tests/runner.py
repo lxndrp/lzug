@@ -91,6 +91,11 @@ def main(argv: Iterable[str] | None = None) -> int:
     if args.suite and args.suite != "all":
         modules = sorted(TEST_MODULES_BY_TIER[args.suite])
         if args.shard_count is not None:
+            if args.shard_count > len(modules):
+                parser.error(
+                    f"shard-count cannot exceed the {len(modules)} modules in "
+                    f"the {args.suite!r} suite"
+                )
             partitions = partition_test_modules(modules, args.shard_count)
             modules = list(partitions[args.shard_index])
         targets = [f"backend.tests.{module}" for module in modules]
