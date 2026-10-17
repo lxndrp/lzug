@@ -593,6 +593,24 @@ class BackendPackageBoundaryTests(unittest.TestCase):
                 self.assertFalse(foreign_models & imported)
 
     def test_application_modules_do_not_import_http_contracts(self) -> None:
+        forbidden_root_owners = {"api", "api-bootstrap", "composition-root", "operations-adapter"}
+        forbidden_root_modules = {
+            module.removesuffix(".py")
+            for module, owner in ROOT_MODULE_OWNERS.items()
+            if owner in forbidden_root_owners
+        }
+        for path in sorted((BACKEND_ROOT / "application").rglob("*.py")):
+            imported = _imported_modules(path, BACKEND_ROOT)
+            forbidden = {
+                module
+                for module in imported
+                if len(parts := module.split(".")) == 2 and parts[1] in forbidden_root_modules
+            }
+            with self.subTest(module=path.relative_to(BACKEND_ROOT)):
+                self.assertEqual(
+                    set(), forbidden, f"Application imports root adapters: {forbidden}"
+                )
+
         for relative in ("application/__init__.py", "application/resource_authorization.py"):
             with self.subTest(module=relative):
                 tree = ast.parse((BACKEND_ROOT / relative).read_text(encoding="utf-8"))
