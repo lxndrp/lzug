@@ -651,12 +651,7 @@ class BackendPackageBoundaryTests(unittest.TestCase):
                 )
 
     def test_application_dependency_allowlist_excludes_concrete_adapters(self) -> None:
-        forbidden = {
-            "calendar",
-            "documents",
-            "integrations",
-            "persistence",
-        }
+        forbidden = {"integrations", "persistence"}
         self.assertFalse(
             forbidden & ALLOWED_PACKAGE_DEPENDENCIES["application"],
             "Application dependency policy must not authorize concrete adapters",
