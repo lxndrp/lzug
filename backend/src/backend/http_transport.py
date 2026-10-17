@@ -41,13 +41,13 @@ from backend.execution.lifecycle_ports import (
 )
 from backend.execution.slot_service import ExecutionService
 from backend.http_application import ApplicationResult, ApplicationServices, ReadApplication
-from backend.http_resources import REST_RESOURCES
 from backend.http_planning_payloads import (
     confirmed_plan_change_from_payload as confirmed_plan_change_from_payload,
 )
 from backend.http_planning_payloads import (
     planning_proposal_from_payload as planning_proposal_from_payload,
 )
+from backend.http_resources import REST_RESOURCES
 from backend.identity.auth import AuthContext, AuthenticationRepository, SessionCredentials
 from backend.identity.authorization import AuthorizationScope, AuthorizationService
 from backend.identity.committee_admin import CommitteeAdminService
