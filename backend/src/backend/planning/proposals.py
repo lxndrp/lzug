@@ -9,6 +9,7 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
 from typing import Any
 
+from backend.mutation_locks import MutationLockCommand, MutationLockKind
 from backend.planning.plan_consequences import (
     PlanConsequenceSource,
     describe_plan_change,
@@ -199,6 +200,9 @@ class PlanningService:
             exam_round = context["round"]
             if exam_round is None:
                 raise ValueError("Exam round not found")
+            unit_of_work.check_mutation_allowed(
+                MutationLockCommand(MutationLockKind.EXAM_ROUND, round_id, {})
+            )
             if exam_round["status"] == "availability_requested":
                 return exam_round
             if exam_round["status"] != "draft":
@@ -235,6 +239,9 @@ class PlanningService:
             context = self._load_context(snapshot)
             if context["round"] is None:
                 raise ValueError("Exam round not found")
+            unit_of_work.check_mutation_allowed(
+                MutationLockCommand(MutationLockKind.EXAM_ROUND, round_id, {})
+            )
             if context["round"]["status"] not in {
                 "availability_requested",
                 "availability_closed",
@@ -297,6 +304,9 @@ class PlanningService:
             exam_round = snapshot.exam_round
             if exam_round is None:
                 raise ValueError("Exam round not found")
+            unit_of_work.check_mutation_allowed(
+                MutationLockCommand(MutationLockKind.EXAM_ROUND, proposal.round_id, {})
+            )
             if exam_round["status"] != "plan_proposed":
                 raise PlanConflictError("Only a planning proposal can be changed")
             if exam_round.get("plan_revision") != proposal.revision:
@@ -352,6 +362,9 @@ class PlanningService:
             exam_round = snapshot.exam_round
             if exam_round is None:
                 raise ValueError("Exam round not found")
+            unit_of_work.check_mutation_allowed(
+                MutationLockCommand(MutationLockKind.EXAM_ROUND, change.plan.round_id, {})
+            )
             if exam_round["status"] != "plan_confirmed":
                 raise ConfirmedPlanConflictError("Only a confirmed plan can be changed")
             if exam_round.get("plan_revision") != proposal.revision:
@@ -520,6 +533,9 @@ class PlanningService:
             exam_round = snapshot.exam_round
             if exam_round is None:
                 raise ValueError("Exam round not found")
+            unit_of_work.check_mutation_allowed(
+                MutationLockCommand(MutationLockKind.EXAM_ROUND, round_id, {})
+            )
             proposal = self._proposal_from_snapshot(snapshot.proposal)
             if proposal is None or not proposal.days:
                 raise PlanConflictError("No planning proposal found")

@@ -78,6 +78,10 @@ erDiagram
   Anwesenheit, Besetzung, Ausfälle, Protokolle und Bewertungen an eine Revision.
   Nachträgliche Änderungen benötigen einen begründeten, zielgerichteten
   Wiederöffnungsumfang; frühere Nachweise bleiben erhalten.
+  Die gemeinsame Runden-Sperre wird für zugeordnete Änderungen zusätzlich
+  innerhalb derselben Writer-UoW wie der Ressourcenschreibvorgang geprüft.
+  Eine vorgelagerte HTTP-Prüfung liefert frühes Feedback, ersetzt diese
+  transaktionsgebundene Prüfung jedoch nicht.
 - **Dokumente und Kommunikation:** Dokumentmetadaten und Binärinhalt liegen an
   einer kontrollierten gemeinsamen Mutationsgrenze.
   Ein fachlicher Hinweis bleibt bestehen, wenn ein externer Zustellkanal

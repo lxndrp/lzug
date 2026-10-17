@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -11,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from backend.execution.calendar_ports import ExecutionCalendarPort
+from backend.execution.lifecycle_ports import MutationLockCommand, MutationLockKind
 from backend.identity.authorization import AuthorizationScope
 from backend.notifications.service import NotificationService
 from backend.persistence.database import DEFAULT_DB_PATH, session_scope
@@ -62,10 +64,21 @@ class AbsenceService:
         *,
         notification_service: NotificationService,
         calendar_service: ExecutionCalendarPort,
+        mutation_lock_checker: Callable[[Session, MutationLockCommand], None] | None = None,
     ) -> None:
         self.db_path = db_path
         self.notification_service = notification_service
         self.calendar_service = calendar_service
+        self.mutation_lock_checker = mutation_lock_checker
+
+    def _assert_round_mutation_allowed(
+        self, session: Session, report_id: int | None, payload: dict[str, Any]
+    ) -> None:
+        if self.mutation_lock_checker is not None:
+            self.mutation_lock_checker(
+                session,
+                MutationLockCommand(MutationLockKind.ABSENCE_REPORT, report_id, payload),
+            )
 
     def list(self, scope: AuthorizationScope) -> list[dict[str, Any]]:
         with session_scope(self.db_path) as session:
@@ -94,7 +107,8 @@ class AbsenceService:
     ) -> dict[str, Any]:
         current = _now(now)
         notification_data: tuple[int, int, set[int], str, bool] | None = None
-        with session_scope(self.db_path) as session:
+        with session_scope(self.db_path, begin_immediate=True) as session:
+            self._assert_round_mutation_allowed(session, None, payload)
             day, exam_round, assignment, target = self._target(session, payload)
             actor_id = scope.member_for_committee(exam_round.committee_id)
             if actor_id is None:
@@ -212,13 +226,14 @@ class AbsenceService:
     ) -> dict[str, Any]:
         current = _now(now)
         notification_data = None
-        with session_scope(self.db_path) as session:
+        with session_scope(self.db_path, begin_immediate=True) as session:
             response = session.get(ReplacementResponse, response_id)
             if response is None or response.committee_member_id not in scope.member_ids:
                 raise PermissionError("Ersatzanfrage ist nicht zugänglich")
             report = session.get(AbsenceReport, response.absence_report_id)
             if report is None or not self._visible(session, report, scope):
                 raise PermissionError("Ersatzanfrage ist nicht zugänglich")
+            self._assert_round_mutation_allowed(session, report.id, payload)
             answer = payload.get("response")
             if answer not in {"available", "unavailable"}:
                 raise ValueError("Antwort muss available oder unavailable sein")
@@ -329,10 +344,11 @@ class AbsenceService:
         report_round_id = self._report_round_id(report_id)
         if report_round_id is not None:
             self.calendar_service.sync_round(report_round_id)
-        with session_scope(self.db_path) as session:
+        with session_scope(self.db_path, begin_immediate=True) as session:
             report = session.get(AbsenceReport, report_id)
             if report is None:
                 raise ValueError("Ausfallmeldung nicht gefunden")
+            self._assert_round_mutation_allowed(session, report.id, payload)
             day, round_row, actor_id = self._require_replacement_selection(
                 session, report, scope, payload, current
             )
@@ -473,8 +489,9 @@ class AbsenceService:
         now: datetime | None = None,
     ) -> dict[str, Any]:
         current = _now(now)
-        with session_scope(self.db_path) as session:
+        with session_scope(self.db_path, begin_immediate=True) as session:
             report, day, round_row = self._authorized_report(session, scope, report_id)
+            self._assert_round_mutation_allowed(session, report.id, payload or {})
             actor_id = scope.member_for_committee(round_row.committee_id)
             if actor_id != report.committee_member_id and not scope.can_manage_committee(
                 round_row.committee_id
@@ -527,8 +544,9 @@ class AbsenceService:
         reason = self._required_reason(payload)
         calendar_round_id: int | None = None
         sync_calendar = True
-        with session_scope(self.db_path) as session:
+        with session_scope(self.db_path, begin_immediate=True) as session:
             report, day, round_row = self._authorized_report(session, scope, report_id)
+            self._assert_round_mutation_allowed(session, report.id, payload)
             actor_id = scope.member_for_committee(round_row.committee_id)
             if not scope.can_manage_committee(round_row.committee_id):
                 raise PermissionError("Nur Vorsitz oder Stellvertretung dürfen wieder öffnen")
@@ -591,8 +609,9 @@ class AbsenceService:
         current = _now(now)
         reason = self._required_reason(payload)
         calendar_target: tuple[int, int] | None = None
-        with session_scope(self.db_path) as session:
+        with session_scope(self.db_path, begin_immediate=True) as session:
             report, day, round_row = self._authorized_report(session, scope, report_id)
+            self._assert_round_mutation_allowed(session, report.id, payload)
             actor_id = scope.member_for_committee(round_row.committee_id)
             if not scope.can_manage_committee(round_row.committee_id):
                 raise PermissionError("Nur Vorsitz oder Stellvertretung dürfen Slots absagen")

@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 from backend.composition import calendar_service as compose_calendar_service
 from backend.execution.absence import AbsenceService
+from backend.execution.lifecycle_ports import MutationLockCommand, MutationLockKind
 from backend.identity.authorization import AuthorizationScope
 from backend.persistence.database import session_scope
 from backend.persistence.models import (
@@ -175,6 +176,32 @@ class AbsenceServiceTests(unittest.TestCase):
         audit_types = {event["event_type"] for event in updated["audit"]}
         self.assertIn("fallback_expired", audit_types)
         self.assertIn("replacement_search_opened", audit_types)
+
+    def test_report_checks_round_lock_in_its_writer_session(self) -> None:
+        observed: list[tuple[object, MutationLockCommand]] = []
+
+        def reject_locked_report(session, command: MutationLockCommand) -> None:
+            observed.append((session, command))
+            raise ValueError("round locked")
+
+        service = AbsenceService(
+            self.db_path,
+            notification_service=notification_service_for_test(self.db_path),
+            calendar_service=self.calendar_service,
+            mutation_lock_checker=reject_locked_report,
+        )
+        with self.assertRaisesRegex(ValueError, "round locked"):
+            service.report(
+                scope(1),
+                {"exam_day_id": self.day_id, "exam_day_assignment_id": self.assignment_id},
+                now=datetime(2026, 11, 1, tzinfo=UTC),
+            )
+
+        self.assertEqual(1, len(observed))
+        _, command = observed[0]
+        self.assertIs(command.kind, MutationLockKind.ABSENCE_REPORT)
+        self.assertIsNone(command.resource_id)
+        self.assertEqual(self.assignment_id, command.payload["exam_day_assignment_id"])
 
     def test_selection_is_single_versioned_transition_and_emits_calendar_work(self) -> None:
         service = AbsenceService(

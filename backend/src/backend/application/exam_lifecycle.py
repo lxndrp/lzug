@@ -73,6 +73,11 @@ class ExamLifecycleApplication:
         with self._unit_of_work_factory.read_scope() as unit_of_work:
             unit_of_work.execution.assert_mutation_allowed(service, command)
 
+    def assert_mutation_allowed_in_session(self, session, command: MutationLockCommand) -> None:
+        """Check a domain mutation lock in the caller's existing write transaction."""
+        service = self._round_lifecycle_service()
+        service.assert_mutation_allowed_in_session(session, command)
+
     def set_exam_round_candidate_terminal_status(
         self, scope: AuthorizationScope, round_id: int, candidate_id: int, payload: dict[str, Any]
     ) -> dict[str, Any]:

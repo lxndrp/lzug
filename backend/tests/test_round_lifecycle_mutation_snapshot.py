@@ -7,6 +7,7 @@ from sqlalchemy import text
 
 from backend.application.exam_lifecycle import ExamLifecycleApplication
 from backend.application.exam_lifecycle_commands import round_decision_command, round_reopen_command
+from backend.assessment.service import ExamResultService
 from backend.composition import (
     SQLiteAssessmentLifecycleAdapter,
     authorization_service,
@@ -19,12 +20,17 @@ from backend.execution.exam_round_lifecycle import (
     ExamRoundConflictError,
     ExamRoundLifecycleService,
 )
+from backend.execution.lifecycle_ports import MutationLockCommand, MutationLockKind
+from backend.execution.slot_service import ExecutionService
 from backend.persistence.assessment import SQLiteAssessmentUnitOfWorkFactory
 from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.persistence.database import session_scope
 from backend.persistence.exam_lifecycle import SQLiteExamLifecycleUnitOfWorkFactory
 from backend.persistence.execution import SQLiteExecutionUnitOfWorkFactory
 from backend.persistence.identity import SQLiteIdentityExecutionSnapshotFactory
+from backend.persistence.models import ExamDay, ExamSlot
+from backend.persistence.planning_resources import SQLitePlanningResourceUnitOfWorkFactory
+from backend.planning.resources import PlanningResourceService
 from backend.tests.fixture_data import prepare_exam_protocol_scenario
 from backend.tests.helpers import TempDatabase, notification_service_for_test
 from backend.tests.support.port_contracts import assert_materialized_port_value
@@ -165,6 +171,109 @@ class RoundLifecycleMutationSnapshotTests(unittest.TestCase):
                     "reason": "Verbindliche Nachplanung",
                     "postponed_until": "2027-12-01",
                 },
+            )
+
+    def test_new_absence_report_resolves_round_lock_from_assignment_payload(self) -> None:
+        with session_scope(self.db_path) as session:
+            session.execute(text("UPDATE exam_round SET lifecycle_status = 'closed' WHERE id = 2"))
+            command = MutationLockCommand(
+                MutationLockKind.ABSENCE_REPORT,
+                None,
+                {"exam_day_id": 1, "exam_day_assignment_id": 1},
+            )
+            self.assertEqual(
+                (2, "staffing:1"), self.service._round_mutation_token(session, command)
+            )
+            self.assertEqual(
+                "closed",
+                self.service.planning_lifecycle_work_factory(session)
+                .round_lifecycle_snapshot(2)
+                .lifecycle_status,
+            )
+            with self.assertRaisesRegex(ExamRoundConflictError, "fachlich beendet"):
+                self.service._require_mutable_scope(
+                    session,
+                    self.service.planning_lifecycle_work_factory(session).round_lifecycle_snapshot(
+                        2
+                    ),
+                    "staffing:1",
+                )
+            with self.assertRaisesRegex(ExamRoundConflictError, "fachlich beendet"):
+                self.service.assert_mutation_allowed_in_session(session, command)
+
+    def test_planning_execution_and_assessment_writers_check_lock_in_their_uow(self) -> None:
+        with session_scope(self.db_path) as session:
+            session.execute(
+                text(
+                    "UPDATE exam_round SET status = 'plan_confirmed', lifecycle_status = 'closed' "
+                    "WHERE id = 1"
+                )
+            )
+            day = ExamDay(
+                exam_round_id=1,
+                room_id=1,
+                date="2027-05-02",
+                status="confirmed",
+                lunch_break_enabled=1,
+                created_from_proposal=1,
+            )
+            session.add(day)
+            session.flush()
+            slot = ExamSlot(
+                exam_day_id=day.id,
+                round_candidate_id=1,
+                slot_type="regular",
+                starts_at="2027-05-02T09:00:00+00:00",
+                ends_at="2027-05-02T10:00:00+00:00",
+                sequence_number=1,
+                status="confirmed",
+            )
+            session.add(slot)
+            session.flush()
+            settings_id = session.scalar(
+                text("SELECT id FROM planning_settings WHERE exam_round_id = 1")
+            )
+            day_id = day.id
+            slot_id = slot.id
+
+        planning = PlanningResourceService(
+            SQLitePlanningResourceUnitOfWorkFactory(
+                self.db_path, mutation_lock_checker=self.service.assert_mutation_allowed_in_session
+            )
+        )
+        with self.assertRaisesRegex(ExamRoundConflictError, "fachlich beendet"):
+            planning.update_settings(settings_id, {"exams_per_day": 3})
+
+        execution = ExecutionService(
+            SQLiteExecutionUnitOfWorkFactory(
+                self.db_path,
+                identity_snapshot_factory=SQLiteIdentityExecutionSnapshotFactory(),
+                mutation_lock_checker=self.service.assert_mutation_allowed_in_session,
+            )
+        )
+        with self.assertRaisesRegex(ExamRoundConflictError, "fachlich beendet"):
+            execution.save_candidate_attendance(
+                day_id, slot_id, {"status": "present"}, actor_member_id=1
+            )
+
+        assessment = ExamResultService(
+            SQLiteAssessmentUnitOfWorkFactory(
+                self.db_path, mutation_lock_checker=self.service.assert_mutation_allowed_in_session
+            )
+        )
+        actor = {
+            "person_id": self.chair_scope.person_id,
+            "person_ids": tuple(self.chair_scope.person_ids),
+            "committee_ids": tuple(self.chair_scope.committee_ids),
+            "member_ids": tuple(self.chair_scope.member_ids),
+            "management_committee_ids": tuple(self.chair_scope.management_committee_ids),
+            "member_by_committee": dict(self.chair_scope.member_by_committee),
+        }
+        with self.assertRaisesRegex(ExamRoundConflictError, "fachlich beendet"):
+            assessment.bind_round(
+                actor,
+                1,
+                {"assessment_model_version_id": 1, "reason": "Korrektur"},
             )
 
     def _legacy_view(self, round_id: int, scope):

@@ -284,6 +284,7 @@ class RequestContext:
             self.db_path,
             notification_service=self.notification_service,
             calendar_service=self.calendar_service,
+            mutation_lock_checker=self.exam_lifecycle_application.assert_mutation_allowed_in_session,
         )
 
     @property

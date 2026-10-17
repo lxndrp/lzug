@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import AbstractContextManager, contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, NamedTuple, cast
 
 from sqlalchemy import select
 
+from backend.mutation_locks import MutationLockCommand
 from backend.persistence.candidate_days import SQLiteCandidateDayUnitOfWork
 from backend.persistence.database import DEFAULT_DB_PATH, read_session_scope, session_scope
 from backend.persistence.models import (
@@ -36,6 +37,8 @@ from backend.persistence.resource_access import SQLiteResourceAccessQueryFactory
 from backend.persistence.store import Store
 
 if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
+
     from backend.planning.candidate_days import CandidateDayRecord
     from backend.planning.resources import (
         PlanningAvailabilityPropagationContext,
@@ -193,9 +196,11 @@ class SQLitePlanningResourceUnitOfWorkFactory:
         db_path: Path = DEFAULT_DB_PATH,
         *,
         require_confirmed_coordinates: bool = False,
+        mutation_lock_checker: Callable[[Session, MutationLockCommand], None] | None = None,
     ) -> None:
         self.db_path = db_path
         self.require_confirmed_coordinates = require_confirmed_coordinates
+        self.mutation_lock_checker = mutation_lock_checker
 
     def __call__(
         self, *, write: bool = False
@@ -213,15 +218,27 @@ class SQLitePlanningResourceUnitOfWorkFactory:
             yield SQLitePlanningResourceUnitOfWork(
                 Store(session),
                 require_confirmed_coordinates=self.require_confirmed_coordinates,
+                mutation_lock_checker=self.mutation_lock_checker,
             )
 
 
 class SQLitePlanningResourceUnitOfWork:
     """Perform use-case-sized Planning operations within one SQLite session."""
 
-    def __init__(self, store: Store, *, require_confirmed_coordinates: bool = False) -> None:
+    def __init__(
+        self,
+        store: Store,
+        *,
+        require_confirmed_coordinates: bool = False,
+        mutation_lock_checker: Callable[[Session, MutationLockCommand], None] | None = None,
+    ) -> None:
         self._store = store
         self._require_confirmed_coordinates = require_confirmed_coordinates
+        self._mutation_lock_checker = mutation_lock_checker
+
+    def check_mutation_allowed(self, command: MutationLockCommand) -> None:
+        if self._mutation_lock_checker is not None:
+            self._mutation_lock_checker(self._store.session, command)
 
     def authorization_queries(self) -> object:
         """Bind materialized access queries to the active planning transaction."""

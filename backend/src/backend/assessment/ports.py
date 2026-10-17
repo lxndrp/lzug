@@ -12,6 +12,7 @@ from contextlib import AbstractContextManager
 from typing import Any, Literal, Protocol, TypedDict
 
 from backend.assessment.rules import AssessmentRules
+from backend.mutation_locks import MutationLockCommand
 
 AssessmentStatus = Literal["incomplete", "calculation_ready", "determined", "communicated"]
 
@@ -736,6 +737,8 @@ class AssessmentRepositoryPort(Protocol):
 
 class AssessmentUnitOfWork(Protocol):
     """One transaction-scoped Assessment boundary; deliberately has no commit method."""
+
+    def check_mutation_allowed(self, command: MutationLockCommand) -> None: ...
 
     @property
     def queries(self) -> ResultQueryPort: ...

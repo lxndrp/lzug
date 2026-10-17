@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -38,6 +38,7 @@ from backend.persistence.database import DEFAULT_DB_PATH, session_scope
 from backend.persistence.models import (
     AbsenceReport,
     ExamDay,
+    ExamDayAssignment,
     ExamDayClosure,
     ExamDayTask,
     ExamProtocol,
@@ -1260,14 +1261,36 @@ class ExamRoundLifecycleService:
             result = self.assessment_lifecycle_factory(session).result_by_id(identifier)
             round_id = result["round_id"] if result is not None else None
             return (round_id, _token("exam_result", identifier)) if round_id else None
-        if resource is MutationLockKind.ABSENCE_REPORT and identifier is not None:
+        if resource is MutationLockKind.ABSENCE_REPORT:
+            return self._absence_report_mutation_token(session, identifier, payload)
+        return None
+
+    @staticmethod
+    def _absence_report_mutation_token(
+        session: Session, identifier: int | None, payload: Mapping[str, Any]
+    ) -> tuple[int, str] | None:
+        if identifier is not None:
             round_id = session.scalar(
                 select(ExamDay.exam_round_id)
                 .join(AbsenceReport, AbsenceReport.exam_day_id == ExamDay.id)
                 .where(AbsenceReport.id == identifier)
             )
             return (round_id, _token("absence", identifier)) if round_id else None
-        return None
+        day_id = payload.get("exam_day_id")
+        if not isinstance(day_id, int) or isinstance(day_id, bool):
+            return None
+        round_id = session.scalar(select(ExamDay.exam_round_id).where(ExamDay.id == day_id))
+        assignment_id = payload.get("exam_day_assignment_id")
+        if assignment_id is None and payload.get("committee_member_id") is not None:
+            assignment_id = session.scalar(
+                select(ExamDayAssignment.id).where(
+                    ExamDayAssignment.exam_day_id == day_id,
+                    ExamDayAssignment.committee_member_id == payload["committee_member_id"],
+                )
+            )
+        if not isinstance(assignment_id, int) or isinstance(assignment_id, bool):
+            return (round_id, "unresolved_absence_report") if round_id else None
+        return (round_id, _token("staffing", assignment_id)) if round_id else None
 
     def _view(
         self,

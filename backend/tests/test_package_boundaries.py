@@ -75,6 +75,7 @@ ROOT_MODULE_OWNERS = {
     "http_planning_payloads.py": "api",
     "http_resources.py": "api",
     "http_transport.py": "api",
+    "mutation_locks.py": "shared-contracts",
     "healthcheck.py": "operations-adapter",
     "observability.py": "runtime-foundation",
     "planning_ports.py": "planning-owned-contracts",

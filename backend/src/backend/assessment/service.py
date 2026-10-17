@@ -27,6 +27,7 @@ from backend.assessment.ports import (
 )
 from backend.assessment.rules import AssessmentRules
 from backend.errors import AssessmentWriteConflictError
+from backend.mutation_locks import MutationLockCommand, MutationLockKind
 
 MODEL_FIELDS = {
     "model_key",
@@ -161,6 +162,9 @@ class ExamResultService:
             else None
         )
         with self._unit_of_work_factory(write=True) as work:
+            work.check_mutation_allowed(
+                MutationLockCommand(MutationLockKind.EXAM_ROUND, round_id, payload)
+            )
             planning = work.queries.planning_for_round(round_id)
             if planning is None:
                 raise ValueError("Prüfungsrunde nicht gefunden")
@@ -241,6 +245,9 @@ class ExamResultService:
         if not isinstance(submitted, bool):
             raise ValueError("submitted muss ein boolescher Wert sein")
         with self._unit_of_work_factory(write=True) as work:
+            work.check_mutation_allowed(
+                MutationLockCommand(MutationLockKind.EXAM_RESULT, result_id, payload)
+            )
             result = self._required_access(work, actor, result_id)
             member_id = actor["member_by_committee"].get(result["committee_id"])
             if member_id not in result["participant_member_ids"]:
@@ -307,6 +314,9 @@ class ExamResultService:
         expected = self._required_result_version(payload)
         reason = self._required_text(payload.get("reason"), "reason", 2000)
         with self._unit_of_work_factory(write=True) as work:
+            work.check_mutation_allowed(
+                MutationLockCommand(MutationLockKind.EXAM_RESULT, result_id, payload)
+            )
             result = self._required_access(work, actor, result_id)
             member_id = actor["member_by_committee"].get(result["committee_id"])
             item = next(
@@ -354,6 +364,9 @@ class ExamResultService:
         expected = self._required_result_version(payload)
         component_key = self._required_text(payload.get("component_key"), "component_key", 100)
         with self._unit_of_work_factory(write=True) as work:
+            work.check_mutation_allowed(
+                MutationLockCommand(MutationLockKind.EXAM_RESULT, result_id, payload)
+            )
             result = self._required_access(work, actor, result_id)
             committee = result["committee_id"]
             member_id = actor["member_by_committee"].get(committee)
@@ -398,6 +411,9 @@ class ExamResultService:
             raise ValueError("points muss zwischen 0 und 100 liegen")
         rationale = self._optional_text(payload.get("rationale"), 4000)
         with self._unit_of_work_factory(write=True) as work:
+            work.check_mutation_allowed(
+                MutationLockCommand(MutationLockKind.EXAM_RESULT, result_id, payload)
+            )
             result = self._required_access(work, actor, result_id)
             member_id = actor["member_by_committee"].get(result["committee_id"])
             actual = set(result["participant_member_ids"])
@@ -487,6 +503,9 @@ class ExamResultService:
         source = self._required_text(payload.get("source_reference"), "source_reference", 1000)
         reason = self._optional_text(payload.get("correction_reason"), 2000)
         with self._unit_of_work_factory(write=True) as work:
+            work.check_mutation_allowed(
+                MutationLockCommand(MutationLockKind.EXAM_RESULT, result_id, payload)
+            )
             result = self._required_access(work, actor, result_id)
             member_id = actor["member_by_committee"].get(result["committee_id"])
             if not self._can_manage_committee(actor, result["committee_id"]):
@@ -539,6 +558,9 @@ class ExamResultService:
     ) -> dict[str, Any]:
         expected = self._required_result_version(payload)
         with self._unit_of_work_factory(write=True) as work:
+            work.check_mutation_allowed(
+                MutationLockCommand(MutationLockKind.EXAM_RESULT, result_id, payload)
+            )
             result = self._required_access(work, actor, result_id)
             member_id = actor["member_by_committee"].get(result["committee_id"])
             if not self._can_manage_committee(actor, result["committee_id"]):
@@ -578,6 +600,9 @@ class ExamResultService:
     def determine_result(self, actor, result_id: int, payload: dict[str, Any]) -> dict[str, Any]:
         expected = self._required_result_version(payload)
         with self._unit_of_work_factory(write=True) as work:
+            work.check_mutation_allowed(
+                MutationLockCommand(MutationLockKind.EXAM_RESULT, result_id, payload)
+            )
             result = self._required_access(work, actor, result_id)
             member_id = actor["member_by_committee"].get(result["committee_id"])
             actual = set(result["participant_member_ids"])
@@ -635,6 +660,9 @@ class ExamResultService:
     def confirm_record(self, actor, result_id: int, payload: dict[str, Any]) -> dict[str, Any]:
         expected = self._required_result_version(payload)
         with self._unit_of_work_factory(write=True) as work:
+            work.check_mutation_allowed(
+                MutationLockCommand(MutationLockKind.EXAM_RESULT, result_id, payload)
+            )
             result = self._required_access(work, actor, result_id)
             member_id = actor["member_by_committee"].get(result["committee_id"])
             determination = next(
@@ -675,6 +703,9 @@ class ExamResultService:
         reason = self._required_text(payload.get("reason"), "reason", 3000)
         reopening = self._optional_text(payload.get("reopening_reference"), 1000)
         with self._unit_of_work_factory(write=True) as work:
+            work.check_mutation_allowed(
+                MutationLockCommand(MutationLockKind.EXAM_RESULT, result_id, payload)
+            )
             result = self._required_access(work, actor, result_id)
             member_id = actor["member_by_committee"].get(result["committee_id"])
             if member_id is None or not self._can_manage_committee(actor, result["committee_id"]):
@@ -714,6 +745,9 @@ class ExamResultService:
         method = self._required_text(payload.get("method"), "method", 300)
         communicated_at = self._required_datetime(payload.get("communicated_at"), "communicated_at")
         with self._unit_of_work_factory(write=True) as work:
+            work.check_mutation_allowed(
+                MutationLockCommand(MutationLockKind.EXAM_RESULT, result_id, payload)
+            )
             result = self._required_access(work, actor, result_id)
             member_id = actor["member_by_committee"].get(result["committee_id"])
             if member_id is None or not self._can_manage_committee(actor, result["committee_id"]):

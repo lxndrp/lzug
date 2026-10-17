@@ -12,6 +12,7 @@ from backend.assessment.service import ExamResultService
 from backend.calendar.service import CalendarService
 from backend.documents.commands import DocumentUseCases
 from backend.execution.exam_protocols import ExamProtocolService
+from backend.execution.exam_round_lifecycle import ExamRoundLifecycleService
 from backend.execution.slot_service import ExecutionService
 from backend.identity.admin_service import OperatorAuthService
 from backend.identity.auth import AuthenticationRepository
@@ -90,6 +91,21 @@ def application_consequence_store(db_path: Path) -> SQLiteApplicationConsequence
     return SQLiteApplicationConsequenceStore(db_path)
 
 
+def round_mutation_lock_checker(db_path: Path):
+    """Compose the lifecycle policy as a same-session persistence callback."""
+    assessment_factory = SQLiteAssessmentUnitOfWorkFactory(db_path)
+    service = ExamRoundLifecycleService(
+        db_path,
+        notification_service=notification_service(db_path),
+        assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(assessment_factory),
+        planning_lifecycle_work_factory=SQLitePlanningLifecycleWork,
+        identity_lifecycle_work_factory=SQLiteIdentityLifecycleWork,
+        calendar_lifecycle_work_factory=SQLiteCalendarLifecycleWork,
+        pending_consequence_ids=lambda _round_id: (),
+    )
+    return service.assert_mutation_allowed_in_session
+
+
 def venue_consequence_service(
     db_path: Path,
     *,
@@ -122,6 +138,7 @@ def planning_resource_unit_of_work_factory(
     return SQLitePlanningResourceUnitOfWorkFactory(
         db_path,
         require_confirmed_coordinates=require_confirmed_coordinates,
+        mutation_lock_checker=round_mutation_lock_checker(db_path),
     )
 
 
@@ -136,6 +153,7 @@ def planning_service(
             db_path,
             identity_snapshot_factory=SQLiteIdentityPlanningSnapshotFactory(),
             require_confirmed_coordinates=require_confirmed_coordinates,
+            mutation_lock_checker=round_mutation_lock_checker(db_path),
         )
     )
 
@@ -146,6 +164,7 @@ def execution_service(db_path: Path) -> ExecutionService:
         SQLiteExecutionUnitOfWorkFactory(
             db_path,
             identity_snapshot_factory=SQLiteIdentityExecutionSnapshotFactory(),
+            mutation_lock_checker=round_mutation_lock_checker(db_path),
         )
     )
 
@@ -153,7 +172,9 @@ def execution_service(db_path: Path) -> ExecutionService:
 def assessment_unit_of_work_factory(db_path: Path) -> SQLiteAssessmentUnitOfWorkFactory:
     """Create Assessment persistence bound to the request-selected database."""
     return SQLiteAssessmentUnitOfWorkFactory(
-        db_path, day_mutation_handler=_complete_assessment_day_mutation
+        db_path,
+        day_mutation_handler=_complete_assessment_day_mutation,
+        mutation_lock_checker=round_mutation_lock_checker(db_path),
     )
 
 
@@ -164,6 +185,7 @@ def exam_lifecycle_unit_of_work_factory(db_path: Path) -> SQLiteExamLifecycleUni
         SQLiteExecutionUnitOfWorkFactory(
             db_path,
             identity_snapshot_factory=SQLiteIdentityExecutionSnapshotFactory(),
+            mutation_lock_checker=round_mutation_lock_checker(db_path),
         ),
         assessment_factory,
         db_path,
@@ -192,6 +214,7 @@ def exam_protocol_service(db_path: Path) -> ExamProtocolService:
         SQLiteExecutionUnitOfWorkFactory(
             db_path,
             identity_snapshot_factory=SQLiteIdentityExecutionSnapshotFactory(),
+            mutation_lock_checker=round_mutation_lock_checker(db_path),
         )
     )
 
@@ -200,7 +223,9 @@ def exam_result_service(db_path: Path) -> ExamResultService:
     """Wire Assessment commands and queries to the SQLite unit of work."""
     return ExamResultService(
         unit_of_work_factory=SQLiteAssessmentUnitOfWorkFactory(
-            db_path, day_mutation_handler=_complete_assessment_day_mutation
+            db_path,
+            day_mutation_handler=_complete_assessment_day_mutation,
+            mutation_lock_checker=round_mutation_lock_checker(db_path),
         )
     )
 

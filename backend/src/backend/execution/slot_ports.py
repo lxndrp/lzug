@@ -6,6 +6,8 @@ from collections.abc import Mapping, Sequence
 from contextlib import AbstractContextManager
 from typing import NotRequired, Protocol, TypedDict
 
+from backend.mutation_locks import MutationLockCommand
+
 
 class SlotSnapshot(TypedDict):
     id: int
@@ -94,6 +96,8 @@ class ExecutionIdentitySnapshots(Protocol):
 
 class ExecutionUnitOfWork(Protocol):
     """One transaction for execution reads, state changes, and day revision."""
+
+    def check_mutation_allowed(self, command: MutationLockCommand) -> None: ...
 
     def confirmed_slot(self, day_id: int, slot_id: int) -> SlotSnapshot: ...
 

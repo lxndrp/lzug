@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, cast
 
 from sqlalchemy import select
 
+from backend.mutation_locks import MutationLockCommand
 from backend.persistence.database import DEFAULT_DB_PATH, read_session_scope, session_scope
 from backend.persistence.day_mutations import (
     DayMutationGuard,
@@ -116,9 +117,11 @@ class SQLiteExecutionUnitOfWorkFactory:
         db_path: Path = DEFAULT_DB_PATH,
         *,
         identity_snapshot_factory: Callable[[Session], ExecutionIdentitySnapshots],
+        mutation_lock_checker: Callable[[Session, MutationLockCommand], None] | None = None,
     ) -> None:
         self.db_path = Path(db_path)
         self.identity_snapshot_factory = identity_snapshot_factory
+        self.mutation_lock_checker = mutation_lock_checker
 
     def __call__(self, *, write: bool = False) -> AbstractContextManager[SQLiteExecutionUnitOfWork]:
         return self._unit_of_work(write=write)
@@ -129,6 +132,7 @@ class SQLiteExecutionUnitOfWorkFactory:
             session,
             Store(session),
             self.identity_snapshot_factory(session),
+            self.mutation_lock_checker,
         )
 
     @contextmanager
@@ -143,6 +147,7 @@ class SQLiteExecutionUnitOfWorkFactory:
                 session,
                 Store(session),
                 self.identity_snapshot_factory(session),
+                self.mutation_lock_checker,
             )
 
 
@@ -154,13 +159,19 @@ class SQLiteExecutionUnitOfWork:
         session: Session,
         store: Store,
         identity_snapshots: ExecutionIdentitySnapshots,
+        mutation_lock_checker: Callable[[Session, MutationLockCommand], None] | None = None,
     ) -> None:
         self._session = session
         self._store = store
         self._identity_snapshots = identity_snapshots
+        self._mutation_lock_checker = mutation_lock_checker
         self._protocols = SQLiteExecutionProtocolStore(session)
         self._day_mutation_guards: dict[int, DayMutationGuard] = {}
         self._next_day_mutation_handle = 1
+
+    def check_mutation_allowed(self, command: MutationLockCommand) -> None:
+        if self._mutation_lock_checker is not None:
+            self._mutation_lock_checker(self._session, command)
 
     def protocol_by_id(self, protocol_id: int) -> ExecutionProtocolSnapshot | None:
         return self._protocols.protocol_by_id(protocol_id)

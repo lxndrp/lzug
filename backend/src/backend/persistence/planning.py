@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, TypedDict, cast
 
 from sqlalchemy import select, update
 
+from backend.mutation_locks import MutationLockCommand
 from backend.persistence.database import DEFAULT_DB_PATH, read_session_scope, session_scope
 from backend.persistence.models import (
     CANDIDATE,
@@ -161,10 +162,12 @@ class SQLitePlanningUnitOfWorkFactory:
         *,
         identity_snapshot_factory: Callable[[Session], PlanningIdentitySnapshots],
         require_confirmed_coordinates: bool = False,
+        mutation_lock_checker: Callable[[Session, MutationLockCommand], None] | None = None,
     ) -> None:
         self.db_path = Path(db_path)
         self.identity_snapshot_factory = identity_snapshot_factory
         self.require_confirmed_coordinates = require_confirmed_coordinates
+        self.mutation_lock_checker = mutation_lock_checker
 
     def __call__(self, *, write: bool = False) -> AbstractContextManager[PlanningUnitOfWork]:
         return self._unit_of_work(write=write)
@@ -181,6 +184,7 @@ class SQLitePlanningUnitOfWorkFactory:
                 Store(session),
                 identity_snapshots=self.identity_snapshot_factory(session),
                 require_confirmed_coordinates=self.require_confirmed_coordinates,
+                mutation_lock_checker=self.mutation_lock_checker,
             )
 
 
@@ -193,11 +197,17 @@ class SQLitePlanningUnitOfWork:
         *,
         identity_snapshots: PlanningIdentitySnapshots,
         require_confirmed_coordinates: bool,
+        mutation_lock_checker: Callable[[Session, MutationLockCommand], None] | None = None,
     ) -> None:
         self._store = store
         self._session = store.session
         self._identity_snapshots = identity_snapshots
         self._require_confirmed_coordinates = require_confirmed_coordinates
+        self._mutation_lock_checker = mutation_lock_checker
+
+    def check_mutation_allowed(self, command: MutationLockCommand) -> None:
+        if self._mutation_lock_checker is not None:
+            self._mutation_lock_checker(self._session, command)
 
     def planning_context(self, round_id: int) -> PlanningContextSnapshot:
         exam_round_row = self._store.get(EXAM_ROUND, round_id)
