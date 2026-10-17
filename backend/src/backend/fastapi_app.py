@@ -17,6 +17,7 @@ from fastapi.responses import Response
 from sqlalchemy.exc import SQLAlchemyError
 from starlette.routing import Match
 
+from backend import http_hateoas as hateoas
 from backend.application.exam_lifecycle_commands import (
     day_close_command,
     day_reopen_command,
@@ -896,7 +897,11 @@ def _register_exam_day_routes(app, resolved, application, read_security, write_s
     )
     def exam_day_closure(context: ReadContext, id: int):
         result = context.exam_day_closure_service.get(context.authorization_scope, id)
-        return _not_found() if result is None else _finish(context, context.respond(result))
+        return (
+            _not_found()
+            if result is None
+            else _finish(context, context.respond(hateoas.exam_day_closure(result)))
+        )
 
     @app.post(
         "/api/confirmed-plan-days/{id}/closure",
@@ -910,7 +915,7 @@ def _register_exam_day_routes(app, resolved, application, read_security, write_s
         result = context.exam_lifecycle_application.close_exam_day(
             context.authorization_scope, id, day_close_command(payload_data(context, payload))
         )
-        return _finish(context, context.respond(result))
+        return _finish(context, context.respond(hateoas.exam_day_closure(result)))
 
     @app.post(
         "/api/confirmed-plan-days/{id}/reopening-impact",
@@ -938,7 +943,7 @@ def _register_exam_day_routes(app, resolved, application, read_security, write_s
         result = context.exam_lifecycle_application.reopen_exam_day(
             context.authorization_scope, id, day_reopen_command(payload_data(context, payload))
         )
-        return _finish(context, context.respond(result))
+        return _finish(context, context.respond(hateoas.exam_day_closure(result)))
 
     @app.get(
         "/api/confirmed-plan-days/{id}/closure/export.json",
@@ -946,7 +951,10 @@ def _register_exam_day_routes(app, resolved, application, read_security, write_s
     )
     def export_exam_day_json(context: ReadContext, id: int):
         result = context.exam_day_closure_service.machine_export(context.authorization_scope, id)
-        return _finish(context, context.respond(result))
+        return _finish(
+            context,
+            context.respond({**result, "closure": hateoas.exam_day_closure(result["closure"])}),
+        )
 
     @app.get(
         "/api/confirmed-plan-days/{id}/closure/export.txt",

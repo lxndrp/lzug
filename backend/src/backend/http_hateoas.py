@@ -445,28 +445,29 @@ def _confirmed_calendar_day(day: dict[str, Any]) -> dict[str, Any]:
         "status_summary": summary,
     }
     if "closure" in day:
-        closure = day["closure"]
-        result["closure"] = {
-            "exam_day_id": closure["exam_day_id"],
-            "revision": closure["revision"],
-            "status": closure["status"],
-            "legacy_status": closure["legacy_status"],
-            "evaluation": closure["evaluation"],
-            "active_reopening": closure["active_reopening"],
-            "history": closure["history"],
-            "tasks": closure["tasks"],
-            "permissions": closure["permissions"],
-            "_links": {
-                "self": {"href": f"/api/confirmed-plan-days/{day['id']}/closure"},
-                "machine_export": {
-                    "href": f"/api/confirmed-plan-days/{day['id']}/closure/export.json"
-                },
-                "human_export": {
-                    "href": f"/api/confirmed-plan-days/{day['id']}/closure/export.txt"
-                },
-            },
-        }
+        result["closure"] = exam_day_closure(day["closure"])
     return result
+
+
+def exam_day_closure(item: dict[str, Any]) -> dict[str, Any]:
+    """Map an Execution closure snapshot to its established HTTP response."""
+    day_id = item["exam_day_id"]
+    return {
+        "exam_day_id": item["exam_day_id"],
+        "revision": item["revision"],
+        "status": item["status"],
+        "legacy_status": item["legacy_status"],
+        "evaluation": item["evaluation"],
+        "active_reopening": item["active_reopening"],
+        "history": item["history"],
+        "tasks": item["tasks"],
+        "permissions": item["permissions"],
+        "_links": {
+            "self": {"href": f"/api/confirmed-plan-days/{day_id}/closure"},
+            "machine_export": {"href": f"/api/confirmed-plan-days/{day_id}/closure/export.json"},
+            "human_export": {"href": f"/api/confirmed-plan-days/{day_id}/closure/export.txt"},
+        },
+    }
 
 
 def planning_proposal(proposal: dict[str, Any]) -> dict[str, Any]:

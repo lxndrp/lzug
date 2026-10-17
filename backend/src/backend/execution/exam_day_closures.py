@@ -1173,13 +1173,6 @@ class ExamDayClosureService:
                 and day.closure_status in CLOSED_STATUSES,
                 "export": actor_id is not None,
             },
-            "_links": {
-                "self": {"href": f"/api/confirmed-plan-days/{day.id}/closure"},
-                "machine_export": {
-                    "href": f"/api/confirmed-plan-days/{day.id}/closure/export.json"
-                },
-                "human_export": {"href": f"/api/confirmed-plan-days/{day.id}/closure/export.txt"},
-            },
         }
 
     def _evaluate(
