@@ -9,8 +9,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import get_type_hints
 
-from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import Query, Session
 
 from backend.application.exam_lifecycle import ExamLifecycleApplication
 from backend.application.exam_lifecycle_contracts import (
@@ -95,7 +95,6 @@ ALLOWED_PACKAGE_DEPENDENCIES = {
             "documents",
             "execution",
             "identity",
-            "integrations",
             "operations",
             "persistence",
             "planning",
@@ -295,7 +294,20 @@ class BackendPackageBoundaryTests(unittest.TestCase):
         class Result:
             payload: object
 
-        for leaked in (Session, select(Candidate), Candidate):
+        engine = create_engine("sqlite://")
+        with engine.connect() as connection, Session(engine) as session:
+            leaked_values = (
+                Session,
+                session,
+                Query(session, select(Candidate)),
+                select(Candidate),
+                engine,
+                connection,
+                Candidate,
+                Candidate(),
+            )
+        engine.dispose()
+        for leaked in leaked_values:
             with self.subTest(value=leaked):
                 with self.assertRaises(AssertionError):
                     assert_materialized_port_value(self, Result({"nested": [leaked]}))
@@ -499,6 +511,16 @@ class BackendPackageBoundaryTests(unittest.TestCase):
                 self.assertFalse(
                     any(name.startswith(("backend.http_", "fastapi")) for name in imports)
                 )
+
+        for path in sorted((BACKEND_ROOT / "application").rglob("*.py")):
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            imports = {
+                node.module
+                for node in ast.walk(tree)
+                if isinstance(node, ast.ImportFrom) and node.module is not None
+            }
+            with self.subTest(module=path.relative_to(BACKEND_ROOT)):
+                self.assertFalse(any(name.startswith("backend.integrations") for name in imports))
 
         for path in sorted((BACKEND_ROOT / "application").glob("*.py")):
             tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))

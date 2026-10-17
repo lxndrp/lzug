@@ -431,9 +431,11 @@ class PlanningResourceAdapterTests(unittest.TestCase):
 
     def test_sqlite_snapshot_is_detached_and_has_typed_sections(self) -> None:
         with TempDatabase() as db_path:
-            snapshot = PlanningResourceService(
-                SQLitePlanningResourceUnitOfWorkFactory(db_path)
-            ).planning_snapshot(1)
+            records = PlanningResourceService(SQLitePlanningResourceUnitOfWorkFactory(db_path))
+            snapshot = records.planning_snapshot(1)
+            rounds = records.list_visible_records("exam_round")
+            candidates = records.list_visible_records("candidate")
+            round_summary = records.round_summary(1)
 
         self.assertIsNotNone(snapshot)
         assert snapshot is not None
@@ -441,7 +443,8 @@ class PlanningResourceAdapterTests(unittest.TestCase):
         self.assertIsInstance(snapshot.half_year.values, Mapping)
         self.assertTrue(all(isinstance(row.values, Mapping) for row in snapshot.candidates))
         self.assertFalse(hasattr(snapshot.exam_round, "model"))
-        assert_materialized_port_value(self, snapshot)
+        for value in (snapshot, rounds, candidates, round_summary):
+            assert_materialized_port_value(self, value)
 
 
 if __name__ == "__main__":

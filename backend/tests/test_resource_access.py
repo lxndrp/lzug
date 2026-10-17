@@ -450,8 +450,25 @@ class ResourceAccessTests(unittest.TestCase):
 
     def test_query_port_returns_typed_owner_values_and_materialized_projections(self) -> None:
         with self.access_queries.snapshot() as queries:
+            values = []
+            for resource, (own_id, _) in self.matrix.items():
+                kind = ResourceKind(resource.table)
+                values.extend(
+                    (
+                        queries.ownership(kind, own_id),
+                        queries.list_visible(kind, self.scope),
+                        queries.list_visible_page(kind, self.scope, offset=0, limit=2),
+                        queries.get_visible(kind, own_id, self.scope),
+                    )
+                )
+            values.extend(
+                (
+                    queries.committee_member(1),
+                    queries.list_members(scope=self.scope),
+                    queries.get_member(1, scope=self.scope),
+                )
+            )
             owner = queries.ownership(ResourceKind.CANDIDATE_EXAM_DAY, self.own[CANDIDATE_EXAM_DAY])
-            rows = queries.list_visible(ResourceKind.CANDIDATE_EXAM_DAY, self.scope)
             round_row = queries.ownership(ResourceKind.EXAM_ROUND, 1)
             half_year = queries.ownership(
                 ResourceKind.EXAM_HALF_YEAR, round_row.references.exam_half_year_id
@@ -462,8 +479,7 @@ class ResourceAccessTests(unittest.TestCase):
         self.assertTrue(owner.exists)
         self.assertIsNotNone(half_year.committee_id)
         self.assertIsNone(half_year.round_id)
-        self.assertTrue(all(isinstance(row, dict) for row in rows))
-        for value in (owner, rows, round_row, half_year):
+        for value in (*values, owner, round_row, half_year):
             assert_materialized_port_value(self, value)
 
     def test_resource_creation_ignores_client_actor_and_binds_session_member(self) -> None:

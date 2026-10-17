@@ -2,11 +2,21 @@
 
 from __future__ import annotations
 
+from typing import Protocol
+
 from backend.application.venue_consequences import VenueConsequenceService
 from backend.identity.auth import AuthContext
 from backend.identity.authorization import AuthorizationScope
-from backend.integrations.map_provider import MapProviderConfig
 from backend.planning.exam_venues import ExamVenueService
+
+
+class MapProviderCapabilities(Protocol):
+    """Public provider capabilities consumed by the venue use case."""
+
+    @property
+    def active(self) -> bool: ...
+
+    def public_contract(self) -> dict[str, str]: ...
 
 
 class ExamVenueApi:
@@ -15,7 +25,7 @@ class ExamVenueApi:
     def __init__(
         self,
         service: ExamVenueService,
-        map_provider: MapProviderConfig,
+        map_provider: MapProviderCapabilities,
         consequences: VenueConsequenceService,
     ):
         self.service = service
