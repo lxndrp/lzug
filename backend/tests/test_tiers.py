@@ -6,6 +6,7 @@ import ast
 import unittest
 from pathlib import Path
 
+from backend.tests.runner import partition_test_modules
 from backend.tests.suites import TEST_MODULES_BY_TIER
 
 TEST_ROOT = Path(__file__).resolve().parent
@@ -22,6 +23,13 @@ class BackendTestTierTests(unittest.TestCase):
     def test_http_contract_parity_belongs_to_http_tier(self) -> None:
         self.assertIn("test_http_contract_parity", TEST_MODULES_BY_TIER["http"])
         self.assertNotIn("test_http_contract_parity", TEST_MODULES_BY_TIER["component"])
+
+    def test_http_tier_shards_are_complete_and_non_overlapping(self) -> None:
+        modules = TEST_MODULES_BY_TIER["http"]
+        shards = partition_test_modules(modules, 2)
+
+        self.assertEqual(set().union(*map(set, shards)), modules)
+        self.assertFalse(set(shards[0]) & set(shards[1]))
 
     def test_unit_tier_does_not_include_modules_using_runtime_adapters(self) -> None:
         forbidden_modules = {

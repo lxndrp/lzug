@@ -23,9 +23,20 @@ tasks:
       - "{{.UV}} python -m backend.tests.runner --suite component"
 
   test:http:
-    desc: Run in-process FastAPI and HTTP contract integration tests
+    desc: Run in-process FastAPI and HTTP contract integration tests in parallel shards
+    deps:
+      - test:http:1
+      - test:http:2
+
+  test:http:1:
+    internal: true
     cmds:
-      - "{{.UV}} python -m backend.tests.runner --suite http"
+      - "{{.UV}} python -m backend.tests.runner --suite http --shard-index 0 --shard-count 2"
+
+  test:http:2:
+    internal: true
+    cmds:
+      - "{{.UV}} python -m backend.tests.runner --suite http --shard-index 1 --shard-count 2"
 
   test:process:
     desc: Run backend subprocess and local socket integration tests

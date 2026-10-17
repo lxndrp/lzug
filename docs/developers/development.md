@@ -100,8 +100,10 @@ Backendtests sind nach ihrer höchsten geprüften Grenze gruppiert:
 keinen Kindprozess; Komponenten-, in-process HTTP- und Prozess-/Sockettests
 haben eigene Einstiege.
 `task backend:test` führt alle Ebenen parallel aus, während Coverage weiterhin
-die vollständige Suite gemeinsam ausführt. Gemischte Module gehören zur
-höchsten von ihnen geprüften Ebene, bis sie sinnvoll getrennt werden.
+die vollständige Suite gemeinsam ausführt. Die HTTP-Ebene verteilt ihre Module
+für den PR-Lauf deterministisch nach Testumfang auf zwei parallele Shards.
+Gemischte Module gehören zur höchsten von ihnen geprüften Ebene, bis sie
+sinnvoll getrennt werden.
 
 Die vollständige Taskliste mit Beschreibungen steht im Taskfile und unter
 `task --list`.
