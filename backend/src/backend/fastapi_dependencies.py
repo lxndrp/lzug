@@ -14,7 +14,7 @@ from fastapi.routing import APIRoute
 from fastapi.security import APIKeyCookie
 from starlette.requests import ClientDisconnect
 
-from backend.application.transport import RequestContext, RequestTooLargeError
+from backend.http_transport import RequestContext, RequestTooLargeError
 from backend.identity.local_auth import LocalAuthError
 
 from .application import ForbiddenRequestError

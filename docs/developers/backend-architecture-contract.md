@@ -100,6 +100,13 @@ Die Composition Root verdrahtet Port und Adapter.
 Zusammengehörige Abfragen und Mutationen werden über einen explizit
 komponierten UoW verbunden.
 
+HTTP-Statuscodes, HATEOAS-Linkprojektionen, Request-/Response-Schemas,
+OpenAPI-Validierung und Requestnormalisierung gehören den Root-Adaptern
+`http_application`, `http_hateoas`, `api_contracts`, `http_contract`,
+`http_planning_payloads` und `http_transport`.
+Die Anwendung und Fachmodule liefern typisierte Werte und fachliche Fehler;
+der jeweilige Adapter bildet diese auf seinen öffentlichen Wire-Vertrag ab.
+
 `application` besitzt keine Fachregeln und stellt keine universelle
 `ResourceRepository`-Fassade bereit.
 Es koordiniert mehrere Fachmodule nur dann, wenn ein sichtbarer Use Case deren

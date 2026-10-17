@@ -7,9 +7,10 @@ from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, FastAPI, Request
 
-from backend.application import ForbiddenRequestError, hateoas
+from backend.application import ForbiddenRequestError
+from backend import http_hateoas as hateoas
 from backend.application.repositories import PLAN_AGGREGATE_RESOURCES, REST_RESOURCES
-from backend.application.transport import RequestContext
+from backend.http_transport import RequestContext
 from backend.composition import exam_venue_api
 from backend.persistence.models import CANDIDATE_COMMITTEE_ASSIGNMENT, COMMITTEE
 

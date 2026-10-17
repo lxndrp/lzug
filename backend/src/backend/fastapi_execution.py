@@ -5,8 +5,8 @@ from __future__ import annotations
 from fastapi import APIRouter, Body
 from fastapi.responses import Response
 
-from backend.application import hateoas
-from backend.application.transport import RequestContext
+from backend import http_hateoas as hateoas
+from backend.http_transport import RequestContext
 from backend.execution.protocol_ports import (
     ProtocolContentCommand,
     ProtocolCorrectionOpenCommand,

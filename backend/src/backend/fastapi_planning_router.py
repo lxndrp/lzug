@@ -9,9 +9,9 @@ from http import HTTPStatus
 from fastapi import APIRouter, FastAPI, Request
 from fastapi.responses import Response
 
-from backend.application import hateoas
+from backend import http_hateoas as hateoas
 from backend.application.repositories import REST_RESOURCES
-from backend.application.transport import (
+from backend.http_transport import (
     RequestContext,
     confirmed_plan_change_from_payload,
     planning_proposal_from_payload,
@@ -34,7 +34,8 @@ from .api_contracts import (
     PlanningRoundRequest,
     PlanningSettingsRequest,
 )
-from .application import ApplicationResult, ForbiddenRequestError
+from .application import ForbiddenRequestError
+from .http_application import ApplicationResult
 from .fastapi_dependencies import (
     BoundedBodyRoute,
     EmptyWriteContext,

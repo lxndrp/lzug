@@ -12,7 +12,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 
-from .application import ApplicationServices, ReadApplication
+from .http_application import ApplicationServices, ReadApplication
 from .application.admin import AdminApplication, AdminServices
 from .application.calendar_ports import CalendarApplicationPort
 from .application.consequence_ports import ApplicationConsequenceStoreFactory

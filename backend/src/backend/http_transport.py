@@ -14,22 +14,17 @@ from http import HTTPStatus
 from pathlib import Path
 from typing import Any, cast
 
-from backend.application import (
-    ApplicationResult,
-    ApplicationServices,
-    AuthenticationRequiredError,
-    ForbiddenRequestError,
-    ReadApplication,
-)
+from backend.application import AuthenticationRequiredError, ForbiddenRequestError
+from backend.http_application import ApplicationResult, ApplicationServices, ReadApplication
 from backend.application.calendar_ports import CalendarApplicationPort
 from backend.application.consequence_ports import ApplicationConsequenceStoreFactory
 from backend.application.exam_lifecycle import ExamLifecycleApplication
 from backend.application.exam_lifecycle_ports import ExamLifecycleUnitOfWorkFactory
 from backend.application.plan_consequences import PlanConsequenceService
-from backend.application.planning_payloads import (
+from backend.http_planning_payloads import (
     confirmed_plan_change_from_payload as confirmed_plan_change_from_payload,
 )
-from backend.application.planning_payloads import (
+from backend.http_planning_payloads import (
     planning_proposal_from_payload as planning_proposal_from_payload,
 )
 from backend.application.repositories import REST_RESOURCES, ResourceRepository

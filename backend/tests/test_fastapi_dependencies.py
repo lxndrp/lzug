@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 from starlette.requests import Request
 
 from backend.application.repositories import ResourceRepository
-from backend.application.transport import RequestContext
+from backend.http_transport import RequestContext
 from backend.composition import authorization_service, candidate_day_service, identity_service
 from backend.fastapi_assembly import FastAPIConfig, create_app
 from backend.fastapi_dependencies import (

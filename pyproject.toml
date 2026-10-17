@@ -103,8 +103,8 @@ extend-exclude = '''
 [tool.mypy]
 files = [
   "backend/src/backend/api_contracts.py",
-  "backend/src/backend/application/transport.py",
-  "backend/src/backend/application/planning_payloads.py",
+  "backend/src/backend/http_transport.py",
+  "backend/src/backend/http_planning_payloads.py",
   "backend/src/backend/application/resource_authorization.py",
   "backend/src/backend/persistence/models.py",
   "backend/src/backend/server.py",

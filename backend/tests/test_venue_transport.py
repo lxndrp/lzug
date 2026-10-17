@@ -3,8 +3,8 @@ from __future__ import annotations
 import unittest
 
 from backend.api_contracts import PlanningSettingsRequest
-from backend.application import hateoas
-from backend.application.transport import planning_proposal_from_payload
+from backend import http_hateoas as hateoas
+from backend.http_transport import planning_proposal_from_payload
 from backend.persistence.models import EXAM_DAY, PLANNING_SETTINGS
 
 

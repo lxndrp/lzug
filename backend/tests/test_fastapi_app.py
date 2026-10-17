@@ -56,7 +56,7 @@ from backend.api_contracts import (
     SessionRotationResponse,
     TokenRequest,
 )
-from backend.application import ApplicationServices
+from backend.http_application import ApplicationServices
 from backend.composition import notification_service as compose_notification_service
 from backend.fastapi_app import MIGRATED_DOMAIN_RESOURCES
 from backend.fastapi_assembly import FastAPIConfig, create_app

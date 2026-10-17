@@ -12,7 +12,7 @@ from fastapi import APIRouter, Request
 from uvicorn.protocols.http.h11_impl import H11Protocol
 from uvicorn.server import ServerState
 
-from backend.application.transport import RequestTooLargeError
+from backend.http_transport import RequestTooLargeError
 from backend.fastapi_assembly import FastAPIConfig, create_app
 from backend.fastapi_dependencies import BodyContext, buffered_body
 from backend.persistence.auth import SQLiteAuthenticationRepository

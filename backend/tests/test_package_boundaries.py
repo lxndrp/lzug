@@ -61,6 +61,11 @@ ROOT_MODULE_OWNERS = {
     "fastapi_operations_routes.py": "api",
     "fastapi_planning_router.py": "api",
     "fastapi_runtime.py": "api",
+    "http_application.py": "api",
+    "http_contract.py": "api",
+    "http_hateoas.py": "api",
+    "http_planning_payloads.py": "api",
+    "http_transport.py": "api",
     "healthcheck.py": "operations-adapter",
     "observability.py": "runtime-foundation",
     "planning_ports.py": "planning-owned-contracts",
@@ -122,6 +127,9 @@ TEST_OWNERS = {
             "test_fastapi_request_stream.py",
             "test_http_contract_parity.py",
             "test_openapi_contract.py",
+            "test_contract_validation.py",
+            "test_planning_payloads.py",
+            "test_venue_transport.py",
         }
     ),
     "application": frozenset(
@@ -131,9 +139,6 @@ TEST_OWNERS = {
             "test_person_memberships.py",
             "test_repository.py",
             "test_resource_access.py",
-            "test_planning_payloads.py",
-            "test_contract_validation.py",
-            "test_venue_transport.py",
         }
     ),
     "assessment": frozenset({"test_exam_results.py"}),
@@ -347,8 +352,8 @@ class BackendPackageBoundaryTests(unittest.TestCase):
             with self.subTest(module=relative):
                 self.assertFalse(foreign_models & imported)
 
-    def test_application_transport_does_not_import_composition_root(self) -> None:
-        for relative in ("application/__init__.py", "application/transport.py"):
+    def test_application_modules_do_not_import_http_contracts(self) -> None:
+        for relative in ("application/__init__.py", "application/resource_authorization.py"):
             with self.subTest(module=relative):
                 tree = ast.parse((BACKEND_ROOT / relative).read_text(encoding="utf-8"))
                 imports = {
@@ -363,6 +368,21 @@ class BackendPackageBoundaryTests(unittest.TestCase):
                     if isinstance(node, ast.ImportFrom) and node.module is not None
                 )
                 self.assertNotIn("backend.composition", imports)
+                self.assertFalse(
+                    any(name.startswith(("backend.http_", "fastapi")) for name in imports)
+                )
+
+        for path in sorted((BACKEND_ROOT / "application").glob("*.py")):
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            imports = [
+                node.module
+                for node in ast.walk(tree)
+                if isinstance(node, ast.ImportFrom) and node.module is not None
+            ]
+            self.assertFalse(
+                any(name.startswith(("backend.http_", "fastapi")) for name in imports),
+                f"Application module {path.name} imports an HTTP contract",
+            )
 
     def test_notification_consumers_receive_composition_instead_of_importing_it(self) -> None:
         modules = (

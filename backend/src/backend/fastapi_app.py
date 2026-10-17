@@ -23,7 +23,7 @@ from backend.application.exam_lifecycle_commands import (
     round_decision_command,
     round_reopen_command,
 )
-from backend.application.transport import (
+from backend.http_transport import (
     RequestTooLargeError,
     UnsupportedMediaTypeError,
 )
@@ -108,13 +108,8 @@ from .api_contracts import (
     SessionRotationResponse,
     TokenRequest,
 )
-from .application import (
-    ApplicationResult,
-    ApplicationServices,
-    AuthenticationRequiredError,
-    ForbiddenRequestError,
-    database_error_result,
-)
+from .application import AuthenticationRequiredError, ForbiddenRequestError
+from .http_application import ApplicationResult, ApplicationServices, database_error_result
 from .fastapi_assessment import create_assessment_router
 from .fastapi_dependencies import (
     ReadContext,
