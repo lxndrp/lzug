@@ -431,11 +431,32 @@ class PlanningResourceAdapterTests(unittest.TestCase):
 
     def test_sqlite_snapshot_is_detached_and_has_typed_sections(self) -> None:
         with TempDatabase() as db_path:
-            records = PlanningResourceService(SQLitePlanningResourceUnitOfWorkFactory(db_path))
+            factory = SQLitePlanningResourceUnitOfWorkFactory(db_path)
+            records = PlanningResourceService(factory)
             snapshot = records.planning_snapshot(1)
             rounds = records.list_visible_records("exam_round")
             candidates = records.list_visible_records("candidate")
             round_summary = records.round_summary(1)
+
+            with factory() as unit_of_work:
+                port_results = (
+                    unit_of_work.list_half_years(),
+                    unit_of_work.get_half_year(1),
+                    unit_of_work.list_rounds({}),
+                    unit_of_work.get_round(1),
+                    unit_of_work.list_candidates({}),
+                    unit_of_work.get_candidate(1),
+                    unit_of_work.list_candidate_days({}),
+                    unit_of_work.get_candidate_day(1),
+                    unit_of_work.list_candidate_assignments({}),
+                    unit_of_work.list_round_candidates({}),
+                    unit_of_work.list_settings({}),
+                    unit_of_work.get_settings(1),
+                    unit_of_work.list_availabilities({}),
+                    unit_of_work.get_availability(1),
+                    unit_of_work.planning_snapshot(1),
+                    unit_of_work.round_summary(1),
+                )
 
         self.assertIsNotNone(snapshot)
         assert snapshot is not None
@@ -443,7 +464,7 @@ class PlanningResourceAdapterTests(unittest.TestCase):
         self.assertIsInstance(snapshot.half_year.values, Mapping)
         self.assertTrue(all(isinstance(row.values, Mapping) for row in snapshot.candidates))
         self.assertFalse(hasattr(snapshot.exam_round, "model"))
-        for value in (snapshot, rounds, candidates, round_summary):
+        for value in (snapshot, rounds, candidates, round_summary, *port_results):
             assert_materialized_port_value(self, value)
 
 

@@ -36,6 +36,7 @@ from backend.persistence.models import (
     MemberExamAttendance,
 )
 from backend.tests.helpers import ApiServer, TempDatabase, assert_status
+from backend.tests.support.port_contracts import assert_materialized_port_value
 from backend.tests.test_database import rewind_exam_protocol_migration
 
 
@@ -669,6 +670,29 @@ class ExecutionPortTests(unittest.TestCase):
             self.assertEqual("2026-11-16T09:03:00+00:00", slot.actual_started_at)
             self.assertEqual(2, day.revision)
             self.assertEqual({1, 2, 3}, participants)
+
+    def test_execution_protocol_port_reads_are_materialized(self) -> None:
+        self._mark_quorum_present()
+        self.service.start_slot(
+            self.day_id,
+            self.slot_id,
+            {"expected_day_revision": 1},
+            actor_member_id=1,
+        )
+
+        with self.execution_factory() as unit_of_work:
+            by_slot = unit_of_work.protocol_by_slot(self.slot_id)
+            self.assertIsNotNone(by_slot)
+            assert by_slot is not None
+            values = (
+                unit_of_work.protocol_by_id(by_slot["id"]),
+                by_slot,
+                unit_of_work.protocol_references(by_slot["id"]),
+                unit_of_work.protocol_day_snapshot(self.day_id),
+            )
+
+        for value in values:
+            assert_materialized_port_value(self, value)
 
     def test_quorum_failure_leaves_start_and_revision_unchanged(self) -> None:
         with session_scope(self.db_path) as session:
