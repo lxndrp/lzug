@@ -292,6 +292,62 @@ def _unexpected_dependencies(package: str, modules: set[str]) -> set[str]:
     return dependencies - ALLOWED_PACKAGE_DEPENDENCIES[package]
 
 
+def _dotted_name(node: ast.expr) -> str | None:
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        parent = _dotted_name(node.value)
+        return f"{parent}.{node.attr}" if parent is not None else None
+    return None
+
+
+def _annotation_import_targets(tree: ast.Module) -> dict[str, str]:
+    targets: dict[str, str] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module:
+            for alias in node.names:
+                targets[alias.asname or alias.name] = f"{node.module}.{alias.name}"
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                bound_name = alias.asname or alias.name.split(".", maxsplit=1)[0]
+                targets[bound_name] = alias.name if alias.asname else bound_name
+    return targets
+
+
+def _annotation_references(annotation: ast.expr) -> set[str]:
+    references: set[str] = set()
+    for node in ast.walk(annotation):
+        if isinstance(node, (ast.Name, ast.Attribute)):
+            name = _dotted_name(node)
+            if name is not None:
+                references.add(name)
+        elif isinstance(node, ast.Constant) and isinstance(node.value, str):
+            try:
+                parsed = ast.parse(node.value, mode="eval")
+            except SyntaxError:
+                continue
+            references.update(_annotation_references(parsed.body))
+    return references
+
+
+def _forbidden_port_annotation_references(
+    annotation: ast.expr, import_targets: dict[str, str]
+) -> set[str]:
+    forbidden_names = {"Session", "Query", "Select", "Engine", "Connection"}
+    leaks: set[str] = set()
+    for reference in _annotation_references(annotation):
+        first, *tail = reference.split(".")
+        resolved = ".".join((import_targets.get(first, first), *tail))
+        if (
+            resolved.startswith("sqlalchemy.")
+            and resolved.rsplit(".", maxsplit=1)[-1] in forbidden_names
+        ):
+            leaks.add(resolved)
+        if resolved.endswith("Resource.model"):
+            leaks.add(resolved)
+    return leaks
+
+
 class BackendPackageBoundaryTests(unittest.TestCase):
     def test_runtime_port_contract_rejects_nested_sqlalchemy_values(self) -> None:
         @dataclass
@@ -373,7 +429,6 @@ class BackendPackageBoundaryTests(unittest.TestCase):
         self.assertNotIn("backend.persistence", application_port_imports)
 
     def test_public_port_annotations_do_not_expose_orm_or_sql_values(self) -> None:
-        forbidden_names = {"Session", "Query", "Select", "Engine", "Connection"}
         leaks: list[str] = []
         for package in (BACKEND_ROOT / name for name in CORE_PACKAGES):
             if package.name in {"persistence", "integrations", "operations"}:
@@ -400,17 +455,45 @@ class BackendPackageBoundaryTests(unittest.TestCase):
                         if method.returns is not None:
                             annotations.append(method.returns)
                         for annotation in annotations:
-                            for item in ast.walk(annotation):
-                                if isinstance(item, ast.Name) and item.id in forbidden_names:
-                                    leaks.append(f"{path.relative_to(BACKEND_ROOT)}:{item.id}")
-                                if (
-                                    isinstance(item, ast.Attribute)
-                                    and item.attr == "model"
-                                    and isinstance(item.value, ast.Name)
-                                    and item.value.id == "Resource"
-                                ):
-                                    leaks.append(f"{path.relative_to(BACKEND_ROOT)}:Resource.model")
+                            leaks.extend(
+                                f"{path.relative_to(BACKEND_ROOT)}:{reference}"
+                                for reference in _forbidden_port_annotation_references(
+                                    annotation, _annotation_import_targets(tree)
+                                )
+                            )
         self.assertEqual(leaks, [])
+
+    def test_port_annotation_scanner_rejects_import_aliases_and_forward_references(self) -> None:
+        tree = ast.parse(
+            "from typing import Protocol\n"
+            "from sqlalchemy.orm import Session as DbSession\n"
+            "import sqlalchemy as sa\n"
+            "from backend.api_contracts import Resource as PublicResource\n"
+            "class Port(Protocol):\n"
+            "    def first(self, session: 'DbSession') -> None: ...\n"
+            "    def second(self, query: 'sa.orm.Query') -> None: ...\n"
+            "    def third(self, resource: 'PublicResource.model') -> None: ...\n"
+        )
+        imports = _annotation_import_targets(tree)
+        protocol = next(node for node in tree.body if isinstance(node, ast.ClassDef))
+        annotations = [
+            node.annotation
+            for method in protocol.body
+            if isinstance(method, ast.FunctionDef)
+            for node in method.args.args
+            if node.annotation is not None
+        ]
+        leaks = set().union(
+            *(_forbidden_port_annotation_references(item, imports) for item in annotations)
+        )
+        self.assertEqual(
+            {
+                "sqlalchemy.orm.Session",
+                "sqlalchemy.orm.Query",
+                "backend.api_contracts.Resource.model",
+            },
+            leaks,
+        )
 
     def test_consequence_orchestration_uses_public_ports_not_models_or_adapters(self) -> None:
         modules = (
