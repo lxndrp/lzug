@@ -20,7 +20,7 @@ from backend.application.exam_lifecycle_ports import (
 )
 from backend.execution.exam_day_closures import ExamDayClosureService
 from backend.execution.exam_round_lifecycle import ExamRoundLifecycleService
-from backend.execution.lifecycle_ports import MutationLockCommand
+from backend.execution.lifecycle_ports import MutationLockCommand, MutationLockKind
 from backend.identity.authorization import AuthorizationScope
 
 
@@ -78,6 +78,10 @@ class ExamLifecycleApplication:
     ) -> dict[str, Any]:
         service = self._round_lifecycle_service()
         with self._unit_of_work_factory() as unit_of_work:
+            unit_of_work.execution.assert_mutation_allowed(
+                service,
+                MutationLockCommand(MutationLockKind.ROUND_CANDIDATE, candidate_id, payload),
+            )
             unit_of_work.execution.set_round_candidate_terminal_status(
                 service, scope, round_id, candidate_id, payload
             )
@@ -98,6 +102,10 @@ class ExamLifecycleApplication:
     def delete_empty_exam_round_draft(self, scope: AuthorizationScope, round_id: int) -> bool:
         service = self._round_lifecycle_service()
         with self._unit_of_work_factory() as unit_of_work:
+            unit_of_work.execution.assert_mutation_allowed(
+                service,
+                MutationLockCommand(MutationLockKind.EXAM_ROUND, round_id, {}),
+            )
             return unit_of_work.execution.delete_empty_draft_round(service, scope, round_id)
 
     def export_exam_round(

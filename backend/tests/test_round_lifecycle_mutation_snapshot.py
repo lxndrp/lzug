@@ -15,7 +15,10 @@ from backend.composition import (
     planning_lifecycle_work_factory,
 )
 from backend.execution.exam_day_closures import ExamDayClosureService
-from backend.execution.exam_round_lifecycle import ExamRoundLifecycleService
+from backend.execution.exam_round_lifecycle import (
+    ExamRoundConflictError,
+    ExamRoundLifecycleService,
+)
 from backend.persistence.assessment import SQLiteAssessmentUnitOfWorkFactory
 from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.persistence.database import session_scope
@@ -142,6 +145,27 @@ class RoundLifecycleMutationSnapshotTests(unittest.TestCase):
         self.assertEqual(("cancelled", 2), (cancelled["status"], cancelled["revision"]))
         self.assertEqual(cancelled, replayed)
         self.assertEqual(self._legacy_view(1, self.chair_scope), cancelled)
+
+    def test_candidate_mutation_checks_round_lock_inside_writer_uow(self) -> None:
+        with session_scope(self.db_path) as session:
+            session.execute(
+                text(
+                    "UPDATE exam_round SET status = 'completed', lifecycle_status = 'closed' "
+                    "WHERE id = 1"
+                )
+            )
+        with self.assertRaisesRegex(ExamRoundConflictError, "fachlich beendet"):
+            self.application.set_exam_round_candidate_terminal_status(
+                self.chair_scope,
+                1,
+                1,
+                {
+                    "revision": 1,
+                    "terminal_status": "postponed",
+                    "reason": "Verbindliche Nachplanung",
+                    "postponed_until": "2027-12-01",
+                },
+            )
 
     def _legacy_view(self, round_id: int, scope):
         with session_scope(self.db_path) as session:
