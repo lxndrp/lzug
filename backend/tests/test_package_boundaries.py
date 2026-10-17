@@ -249,6 +249,8 @@ def _imported_modules(path: Path, root: Path) -> set[str]:
                     modules.add(".".join(base))
                 else:
                     modules.update(".".join([*base, alias.name]) for alias in node.names)
+            elif node.module == "backend":
+                modules.update(f"backend.{alias.name}" for alias in node.names)
             elif node.module:
                 modules.add(node.module)
 
@@ -267,6 +269,18 @@ def _package_dependencies(package: str) -> set[str]:
     return dependencies
 
 
+def _unexpected_dependencies(package: str, modules: set[str]) -> set[str]:
+    dependencies = {
+        parts[1]
+        for module in modules
+        if len(parts := module.split(".")) >= 2
+        and parts[0] == "backend"
+        and parts[1] in CORE_PACKAGES
+    }
+    dependencies.discard(package)
+    return dependencies - ALLOWED_PACKAGE_DEPENDENCIES[package]
+
+
 class BackendPackageBoundaryTests(unittest.TestCase):
     def test_recursive_boundary_scanner_resolves_relative_and_absolute_imports(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -277,6 +291,7 @@ class BackendPackageBoundaryTests(unittest.TestCase):
             path.write_text(
                 "from ...persistence.models import ExamDay\n"
                 "from ... import persistence\n"
+                "from backend import persistence as db\n"
                 "from backend.assessment import Result\n",
                 encoding="utf-8",
             )
@@ -284,6 +299,9 @@ class BackendPackageBoundaryTests(unittest.TestCase):
         self.assertIn("backend.persistence.models", imports)
         self.assertIn("backend.persistence", imports)
         self.assertIn("backend.assessment", imports)
+        self.assertEqual(
+            _unexpected_dependencies("identity", imports), {"assessment", "persistence"}
+        )
 
     def test_relative_import_resolution_reports_target_package(self) -> None:
         module = BACKEND_ROOT / "execution" / "absence.py"
