@@ -694,6 +694,29 @@ class ExecutionPortTests(unittest.TestCase):
         for value in values:
             assert_materialized_port_value(self, value)
 
+    def test_execution_slot_port_reads_are_materialized(self) -> None:
+        with self.execution_factory() as unit_of_work:
+            slot = unit_of_work.confirmed_slot(self.day_id, self.slot_id)
+            day_state = unit_of_work.day_execution_state(self.day_id)
+            candidate_attendance = unit_of_work.candidate_attendance(self.slot_id)
+            member_attendance = unit_of_work.member_attendance(self.day_id, 1)
+            assignments = unit_of_work.assignments(self.day_id)
+            confirmed_assignment = unit_of_work.confirmed_assignment(
+                self.day_id, assignments[0]["id"]
+            )
+            members = unit_of_work.members_by_id((1, 2, 3))
+
+        for value in (
+            slot,
+            day_state,
+            candidate_attendance,
+            member_attendance,
+            assignments,
+            confirmed_assignment,
+            members,
+        ):
+            assert_materialized_port_value(self, value)
+
     def test_quorum_failure_leaves_start_and_revision_unchanged(self) -> None:
         with session_scope(self.db_path) as session:
             session.add(
