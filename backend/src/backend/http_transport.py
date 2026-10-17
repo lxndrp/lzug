@@ -328,7 +328,6 @@ class RequestContext:
     @property
     def exam_round_lifecycle_service(self) -> ExamRoundLifecycleService:
         return ExamRoundLifecycleService(
-            self.db_path,
             notification_service=self.notification_service,
             assessment_lifecycle_factory=self.assessment_round_queries,
             planning_lifecycle_work_factory=self.planning_lifecycle_work_factory,

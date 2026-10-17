@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import unittest
-from datetime import UTC, datetime
-from unittest.mock import patch
 
 from sqlalchemy import select
 
@@ -37,7 +35,6 @@ class RoundLifecycleExportSnapshotTests(unittest.TestCase):
         self.chair = authentication.authenticate(authentication.create_session(1).token)
         assessment_factory = SQLiteAssessmentUnitOfWorkFactory(self.db_path)
         self.service = ExamRoundLifecycleService(
-            self.db_path,
             notification_service=notification_service_for_test(self.db_path),
             assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(),
             planning_lifecycle_work_factory=planning_lifecycle_work_factory(),
@@ -68,48 +65,44 @@ class RoundLifecycleExportSnapshotTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.database.__exit__(None, None, None)
 
-    def test_machine_export_matches_legacy_projection_and_avoids_orm_execution_path(self):
+    def test_round_service_has_no_session_opening_compatibility_entrypoints(self):
+        for name in (
+            "set_candidate_terminal_status",
+            "delete_empty_draft",
+            "machine_export",
+            "human_export",
+            "document_ihk_status",
+            "assert_mutable",
+        ):
+            with self.subTest(name=name):
+                self.assertFalse(hasattr(self.service, name))
+        self.assertFalse(hasattr(self.service, "db_path"))
+
+    def test_machine_export_uses_the_application_snapshot_path(self):
         with session_scope(self.db_path) as session:
             initial_export_count = len(session.scalars(select(ExamRoundExport)).all())
-        expected = self.service.machine_export(self.scope, 1)
-        with (
-            patch.object(self.service, "_export_in_session", side_effect=AssertionError),
-            patch.object(self.service, "_snapshot", side_effect=AssertionError),
-            patch.object(self.service, "_view", side_effect=AssertionError),
-        ):
-            actual = self.application.export_exam_round(self.scope, 1, human=False)
+        actual = self.application.export_exam_round(self.scope, 1, human=False)
 
         assert_materialized_port_value(self, actual)
-        self.assertEqual(expected["snapshot"], actual["snapshot"])
-        self.assertEqual(
-            expected["lifecycle"],
-            {**actual["lifecycle"], "exports": actual["lifecycle"]["exports"][:-1]},
-        )
-        self.assertEqual(expected["export"]["export_kind"], actual["export"]["export_kind"])
-        self.assertEqual(
-            expected["export"]["lifecycle_status"], actual["export"]["lifecycle_status"]
-        )
-        self.assertEqual(
-            expected["export"]["generated_by_member_id"], actual["export"]["generated_by_member_id"]
-        )
+        self.assertEqual(1, actual["export_version"])
+        self.assertEqual("machine", actual["export"]["export_kind"])
+        self.assertEqual("open", actual["export"]["lifecycle_status"])
         with session_scope(self.db_path) as session:
             self.assertEqual(
-                initial_export_count + 2,
+                initial_export_count + 1,
                 len(session.scalars(select(ExamRoundExport)).all()),
             )
-        generated_at = datetime.fromisoformat(actual["export"]["generated_at"])
-        self.assertEqual(UTC, generated_at.tzinfo)
-        self.assertEqual(0, generated_at.microsecond)
 
-    def test_human_export_matches_legacy_rendering_without_orm_execution_path(self):
-        expected = self.service.human_export(self.scope, 1)
-        with (
-            patch.object(self.service, "_export_in_session", side_effect=AssertionError),
-            patch.object(self.service, "_snapshot", side_effect=AssertionError),
-            patch.object(self.service, "_view", side_effect=AssertionError),
-        ):
-            actual = self.application.export_exam_round(self.scope, 1, human=True)
-        self.assertEqual(expected, actual)
+    def test_human_export_uses_the_application_snapshot_path(self):
+        with session_scope(self.db_path) as session:
+            initial_export_count = len(session.scalars(select(ExamRoundExport)).all())
+        actual = self.application.export_exam_round(self.scope, 1, human=True)
+        self.assertIn("Prüfungsrunde", actual)
+        with session_scope(self.db_path) as session:
+            self.assertEqual(
+                initial_export_count + 1,
+                len(session.scalars(select(ExamRoundExport)).all()),
+            )
 
 
 if __name__ == "__main__":

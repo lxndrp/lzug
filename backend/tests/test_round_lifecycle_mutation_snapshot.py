@@ -46,7 +46,6 @@ class RoundLifecycleMutationSnapshotTests(unittest.TestCase):
         self.deputy = authentication.authenticate(authentication.create_session(3).token)
         assessment_factory = SQLiteAssessmentUnitOfWorkFactory(self.db_path)
         self.service = ExamRoundLifecycleService(
-            self.db_path,
             notification_service=notification_service_for_test(self.db_path),
             assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(),
             planning_lifecycle_work_factory=planning_lifecycle_work_factory(),

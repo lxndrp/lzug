@@ -96,8 +96,8 @@ class ExamLifecycleExecutionUnitOfWork(ExecutionUnitOfWork, Protocol):
         round_id: int,
         *,
         human: bool,
-        facts: RoundLifecycleFacts | None = None,
-        pending_consequence_ids: Sequence[int] | None = None,
+        facts: RoundLifecycleFacts,
+        pending_consequence_ids: Sequence[int],
     ) -> dict | str: ...
 
     def export_day(

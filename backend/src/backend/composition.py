@@ -95,7 +95,6 @@ def round_mutation_lock_checker(db_path: Path):
     """Compose the lifecycle policy as a same-session persistence callback."""
     assessment_factory = SQLiteAssessmentUnitOfWorkFactory(db_path)
     service = ExamRoundLifecycleService(
-        db_path,
         notification_service=notification_service(db_path),
         assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(assessment_factory),
         planning_lifecycle_work_factory=SQLitePlanningLifecycleWork,

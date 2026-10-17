@@ -190,9 +190,7 @@ class _SQLiteExamLifecycleExecution:
         pending_consequence_ids=None,
     ):
         if facts is None or pending_consequence_ids is None:
-            if human:
-                return service.human_export_in_session(self._session, scope, round_id)
-            return service.machine_export_in_session(self._session, scope, round_id)
+            raise RuntimeError("Round lifecycle exports require detached Application facts")
         exam_round = facts.round
         actor_id = service._require_access(exam_round, scope)
         if actor_id is None:

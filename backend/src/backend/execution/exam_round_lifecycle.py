@@ -7,7 +7,6 @@ import json
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any
 
 from sqlalchemy import func, select
@@ -34,7 +33,6 @@ from backend.execution.round_lifecycle_snapshot import (
 )
 from backend.identity.authorization import AuthorizationScope
 from backend.notifications.service import NotificationService
-from backend.persistence.database import DEFAULT_DB_PATH, session_scope
 from backend.persistence.models import (
     AbsenceReport,
     ExamDay,
@@ -155,7 +153,6 @@ class ExamRoundLifecycleService:
 
     def __init__(
         self,
-        db_path: Path = DEFAULT_DB_PATH,
         *,
         notification_service: NotificationService,
         assessment_lifecycle_factory: AssessmentLifecycleWorkFactory,
@@ -164,7 +161,6 @@ class ExamRoundLifecycleService:
         calendar_lifecycle_work_factory: CalendarLifecycleWorkFactory,
         pending_consequence_ids: Callable[[int], Sequence[int]] | None = None,
     ) -> None:
-        self.db_path = db_path
         self.notification_service = notification_service
         self.assessment_lifecycle_factory = assessment_lifecycle_factory
         self.planning_lifecycle_work_factory = planning_lifecycle_work_factory
@@ -915,35 +911,6 @@ class ExamRoundLifecycleService:
             export.superseded_at = now
             export.superseded_by_revision = exam_round.revision
 
-    def set_candidate_terminal_status(
-        self,
-        scope: AuthorizationScope,
-        round_id: int,
-        round_candidate_id: int,
-        payload: dict[str, Any],
-    ) -> dict[str, Any]:
-        """Direct-service compatibility API; Application callers use the UoW read port."""
-        with session_scope(self.db_path) as session:
-            return self.set_candidate_terminal_status_in_session(
-                session, scope, round_id, round_candidate_id, payload
-            )
-
-    def set_candidate_terminal_status_in_session(
-        self,
-        session: Session,
-        scope: AuthorizationScope,
-        round_id: int,
-        round_candidate_id: int,
-        payload: dict[str, Any],
-    ) -> dict[str, Any]:
-        """Compatibility wrapper; the Application uses the command-only port method."""
-        self.set_candidate_terminal_status_command_in_session(
-            session, scope, round_id, round_candidate_id, payload
-        )
-        planning = self.planning_lifecycle_work_factory(session)
-        exam_round = self._required_round(planning, round_id)
-        return self._view(session, exam_round, scope, planning_work=planning)
-
     def set_candidate_terminal_status_command_in_session(
         self,
         session: Session,
@@ -1037,10 +1004,6 @@ class ExamRoundLifecycleService:
         ):
             raise ValueError("Die neue Zuordnung ist nicht wirksam")
 
-    def delete_empty_draft(self, scope: AuthorizationScope, round_id: int) -> bool:
-        with session_scope(self.db_path) as session:
-            return self.delete_empty_draft_in_session(session, scope, round_id)
-
     def delete_empty_draft_in_session(
         self, session: Session, scope: AuthorizationScope, round_id: int
     ) -> bool:
@@ -1059,53 +1022,11 @@ class ExamRoundLifecycleService:
             raise ExamRoundConflictError("Die Prüfungsrunde wurde zwischenzeitlich geändert")
         return True
 
-    def machine_export(self, scope: AuthorizationScope, round_id: int) -> dict[str, Any]:
-        return self._export(scope, round_id, "machine")
-
-    def machine_export_in_session(
-        self, session: Session, scope: AuthorizationScope, round_id: int
-    ) -> dict[str, Any]:
-        return self._export_in_session(session, scope, round_id, "machine")
-
-    def human_export(self, scope: AuthorizationScope, round_id: int) -> str:
-        export = self._export(scope, round_id, "human")
-        return self._render_human_export(round_id, export)
-
-    def human_export_in_session(
-        self, session: Session, scope: AuthorizationScope, round_id: int
-    ) -> str:
-        export = self._export_in_session(session, scope, round_id, "human")
-        return self._render_human_export(round_id, export)
-
     @staticmethod
     def _render_human_export(round_id: int, export: dict[str, Any]) -> str:
         lifecycle = export["lifecycle"]
         snapshot = export["snapshot"]
         return render_round_lifecycle_export(round_id, lifecycle, snapshot)
-
-    def document_ihk_status(
-        self,
-        scope: AuthorizationScope,
-        round_id: int,
-        result_id: int,
-        payload: dict[str, Any],
-    ) -> dict[str, Any]:
-        """Direct-service compatibility API; Application callers use the UoW read port."""
-        with session_scope(self.db_path) as session:
-            return self.document_ihk_status_in_session(session, scope, round_id, result_id, payload)
-
-    def document_ihk_status_in_session(
-        self,
-        session: Session,
-        scope: AuthorizationScope,
-        round_id: int,
-        result_id: int,
-        payload: dict[str, Any],
-    ) -> dict[str, Any]:
-        """Compatibility wrapper; the Application uses the command-only port method."""
-        self.document_ihk_status_command_in_session(session, scope, round_id, result_id, payload)
-        exam_round = self._required_round(self.planning_lifecycle_work_factory(session), round_id)
-        return self._view(session, exam_round, scope)
 
     def document_ihk_status_command_in_session(
         self,
@@ -1151,45 +1072,6 @@ class ExamRoundLifecycleService:
                 )
             )
             session.flush()
-
-    def _export(self, scope: AuthorizationScope, round_id: int, export_kind: str) -> dict[str, Any]:
-        with session_scope(self.db_path) as session:
-            return self._export_in_session(session, scope, round_id, export_kind)
-
-    def _export_in_session(
-        self, session: Session, scope: AuthorizationScope, round_id: int, export_kind: str
-    ) -> dict[str, Any]:
-        planning = self.planning_lifecycle_work_factory(session)
-        exam_round = self._required_round(planning, round_id)
-        actor_id = self._require_access(exam_round, scope)
-        if actor_id is None:
-            raise PermissionError("Forbidden.")
-        decision = self._current_or_latest_decision(session, round_id)
-        row = ExamRoundExport(
-            exam_round_id=round_id,
-            decision_id=decision.id if decision else None,
-            round_revision=exam_round.revision,
-            export_kind=export_kind,
-            lifecycle_status=exam_round.lifecycle_status,
-            generated_by_member_id=actor_id,
-            generated_at=_now(),
-        )
-        session.add(row)
-        session.flush()
-        view = self._view(session, exam_round, scope)
-        return {
-            "export_version": 1,
-            "export": self._export_view(row),
-            "lifecycle": view,
-            "snapshot": self._snapshot(session, exam_round),
-        }
-
-    def assert_mutable(self, round_id: int, kind: str, entity_id: int) -> None:
-        """Enforce the shared lock for direct business API mutations."""
-        with session_scope(self.db_path) as session:
-            planning = self.planning_lifecycle_work_factory(session)
-            exam_round = self._required_round(planning, round_id)
-            self._require_mutable_scope(session, exam_round, _token(kind, entity_id))
 
     def assert_mutation_allowed_in_session(
         self, session: Session, command: MutationLockCommand

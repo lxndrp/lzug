@@ -158,7 +158,6 @@ class ExamDayClosureTests(unittest.TestCase):
         self.assertFalse(hasattr(day_closure_service, "machine_export_in_session"))
         self.assertFalse(hasattr(day_closure_service, "human_export_in_session"))
         round_lifecycle_service = ExamRoundLifecycleService(
-            self.db_path,
             notification_service=notification_service_for_test(self.db_path),
             assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(),
             planning_lifecycle_work_factory=planning_lifecycle_work_factory(),
@@ -196,7 +195,12 @@ class ExamDayClosureTests(unittest.TestCase):
                 day_closure_service, scope, 2, human=False, facts=lifecycle_facts
             )
             round_export = unit_of_work.execution.export_round(
-                round_lifecycle_service, scope, 1, human=False
+                round_lifecycle_service,
+                scope,
+                1,
+                human=False,
+                facts=round_facts,
+                pending_consequence_ids=pending_consequence_ids,
             )
             round_results = unit_of_work.assessment_lifecycle.results_for_round(1)
             candidate_result = unit_of_work.assessment_lifecycle.result_for_round_candidate(

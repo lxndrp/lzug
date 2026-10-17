@@ -92,7 +92,6 @@ class ExamRoundLifecycleTests(unittest.TestCase):
 
     def test_application_mutation_ports_return_materialized_values(self) -> None:
         service = ExamRoundLifecycleService(
-            self.db_path,
             notification_service=notification_service_for_test(self.db_path),
             assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(),
             planning_lifecycle_work_factory=planning_lifecycle_work_factory(),
@@ -376,7 +375,6 @@ class ExamRoundLifecycleTests(unittest.TestCase):
             )
 
         service = ExamRoundLifecycleService(
-            self.db_path,
             notification_service=notification_service_for_test(self.db_path),
             assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(),
             planning_lifecycle_work_factory=planning_lifecycle_work_factory(),
@@ -517,7 +515,6 @@ class ExamRoundLifecycleTests(unittest.TestCase):
     def test_decision_and_reopening_rollback_and_replay_preserve_all_evidence(self) -> None:
         self._make_round_closable()
         service = ExamRoundLifecycleService(
-            self.db_path,
             notification_service=notification_service_for_test(self.db_path),
             assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(),
             planning_lifecycle_work_factory=planning_lifecycle_work_factory(),
@@ -563,7 +560,7 @@ class ExamRoundLifecycleTests(unittest.TestCase):
 
         closed = application.close_exam_round(scope, 1, close)
         assert_materialized_port_value(self, closed)
-        service.machine_export(scope, 1)
+        application.export_exam_round(scope, 1, human=False)
         command_payload = {
             "revision": 2,
             "occasion": "Berichtigung",
@@ -652,7 +649,6 @@ class ExamRoundLifecycleTests(unittest.TestCase):
 
     def test_terminal_candidate_evidence_and_revision_guard_precede_mutation(self) -> None:
         service = ExamRoundLifecycleService(
-            self.db_path,
             notification_service=notification_service_for_test(self.db_path),
             assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(),
             planning_lifecycle_work_factory=planning_lifecycle_work_factory(),
@@ -661,6 +657,7 @@ class ExamRoundLifecycleTests(unittest.TestCase):
         )
         context = SQLiteAuthenticationRepository(self.db_path).authenticate(self.chair.token)
         scope = authorization_service(self.db_path).scope(context)
+        application = self._exam_lifecycle_application(service)
         for details in (
             {"terminal_status": "result_communicated"},
             {"terminal_status": "transferred", "reason": "Wechsel"},
@@ -670,7 +667,9 @@ class ExamRoundLifecycleTests(unittest.TestCase):
             {"terminal_status": "ihk_terminated", "reason": "Beendigung"},
         ):
             with self.subTest(details=details), self.assertRaises(ValueError):
-                service.set_candidate_terminal_status(scope, 1, 1, {"revision": 1, **details})
+                application.set_exam_round_candidate_terminal_status(
+                    scope, 1, 1, {"revision": 1, **details}
+                )
             with session_scope(self.db_path) as session:
                 self.assertEqual(1, session.get(ExamRound, 1).revision)
                 self.assertEqual("open", session.get(RoundCandidate, 1).terminal_status)
@@ -682,10 +681,14 @@ class ExamRoundLifecycleTests(unittest.TestCase):
             "postponed_until": "2027-12-01",
         }
         with (
-            patch.object(service, "_view", side_effect=RuntimeError("test view failure")),
-            self.assertRaisesRegex(RuntimeError, "test view failure"),
+            patch.object(
+                service,
+                "get_from_read_snapshot",
+                side_effect=RuntimeError("test snapshot failure"),
+            ),
+            self.assertRaisesRegex(RuntimeError, "test snapshot failure"),
         ):
-            service.set_candidate_terminal_status(scope, 1, 1, command)
+            application.set_exam_round_candidate_terminal_status(scope, 1, 1, command)
         with session_scope(self.db_path) as session:
             self.assertIsNone(
                 session.scalar(
@@ -694,9 +697,9 @@ class ExamRoundLifecycleTests(unittest.TestCase):
                     )
                 ).ended_at
             )
-        service.set_candidate_terminal_status(scope, 1, 1, command)
+        application.set_exam_round_candidate_terminal_status(scope, 1, 1, command)
         with self.assertRaises(ExamRoundConflictError):
-            service.set_candidate_terminal_status(scope, 1, 1, command)
+            application.set_exam_round_candidate_terminal_status(scope, 1, 1, command)
         with session_scope(self.db_path) as session:
             candidate = session.get(RoundCandidate, 1)
             self.assertEqual(
@@ -709,7 +712,7 @@ class ExamRoundLifecycleTests(unittest.TestCase):
                 )
             ).ended_at
             self.assertIsNotNone(ended_at)
-        service.set_candidate_terminal_status(
+        application.set_exam_round_candidate_terminal_status(
             scope,
             1,
             1,
@@ -720,7 +723,7 @@ class ExamRoundLifecycleTests(unittest.TestCase):
                 "ihk_decision_reference": "IHK-754",
             },
         )
-        service.set_candidate_terminal_status(
+        application.set_exam_round_candidate_terminal_status(
             scope, 1, 1, {"revision": 3, "terminal_status": "open"}
         )
         with session_scope(self.db_path) as session:
@@ -746,7 +749,6 @@ class ExamRoundLifecycleTests(unittest.TestCase):
 
     def test_transferred_status_requires_effective_assignment_in_the_target_round(self) -> None:
         service = ExamRoundLifecycleService(
-            self.db_path,
             notification_service=notification_service_for_test(self.db_path),
             assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(),
             planning_lifecycle_work_factory=planning_lifecycle_work_factory(),
@@ -755,6 +757,7 @@ class ExamRoundLifecycleTests(unittest.TestCase):
         )
         context = SQLiteAuthenticationRepository(self.db_path).authenticate(self.chair.token)
         scope = authorization_service(self.db_path).scope(context)
+        application = self._exam_lifecycle_application(service)
         with session_scope(self.db_path) as session:
             target_committee = Committee(
                 name="Zielausschuss", ihk="IHK Teststadt", occupation="Fachinformatiker/in"
@@ -777,7 +780,7 @@ class ExamRoundLifecycleTests(unittest.TestCase):
             "effective_new_round_id": target_id,
         }
         with self.assertRaisesRegex(ValueError, "nicht wirksam"):
-            service.set_candidate_terminal_status(scope, 1, 1, command)
+            application.set_exam_round_candidate_terminal_status(scope, 1, 1, command)
         with session_scope(self.db_path) as session:
             original = session.get(RoundCandidate, 1)
             assignment = session.scalar(
@@ -801,7 +804,7 @@ class ExamRoundLifecycleTests(unittest.TestCase):
                     round_candidate_id=transferred.id,
                 )
             )
-        service.set_candidate_terminal_status(scope, 1, 1, command)
+        application.set_exam_round_candidate_terminal_status(scope, 1, 1, command)
         with session_scope(self.db_path) as session:
             candidate = session.get(RoundCandidate, 1)
             self.assertEqual(
