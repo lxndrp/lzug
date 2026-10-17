@@ -65,6 +65,7 @@ ROOT_MODULE_OWNERS = {
     "http_contract.py": "api",
     "http_hateoas.py": "api",
     "http_planning_payloads.py": "api",
+    "http_resources.py": "api",
     "http_transport.py": "api",
     "healthcheck.py": "operations-adapter",
     "observability.py": "runtime-foundation",
