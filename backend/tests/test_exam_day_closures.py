@@ -48,6 +48,7 @@ from backend.tests.helpers import (
     assert_status,
     notification_service_for_test,
 )
+from backend.tests.support.port_contracts import assert_materialized_port_value
 
 
 class ExamDayClosureTests(unittest.TestCase):
@@ -97,6 +98,46 @@ class ExamDayClosureTests(unittest.TestCase):
 
         with session_scope(self.db_path) as session:
             self.assertEqual(1, session.get(ExamDay, 2).revision)
+
+    def test_exam_lifecycle_work_port_results_are_materialized(self) -> None:
+        factory = SQLiteExamLifecycleUnitOfWorkFactory(
+            SQLiteExecutionUnitOfWorkFactory(
+                self.db_path,
+                identity_snapshot_factory=SQLiteIdentityExecutionSnapshotFactory(),
+            ),
+            SQLiteAssessmentUnitOfWorkFactory(self.db_path),
+            self.db_path,
+            SQLiteAssessmentLifecycleAdapter(SQLiteAssessmentUnitOfWorkFactory(self.db_path)),
+        )
+        with factory() as unit_of_work:
+            round_snapshot = unit_of_work.planning_lifecycle.round_lifecycle_snapshot(1)
+            candidates = unit_of_work.planning_lifecycle.round_candidates(1)
+            candidate_ids = tuple(item["candidate_id"] for item in candidates)
+            day_slots, day_assignments = unit_of_work.planning_lifecycle.exam_day_plan(2)
+            slot_ids = tuple(item.id for item in day_slots)
+            values = (
+                round_snapshot,
+                candidates,
+                unit_of_work.planning_lifecycle.candidate_details(candidate_ids),
+                unit_of_work.planning_lifecycle.round_candidate(1, candidates[0]["id"]),
+                unit_of_work.planning_lifecycle.candidate_assignment(candidates[0]["id"], 1),
+                unit_of_work.planning_lifecycle.lifecycle_context(1, 1, candidate_ids),
+                unit_of_work.planning_lifecycle.dependency_counts(1),
+                day_slots,
+                day_assignments,
+                unit_of_work.planning_lifecycle.exam_day_assignments((2,)),
+                unit_of_work.planning_lifecycle.exam_day_slots((2,)),
+                unit_of_work.planning_lifecycle.exam_day_slot_ids((2,)),
+                unit_of_work.execution.exam_day_round_id(2),
+                unit_of_work.execution.exam_day_ids_for_round(1),
+                unit_of_work.assessment_lifecycle.day_completion(2),
+                unit_of_work.assessment_lifecycle.results_for_day_slots(2, slot_ids),
+                unit_of_work.identity_lifecycle.committee_members(1),
+                unit_of_work.identity_lifecycle.committee(1),
+            )
+
+        for value in values:
+            assert_materialized_port_value(self, value)
 
     def test_closure_evaluation_keeps_finding_order(self) -> None:
         with session_scope(self.db_path) as session:
