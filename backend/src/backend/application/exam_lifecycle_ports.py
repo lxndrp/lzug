@@ -35,6 +35,7 @@ from backend.execution.lifecycle_ports import (
     IdentityLifecycleWork,
     PlanningLifecycleWork,
 )
+from backend.execution.protocol_ports import ProtocolDaySnapshot
 from backend.execution.slot_ports import ExecutionUnitOfWork
 from backend.identity.authorization import AuthorizationScope
 
@@ -102,6 +103,8 @@ class ExamLifecycleExecutionUnitOfWork(ExecutionUnitOfWork, Protocol):
     def exam_day_round_id(self, day_id: int) -> int | None: ...
 
     def exam_day_ids_for_round(self, round_id: int) -> tuple[int, ...]: ...
+
+    def protocol_day_snapshot(self, day_id: int) -> ProtocolDaySnapshot | None: ...
 
     def evaluate_day_close(
         self,

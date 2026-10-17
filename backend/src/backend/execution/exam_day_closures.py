@@ -26,6 +26,7 @@ from backend.execution.lifecycle_ports import (
     PlanningLifecycleWorkFactory,
     PlanSlotLifecycleSnapshot,
 )
+from backend.execution.protocol_ports import ExecutionProtocolSnapshot, ProtocolDaySnapshot
 from backend.identity.authorization import AuthorizationScope
 from backend.identity.lifecycle_ports import IdentityMemberLifecycleSnapshot
 from backend.notifications.service import NotificationService
@@ -1252,7 +1253,12 @@ class ExamDayClosureService:
         self._evaluate_staffing(snapshot, items)
         self._evaluate_absence_processes(snapshot, items)
         exception_candidates = self._evaluate_protocols(
-            session, snapshot.slots, items, warnings, protocol_references
+            session,
+            snapshot.slots,
+            items,
+            warnings,
+            protocol_references,
+            protocol_day_snapshot=(facts.protocol_day_snapshot if facts is not None else None),
         )
         self._evaluate_results(
             session,
@@ -1495,14 +1501,26 @@ class ExamDayClosureService:
         items: list[dict[str, Any]],
         warnings: list[dict[str, Any]],
         references: list[dict[str, Any]],
+        *,
+        protocol_day_snapshot: ProtocolDaySnapshot | None = None,
     ) -> list[dict[str, Any]]:
         regular_ready = True
         exception_ready = True
         candidates: list[dict[str, Any]] = []
+        protocols_by_slot = (
+            {item["exam_slot_id"]: item["protocol"] for item in protocol_day_snapshot["slots"]}
+            if protocol_day_snapshot is not None
+            else None
+        )
         for slot in slots:
-            regular, exception, candidate = self._evaluate_slot_protocol(
-                session, slot, warnings, references
-            )
+            if protocols_by_slot is None:
+                regular, exception, candidate = self._evaluate_slot_protocol(
+                    session, slot, warnings, references
+                )
+            else:
+                regular, exception, candidate = self._evaluate_slot_protocol_snapshot(
+                    slot, protocols_by_slot.get(slot.id), warnings, references
+                )
             regular_ready &= regular
             exception_ready &= regular or exception
             if candidate is not None:
@@ -1515,6 +1533,97 @@ class ExamDayClosureService:
             [item for item in references if item["state"] not in COMPLETE_PROTOCOL_STATES],
         )
         return candidates if exception_ready else []
+
+    def _evaluate_slot_protocol_snapshot(
+        self,
+        slot: PlanSlotLifecycleSnapshot,
+        protocol: ExecutionProtocolSnapshot | None,
+        warnings: list[dict[str, Any]],
+        references: list[dict[str, Any]],
+    ) -> tuple[bool, bool, dict[str, Any] | None]:
+        if slot.execution_status == "cancelled":
+            return True, False, None
+        if protocol is None:
+            references.append(
+                {"exam_slot_id": slot.id, "exam_protocol_id": None, "state": "missing"}
+            )
+            return False, False, None
+        revision = next(
+            (
+                item
+                for item in protocol["revisions"]
+                if item["version"] == protocol["current_version"]
+            ),
+            None,
+        )
+        if revision is None:
+            raise ValueError("Der aktuelle Protokollstand fehlt")
+        responses = list(revision["responses"])
+        participants = set(protocol["participants"])
+        missing = sorted(participants - {item["committee_member_id"] for item in responses})
+        state = self._protocol_snapshot_state(revision, responses, missing)
+        regular = (
+            state in COMPLETE_PROTOCOL_STATES and revision["workflow_state"] != "correction_open"
+        )
+        candidate = None
+        if (
+            state == "reaction_missing"
+            and len(missing) == 1
+            and revision["declaration"] is not None
+            and revision["workflow_state"] != "correction_open"
+        ):
+            candidate = {
+                "exam_slot_id": slot.id,
+                "exam_protocol_id": protocol["id"],
+                "exam_protocol_revision_id": revision["id"],
+                "protocol_version": revision["version"],
+                "committee_member_id": missing[0],
+            }
+        reservations = [
+            {"committee_member_id": item["committee_member_id"], "statement": item["statement"]}
+            for item in responses
+            if item["response"] == "reservation"
+        ]
+        if revision["entries"] or reservations:
+            warnings.append(
+                {
+                    "exam_protocol_id": protocol["id"],
+                    "entries": [
+                        {"category": item["category"], "statement": item["statement"]}
+                        for item in revision["entries"]
+                    ],
+                    "reservations": reservations,
+                }
+            )
+        references.append(
+            {
+                "exam_slot_id": slot.id,
+                "exam_protocol_id": protocol["id"],
+                "revision_id": revision["id"],
+                "version": revision["version"],
+                "state": state,
+                "missing_response_member_ids": missing,
+            }
+        )
+        return regular, candidate is not None, candidate
+
+    @staticmethod
+    def _protocol_snapshot_state(revision, responses, missing: list[int]) -> str:
+        if revision["submitted_at"] is None:
+            return (
+                "correction_open"
+                if revision["workflow_state"] == "correction_open"
+                else "in_progress"
+            )
+        if not responses:
+            return "awaiting_confirmation"
+        if missing:
+            return "reaction_missing"
+        return (
+            "fully_with_reservation"
+            if any(item["response"] == "reservation" for item in responses)
+            else "fully_confirmed"
+        )
 
     def _evaluate_slot_protocol(
         self,
@@ -1700,14 +1809,22 @@ class ExamDayClosureService:
         impacted_protocol_ids, impacted_result_ids = self._impacted_entity_ids(
             requested, slots, protocols, results
         )
-        impacts = self._impact_details(
-            session,
-            protocols,
-            impacted_protocol_ids,
-            impacted_result_ids,
-            assessment_work,
-            assessment_impacts=facts.assessment_impacts if facts is not None else None,
-        )
+        if facts is not None and facts.protocol_day_snapshot is not None:
+            impacts = self._snapshot_impact_details(
+                protocols,
+                impacted_protocol_ids,
+                impacted_result_ids,
+                facts.assessment_impacts,
+            )
+        else:
+            impacts = self._impact_details(
+                session,
+                protocols,
+                impacted_protocol_ids,
+                impacted_result_ids,
+                assessment_work,
+                assessment_impacts=facts.assessment_impacts if facts is not None else None,
+            )
         expanded = set(requested)
         expanded.update(_token("exam_protocol", item) for item in impacted_protocol_ids)
         expanded.update(_token("exam_result", item) for item in impacted_result_ids)
@@ -1730,8 +1847,8 @@ class ExamDayClosureService:
     ) -> tuple[
         dict[int, PlanSlotLifecycleSnapshot],
         dict[int, PlanAssignmentLifecycleSnapshot],
-        dict[int, AbsenceReport],
-        dict[int, ExamProtocol],
+        dict[int, Any],
+        dict[int, Any],
         dict[int, int],
     ]:
         if facts is None:
@@ -1741,18 +1858,30 @@ class ExamDayClosureService:
             plan_slots, plan_assignments = facts.slots, facts.assignments
         slots = {item.id: item for item in plan_slots}
         assignments = {item.id: item for item in plan_assignments}
-        absences = {
-            item.id: item
-            for item in session.scalars(
-                select(AbsenceReport).where(AbsenceReport.exam_day_id == day.id)
-            )
-        }
-        protocols = {
-            item.id: item
-            for item in session.scalars(
-                select(ExamProtocol).where(ExamProtocol.exam_slot_id.in_(slots))
-            )
-        }
+        absences = (
+            {item["id"]: item for item in facts.absences}
+            if facts is not None
+            else {
+                item.id: item
+                for item in session.scalars(
+                    select(AbsenceReport).where(AbsenceReport.exam_day_id == day.id)
+                )
+            }
+        )
+        protocols = (
+            {
+                protocol["id"]: protocol
+                for item in facts.protocol_day_snapshot["slots"]
+                if (protocol := item["protocol"]) is not None
+            }
+            if facts is not None and facts.protocol_day_snapshot is not None
+            else {
+                item.id: item
+                for item in session.scalars(
+                    select(ExamProtocol).where(ExamProtocol.exam_slot_id.in_(slots))
+                )
+            }
+        )
         results = {
             item["id"]: item["round_candidate_id"]
             for item in (
@@ -1770,8 +1899,8 @@ class ExamDayClosureService:
         requested: list[str],
         slots: dict[int, PlanSlotLifecycleSnapshot],
         assignments: dict[int, PlanAssignmentLifecycleSnapshot],
-        absences: dict[int, AbsenceReport],
-        protocols: dict[int, ExamProtocol],
+        absences: dict[int, Any],
+        protocols: dict[int, Any],
         results: dict[int, int],
     ) -> None:
         for token in requested:
@@ -1791,7 +1920,7 @@ class ExamDayClosureService:
     def _impacted_entity_ids(
         requested: list[str],
         slots: dict[int, PlanSlotLifecycleSnapshot],
-        protocols: dict[int, ExamProtocol],
+        protocols: dict[int, Any],
         results: dict[int, int],
     ) -> tuple[set[int], set[int]]:
         impacted_protocol_ids: set[int] = set()
@@ -1809,9 +1938,9 @@ class ExamDayClosureService:
             if kind in {"slot_status", "candidate_attendance"}:
                 slot = slots[entity_id]
                 impacted_protocol_ids.update(
-                    protocol.id
-                    for protocol in protocols.values()
-                    if protocol.exam_slot_id == slot.id
+                    protocol_id
+                    for protocol_id, protocol in protocols.items()
+                    if ExamDayClosureService._protocol_slot_id(protocol) == slot.id
                 )
                 impacted_result_ids.update(
                     result_id
@@ -1820,7 +1949,7 @@ class ExamDayClosureService:
                 )
             elif kind == "exam_protocol":
                 impacted_protocol_ids.add(entity_id)
-                slot = slots[protocols[entity_id].exam_slot_id]
+                slot = slots[ExamDayClosureService._protocol_slot_id(protocols[entity_id])]
                 impacted_result_ids.update(
                     result_id
                     for result_id, candidate_id in results.items()
@@ -1829,6 +1958,12 @@ class ExamDayClosureService:
             elif kind == "exam_result":
                 impacted_result_ids.add(entity_id)
         return impacted_protocol_ids, impacted_result_ids
+
+    @staticmethod
+    def _protocol_slot_id(protocol: Any) -> int:
+        if isinstance(protocol, Mapping):
+            return int(protocol["exam_slot_id"])
+        return protocol.exam_slot_id
 
     def _impact_details(
         self,
@@ -1876,9 +2011,45 @@ class ExamDayClosureService:
             "recipient_member_ids": sorted(recipient_ids),
         }
 
+    def _snapshot_impact_details(
+        self,
+        protocols: Mapping[int, ExecutionProtocolSnapshot],
+        impacted_protocol_ids: set[int],
+        impacted_result_ids: set[int],
+        assessment_impacts: Sequence[Mapping[str, Any]],
+    ) -> dict[str, list[int]]:
+        recipient_ids: set[int] = set()
+        invalidated_response_ids: list[int] = []
+        for protocol_id in impacted_protocol_ids:
+            protocol = protocols[protocol_id]
+            revision = next(
+                (
+                    item
+                    for item in protocol["revisions"]
+                    if item["version"] == protocol["current_version"]
+                ),
+                None,
+            )
+            if revision is None:
+                raise ValueError("Der aktuelle Protokollstand fehlt")
+            responses = revision["responses"]
+            invalidated_response_ids.extend(item["id"] for item in responses)
+            recipient_ids.update(item["committee_member_id"] for item in responses)
+            recipient_ids.update(protocol["participants"])
+        result_impacts = self._result_impact_details(
+            None, impacted_result_ids, recipient_ids, assessment_impacts=assessment_impacts
+        )
+        return {
+            "exam_protocol_ids": sorted(impacted_protocol_ids),
+            "invalidated_protocol_response_ids": sorted(invalidated_response_ids),
+            "exam_result_ids": sorted(impacted_result_ids),
+            **result_impacts,
+            "recipient_member_ids": sorted(recipient_ids),
+        }
+
     def _result_impact_details(
         self,
-        session: Session,
+        session: Session | None,
         impacted_result_ids: set[int],
         recipient_ids: set[int],
         assessment_work: AssessmentLifecycleWork | None = None,
@@ -1888,13 +2059,14 @@ class ExamDayClosureService:
         determination_ids: list[int] = []
         communicated_result_ids: list[int] = []
         ihk_processed_result_ids: list[int] = []
-        results = (
-            assessment_impacts
-            if assessment_impacts is not None
-            else (
-                assessment_work or self.assessment_lifecycle_factory(session)
-            ).result_reopening_impacts(impacted_result_ids)
-        )
+        if assessment_impacts is not None:
+            results = assessment_impacts
+        else:
+            if assessment_work is None:
+                if session is None:
+                    raise RuntimeError("Assessment session is required")
+                assessment_work = self.assessment_lifecycle_factory(session)
+            results = assessment_work.result_reopening_impacts(impacted_result_ids)
         for result in results:
             if result["id"] not in impacted_result_ids:
                 continue

@@ -14,6 +14,7 @@ from backend.execution.lifecycle_ports import (
     PlanningRoundLifecycleSnapshot,
     PlanSlotLifecycleSnapshot,
 )
+from backend.execution.protocol_ports import ProtocolDaySnapshot
 from backend.execution.slot_ports import AttendanceSnapshot
 from backend.identity.lifecycle_ports import (
     IdentityCommitteeLifecycleSnapshot,
@@ -122,6 +123,7 @@ class DayClosureFacts:
     candidate_attendance: Mapping[int, AttendanceSnapshot] = field(default_factory=dict)
     member_attendance: Mapping[int, AttendanceSnapshot] = field(default_factory=dict)
     absences: tuple[AbsenceSnapshot, ...] = ()
+    protocol_day_snapshot: ProtocolDaySnapshot | None = None
 
 
 def _require_round_revision(revision: object) -> None:

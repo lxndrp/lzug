@@ -224,6 +224,7 @@ class ExamDayClosureTests(unittest.TestCase):
                 lifecycle_facts.candidate_attendance,
                 lifecycle_facts.member_attendance,
                 lifecycle_facts.absences,
+                lifecycle_facts.protocol_day_snapshot,
                 unit_of_work.assessment_lifecycle.day_completion(2),
                 unit_of_work.assessment_lifecycle.results_for_day_slots(2, slot_ids),
                 reopening_impacts,

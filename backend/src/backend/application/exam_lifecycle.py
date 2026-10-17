@@ -209,6 +209,9 @@ class ExamLifecycleApplication:
             )
         )
         result_ids = {item["id"] for item in results}
+        protocol_day_snapshot = unit_of_work.execution.protocol_day_snapshot(day_id)
+        if protocol_day_snapshot is None:
+            raise ValueError("Prüfungstag nicht gefunden")
         return DayClosureFacts(
             committee_id=committee_id,
             slots=tuple(slots),
@@ -229,6 +232,7 @@ class ExamLifecycleApplication:
                 day_id, examiner_ids
             ),
             absences=tuple(unit_of_work.execution.absence_reports_for_day(day_id)),
+            protocol_day_snapshot=protocol_day_snapshot,
         )
 
     def close_exam_round(
