@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import AbstractContextManager, contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, NamedTuple
+from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
 from sqlalchemy.orm import Session
 
@@ -33,6 +33,7 @@ from backend.persistence.store import Store
 
 if TYPE_CHECKING:
     from backend.application.planning_calendar_reads import (
+        ClosureCalendarRead,
         ExecutionCalendarQueries,
         IdentityCalendarQueries,
         PlanningCalendarQueries,
@@ -112,8 +113,9 @@ class SQLitePlanningCalendarReadUnitOfWork:
         self.identity: IdentityCalendarQueries = _SQLiteIdentityCalendarQueries(session)
         self.execution: ExecutionCalendarQueries = _SQLiteExecutionCalendarQueries(session)
 
-    def closure_view(self, day_id: int, scope: AuthorizationScope) -> dict[str, Any] | None:
-        return self._closure_view(self._session, day_id, scope)
+    def closure_view(self, day_id: int, scope: AuthorizationScope) -> ClosureCalendarRead | None:
+        view = self._closure_view(self._session, day_id, scope)
+        return cast("ClosureCalendarRead | None", view)
 
 
 class _SQLitePlanningCalendarQueries:

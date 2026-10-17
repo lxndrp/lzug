@@ -99,6 +99,31 @@ class ConfirmedPlanMetadata(TypedDict):
     exam_half_year: ExamHalfYearRead | None
 
 
+class ClosurePermissionsRead(TypedDict):
+    close: bool
+    reopen: bool
+    export: bool
+
+
+class ClosureLinksRead(TypedDict):
+    self: dict[str, str]
+    machine_export: dict[str, str]
+    human_export: dict[str, str]
+
+
+class ClosureCalendarRead(TypedDict):
+    exam_day_id: int
+    revision: int
+    status: str
+    legacy_status: str | None
+    evaluation: Mapping[str, object]
+    active_reopening: Mapping[str, object] | None
+    history: list[Mapping[str, object]]
+    tasks: list[Mapping[str, object]]
+    permissions: ClosurePermissionsRead
+    _links: ClosureLinksRead
+
+
 class ConfirmedCalendarDayRead(TypedDict):
     id: int
     date: str
@@ -108,7 +133,7 @@ class ConfirmedCalendarDayRead(TypedDict):
     room_id: int | None
     slots: list[ConfirmedSlotRead]
     assignments: list[ConfirmedAssignmentRead]
-    closure: NotRequired[Mapping[str, Any]]
+    closure: NotRequired[ClosureCalendarRead]
 
 
 class ConfirmedPlanItem(TypedDict):
@@ -161,7 +186,9 @@ class PlanningCalendarReadUnitOfWork(Protocol):
     identity: IdentityCalendarQueries
     execution: ExecutionCalendarQueries
 
-    def closure_view(self, day_id: int, scope: AuthorizationScope) -> dict[str, Any] | None: ...
+    def closure_view(
+        self, day_id: int, scope: AuthorizationScope
+    ) -> ClosureCalendarRead | None: ...
 
 
 class PlanningCalendarReadUnitOfWorkFactory(Protocol):
