@@ -10,7 +10,7 @@ from fastapi import APIRouter, FastAPI, Request
 from backend import http_hateoas as hateoas
 from backend.application import ForbiddenRequestError
 from backend.composition import exam_venue_api
-from backend.http_contract import PLAN_AGGREGATE_RESOURCES, REST_RESOURCES
+from backend.http_resources import PLAN_AGGREGATE_RESOURCES, REST_RESOURCES
 from backend.http_transport import RequestContext
 from backend.persistence.models import CANDIDATE_COMMITTEE_ASSIGNMENT, COMMITTEE
 
