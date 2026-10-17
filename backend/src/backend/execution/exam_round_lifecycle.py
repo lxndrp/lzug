@@ -28,7 +28,10 @@ from backend.execution.lifecycle_ports import (
     RoundLifecycleFacts,
     RoundReopenCommand,
 )
-from backend.execution.round_lifecycle_snapshot import ExamRoundLifecycleReadSnapshot
+from backend.execution.round_lifecycle_snapshot import (
+    ExamRoundLifecycleExportSnapshot,
+    ExamRoundLifecycleReadSnapshot,
+)
 from backend.identity.authorization import AuthorizationScope
 from backend.notifications.service import NotificationService
 from backend.persistence.database import DEFAULT_DB_PATH, session_scope
@@ -335,6 +338,36 @@ class ExamRoundLifecycleService:
                 },
                 "human_export": {"href": f"/api/exam-rounds/{exam_round.id}/lifecycle/export.txt"},
             },
+        }
+
+    def export_from_read_snapshots(
+        self,
+        scope: AuthorizationScope,
+        facts: RoundLifecycleFacts,
+        lifecycle_snapshot: ExamRoundLifecycleReadSnapshot,
+        export_snapshot: ExamRoundLifecycleExportSnapshot,
+        export_record: dict[str, Any],
+        pending_consequence_ids: Sequence[int],
+        *,
+        human: bool,
+    ) -> dict[str, Any] | str:
+        """Project and render an export using only detached facts and records."""
+        lifecycle = self.get_from_read_snapshot(
+            scope,
+            facts,
+            pending_consequence_ids,
+            lifecycle_snapshot,
+        )
+        if lifecycle is None:
+            raise ValueError("Prüfungsrunde nicht gefunden")
+        snapshot = self._snapshot_from_export_snapshot(facts, export_snapshot)
+        if human:
+            return render_round_lifecycle_export(facts.round.id, lifecycle, snapshot)
+        return {
+            "export_version": 1,
+            "export": export_record,
+            "lifecycle": lifecycle,
+            "snapshot": snapshot,
         }
 
     @staticmethod
@@ -1550,6 +1583,168 @@ class ExamRoundLifecycleService:
             pending_consequences,
         )
         return {"ready": all(item["ok"] for item in items), "items": items}
+
+    @staticmethod
+    def _snapshot_from_export_snapshot(
+        facts: RoundLifecycleFacts,
+        export_snapshot: ExamRoundLifecycleExportSnapshot,
+    ) -> dict[str, Any]:
+        """Build the export view without sessions or persistence model objects."""
+        exam_round = facts.round
+        planning_context = facts.lifecycle_context(
+            exam_round.id,
+            exam_round.exam_half_year_id,
+            tuple(item["candidate_id"] for item in facts.candidates),
+        )
+        half_year = planning_context["half_year"]
+        committee = facts.committee
+        candidates_by_id = {item.id: item for item in facts.candidate_details}
+        candidates = [
+            {
+                "round_candidate_id": item["id"],
+                "candidate_id": candidates_by_id[item["candidate_id"]].id,
+                "first_name": candidates_by_id[item["candidate_id"]].first_name,
+                "last_name": candidates_by_id[item["candidate_id"]].last_name,
+                "ihk_exam_number": candidates_by_id[item["candidate_id"]].ihk_exam_number,
+                "terminal_status": item["terminal_status"],
+                "terminal_reason": item["terminal_reason"],
+                "effective_new_round_id": item["effective_new_round_id"],
+                "postponed_until": item["postponed_until"],
+                "ihk_decision_reference": item["ihk_decision_reference"],
+                "terminal_at": item["terminal_at"],
+            }
+            for item in facts.round_candidates(exam_round.id)
+        ]
+        records = export_snapshot.records
+        days = records["days"]
+        slots = facts.exam_day_slots(facts.day_ids)
+        results = facts.results_for_round(exam_round.id)
+        assignments = facts.exam_day_assignments(facts.day_ids)
+        return {
+            "round": {
+                "id": exam_round.id,
+                "name": exam_round.name,
+                "planning_status": exam_round.status,
+                "lifecycle_status": exam_round.lifecycle_status,
+                "revision": exam_round.revision,
+            },
+            "half_year": {
+                "id": half_year["id"],
+                "season": half_year["season"],
+                "year": half_year["year"],
+                "administrative_status": half_year["status"],
+                "legacy_status": half_year["legacy_status"],
+            },
+            "committee": {
+                "id": committee.id,
+                "name": committee.name,
+                "occupation": committee.occupation,
+                "ihk": committee.ihk,
+            },
+            "roles": [
+                {
+                    "member_id": member.id,
+                    "person_id": member.person_id,
+                    "first_name": member.first_name,
+                    "last_name": member.last_name,
+                    "committee_role": member.committee_role,
+                    "representing_side": member.representing_side,
+                    "is_active": bool(member.is_active),
+                }
+                for member in facts.members
+            ],
+            "candidates": candidates,
+            "candidate_assignment_history": planning_context["candidate_assignment_history"],
+            "plan_revisions": planning_context["plan_revisions"],
+            "days": [dict(item) for item in days],
+            "slots": [
+                {
+                    "id": item.id,
+                    "exam_day_id": item.exam_day_id,
+                    "round_candidate_id": item.round_candidate_id,
+                    "starts_at": item.starts_at,
+                    "ends_at": item.ends_at,
+                    "execution_status": item.execution_status,
+                    "actual_started_at": item.actual_started_at,
+                    "actual_completed_at": item.actual_completed_at,
+                }
+                for item in slots
+            ],
+            "assignments": [
+                {
+                    "id": item.id,
+                    "exam_day_id": item.exam_day_id,
+                    "committee_member_id": item.committee_member_id,
+                    "assignment_role": item.assignment_role,
+                    "day_part": item.day_part,
+                    "fallback_status": item.fallback_status,
+                }
+                for item in assignments
+            ],
+            "absences": [
+                {
+                    "id": item["id"],
+                    "exam_day_id": item["exam_day_id"],
+                    "exam_day_assignment_id": item["exam_day_assignment_id"],
+                    "status": item["status"],
+                    "selected_replacement_member_id": item["selected_replacement_member_id"],
+                    "version": item["version"],
+                }
+                for item in records["absences"]
+            ],
+            "protocols": [dict(item) for item in records["protocols"]],
+            "results": [
+                {
+                    "id": item["id"],
+                    "round_candidate_id": item["round_candidate_id"],
+                    "state": item["state"],
+                    "correction_open": bool(item["correction_open"]),
+                    "version": item["version"],
+                    "communications": [
+                        {
+                            "id": row["id"],
+                            "determination_id": row["determination_id"],
+                            "communicated_at": row["communicated_at"],
+                            "method": row["method"],
+                            "external_document_status": row["external_document_status"],
+                            "external_document_reference": row["external_document_reference"],
+                            "status": row["status"],
+                        }
+                        for row in item["communications"]
+                    ],
+                }
+                for item in results
+            ],
+            "assessments": {
+                "individual": [
+                    {
+                        "id": item["id"],
+                        "exam_result_id": result["id"],
+                        "component_key": item["component_key"],
+                        "criterion_key": item["criterion_key"],
+                        "assessor_member_id": item["assessor_member_id"],
+                        "revision": item["revision"],
+                        "normalized_points": item["normalized_points"],
+                        "status": item["status"],
+                    }
+                    for result in results
+                    for item in result["individual_assessments"]
+                ],
+                "committee": [
+                    {
+                        "id": item["id"],
+                        "exam_result_id": result["id"],
+                        "component_key": item["component_key"],
+                        "revision": item["revision"],
+                        "points": item["points"],
+                        "participant_member_ids": item["participant_member_ids"],
+                        "status": item["status"],
+                    }
+                    for result in results
+                    for item in result["component_assessments"]
+                ],
+            },
+        }
 
     def _snapshot(
         self,

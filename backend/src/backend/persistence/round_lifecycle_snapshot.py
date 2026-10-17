@@ -9,7 +9,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 if TYPE_CHECKING:
-    from backend.execution.round_lifecycle_snapshot import ExamRoundLifecycleReadSnapshot
+    from backend.execution.round_lifecycle_snapshot import (
+        ExamRoundLifecycleExportSnapshot,
+        ExamRoundLifecycleReadSnapshot,
+    )
 
 from backend.persistence.models import (
     AbsenceReport,
@@ -19,6 +22,7 @@ from backend.persistence.models import (
     ExamProtocol,
     ExamProtocolCorrectionRequest,
     ExamProtocolRetention,
+    ExamProtocolRevision,
     ExamRoundAuditEvent,
     ExamRoundDecision,
     ExamRoundExport,
@@ -33,11 +37,80 @@ class _RoundLifecycleReadSnapshot(NamedTuple):
     records: dict[str, object]
 
 
+class _RoundLifecycleExportSnapshot(NamedTuple):
+    records: dict[str, object]
+
+
 class SQLiteExamRoundLifecycleReadSnapshotReader:
     """Map a caller-owned session to plain Python round lifecycle records."""
 
     def __init__(self, session: Session) -> None:
         self._session = session
+
+    def load_round_lifecycle_export_snapshot(
+        self, round_id: int
+    ) -> ExamRoundLifecycleExportSnapshot:
+        """Load records omitted from the smaller lifecycle GET projection."""
+        days = tuple(
+            {
+                "id": item.id,
+                "date": item.date,
+                "status": item.status,
+                "revision": item.revision,
+                "closure_status": item.closure_status,
+            }
+            for item in self._session.scalars(
+                select(ExamDay).where(ExamDay.exam_round_id == round_id).order_by(ExamDay.id)
+            )
+        )
+        day_ids = tuple(item["id"] for item in days)
+        protocol_rows = (
+            self._session.execute(
+                select(
+                    ExamProtocol.id,
+                    ExamProtocol.exam_slot_id,
+                    ExamProtocol.current_version,
+                    ExamProtocolRevision.workflow_state,
+                )
+                .join(ExamSlot, ExamSlot.id == ExamProtocol.exam_slot_id)
+                .outerjoin(
+                    ExamProtocolRevision,
+                    (ExamProtocolRevision.exam_protocol_id == ExamProtocol.id)
+                    & (ExamProtocolRevision.version == ExamProtocol.current_version),
+                )
+                .where(ExamSlot.exam_day_id.in_(day_ids))
+                .order_by(ExamProtocol.id)
+            ).all()
+            if day_ids
+            else ()
+        )
+        absences = (
+            tuple(
+                _model_row(item, ())
+                for item in self._session.scalars(
+                    select(AbsenceReport)
+                    .where(AbsenceReport.exam_day_id.in_(day_ids))
+                    .order_by(AbsenceReport.id)
+                )
+            )
+            if day_ids
+            else ()
+        )
+        return _RoundLifecycleExportSnapshot(
+            {
+                "days": days,
+                "protocols": tuple(
+                    {
+                        "id": row.id,
+                        "exam_slot_id": row.exam_slot_id,
+                        "current_version": row.current_version,
+                        "workflow_state": row.workflow_state,
+                    }
+                    for row in protocol_rows
+                ),
+                "absences": absences,
+            }
+        )
 
     def load_round_lifecycle_read_snapshot(
         self, round_id: int

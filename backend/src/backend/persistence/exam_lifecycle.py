@@ -17,7 +17,13 @@ from backend.persistence.database import DEFAULT_DB_PATH, read_session_scope, se
 from backend.persistence.day_closure_snapshot import SQLiteExamDayClosureReadSnapshotReader
 from backend.persistence.execution import SQLiteExecutionUnitOfWorkFactory
 from backend.persistence.identity_lifecycle import SQLiteIdentityLifecycleWork
-from backend.persistence.models import ExamDay, ExamDayClosure, ExamDayExport
+from backend.persistence.models import (
+    ExamDay,
+    ExamDayClosure,
+    ExamDayExport,
+    ExamRoundDecision,
+    ExamRoundExport,
+)
 from backend.persistence.planning_lifecycle import SQLitePlanningLifecycleWork
 from backend.persistence.round_lifecycle_snapshot import SQLiteExamRoundLifecycleReadSnapshotReader
 
@@ -173,10 +179,69 @@ class _SQLiteExamLifecycleExecution:
     def delete_empty_draft_round(self, service, scope, round_id: int):
         return service.delete_empty_draft_in_session(self._session, scope, round_id)
 
-    def export_round(self, service, scope, round_id: int, *, human: bool):
-        if human:
-            return service.human_export_in_session(self._session, scope, round_id)
-        return service.machine_export_in_session(self._session, scope, round_id)
+    def export_round(
+        self,
+        service,
+        scope,
+        round_id: int,
+        *,
+        human: bool,
+        facts=None,
+        pending_consequence_ids=None,
+    ):
+        if facts is None or pending_consequence_ids is None:
+            if human:
+                return service.human_export_in_session(self._session, scope, round_id)
+            return service.machine_export_in_session(self._session, scope, round_id)
+        exam_round = facts.round
+        actor_id = service._require_access(exam_round, scope)
+        if actor_id is None:
+            raise PermissionError("Forbidden.")
+        decision = self._session.scalar(
+            select(ExamRoundDecision)
+            .where(ExamRoundDecision.exam_round_id == round_id)
+            .order_by(
+                (ExamRoundDecision.status == "current").desc(),
+                ExamRoundDecision.id.desc(),
+            )
+        )
+        row = ExamRoundExport(
+            exam_round_id=round_id,
+            decision_id=decision.id if decision else None,
+            round_revision=exam_round.revision,
+            export_kind="human" if human else "machine",
+            lifecycle_status=exam_round.lifecycle_status,
+            generated_by_member_id=actor_id,
+            generated_at=datetime.now(UTC).replace(microsecond=0).isoformat(),
+        )
+        self._session.add(row)
+        self._session.flush()
+        reader = SQLiteExamRoundLifecycleReadSnapshotReader(self._session)
+        lifecycle_snapshot = reader.load_round_lifecycle_read_snapshot(round_id)
+        export_snapshot = reader.load_round_lifecycle_export_snapshot(round_id)
+        if lifecycle_snapshot is None:
+            raise ValueError("Prüfungsrunde nicht gefunden")
+        export_record = {
+            "id": row.id,
+            "decision_id": row.decision_id,
+            "round_revision": row.round_revision,
+            "export_kind": row.export_kind,
+            "lifecycle_status": row.lifecycle_status,
+            "generated_by_member_id": row.generated_by_member_id,
+            "generated_at": row.generated_at,
+            "superseded_at": row.superseded_at,
+            "superseded_by_revision": row.superseded_by_revision,
+            "obsolete": row.superseded_at is not None,
+        }
+        return service.export_from_read_snapshots(
+            scope,
+            facts,
+            lifecycle_snapshot,
+            export_snapshot,
+            export_record,
+            pending_consequence_ids,
+            human=human,
+        )
 
     def export_day(self, service, scope, day_id: int, *, human: bool, facts):
         if not scope.can_read_committee(facts.committee_id):

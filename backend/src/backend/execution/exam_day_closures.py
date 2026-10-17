@@ -37,7 +37,6 @@ from backend.persistence.models import (
     ExamDay,
     ExamDayAuditEvent,
     ExamDayClosure,
-    ExamDayExport,
     ExamDayReopening,
     ExamDayTask,
     ExamProtocol,
@@ -92,9 +91,8 @@ class NotificationJob:
 
 @dataclass(frozen=True)
 class ExamDayClosureOutcome:
-    """Committed response data and deferred notification input for one close."""
+    """Committed lifecycle identity and deferred notification input."""
 
-    response: dict[str, Any]
     committee_id: int | None = None
     round_id: int | None = None
     day_id: int | None = None
@@ -328,7 +326,6 @@ class ExamDayClosureService:
         day = self._required_day(session, intent.day_id)
         if intent.replayed:
             return ExamDayClosureOutcome(
-                self._view(session, day, scope, facts=facts),
                 day_id=day.id,
             )
         reopening = (
@@ -348,7 +345,6 @@ class ExamDayClosureService:
             intent.command_fingerprint,
         )
         return ExamDayClosureOutcome(
-            response=self._view(session, day, scope, facts=facts),
             committee_id=intent.committee_id,
             round_id=intent.round_id,
             day_id=day.id,
@@ -555,7 +551,6 @@ class ExamDayClosureService:
                 )
             )
         return ExamDayClosureOutcome(
-            response=self._view(session, day, scope, facts=facts),
             committee_id=intent.committee_id,
             round_id=intent.round_id,
             day_id=day.id,
@@ -571,7 +566,6 @@ class ExamDayClosureService:
     ) -> ExamDayClosureOutcome:
         day = self._required_day(session, intent.day_id)
         return ExamDayClosureOutcome(
-            response=self._view(session, day, scope, facts=facts),
             day_id=day.id,
         )
 
@@ -871,154 +865,6 @@ class ExamDayClosureService:
         day = export["exam_day"]
         closure = export["closure"]
         return render_day_closure_export(day, closure)
-
-    def _view(
-        self,
-        session: Session,
-        day: ExamDay,
-        scope: AuthorizationScope,
-        *,
-        facts: DayClosureFacts,
-    ) -> dict[str, Any]:
-        committee_id = facts.committee_id
-        actor_id = scope.member_for_committee(committee_id)
-        if not scope.can_read_committee(committee_id):
-            raise PermissionError("Forbidden.")
-        evaluation = self._evaluate(facts, day.id)
-        closures = list(
-            session.scalars(
-                select(ExamDayClosure)
-                .where(ExamDayClosure.exam_day_id == day.id)
-                .order_by(ExamDayClosure.id)
-            )
-        )
-        reopenings = list(
-            session.scalars(
-                select(ExamDayReopening)
-                .where(ExamDayReopening.exam_day_id == day.id)
-                .order_by(ExamDayReopening.id)
-            )
-        )
-        events: list[dict[str, Any]] = []
-        for item in closures:
-            events.append(
-                {
-                    "kind": "closure",
-                    "id": item.id,
-                    "revision": item.resulting_revision,
-                    "closure_type": item.closure_type,
-                    "actor_member_id": item.actor_member_id,
-                    "reason": item.reason,
-                    "clarification_attempts": item.clarification_attempts,
-                    "status": item.status,
-                    "created_at": item.closed_at,
-                    "checklist": json.loads(item.checklist_json),
-                    "warnings": json.loads(item.warnings_json),
-                    "protocol_references": json.loads(item.protocol_references_json),
-                    "result_references": json.loads(item.result_references_json),
-                }
-            )
-        for item in reopenings:
-            events.append(
-                {
-                    "kind": "reopening",
-                    "id": item.id,
-                    "revision": item.resulting_revision,
-                    "actor_member_id": item.actor_member_id,
-                    "occasion": item.occasion,
-                    "source": item.source,
-                    "reason": item.reason,
-                    "requested_scope": json.loads(item.requested_scope_json),
-                    "expanded_scope": json.loads(item.scope_json),
-                    "completed_scope": json.loads(item.completed_scope_json),
-                    "impacts": json.loads(item.impacts_json),
-                    "status": item.status,
-                    "created_at": item.opened_at,
-                    "completed_at": item.completed_at,
-                }
-            )
-        for item in session.scalars(
-            select(ExamDayAuditEvent)
-            .where(ExamDayAuditEvent.exam_day_id == day.id)
-            .order_by(ExamDayAuditEvent.id)
-        ):
-            events.append(
-                {
-                    "kind": "audit",
-                    "id": item.id,
-                    "revision": item.day_revision,
-                    "event_type": item.event_type,
-                    "actor_member_id": item.actor_member_id,
-                    "closure_id": item.closure_id,
-                    "reopening_id": item.reopening_id,
-                    "reason": item.reason,
-                    "scope": json.loads(item.scope_json),
-                    "created_at": item.created_at,
-                }
-            )
-        for item in session.scalars(
-            select(ExamDayExport)
-            .where(ExamDayExport.exam_day_id == day.id)
-            .order_by(ExamDayExport.id)
-        ):
-            events.append(
-                {
-                    "kind": "export",
-                    "id": item.id,
-                    "revision": day.revision,
-                    "export_kind": item.export_kind,
-                    "closure_id": item.closure_id,
-                    "status": item.status,
-                    "actor_member_id": item.generated_by_member_id,
-                    "created_at": item.generated_at,
-                }
-            )
-        tasks = list(
-            session.scalars(
-                select(ExamDayTask)
-                .where(ExamDayTask.exam_day_id == day.id)
-                .order_by(ExamDayTask.id)
-            )
-        )
-        return {
-            "exam_day_id": day.id,
-            "revision": day.revision,
-            "status": day.closure_status,
-            "legacy_status": day.status if day.closure_status == "historical" else None,
-            "evaluation": evaluation,
-            "active_reopening": next(
-                (
-                    item
-                    for item in events
-                    if item["kind"] == "reopening" and item["status"] == "open"
-                ),
-                None,
-            ),
-            "history": sorted(events, key=lambda item: (item["revision"], item["id"])),
-            "tasks": [
-                {
-                    "id": item.id,
-                    "reopening_id": item.reopening_id,
-                    "recipient_member_id": item.recipient_member_id,
-                    "task_type": item.task_type,
-                    "origin_key": item.origin_key,
-                    "exam_protocol_revision_id": item.exam_protocol_revision_id,
-                    "result_determination_id": item.result_determination_id,
-                    "details": json.loads(item.details_json),
-                    "status": item.status,
-                    "created_at": item.created_at,
-                    "completed_at": item.completed_at,
-                }
-                for item in tasks
-            ],
-            "permissions": {
-                "close": scope.can_manage_committee(committee_id)
-                and day.closure_status in {"open", "reopening"},
-                "reopen": scope.can_manage_committee(committee_id)
-                and day.closure_status in CLOSED_STATUSES,
-                "export": actor_id is not None,
-            },
-        }
 
     def _evaluate(self, facts: DayClosureFacts, day_id: int) -> dict[str, Any]:
         snapshot = self._load_closure_snapshot(facts)

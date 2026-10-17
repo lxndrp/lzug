@@ -101,7 +101,21 @@ class ExamLifecycleApplication:
     ) -> dict[str, Any] | str:
         service = self._round_lifecycle_service()
         with self._unit_of_work_factory() as unit_of_work:
-            return unit_of_work.execution.export_round(service, scope, round_id, human=human)
+            exam_round = unit_of_work.planning_lifecycle.round_lifecycle_snapshot(round_id)
+            if exam_round is None:
+                raise ValueError("Prüfungsrunde nicht gefunden")
+            if not scope.can_read_committee(exam_round.committee_id):
+                raise PermissionError("Forbidden.")
+            facts = self._round_facts(unit_of_work, round_id, exam_round=exam_round)
+            pending_consequence_ids = unit_of_work.consequences.pending_ids_for_round(round_id)
+            return unit_of_work.execution.export_round(
+                service,
+                scope,
+                round_id,
+                human=human,
+                facts=facts,
+                pending_consequence_ids=pending_consequence_ids,
+            )
 
     def export_exam_day(
         self, scope: AuthorizationScope, day_id: int, *, human: bool
@@ -137,8 +151,11 @@ class ExamLifecycleApplication:
                 service, scope, day_id, command, facts
             )
             outcome = unit_of_work.execution.apply_day_close(service, scope, intent, facts)
+            response = unit_of_work.execution.read_day_closure(service, scope, day_id, facts)
+            if response is None:
+                raise RuntimeError("Closed exam day disappeared before its response was read")
         service.publish_close_notifications(outcome)
-        return outcome.response
+        return response
 
     def day_reopening_impact(
         self, scope: AuthorizationScope, day_id: int, raw_scope: Any
@@ -192,8 +209,11 @@ class ExamLifecycleApplication:
                 outcome = unit_of_work.execution.complete_day_reopen(
                     service, scope, handle, facts, corrections
                 )
+            response = unit_of_work.execution.read_day_closure(service, scope, day_id, facts)
+            if response is None:
+                raise RuntimeError("Reopened exam day disappeared before its response was read")
         service.publish_reopening_notifications(outcome)
-        return outcome.response
+        return response
 
     @staticmethod
     def _day_closure_facts(

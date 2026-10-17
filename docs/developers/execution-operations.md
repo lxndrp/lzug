@@ -56,14 +56,17 @@ werden über diese Eigentümerfähigkeiten aufgelöst. Rundeabsage verwendet
 zusätzlich den Calendar-Port, um künftige Ereignisse in derselben Transaktion
 zu stornieren und Empfänger für die Benachrichtigung nach dem Commit zu sammeln.
 Rundenabschluss und Rundenwiederöffnung verwenden dieselbe Application-Grenze.
-Der Tagesabschluss-GET und beide Exportformate sowie der
-Rundenlebenszyklus-GET lesen History und Aufgaben über materialisierte
-Execution-Snapshots. Die SQLite-Reader verwenden dafür die vom Composite-UoW
-besessene Sitzung; der Kalender-Read-Pfad bindet den Tagesabschluss-Reader an
-seine bestehende Lesetransaktion. Die Antwortmaterialisierung nach
-Tagesmutationen und Rundenmutationen sowie Rundenexporte verwenden teilweise
-weiterhin direkte SQLAlchemy-Abfragen. Diese Schreib- und Exportpfade sind noch
-nicht vollständig hinter Persistence-Verträgen gekapselt.
+Der Tagesabschluss-GET, beide Tagesexportformate, die Antworten nach
+Tagesmutationen und der Rundenlebenszyklus-GET lesen History und Aufgaben über
+materialisierte Execution-Snapshots. Die Rundenexporte projizieren ebenfalls
+aus materialisierten Rundenfakten und export-spezifischen Records.
+Exportnachweis und Snapshot werden in derselben Sitzung geschrieben bzw.
+gelesen. Die SQLite-Reader verwenden die vom Composite-UoW besessene Sitzung;
+der Kalender-Read-Pfad bindet den Tagesabschluss-Reader an seine
+bestehende Lesetransaktion. Die Rundenmutationsantworten und Teile der
+Lifecycle-Schreiblogik verwenden weiterhin direkte SQLAlchemy-Abfragen. Diese
+Schreibpfade sind noch nicht vollständig hinter Persistence-Verträgen
+gekapselt.
 Der getrennte Ersatzbesetzungs-HTTP-Ablauf in `execution.absence` behält noch
 direkte Planning-Zugriffe und ist für die Boundary-/Transition-Fortsetzung #1085
 abgegrenzt. Schema, Datenformat und öffentliche API-Verträge bleiben unverändert.

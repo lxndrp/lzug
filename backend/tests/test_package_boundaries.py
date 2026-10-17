@@ -164,8 +164,10 @@ TEST_OWNERS = {
             "test_absence.py",
             "test_day_closure_snapshot.py",
             "test_exam_day_closures.py",
+            "test_day_closure_mutation_snapshot.py",
             "test_exam_protocols.py",
             "test_exam_round_lifecycle.py",
+            "test_round_lifecycle_export_snapshot.py",
         }
     ),
     "identity": frozenset(

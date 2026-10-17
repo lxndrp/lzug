@@ -19,3 +19,18 @@ class ExamRoundLifecycleReadSnapshotReader(Protocol):
     def load_round_lifecycle_read_snapshot(
         self, round_id: int
     ) -> ExamRoundLifecycleReadSnapshot | None: ...
+
+
+class ExamRoundLifecycleExportSnapshot(Protocol):
+    """Detached persistence inputs needed to assemble the round export snapshot."""
+
+    @property
+    def records(self) -> Mapping[str, Any]: ...
+
+
+class ExamRoundLifecycleExportSnapshotReader(Protocol):
+    """Load export-specific records through the caller-owned transaction."""
+
+    def load_round_lifecycle_export_snapshot(
+        self, round_id: int
+    ) -> ExamRoundLifecycleExportSnapshot: ...
