@@ -41,14 +41,14 @@ class StaticTestHandler(TestLzugHandler):
 
 class ApiTests(unittest.TestCase):
     def test_mutation_lock_route_mapping(self) -> None:
-        payload = {"revision": 7}
+        payload = {"round_id": 23, "revision": 7}
         cases = (
             ("PUT", ["exam-rounds", "12"], MutationLockKind.EXAM_ROUND, 12),
             (
-                "PATCH",
-                ["planning-proposals", "23", "confirm"],
+                "POST",
+                ["planning-proposals"],
                 MutationLockKind.PLANNING_PROPOSAL,
-                23,
+                None,
             ),
             (
                 "POST",
