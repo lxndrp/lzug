@@ -171,10 +171,10 @@ class _SQLiteExamLifecycleExecution:
             return service.human_export_in_session(self._session, scope, round_id)
         return service.machine_export_in_session(self._session, scope, round_id)
 
-    def export_day(self, service, scope, day_id: int, *, human: bool):
+    def export_day(self, service, scope, day_id: int, *, human: bool, facts):
         if human:
-            return service.human_export_in_session(self._session, scope, day_id)
-        return service.machine_export_in_session(self._session, scope, day_id)
+            return service.human_export_in_session(self._session, scope, day_id, facts=facts)
+        return service.machine_export_in_session(self._session, scope, day_id, facts=facts)
 
     def evaluate_round_decision(self, service, scope, command, decision_type, facts):
         return service.evaluate_decision_intent(self._session, scope, command, decision_type, facts)

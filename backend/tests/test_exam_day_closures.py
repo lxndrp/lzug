@@ -181,7 +181,7 @@ class ExamDayClosureTests(unittest.TestCase):
                 round_lifecycle_service, scope, 1, pending_consequence_ids
             )
             day_export = unit_of_work.execution.export_day(
-                day_closure_service, scope, 2, human=False
+                day_closure_service, scope, 2, human=False, facts=lifecycle_facts
             )
             round_export = unit_of_work.execution.export_round(
                 round_lifecycle_service, scope, 1, human=False
@@ -213,11 +213,17 @@ class ExamDayClosureTests(unittest.TestCase):
                 unit_of_work.planning_lifecycle.exam_day_slot_ids((2,)),
                 unit_of_work.execution.exam_day_round_id(2),
                 unit_of_work.execution.exam_day_ids_for_round(1),
+                unit_of_work.execution.candidate_attendance_for_slots(slot_ids),
+                unit_of_work.execution.member_attendance_for_day(2, (1, 2, 3)),
+                unit_of_work.execution.absence_reports_for_day(2),
                 unit_of_work.consequences.pending_ids_for_round(1),
                 lifecycle_day,
                 lifecycle_round,
                 day_export,
                 round_export,
+                lifecycle_facts.candidate_attendance,
+                lifecycle_facts.member_attendance,
+                lifecycle_facts.absences,
                 unit_of_work.assessment_lifecycle.day_completion(2),
                 unit_of_work.assessment_lifecycle.results_for_day_slots(2, slot_ids),
                 reopening_impacts,

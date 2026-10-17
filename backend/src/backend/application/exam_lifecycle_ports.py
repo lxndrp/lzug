@@ -90,7 +90,13 @@ class ExamLifecycleExecutionUnitOfWork(ExecutionUnitOfWork, Protocol):
     ) -> dict | str: ...
 
     def export_day(
-        self, service: ExamDayClosureService, scope: AuthorizationScope, day_id: int, *, human: bool
+        self,
+        service: ExamDayClosureService,
+        scope: AuthorizationScope,
+        day_id: int,
+        *,
+        human: bool,
+        facts: DayClosureFacts,
     ) -> dict | str: ...
 
     def exam_day_round_id(self, day_id: int) -> int | None: ...

@@ -997,16 +997,27 @@ class ExamDayClosureService:
         return self._export(scope, day_id, "machine")
 
     def machine_export_in_session(
-        self, session: Session, scope: AuthorizationScope, day_id: int
+        self,
+        session: Session,
+        scope: AuthorizationScope,
+        day_id: int,
+        *,
+        facts: DayClosureFacts | None = None,
     ) -> dict[str, Any]:
-        return self._export_in_session(session, scope, day_id, "machine")
+        return self._export_in_session(session, scope, day_id, "machine", facts=facts)
 
     def _export(self, scope: AuthorizationScope, day_id: int, export_kind: str) -> dict[str, Any]:
         with session_scope(self.db_path) as session:
             return self._export_in_session(session, scope, day_id, export_kind)
 
     def _export_in_session(
-        self, session: Session, scope: AuthorizationScope, day_id: int, export_kind: str
+        self,
+        session: Session,
+        scope: AuthorizationScope,
+        day_id: int,
+        export_kind: str,
+        *,
+        facts: DayClosureFacts | None = None,
     ) -> dict[str, Any]:
         day = self._required_day(session, day_id)
         planning = self.planning_lifecycle_work_factory(session)
@@ -1030,7 +1041,12 @@ class ExamDayClosureService:
             "export_version": 1,
             "exam_day": {"id": day.id, "date": day.date, "exam_round_id": day.exam_round_id},
             "closure": self._view(
-                session, day, scope, planning_work=planning, identity_work=identity
+                session,
+                day,
+                scope,
+                planning_work=planning,
+                identity_work=identity,
+                facts=facts,
             ),
         }
 
@@ -1039,9 +1055,14 @@ class ExamDayClosureService:
         return self._render_human_export(export)
 
     def human_export_in_session(
-        self, session: Session, scope: AuthorizationScope, day_id: int
+        self,
+        session: Session,
+        scope: AuthorizationScope,
+        day_id: int,
+        *,
+        facts: DayClosureFacts | None = None,
     ) -> str:
-        export = self._export_in_session(session, scope, day_id, "human")
+        export = self._export_in_session(session, scope, day_id, "human", facts=facts)
         return self._render_human_export(export)
 
     @staticmethod

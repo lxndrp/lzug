@@ -92,7 +92,13 @@ class ExamLifecycleApplication:
     ) -> dict[str, Any] | str:
         service = self._day_closure_service_factory()
         with self._unit_of_work_factory() as unit_of_work:
-            return unit_of_work.execution.export_day(service, scope, day_id, human=human)
+            round_id = unit_of_work.execution.exam_day_round_id(day_id)
+            if round_id is None:
+                raise ValueError("Prüfungstag nicht gefunden")
+            facts = self._day_closure_facts(unit_of_work, day_id, round_id)
+            return unit_of_work.execution.export_day(
+                service, scope, day_id, human=human, facts=facts
+            )
 
     def _round_lifecycle_service(self) -> ExamRoundLifecycleService:
         if self._round_lifecycle_service_factory is None:
