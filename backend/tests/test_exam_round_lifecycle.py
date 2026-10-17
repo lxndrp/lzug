@@ -66,6 +66,72 @@ class ExamRoundLifecycleTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.database.__exit__(None, None, None)
 
+    def _exam_lifecycle_application(
+        self, service: ExamRoundLifecycleService
+    ) -> ExamLifecycleApplication:
+        assessment_factory = SQLiteAssessmentUnitOfWorkFactory(self.db_path)
+        return ExamLifecycleApplication(
+            SQLiteExamLifecycleUnitOfWorkFactory(
+                SQLiteExecutionUnitOfWorkFactory(
+                    self.db_path,
+                    identity_snapshot_factory=SQLiteIdentityExecutionSnapshotFactory(),
+                ),
+                assessment_factory,
+                self.db_path,
+                SQLiteAssessmentLifecycleAdapter(assessment_factory),
+            ),
+            lambda: ExamDayClosureService(
+                self.db_path,
+                notification_service=notification_service_for_test(self.db_path),
+                assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(),
+                planning_lifecycle_work_factory=planning_lifecycle_work_factory(),
+                identity_lifecycle_work_factory=identity_lifecycle_work_factory(),
+            ),
+            lambda: service,
+        )
+
+    def test_application_mutation_ports_return_materialized_values(self) -> None:
+        service = ExamRoundLifecycleService(
+            self.db_path,
+            notification_service=notification_service_for_test(self.db_path),
+            assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(),
+            planning_lifecycle_work_factory=planning_lifecycle_work_factory(),
+            identity_lifecycle_work_factory=identity_lifecycle_work_factory(),
+            calendar_lifecycle_work_factory=calendar_lifecycle_work_factory(),
+        )
+        application = self._exam_lifecycle_application(service)
+        chair = SQLiteAuthenticationRepository(self.db_path).authenticate(self.chair.token)
+        terminal_status = application.set_exam_round_candidate_terminal_status(
+            authorization_service(self.db_path).scope(chair),
+            1,
+            1,
+            {
+                "revision": 1,
+                "terminal_status": "postponed",
+                "reason": "Neue Planung",
+                "postponed_until": "2027-12-01",
+            },
+        )
+        assert_materialized_port_value(self, terminal_status)
+
+        prepare_exam_protocol_scenario(self.db_path)
+        self.deputy = SQLiteAuthenticationRepository(self.db_path).create_session(3)
+        with session_scope(self.db_path) as session:
+            session.execute(
+                text("UPDATE exam_round SET lifecycle_status = 'closed', revision = 2 WHERE id = 2")
+            )
+        deputy = SQLiteAuthenticationRepository(self.db_path).authenticate(self.deputy.token)
+        ihk_status = application.document_exam_round_ihk_status(
+            authorization_service(self.db_path).scope(deputy),
+            2,
+            1,
+            {
+                "document_status": "Zeugnis extern zugestellt",
+                "document_reference": "IHK-TEST-89-1",
+            },
+        )
+        assert_materialized_port_value(self, ihk_status)
+
     def test_round_lifecycle_facts_use_round_candidate_ids_for_scope(self) -> None:
         facts = RoundLifecycleFacts(
             round=type("Round", (), {"id": 7})(),
@@ -309,37 +375,37 @@ class ExamRoundLifecycleTests(unittest.TestCase):
                 {"content_hash": "b" * 64},
             )
 
-        command = {
-            "revision": 1,
-            "confirmed": True,
-            "reason": "Die Prüfungsrunde kann nicht stattfinden",
-        }
-        with ApiServer(self.db_path) as api:
-            status, cancelled = api.request(
-                "POST",
-                "/api/exam-rounds/1/cancellation",
-                command,
-                credentials=self.deputy,
-            )
-            assert_status(status, HTTPStatus.OK)
-            self.assertEqual(("cancelled", 2), (cancelled["status"], cancelled["revision"]))
-            cancelled_slots = cancelled["current_decision"]["snapshot"]["slots"]
-            self.assertTrue(cancelled_slots)
-            self.assertTrue(
-                all(item["execution_status"] == "cancelled" for item in cancelled_slots)
-            )
-            cancelled_days = cancelled["current_decision"]["snapshot"]["days"]
-            self.assertTrue(cancelled_days)
-            self.assertTrue(all(item["status"] == "cancelled" for item in cancelled_days))
+        service = ExamRoundLifecycleService(
+            self.db_path,
+            notification_service=notification_service_for_test(self.db_path),
+            assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(),
+            planning_lifecycle_work_factory=planning_lifecycle_work_factory(),
+            identity_lifecycle_work_factory=identity_lifecycle_work_factory(),
+            calendar_lifecycle_work_factory=calendar_lifecycle_work_factory(),
+        )
+        application = self._exam_lifecycle_application(service)
+        deputy = SQLiteAuthenticationRepository(self.db_path).authenticate(self.deputy.token)
+        scope = authorization_service(self.db_path).scope(deputy)
+        cancellation = round_decision_command(
+            {
+                "revision": 1,
+                "confirmed": True,
+                "reason": "Die Prüfungsrunde kann nicht stattfinden",
+            }
+        )
+        cancelled = application.cancel_exam_round(scope, 1, cancellation)
+        assert_materialized_port_value(self, cancelled)
+        self.assertEqual(("cancelled", 2), (cancelled["status"], cancelled["revision"]))
+        cancelled_slots = cancelled["current_decision"]["snapshot"]["slots"]
+        self.assertTrue(cancelled_slots)
+        self.assertTrue(all(item["execution_status"] == "cancelled" for item in cancelled_slots))
+        cancelled_days = cancelled["current_decision"]["snapshot"]["days"]
+        self.assertTrue(cancelled_days)
+        self.assertTrue(all(item["status"] == "cancelled" for item in cancelled_days))
 
-            status, repeated = api.request(
-                "POST",
-                "/api/exam-rounds/1/cancellation",
-                command,
-                credentials=self.deputy,
-            )
-            assert_status(status, HTTPStatus.OK)
-            self.assertEqual(2, repeated["revision"])
+        repeated = application.cancel_exam_round(scope, 1, cancellation)
+        assert_materialized_port_value(self, repeated)
+        self.assertEqual(2, repeated["revision"])
 
         with session_scope(self.db_path) as session:
             day = session.get(ExamDay, 50)
