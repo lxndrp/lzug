@@ -254,6 +254,9 @@ Presentation-Renderer.
 FastAPI übergibt Rundenabschluss, Absage und Wiedereröffnung an
 `ExamLifecycleApplication`, das einen gemeinsamen Execution-/Planning-/Assessment-UoW
 öffnet und Benachrichtigungen erst nach dessen Commit ausführt.
+Die generische Mutationssperre läuft ebenfalls über `ExamLifecycleApplication`
+und dessen read-scope-UoW; sie bleibt ein HTTP-gebundener Vorabcheck, der getrennt
+von der anschließenden Ressourcenmutation ausgeführt wird.
 `ExamRoundLifecycleService` und `ExamDayClosureService` verwenden gebundene,
 frameworkfreie Planning- und Assessment-Ports für fremde Planungs-/Ergebnisfakten.
 Der Persistence-Adapter bindet beide Fähigkeiten an die UoW-Session; die Services

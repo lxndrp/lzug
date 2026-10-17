@@ -406,6 +406,30 @@ class ExamRoundLifecycleTests(unittest.TestCase):
         repeated = application.cancel_exam_round(scope, 1, cancellation)
         assert_materialized_port_value(self, repeated)
         self.assertEqual(2, repeated["revision"])
+        with ApiServer(self.db_path) as api:
+            status, http_replay = api.request(
+                "POST",
+                "/api/exam-rounds/1/cancellation",
+                {
+                    "revision": 1,
+                    "confirmed": True,
+                    "reason": "Die Prüfungsrunde kann nicht stattfinden",
+                },
+                credentials=self.deputy,
+            )
+            assert_status(status, HTTPStatus.OK)
+            status, repeated_http_replay = api.request(
+                "POST",
+                "/api/exam-rounds/1/cancellation",
+                {
+                    "revision": 1,
+                    "confirmed": True,
+                    "reason": "Die Prüfungsrunde kann nicht stattfinden",
+                },
+                credentials=self.deputy,
+            )
+            assert_status(status, HTTPStatus.OK)
+            self.assertEqual(http_replay, repeated_http_replay)
 
         with session_scope(self.db_path) as session:
             day = session.get(ExamDay, 50)
