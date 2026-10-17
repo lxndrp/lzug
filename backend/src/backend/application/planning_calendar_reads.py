@@ -105,10 +105,7 @@ class ClosurePermissionsRead(TypedDict):
     export: bool
 
 
-class ClosureLinksRead(TypedDict):
-    self: dict[str, str]
-    machine_export: dict[str, str]
-    human_export: dict[str, str]
+JsonValue = str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
 
 
 class ClosureCalendarRead(TypedDict):
@@ -116,12 +113,11 @@ class ClosureCalendarRead(TypedDict):
     revision: int
     status: str
     legacy_status: str | None
-    evaluation: Mapping[str, object]
-    active_reopening: Mapping[str, object] | None
-    history: list[Mapping[str, object]]
-    tasks: list[Mapping[str, object]]
+    evaluation: dict[str, JsonValue]
+    active_reopening: dict[str, JsonValue] | None
+    history: list[dict[str, JsonValue]]
+    tasks: list[dict[str, JsonValue]]
     permissions: ClosurePermissionsRead
-    _links: ClosureLinksRead
 
 
 class ConfirmedCalendarDayRead(TypedDict):

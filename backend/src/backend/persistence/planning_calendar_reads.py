@@ -115,7 +115,26 @@ class SQLitePlanningCalendarReadUnitOfWork:
 
     def closure_view(self, day_id: int, scope: AuthorizationScope) -> ClosureCalendarRead | None:
         view = self._closure_view(self._session, day_id, scope)
-        return cast("ClosureCalendarRead | None", view)
+        if view is None:
+            return None
+        # Strip Execution-owned HTTP links before crossing into Application.
+        return cast(
+            "ClosureCalendarRead",
+            {
+                key: view[key]
+                for key in (
+                    "exam_day_id",
+                    "revision",
+                    "status",
+                    "legacy_status",
+                    "evaluation",
+                    "active_reopening",
+                    "history",
+                    "tasks",
+                    "permissions",
+                )
+            },
+        )
 
 
 class _SQLitePlanningCalendarQueries:

@@ -445,7 +445,27 @@ def _confirmed_calendar_day(day: dict[str, Any]) -> dict[str, Any]:
         "status_summary": summary,
     }
     if "closure" in day:
-        result["closure"] = day["closure"]
+        closure = day["closure"]
+        result["closure"] = {
+            "exam_day_id": closure["exam_day_id"],
+            "revision": closure["revision"],
+            "status": closure["status"],
+            "legacy_status": closure["legacy_status"],
+            "evaluation": closure["evaluation"],
+            "active_reopening": closure["active_reopening"],
+            "history": closure["history"],
+            "tasks": closure["tasks"],
+            "permissions": closure["permissions"],
+            "_links": {
+                "self": {"href": f"/api/confirmed-plan-days/{day['id']}/closure"},
+                "machine_export": {
+                    "href": f"/api/confirmed-plan-days/{day['id']}/closure/export.json"
+                },
+                "human_export": {
+                    "href": f"/api/confirmed-plan-days/{day['id']}/closure/export.txt"
+                },
+            },
+        }
     return result
 
 
