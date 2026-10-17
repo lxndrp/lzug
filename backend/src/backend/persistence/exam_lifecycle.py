@@ -36,6 +36,9 @@ class SQLiteExamLifecycleUnitOfWorkFactory:
     def __call__(self) -> AbstractContextManager[_SQLiteExamLifecycleUnitOfWork]:
         return self._scope()
 
+    def read_scope(self) -> AbstractContextManager[_SQLiteExamLifecycleUnitOfWork]:
+        return self._read_scope()
+
     def in_session(self, session: Session) -> _SQLiteExamLifecycleUnitOfWork:
         """Compose both domain capabilities over an already owned transaction."""
         return _SQLiteExamLifecycleUnitOfWork(
@@ -55,6 +58,11 @@ class SQLiteExamLifecycleUnitOfWorkFactory:
     @contextmanager
     def _scope(self) -> Iterator[_SQLiteExamLifecycleUnitOfWork]:
         with session_scope(self._db_path, begin_immediate=True) as session:
+            yield self.in_session(session)
+
+    @contextmanager
+    def _read_scope(self) -> Iterator[_SQLiteExamLifecycleUnitOfWork]:
+        with session_scope(self._db_path) as session:
             yield self.in_session(session)
 
 
@@ -123,6 +131,12 @@ class _SQLiteExamLifecycleExecution:
                 select(ExamDay.id).where(ExamDay.exam_round_id == round_id).order_by(ExamDay.id)
             )
         )
+
+    def read_day_closure(self, service, scope, day_id: int):
+        return service.get_in_session(self._session, scope, day_id)
+
+    def read_round_lifecycle(self, service, scope, round_id: int):
+        return service.get_in_session(self._session, scope, round_id)
 
     def evaluate_round_decision(self, service, scope, command, decision_type, facts):
         return service.evaluate_decision_intent(self._session, scope, command, decision_type, facts)

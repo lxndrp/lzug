@@ -40,6 +40,14 @@ from backend.identity.authorization import AuthorizationScope
 class ExamLifecycleExecutionUnitOfWork(ExecutionUnitOfWork, Protocol):
     """Execution capabilities required by Application lifecycle commands."""
 
+    def read_day_closure(
+        self, service: ExamDayClosureService, scope: AuthorizationScope, day_id: int
+    ) -> dict | None: ...
+
+    def read_round_lifecycle(
+        self, service: ExamRoundLifecycleService, scope: AuthorizationScope, round_id: int
+    ) -> dict | None: ...
+
     def exam_day_round_id(self, day_id: int) -> int | None: ...
 
     def exam_day_ids_for_round(self, round_id: int) -> tuple[int, ...]: ...
@@ -192,3 +200,5 @@ class ExamLifecycleUnitOfWorkFactory(Protocol):
     """Open the common write boundary owned by Application."""
 
     def __call__(self) -> AbstractContextManager[ExamLifecycleUnitOfWork]: ...
+
+    def read_scope(self) -> AbstractContextManager[ExamLifecycleUnitOfWork]: ...

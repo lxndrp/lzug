@@ -25,6 +25,7 @@ from backend.persistence.exam_lifecycle import SQLiteExamLifecycleUnitOfWorkFact
 from backend.persistence.execution import SQLiteExecutionUnitOfWorkFactory
 from backend.persistence.identity import SQLiteIdentityExecutionSnapshotFactory
 from backend.persistence.models import (
+    AssessmentModelVersion,
     ExamDay,
     ExamDayAuditEvent,
     ExamDayClosure,
@@ -100,6 +101,36 @@ class ExamDayClosureTests(unittest.TestCase):
             self.assertEqual(1, session.get(ExamDay, 2).revision)
 
     def test_exam_lifecycle_work_port_results_are_materialized(self) -> None:
+        with session_scope(self.db_path) as session:
+            model = AssessmentModelVersion(
+                model_key="lifecycle-port-contract",
+                version=1,
+                ihk="IHK Teststadt",
+                occupation="Fachinformatiker/in",
+                specialization=None,
+                training_regulation="Testordnung",
+                exam_regulation="Prüfungsordnung",
+                ihk_guidelines="Richtlinie",
+                valid_from="2026-01-01",
+                valid_until="2026-12-31",
+                rules_json="{}",
+                retention_rule_reference="PrüfO § 1",
+                created_by_member_id=1,
+            )
+            session.add(model)
+            session.flush()
+            session.add(
+                ExamRoundAssessmentBinding(
+                    exam_round_id=1,
+                    assessment_model_version_id=model.id,
+                    bound_by_member_id=1,
+                    binding_reason="Materialized port contract fixture",
+                )
+            )
+            result = ExamResult(round_candidate_id=1, source="migration")
+            session.add(result)
+            session.flush()
+            result_id = result.id
         factory = SQLiteExamLifecycleUnitOfWorkFactory(
             SQLiteExecutionUnitOfWorkFactory(
                 self.db_path,
@@ -132,11 +163,11 @@ class ExamDayClosureTests(unittest.TestCase):
                 unit_of_work.execution.exam_day_ids_for_round(1),
                 unit_of_work.assessment_lifecycle.day_completion(2),
                 unit_of_work.assessment_lifecycle.results_for_day_slots(2, slot_ids),
-                unit_of_work.assessment_lifecycle.result_reopening_impacts(set()),
-                unit_of_work.assessment_lifecycle.result_by_id(-1),
+                unit_of_work.assessment_lifecycle.result_reopening_impacts({result_id}),
+                unit_of_work.assessment_lifecycle.result_by_id(result_id),
                 unit_of_work.assessment_lifecycle.results_for_round(1),
                 unit_of_work.assessment_lifecycle.result_for_round_candidate(
-                    candidate_ids[0] if candidate_ids else -1
+                    candidates[0]["id"] if candidates else -1
                 ),
                 unit_of_work.identity_lifecycle.committee_members(1),
                 unit_of_work.identity_lifecycle.committee(1),

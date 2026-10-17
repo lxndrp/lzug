@@ -168,12 +168,18 @@ class ExamRoundLifecycleService:
 
     def get(self, scope: AuthorizationScope, round_id: int) -> dict[str, Any] | None:
         with session_scope(self.db_path) as session:
-            planning = self.planning_lifecycle_work_factory(session)
-            exam_round = planning.round_lifecycle_snapshot(round_id)
-            if exam_round is None:
-                return None
-            self._require_access(exam_round, scope)
-            return self._view(session, exam_round, scope, planning_work=planning)
+            return self.get_in_session(session, scope, round_id)
+
+    def get_in_session(
+        self, session: Session, scope: AuthorizationScope, round_id: int
+    ) -> dict[str, Any] | None:
+        """Read lifecycle state from an Application-owned SQLite snapshot."""
+        planning = self.planning_lifecycle_work_factory(session)
+        exam_round = planning.round_lifecycle_snapshot(round_id)
+        if exam_round is None:
+            return None
+        self._require_access(exam_round, scope)
+        return self._view(session, exam_round, scope, planning_work=planning)
 
     def publish_decision_notifications(self, outcome: ExamRoundDecisionOutcome) -> None:
         """Publish cancellation notices only after the caller has committed."""

@@ -33,6 +33,20 @@ class ExamLifecycleApplication:
         self._day_closure_service_factory = day_closure_service_factory
         self._round_lifecycle_service_factory = round_lifecycle_service_factory
 
+    def get_exam_day_closure(self, scope: AuthorizationScope, day_id: int) -> dict[str, Any] | None:
+        service = self._day_closure_service_factory()
+        with self._unit_of_work_factory.read_scope() as unit_of_work:
+            return unit_of_work.execution.read_day_closure(service, scope, day_id)
+
+    def get_exam_round_lifecycle(
+        self, scope: AuthorizationScope, round_id: int
+    ) -> dict[str, Any] | None:
+        if self._round_lifecycle_service_factory is None:
+            raise RuntimeError("Round lifecycle service factory is not configured")
+        service = self._round_lifecycle_service_factory()
+        with self._unit_of_work_factory.read_scope() as unit_of_work:
+            return unit_of_work.execution.read_round_lifecycle(service, scope, round_id)
+
     def close_exam_day(
         self, scope: AuthorizationScope, day_id: int, command: DayCloseCommand
     ) -> dict[str, Any]:

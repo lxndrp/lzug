@@ -787,7 +787,9 @@ def _register_integration_router(app, resolved, application, read_security, writ
 def _register_exam_round_routes(app, resolved, application, read_security, write_security):
     @app.get("/api/exam-rounds/{id}/lifecycle", openapi_extra=read_security)
     def exam_round_lifecycle(context: ReadContext, id: int):
-        result = context.exam_round_lifecycle_service.get(context.authorization_scope, id)
+        result = context.exam_lifecycle_application.get_exam_round_lifecycle(
+            context.authorization_scope, id
+        )
         return _not_found() if result is None else _finish(context, context.respond(result))
 
     @app.post("/api/exam-rounds/{id}/closure", openapi_extra=write_security)
@@ -896,7 +898,9 @@ def _register_exam_day_routes(app, resolved, application, read_security, write_s
         openapi_extra=read_security,
     )
     def exam_day_closure(context: ReadContext, id: int):
-        result = context.exam_day_closure_service.get(context.authorization_scope, id)
+        result = context.exam_lifecycle_application.get_exam_day_closure(
+            context.authorization_scope, id
+        )
         return (
             _not_found()
             if result is None
