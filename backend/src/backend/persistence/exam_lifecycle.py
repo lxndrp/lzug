@@ -9,12 +9,13 @@ from pathlib import Path
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from backend.persistence.application_consequences import PlanConsequence, PlanConsequenceBatch
 from backend.persistence.assessment import SQLiteAssessmentUnitOfWorkFactory
 from backend.persistence.calendar_lifecycle import SQLiteCalendarLifecycleWork
 from backend.persistence.database import DEFAULT_DB_PATH, read_session_scope, session_scope
 from backend.persistence.execution import SQLiteExecutionUnitOfWorkFactory
 from backend.persistence.identity_lifecycle import SQLiteIdentityLifecycleWork
-from backend.persistence.models import ExamDay
+from backend.persistence.models import ConfirmedPlanRevision, ExamDay
 from backend.persistence.planning_lifecycle import SQLitePlanningLifecycleWork
 
 
@@ -136,7 +137,27 @@ class _SQLiteExamLifecycleExecution:
         return service.get_in_session(self._session, scope, day_id)
 
     def read_round_lifecycle(self, service, scope, round_id: int):
-        return service.get_in_session(self._session, scope, round_id)
+        pending_consequence_ids = tuple(
+            self._session.scalars(
+                select(PlanConsequence.id)
+                .join(PlanConsequenceBatch, PlanConsequenceBatch.id == PlanConsequence.batch_id)
+                .join(
+                    ConfirmedPlanRevision,
+                    ConfirmedPlanRevision.id == PlanConsequenceBatch.confirmed_plan_revision_id,
+                )
+                .where(
+                    ConfirmedPlanRevision.exam_round_id == round_id,
+                    PlanConsequence.status.in_(("pending", "temporarily_failed")),
+                )
+                .order_by(PlanConsequence.id)
+            )
+        )
+        return service.get_in_session(
+            self._session,
+            scope,
+            round_id,
+            pending_consequence_ids=pending_consequence_ids,
+        )
 
     def set_round_candidate_terminal_status(
         self, service, scope, round_id: int, candidate_id: int, payload

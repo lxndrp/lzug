@@ -171,7 +171,12 @@ class ExamRoundLifecycleService:
             return self.get_in_session(session, scope, round_id)
 
     def get_in_session(
-        self, session: Session, scope: AuthorizationScope, round_id: int
+        self,
+        session: Session,
+        scope: AuthorizationScope,
+        round_id: int,
+        *,
+        pending_consequence_ids: Sequence[int] | None = None,
     ) -> dict[str, Any] | None:
         """Read lifecycle state from an Application-owned SQLite snapshot."""
         planning = self.planning_lifecycle_work_factory(session)
@@ -179,7 +184,13 @@ class ExamRoundLifecycleService:
         if exam_round is None:
             return None
         self._require_access(exam_round, scope)
-        return self._view(session, exam_round, scope, planning_work=planning)
+        return self._view(
+            session,
+            exam_round,
+            scope,
+            planning_work=planning,
+            pending_consequence_ids=pending_consequence_ids,
+        )
 
     def publish_decision_notifications(self, outcome: ExamRoundDecisionOutcome) -> None:
         """Publish cancellation notices only after the caller has committed."""
@@ -1003,6 +1014,7 @@ class ExamRoundLifecycleService:
         assessment_work: AssessmentLifecycleWork | None = None,
         planning_work: PlanningLifecycleWork | None = None,
         facts: RoundLifecycleFacts | None = None,
+        pending_consequence_ids: Sequence[int] | None = None,
     ) -> dict[str, Any]:
         planning = planning_work or self.planning_lifecycle_work_factory(session)
         actor_id = self._require_access(exam_round, scope)
@@ -1062,7 +1074,13 @@ class ExamRoundLifecycleService:
                 exam_round.lifecycle_status == "historical" and not decision_rows
             ),
             "evaluation": self._evaluate(
-                session, exam_round, "close", assessment_work, planning, facts
+                session,
+                exam_round,
+                "close",
+                assessment_work,
+                planning,
+                facts,
+                pending_consequence_ids=pending_consequence_ids,
             ),
             "candidates": [
                 {
@@ -1129,6 +1147,7 @@ class ExamRoundLifecycleService:
         assessment_work: AssessmentLifecycleWork | None = None,
         planning_work: PlanningLifecycleWork | None = None,
         facts: RoundLifecycleFacts | None = None,
+        pending_consequence_ids: Sequence[int] | None = None,
     ) -> dict[str, Any]:
         planning = planning_work or self.planning_lifecycle_work_factory(session)
         items: list[dict[str, Any]] = []
@@ -1312,7 +1331,11 @@ class ExamRoundLifecycleService:
             not open_slots,
             open_slots,
         )
-        pending_consequences = self.pending_consequence_ids(exam_round.id)
+        pending_consequences = (
+            tuple(pending_consequence_ids)
+            if pending_consequence_ids is not None
+            else self.pending_consequence_ids(exam_round.id)
+        )
         self._finding(
             items,
             "plan_consequences_complete",

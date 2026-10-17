@@ -287,6 +287,7 @@ class ExamDayClosureTests(unittest.TestCase):
         with session_scope(self.db_path) as session:
             self.assertEqual(expected_version + 1, session.get(ExamResult, 2).version)
         self.assertIsNone(receipt["determination_id"])
+        assert_materialized_port_value(self, receipt)
 
     def test_missing_assessment_binding_is_reported_as_blocked_day_completion(self) -> None:
         with session_scope(self.db_path) as session:
