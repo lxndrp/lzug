@@ -12,6 +12,8 @@ from unittest.mock import patch
 
 from sqlalchemy.exc import SAWarning, SQLAlchemyError
 
+from backend.execution.lifecycle_ports import MutationLockCommand, MutationLockKind
+from backend.http_transport import RequestContext
 from backend.persistence.database import session_scope
 from backend.persistence.models import (
     CANDIDATE,
@@ -38,6 +40,47 @@ class StaticTestHandler(TestLzugHandler):
 
 
 class ApiTests(unittest.TestCase):
+    def test_mutation_lock_route_mapping(self) -> None:
+        payload = {"revision": 7}
+        cases = (
+            ("PUT", ["exam-rounds", "12"], MutationLockKind.EXAM_ROUND, 12),
+            (
+                "PATCH",
+                ["planning-proposals", "23", "confirm"],
+                MutationLockKind.PLANNING_PROPOSAL,
+                23,
+            ),
+            (
+                "POST",
+                ["exam-protocols", "31", "entries"],
+                MutationLockKind.EXAM_PROTOCOL,
+                31,
+            ),
+            (
+                "DELETE",
+                ["absence-reports", "42"],
+                MutationLockKind.ABSENCE_REPORT,
+                42,
+            ),
+        )
+        for method, path, kind, resource_id in cases:
+            with self.subTest(method=method, path=path):
+                self.assertEqual(
+                    MutationLockCommand(kind, resource_id, payload),
+                    RequestContext._mutation_lock_command(method, path, payload),
+                )
+
+        for method, path in (
+            ("POST", ["exam-rounds", "12", "closure"]),
+            ("PUT", ["exam-rounds", "12", "candidates", "4", "terminal-status"]),
+            ("PATCH", ["exam-rounds", "12", "results", "5", "ihk-status"]),
+            ("PUT", ["exam-results", "5", "retention"]),
+            ("GET", ["exam-rounds", "12"]),
+            ("POST", ["unrelated-resource", "12"]),
+        ):
+            with self.subTest(method=method, path=path):
+                self.assertIsNone(RequestContext._mutation_lock_command(method, path, payload))
+
     def test_round_candidate_delete_uses_the_planning_command(self) -> None:
         with TempDatabase() as db_path:
             with session_scope(db_path, begin_immediate=True) as session:
