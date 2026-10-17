@@ -345,7 +345,7 @@ def confirmed_plans(items: list[dict[str, Any]]) -> dict[str, Any]:
                 "name": item["name"],
                 "committee": item["committee"],
                 "exam_half_year": item["exam_half_year"],
-                "days": item["days"],
+                "days": [_confirmed_calendar_day(day) for day in item["days"]],
             }
             for item in items
         ],
@@ -358,7 +358,9 @@ def confirmed_plans(items: list[dict[str, Any]]) -> dict[str, Any]:
 
 def confirmed_plan_day(item: dict[str, Any]) -> dict[str, Any]:
     plan = {
-        **item["plan"],
+        "id": item["plan"]["id"],
+        "name": item["plan"]["name"],
+        "committee": item["plan"]["committee"],
         "exam_half_year": {
             **item["plan"]["exam_half_year"],
             "_links": {
@@ -367,10 +369,10 @@ def confirmed_plan_day(item: dict[str, Any]) -> dict[str, Any]:
             },
         },
     }
-    day = item["day"]
+    day = _confirmed_calendar_day(item["day"])
     return {
-        **item,
         "plan": plan,
+        "day": day,
         "_links": {
             "self": {"href": f"/api/confirmed-plan-days/{day['id']}"},
             "api": {"href": "/api"},
@@ -378,6 +380,73 @@ def confirmed_plan_day(item: dict[str, Any]) -> dict[str, Any]:
             "round": {"href": f"/api/exam-rounds/{plan['id']}"},
         },
     }
+
+
+def _confirmed_calendar_day(day: dict[str, Any]) -> dict[str, Any]:
+    """Map a typed calendar read to its established HTTP representation."""
+    slots = [
+        {
+            "id": slot["id"],
+            "starts_at": slot["starts_at"],
+            "ends_at": slot["ends_at"],
+            "sequence_number": slot["sequence_number"],
+            "slot_type": slot["slot_type"],
+            "actual_started_at": slot["actual_started_at"],
+            "execution_status": slot["execution_status"],
+            "status_changed_at": slot["status_changed_at"],
+            "actual_completed_at": slot["actual_completed_at"],
+            "status_reason": slot["status_reason"],
+            "candidate_attendance": slot["candidate_attendance"],
+            "candidate": {
+                "id": slot["candidate"]["id"],
+                "first_name": slot["candidate"]["first_name"],
+                "last_name": slot["candidate"]["last_name"],
+                "ihk_exam_number": slot["candidate"]["ihk_exam_number"],
+            },
+        }
+        for slot in day["slots"]
+    ]
+    summary = {key: 0 for key in ("open", "running", "completed", "cancelled", "needs_follow_up")}
+    for slot in slots:
+        summary[slot["execution_status"]] += 1
+    result = {
+        "id": day["id"],
+        "date": day["date"],
+        "revision": day["revision"],
+        "closure_status": day["closure_status"],
+        "location": (
+            {
+                "id": day["location"]["id"],
+                "name": day["location"]["name"],
+                "room": day["location"]["room"],
+                "city": day["location"]["city"],
+            }
+            if day["location"] is not None
+            else None
+        ),
+        "room_id": day["room_id"],
+        "slots": slots,
+        "assignments": [
+            {
+                "id": assignment["id"],
+                "assignment_role": assignment["assignment_role"],
+                "day_part": assignment["day_part"],
+                "fallback_status": assignment["fallback_status"],
+                "attendance": assignment["attendance"],
+                "member": {
+                    "id": assignment["member"]["id"],
+                    "first_name": assignment["member"]["first_name"],
+                    "last_name": assignment["member"]["last_name"],
+                    "representing_side": assignment["member"]["representing_side"],
+                },
+            }
+            for assignment in day["assignments"]
+        ],
+        "status_summary": summary,
+    }
+    if "closure" in day:
+        result["closure"] = day["closure"]
+    return result
 
 
 def planning_proposal(proposal: dict[str, Any]) -> dict[str, Any]:

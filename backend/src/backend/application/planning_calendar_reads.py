@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from contextlib import AbstractContextManager
-from typing import Any, Protocol, TypedDict
+from typing import Any, NotRequired, Protocol, TypedDict
 
 from backend.identity.authorization import AuthorizationScope
 from backend.identity.calendar_reads import IdentityCalendarMember
@@ -27,17 +27,79 @@ class SchedulingOverviewItem(TypedDict):
     can_continue: bool
 
 
+class AttendanceRead(TypedDict):
+    status: str
+    arrived_at: str | None
+
+
+class CandidateRead(TypedDict):
+    id: int
+    first_name: str
+    last_name: str
+    ihk_exam_number: str
+
+
+class ConfirmedSlotRead(TypedDict):
+    id: int
+    starts_at: str
+    ends_at: str
+    sequence_number: int
+    slot_type: str
+    actual_started_at: str | None
+    execution_status: str
+    status_changed_at: str | None
+    actual_completed_at: str | None
+    status_reason: str | None
+    candidate_attendance: AttendanceRead
+    candidate: CandidateRead
+
+
+class CommitteeMemberRead(TypedDict):
+    id: int
+    first_name: str
+    last_name: str
+    representing_side: str
+
+
+class ConfirmedAssignmentRead(TypedDict):
+    id: int
+    assignment_role: str
+    day_part: str
+    fallback_status: str
+    attendance: AttendanceRead
+    member: CommitteeMemberRead
+
+
+class ConfirmedLocationRead(TypedDict):
+    id: int
+    name: str
+    room: str
+    city: str
+
+
+class ConfirmedCalendarDayRead(TypedDict):
+    id: int
+    date: str
+    revision: int
+    closure_status: str
+    location: ConfirmedLocationRead | None
+    room_id: int | None
+    slots: list[ConfirmedSlotRead]
+    assignments: list[ConfirmedAssignmentRead]
+    closure: NotRequired[dict[str, Any]]
+
+
 class ConfirmedPlanItem(TypedDict):
     id: int
     name: str
     committee: dict[str, Any]
     exam_half_year: dict[str, Any] | None
-    days: list[dict[str, Any]]
+    days: list[ConfirmedCalendarDayRead]
 
 
 class ConfirmedPlanDayItem(TypedDict):
     plan: dict[str, Any]
-    day: dict[str, Any]
+    day: ConfirmedCalendarDayRead
 
 
 class PlanningCalendarQueries(Protocol):
@@ -204,18 +266,24 @@ class PlanningCalendarReadService:
         day: PlanningCalendarDay,
         members: Mapping[int, IdentityCalendarMember],
         execution_by_day: Mapping[int, Mapping[str, Any]],
-    ) -> dict[str, Any]:
+    ) -> ConfirmedCalendarDayRead:
         day_values = day.day.values
         execution = execution_by_day.get(int(day_values["id"]), {})
         room = day.room.values if day.room else None
         venue = day.venue.values if day.venue else None
-        slots = []
+        slots: list[ConfirmedSlotRead] = []
         for slot_item in day.slots:
             slot = slot_item.slot.values
             candidate = slot_item.candidate.values if slot_item.candidate else None
             if candidate is None:
                 continue
             slot_execution = execution.get("slots", {}).get(int(slot["id"]), {})
+            candidate_view: CandidateRead = {
+                "id": candidate["id"],
+                "first_name": candidate["first_name"],
+                "last_name": candidate["last_name"],
+                "ihk_exam_number": candidate["ihk_exam_number"],
+            }
             slots.append(
                 {
                     "id": slot["id"],
@@ -231,13 +299,10 @@ class PlanningCalendarReadService:
                     "candidate_attendance": execution.get("candidate_attendance", {}).get(
                         int(slot["id"]), {"status": "open", "arrived_at": None}
                     ),
-                    "candidate": {
-                        key: candidate[key]
-                        for key in ("id", "first_name", "last_name", "ihk_exam_number")
-                    },
+                    "candidate": candidate_view,
                 }
             )
-        assignments = []
+        assignments: list[ConfirmedAssignmentRead] = []
         for assignment_item in day.assignments:
             assignment = assignment_item.assignment.values
             member = members.get(assignment_item.member_id)
@@ -251,6 +316,12 @@ class PlanningCalendarReadService:
                     if key in member.person
                 }
             )
+            member_view: CommitteeMemberRead = {
+                "id": member_values["id"],
+                "first_name": member_values["first_name"],
+                "last_name": member_values["last_name"],
+                "representing_side": member_values["representing_side"],
+            }
             assignments.append(
                 {
                     "id": assignment["id"],
@@ -260,17 +331,9 @@ class PlanningCalendarReadService:
                     "attendance": execution.get("member_attendance", {}).get(
                         assignment_item.member_id, {"status": "open", "arrived_at": None}
                     ),
-                    "member": {
-                        key: member_values[key]
-                        for key in ("id", "first_name", "last_name", "representing_side")
-                    },
+                    "member": member_view,
                 }
             )
-        summary = {
-            key: 0 for key in ("open", "running", "completed", "cancelled", "needs_follow_up")
-        }
-        for slot in slots:
-            summary[slot["execution_status"]] += 1
         return {
             "id": day_values["id"],
             "date": day_values["date"],
@@ -289,5 +352,4 @@ class PlanningCalendarReadService:
             "room_id": room["id"] if room else None,
             "slots": slots,
             "assignments": assignments,
-            "status_summary": summary,
-        }
+        }  # type: ignore[return-value]
