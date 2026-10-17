@@ -17,6 +17,7 @@ from backend.persistence.day_mutations import (
 )
 from backend.persistence.execution_protocols import SQLiteExecutionProtocolStore
 from backend.persistence.models import (
+    ABSENCE_REPORT,
     CANDIDATE_EXAM_ATTENDANCE,
     EXAM_DAY,
     EXAM_DAY_ASSIGNMENT,
@@ -46,6 +47,7 @@ if TYPE_CHECKING:
         ProtocolSubmissionWrite,
     )
     from backend.execution.slot_ports import (
+        AbsenceSnapshot,
         AssignmentSnapshot,
         AttendanceSnapshot,
         AttendanceValues,
@@ -279,6 +281,19 @@ class SQLiteExecutionUnitOfWork:
             self._store.first(CANDIDATE_EXAM_ATTENDANCE, exam_slot_id=slot_id),
         )
 
+    def candidate_attendance_for_slots(
+        self, slot_ids: Sequence[int]
+    ) -> Mapping[int, AttendanceSnapshot]:
+        if not slot_ids:
+            return {}
+        return {
+            int(row["exam_slot_id"]): cast("AttendanceSnapshot", row)
+            for row in self._store.where(
+                CANDIDATE_EXAM_ATTENDANCE,
+                CANDIDATE_EXAM_ATTENDANCE.model.exam_slot_id.in_(slot_ids),
+            )
+        }
+
     def member_attendance(self, day_id: int, member_id: int) -> AttendanceSnapshot | None:
         return cast(
             "AttendanceSnapshot | None",
@@ -287,6 +302,26 @@ class SQLiteExecutionUnitOfWork:
                 exam_day_id=day_id,
                 committee_member_id=member_id,
             ),
+        )
+
+    def member_attendance_for_day(
+        self, day_id: int, member_ids: Sequence[int]
+    ) -> Mapping[int, AttendanceSnapshot]:
+        if not member_ids:
+            return {}
+        return {
+            int(row["committee_member_id"]): cast("AttendanceSnapshot", row)
+            for row in self._store.where(
+                MEMBER_EXAM_ATTENDANCE,
+                MEMBER_EXAM_ATTENDANCE.model.exam_day_id == day_id,
+                MEMBER_EXAM_ATTENDANCE.model.committee_member_id.in_(member_ids),
+            )
+        }
+
+    def absence_reports_for_day(self, day_id: int) -> Sequence[AbsenceSnapshot]:
+        return cast(
+            "Sequence[AbsenceSnapshot]",
+            self._store.where(ABSENCE_REPORT, ABSENCE_REPORT.model.exam_day_id == day_id),
         )
 
     def assignments(self, day_id: int) -> Sequence[AssignmentSnapshot]:

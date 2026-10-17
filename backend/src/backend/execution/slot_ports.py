@@ -39,6 +39,11 @@ class AttendanceSnapshot(TypedDict):
     arrived_at: str | None
 
 
+class AbsenceSnapshot(TypedDict):
+    id: int
+    status: str
+
+
 class MemberExecutionSnapshot(TypedDict):
     id: int
     representing_side: str
@@ -116,7 +121,17 @@ class ExecutionUnitOfWork(Protocol):
 
     def candidate_attendance(self, slot_id: int) -> AttendanceSnapshot | None: ...
 
+    def candidate_attendance_for_slots(
+        self, slot_ids: Sequence[int]
+    ) -> Mapping[int, AttendanceSnapshot]: ...
+
     def member_attendance(self, day_id: int, member_id: int) -> AttendanceSnapshot | None: ...
+
+    def member_attendance_for_day(
+        self, day_id: int, member_ids: Sequence[int]
+    ) -> Mapping[int, AttendanceSnapshot]: ...
+
+    def absence_reports_for_day(self, day_id: int) -> Sequence[AbsenceSnapshot]: ...
 
     def assignments(self, day_id: int) -> Sequence[AssignmentSnapshot]: ...
 

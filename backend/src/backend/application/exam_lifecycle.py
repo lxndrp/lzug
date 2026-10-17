@@ -14,7 +14,10 @@ from backend.application.exam_lifecycle_contracts import (
     RoundLifecycleFacts,
     RoundReopenCommand,
 )
-from backend.application.exam_lifecycle_ports import ExamLifecycleUnitOfWorkFactory
+from backend.application.exam_lifecycle_ports import (
+    ExamLifecycleUnitOfWork,
+    ExamLifecycleUnitOfWorkFactory,
+)
 from backend.execution.exam_day_closures import ExamDayClosureService
 from backend.execution.exam_round_lifecycle import ExamRoundLifecycleService
 from backend.identity.authorization import AuthorizationScope
@@ -36,7 +39,11 @@ class ExamLifecycleApplication:
     def get_exam_day_closure(self, scope: AuthorizationScope, day_id: int) -> dict[str, Any] | None:
         service = self._day_closure_service_factory()
         with self._unit_of_work_factory.read_scope() as unit_of_work:
-            return unit_of_work.execution.read_day_closure(service, scope, day_id)
+            round_id = unit_of_work.execution.exam_day_round_id(day_id)
+            if round_id is None:
+                return None
+            facts = self._day_closure_facts(unit_of_work, day_id, round_id)
+            return unit_of_work.execution.read_day_closure(service, scope, day_id, facts)
 
     def get_exam_round_lifecycle(
         self, scope: AuthorizationScope, round_id: int
@@ -103,24 +110,7 @@ class ExamLifecycleApplication:
             committee_id = unit_of_work.planning_lifecycle.round_committee_id(round_id)
             if committee_id is None:
                 raise PermissionError("Forbidden.")
-            slots, assignments = unit_of_work.planning_lifecycle.exam_day_plan(day_id)
-            member_ids = sorted(
-                {
-                    item.committee_member_id
-                    for item in assignments
-                    if item.assignment_role == "examiner"
-                }
-            )
-            facts = DayClosureFacts(
-                committee_id=committee_id,
-                slots=tuple(slots),
-                assignments=tuple(assignments),
-                members=tuple(unit_of_work.identity_lifecycle.committee_members_by_ids(member_ids)),
-                assessment_completion=unit_of_work.assessment_lifecycle.day_completion(day_id),
-                management_member_ids=frozenset(
-                    unit_of_work.identity_lifecycle.management_member_ids(committee_id)
-                ),
-            )
+            facts = self._day_closure_facts(unit_of_work, day_id, round_id, committee_id)
             intent = unit_of_work.execution.evaluate_day_close(
                 service, scope, day_id, command, facts
             )
@@ -139,37 +129,7 @@ class ExamLifecycleApplication:
             committee_id = unit_of_work.planning_lifecycle.round_committee_id(round_id)
             if committee_id is None:
                 raise PermissionError("Forbidden.")
-            slots, assignments = unit_of_work.planning_lifecycle.exam_day_plan(day_id)
-            slot_ids = tuple(item.id for item in slots)
-            results = tuple(
-                unit_of_work.assessment_lifecycle.results_for_day_slots(day_id, slot_ids)
-            )
-            result_ids = {item["id"] for item in results}
-            members = tuple(
-                unit_of_work.identity_lifecycle.committee_members_by_ids(
-                    sorted(
-                        {
-                            item.committee_member_id
-                            for item in assignments
-                            if item.assignment_role == "examiner"
-                        }
-                    )
-                )
-            )
-            facts = DayClosureFacts(
-                committee_id=committee_id,
-                slots=tuple(slots),
-                assignments=tuple(assignments),
-                members=members,
-                assessment_completion=unit_of_work.assessment_lifecycle.day_completion(day_id),
-                management_member_ids=frozenset(
-                    unit_of_work.identity_lifecycle.management_member_ids(committee_id)
-                ),
-                assessment_results=results,
-                assessment_impacts=tuple(
-                    unit_of_work.assessment_lifecycle.result_reopening_impacts(result_ids)
-                ),
-            )
+            facts = self._day_closure_facts(unit_of_work, day_id, round_id, committee_id)
             return unit_of_work.execution.day_reopening_impact(
                 service, scope, day_id, raw_scope, facts
             )
@@ -185,36 +145,7 @@ class ExamLifecycleApplication:
             committee_id = unit_of_work.planning_lifecycle.round_committee_id(round_id)
             if committee_id is None:
                 raise PermissionError("Forbidden.")
-            slots, assignments = unit_of_work.planning_lifecycle.exam_day_plan(day_id)
-            slot_ids = tuple(item.id for item in slots)
-            assessment_results = tuple(
-                unit_of_work.assessment_lifecycle.results_for_day_slots(day_id, slot_ids)
-            )
-            result_ids = {item["id"] for item in assessment_results}
-            facts = DayClosureFacts(
-                committee_id=committee_id,
-                slots=tuple(slots),
-                assignments=tuple(assignments),
-                members=tuple(
-                    unit_of_work.identity_lifecycle.committee_members_by_ids(
-                        sorted(
-                            {
-                                item.committee_member_id
-                                for item in assignments
-                                if item.assignment_role == "examiner"
-                            }
-                        )
-                    )
-                ),
-                assessment_completion=unit_of_work.assessment_lifecycle.day_completion(day_id),
-                management_member_ids=frozenset(
-                    unit_of_work.identity_lifecycle.management_member_ids(committee_id)
-                ),
-                assessment_results=assessment_results,
-                assessment_impacts=tuple(
-                    unit_of_work.assessment_lifecycle.result_reopening_impacts(result_ids)
-                ),
-            )
+            facts = self._day_closure_facts(unit_of_work, day_id, round_id, committee_id)
             intent = unit_of_work.execution.evaluate_day_reopen(
                 service, scope, day_id, command, facts
             )
@@ -241,6 +172,58 @@ class ExamLifecycleApplication:
                 )
         service.publish_reopening_notifications(outcome)
         return outcome.response
+
+    @staticmethod
+    def _day_closure_facts(
+        unit_of_work: ExamLifecycleUnitOfWork,
+        day_id: int,
+        round_id: int,
+        committee_id: int | None = None,
+    ) -> DayClosureFacts:
+        if committee_id is None:
+            committee_id = unit_of_work.planning_lifecycle.round_committee_id(round_id)
+        if committee_id is None:
+            raise PermissionError("Forbidden.")
+        slots, assignments = unit_of_work.planning_lifecycle.exam_day_plan(day_id)
+        completed_slot_ids = tuple(
+            item.id for item in slots if item.execution_status == "completed"
+        )
+        examiner_ids = tuple(
+            sorted(
+                {
+                    item.committee_member_id
+                    for item in assignments
+                    if item.assignment_role == "examiner"
+                }
+            )
+        )
+        results = tuple(
+            unit_of_work.assessment_lifecycle.results_for_day_slots(
+                day_id, tuple(item.id for item in slots)
+            )
+        )
+        result_ids = {item["id"] for item in results}
+        return DayClosureFacts(
+            committee_id=committee_id,
+            slots=tuple(slots),
+            assignments=tuple(assignments),
+            members=tuple(unit_of_work.identity_lifecycle.committee_members_by_ids(examiner_ids)),
+            assessment_completion=unit_of_work.assessment_lifecycle.day_completion(day_id),
+            management_member_ids=frozenset(
+                unit_of_work.identity_lifecycle.management_member_ids(committee_id)
+            ),
+            assessment_results=results,
+            assessment_impacts=tuple(
+                unit_of_work.assessment_lifecycle.result_reopening_impacts(result_ids)
+            ),
+            candidate_attendance=unit_of_work.execution.candidate_attendance_for_slots(
+                completed_slot_ids
+            ),
+            member_attendance=unit_of_work.execution.member_attendance_for_day(
+                day_id, examiner_ids
+            ),
+            absences=tuple(unit_of_work.execution.absence_reports_for_day(day_id)),
+        )
 
     def close_exam_round(
         self,

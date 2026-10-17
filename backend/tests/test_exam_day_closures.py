@@ -172,7 +172,10 @@ class ExamDayClosureTests(unittest.TestCase):
                 {result_id}
             )
             result_by_id = unit_of_work.assessment_lifecycle.result_by_id(result_id)
-            lifecycle_day = unit_of_work.execution.read_day_closure(day_closure_service, scope, 2)
+            lifecycle_facts = ExamLifecycleApplication._day_closure_facts(unit_of_work, 2, 1)
+            lifecycle_day = unit_of_work.execution.read_day_closure(
+                day_closure_service, scope, 2, lifecycle_facts
+            )
             pending_consequence_ids = unit_of_work.consequences.pending_ids_for_round(1)
             lifecycle_round = unit_of_work.execution.read_round_lifecycle(
                 round_lifecycle_service, scope, 1, pending_consequence_ids

@@ -43,7 +43,11 @@ class ExamLifecycleExecutionUnitOfWork(ExecutionUnitOfWork, Protocol):
     """Execution capabilities required by Application lifecycle commands."""
 
     def read_day_closure(
-        self, service: ExamDayClosureService, scope: AuthorizationScope, day_id: int
+        self,
+        service: ExamDayClosureService,
+        scope: AuthorizationScope,
+        day_id: int,
+        facts: DayClosureFacts,
     ) -> dict | None: ...
 
     def read_round_lifecycle(

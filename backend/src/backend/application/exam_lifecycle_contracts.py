@@ -3,16 +3,18 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
 
 from backend.execution.lifecycle_ports import (
+    AbsenceSnapshot,
     PlanAssignmentLifecycleSnapshot,
     PlanningCandidateLifecycleSnapshot,
     PlanningRoundLifecycleSnapshot,
     PlanSlotLifecycleSnapshot,
 )
+from backend.execution.slot_ports import AttendanceSnapshot
 from backend.identity.lifecycle_ports import (
     IdentityCommitteeLifecycleSnapshot,
     IdentityMemberLifecycleSnapshot,
@@ -117,6 +119,9 @@ class DayClosureFacts:
     management_member_ids: frozenset[int] = frozenset()
     assessment_results: tuple[Mapping[str, Any], ...] = ()
     assessment_impacts: tuple[Mapping[str, Any], ...] = ()
+    candidate_attendance: Mapping[int, AttendanceSnapshot] = field(default_factory=dict)
+    member_attendance: Mapping[int, AttendanceSnapshot] = field(default_factory=dict)
+    absences: tuple[AbsenceSnapshot, ...] = ()
 
 
 def _require_round_revision(revision: object) -> None:

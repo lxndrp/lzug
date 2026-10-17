@@ -166,11 +166,11 @@ class ExamDayClosureSnapshot:
     """The bounded, transaction-local input for the closure checklist."""
 
     slots: tuple[PlanSlotLifecycleSnapshot, ...]
-    candidate_attendance: dict[int, CandidateExamAttendance]
+    candidate_attendance: dict[int, str]
     assignments: tuple[PlanAssignmentLifecycleSnapshot, ...]
-    member_attendance: dict[int, MemberExamAttendance]
+    member_attendance: dict[int, str]
     members: dict[int, IdentityMemberLifecycleSnapshot]
-    absences: tuple[AbsenceReport, ...]
+    absences: tuple[tuple[int, str], ...]
 
 
 def _now() -> str:
@@ -366,7 +366,12 @@ class ExamDayClosureService:
             return self.get_in_session(session, scope, day_id)
 
     def get_in_session(
-        self, session: Session, scope: AuthorizationScope, day_id: int
+        self,
+        session: Session,
+        scope: AuthorizationScope,
+        day_id: int,
+        *,
+        facts: DayClosureFacts | None = None,
     ) -> dict[str, Any] | None:
         """Read closure status in an Application-owned shared snapshot."""
         day = session.get(ExamDay, day_id)
@@ -375,7 +380,14 @@ class ExamDayClosureService:
         planning = self.planning_lifecycle_work_factory(session)
         identity = self.identity_lifecycle_work_factory(session)
         self._require_access(session, day, scope, planning)
-        return self._view(session, day, scope, planning_work=planning, identity_work=identity)
+        return self._view(
+            session,
+            day,
+            scope,
+            planning_work=planning,
+            identity_work=identity,
+            facts=facts,
+        )
 
     def evaluate_close_intent(
         self,
@@ -1276,29 +1288,41 @@ class ExamDayClosureService:
             member_values = facts.members
         members = {member.id: member for member in member_values}
         slots = tuple(slots)
-        completed_slot_ids = [slot.id for slot in slots if slot.execution_status == "completed"]
-        candidate_attendance = {
-            attendance.exam_slot_id: attendance
-            for attendance in session.scalars(
-                select(CandidateExamAttendance).where(
-                    CandidateExamAttendance.exam_slot_id.in_(completed_slot_ids)
-                )
-            )
-        }
         assignments = tuple(item for item in plan_assignments if item.assignment_role == "examiner")
-        member_ids = {assignment.committee_member_id for assignment in assignments}
-        member_attendance = {
-            attendance.committee_member_id: attendance
-            for attendance in session.scalars(
-                select(MemberExamAttendance).where(
-                    MemberExamAttendance.exam_day_id == day.id,
-                    MemberExamAttendance.committee_member_id.in_(member_ids),
+        if facts is None:
+            completed_slot_ids = [slot.id for slot in slots if slot.execution_status == "completed"]
+            candidate_attendance = {
+                attendance.exam_slot_id: attendance.status
+                for attendance in session.scalars(
+                    select(CandidateExamAttendance).where(
+                        CandidateExamAttendance.exam_slot_id.in_(completed_slot_ids)
+                    )
+                )
+            }
+            member_ids = {assignment.committee_member_id for assignment in assignments}
+            member_attendance = {
+                attendance.committee_member_id: attendance.status
+                for attendance in session.scalars(
+                    select(MemberExamAttendance).where(
+                        MemberExamAttendance.exam_day_id == day.id,
+                        MemberExamAttendance.committee_member_id.in_(member_ids),
+                    )
+                )
+            }
+            absences = tuple(
+                (item.id, item.status)
+                for item in session.scalars(
+                    select(AbsenceReport).where(AbsenceReport.exam_day_id == day.id)
                 )
             )
-        }
-        absences = tuple(
-            session.scalars(select(AbsenceReport).where(AbsenceReport.exam_day_id == day.id))
-        )
+        else:
+            candidate_attendance = {
+                slot_id: item["status"] for slot_id, item in facts.candidate_attendance.items()
+            }
+            member_attendance = {
+                member_id: item["status"] for member_id, item in facts.member_attendance.items()
+            }
+            absences = tuple((item["id"], item["status"]) for item in facts.absences)
         return ExamDayClosureSnapshot(
             slots=slots,
             candidate_attendance=candidate_attendance,
@@ -1364,7 +1388,7 @@ class ExamDayClosureService:
             if slot.execution_status != "completed":
                 continue
             attendance = snapshot.candidate_attendance.get(slot.id)
-            if attendance is None or attendance.status not in {"present", "late"}:
+            if attendance not in {"present", "late"}:
                 missing.append(slot.id)
         return missing
 
@@ -1417,7 +1441,7 @@ class ExamDayClosureService:
             if not self._assignment_applies_to_slot(assignment, slot):
                 continue
             attendance = snapshot.member_attendance.get(assignment.committee_member_id)
-            if attendance is None or attendance.status not in {"present", "late"}:
+            if attendance not in {"present", "late"}:
                 open_attendance.append(
                     {"exam_slot_id": slot.id, "committee_member_id": assignment.committee_member_id}
                 )
@@ -1431,7 +1455,9 @@ class ExamDayClosureService:
         self, snapshot: ExamDayClosureSnapshot, items: list[dict[str, Any]]
     ) -> None:
         open_absences = [
-            item.id for item in snapshot.absences if item.status not in TERMINAL_ABSENCE_STATUSES
+            item_id
+            for item_id, status in snapshot.absences
+            if status not in TERMINAL_ABSENCE_STATUSES
         ]
         self._finding(
             items,

@@ -140,8 +140,8 @@ class _SQLiteExamLifecycleExecution:
             )
         )
 
-    def read_day_closure(self, service, scope, day_id: int):
-        return service.get_in_session(self._session, scope, day_id)
+    def read_day_closure(self, service, scope, day_id: int, facts):
+        return service.get_in_session(self._session, scope, day_id, facts=facts)
 
     def read_round_lifecycle(self, service, scope, round_id: int, pending_consequence_ids):
         return service.get_in_session(
