@@ -316,8 +316,13 @@ def _annotation_import_targets(tree: ast.Module) -> dict[str, str]:
 
 def _annotation_references(annotation: ast.expr) -> set[str]:
     references: set[str] = set()
+    nested_attribute_ids = {
+        id(node.value) for node in ast.walk(annotation) if isinstance(node, ast.Attribute)
+    }
     for node in ast.walk(annotation):
         if isinstance(node, (ast.Name, ast.Attribute)):
+            if id(node) in nested_attribute_ids:
+                continue
             name = _dotted_name(node)
             if name is not None:
                 references.add(name)
@@ -333,15 +338,11 @@ def _annotation_references(annotation: ast.expr) -> set[str]:
 def _forbidden_port_annotation_references(
     annotation: ast.expr, import_targets: dict[str, str]
 ) -> set[str]:
-    forbidden_names = {"Session", "Query", "Select", "Engine", "Connection"}
     leaks: set[str] = set()
     for reference in _annotation_references(annotation):
         first, *tail = reference.split(".")
         resolved = ".".join((import_targets.get(first, first), *tail))
-        if (
-            resolved.startswith("sqlalchemy.")
-            and resolved.rsplit(".", maxsplit=1)[-1] in forbidden_names
-        ):
+        if resolved.startswith("sqlalchemy."):
             leaks.add(resolved)
         if resolved.endswith("Resource.model"):
             leaks.add(resolved)
