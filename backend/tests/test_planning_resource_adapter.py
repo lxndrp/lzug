@@ -437,6 +437,95 @@ class PlanningResourceAdapterTests(unittest.TestCase):
                 planning.list_availabilities({"exam_round_id": exam_round.values["id"]}),
             )
 
+    def test_planning_write_port_results_are_materialized(self) -> None:
+        with TempDatabase() as db_path:
+            planning = PlanningResourceService(SQLitePlanningResourceUnitOfWorkFactory(db_path))
+            candidate = planning.create_candidate(
+                {
+                    "first_name": "Port",
+                    "last_name": "Contract",
+                    "ihk_exam_number": "PORT-CONTRACT-WRITE",
+                    "specialization": "system_integration",
+                    "training_company": "Port-Test",
+                }
+            )
+            candidate_update = planning.update_candidate(
+                candidate.values["id"], {"training_company": "Updated"}
+            )
+            exam_round = planning.create_round(
+                {
+                    "season": "winter",
+                    "year": 2041,
+                    "committee_id": 1,
+                    "name": "Port Contract",
+                    "created_by_member_id": 1,
+                }
+            )
+            round_update = planning.update_round(
+                exam_round.values["id"], {"name": "Port Contract Updated"}
+            )
+            assignment = planning.assign_candidate_to_round(
+                {
+                    "exam_round_id": exam_round.values["id"],
+                    "candidate_id": candidate.values["id"],
+                    "attempt_number": 1,
+                    "requires_mep": 0,
+                    "is_active": 1,
+                }
+            )
+            candidate_day = planning.create_candidate_day(
+                {
+                    "exam_round_id": exam_round.values["id"],
+                    "date": "2041-01-10",
+                    "is_active": 1,
+                }
+            )
+            candidate_day_update = planning.update_candidate_day(
+                candidate_day.values["id"], {"is_active": 0}
+            )
+            settings = planning.save_settings(
+                {
+                    "exam_round_id": 1,
+                    "calendar_week_from": "2026-W47",
+                    "calendar_week_to": "2026-W50",
+                    "exams_per_day": 5,
+                    "max_exam_days_per_week": 4,
+                    "lunch_break_enabled": 0,
+                    "exclude_public_holidays": 1,
+                    "holiday_subdivision_code": "DE-NW",
+                    "default_room_id": 2,
+                    "updated_by_member_id": 1,
+                }
+            )
+            settings_update = planning.update_settings(settings.values["id"], {"exams_per_day": 6})
+            availability = planning.save_availability(
+                {
+                    "exam_round_id": 1,
+                    "committee_member_id": 1,
+                    "candidate_exam_day_id": 1,
+                    "availability": "full_day",
+                    "responded_at": "2026-01-01T00:00:00+00:00",
+                }
+            )
+            availability_update = planning.update_availability(
+                availability.values["id"], {"availability": "unavailable"}
+            )
+
+        for value in (
+            candidate,
+            candidate_update,
+            exam_round,
+            round_update,
+            assignment,
+            candidate_day,
+            candidate_day_update,
+            settings,
+            settings_update,
+            availability,
+            availability_update,
+        ):
+            assert_materialized_port_value(self, value)
+
     def test_sqlite_snapshot_is_detached_and_has_typed_sections(self) -> None:
         with TempDatabase() as db_path:
             factory = SQLitePlanningResourceUnitOfWorkFactory(db_path)
@@ -463,6 +552,14 @@ class PlanningResourceAdapterTests(unittest.TestCase):
                     unit_of_work.list_availabilities({}),
                     unit_of_work.get_availability(1),
                     unit_of_work.candidate_assignment_context(1, 1),
+                    unit_of_work.prepare_round_creation(
+                        {
+                            "season": "winter",
+                            "year": 2042,
+                            "committee_id": 1,
+                            "created_by_member_id": 1,
+                        }
+                    ),
                     unit_of_work.settings_references(1, 1, 1),
                     unit_of_work.availability_references(1, 1, 1),
                     unit_of_work.availability_propagation_context(1, 1, 1),
