@@ -843,12 +843,12 @@ Zyklen zwischen den elf Kernpaketen.
 | `application/` | frameworkneutrale Use-Case-Orchestrierung, Ports und materialisierte Werte; keine HTTP-Status-, HATEOAS-, Admin-Wire- oder konkreten Adapterverträge | `assessment`, `execution`, `identity`, `operations`, `planning` |
 | `documents/` | Dokumentkommandos, Upload-Policy, Metadatenprojektionen und eigene Repository-/UoW-Verträge; keine eigene fachliche Ownership oder Autorisierung | keine anderen Kernpakete |
 | `planning/` | Planaggregate, mögliche Prüfungstage, Prüfungsorte und Folgen bestätigter Änderungen; Kandidatentage beginnen mit einem adapterfreien Port-Pilot | `integrations`, `notifications`, `persistence` (Legacy-Aufrufe) |
-| `execution/` | Ausfall und Ersatz, Protokolle, Tagesabschluss und Rundenlebenszyklus | `calendar`, `identity`, `integrations`, `notifications`, `persistence` (direkte SQLAlchemy-/Persistence-Aufrufe in `absence.py` bleiben als Phase-3-Migration offen), `presentation` |
+| `execution/` | Ausfall und Ersatz über consumer-owned Ports, Protokolle, Tagesabschluss und Rundenlebenszyklus | `calendar`, `identity`, `integrations`, `notifications`, `presentation` |
 | `assessment/` | individuelle Bewertungen und festgestellte Ergebnisse über eigene Use Cases und Ports | keine anderen Kernpakete |
 | `identity/` | Authentisierung, Autorisierung, Mitgliedschaften und lokale Betreiberidentität | keine anderen Kernpakete |
 | `integrations/` | Kalender (Übergangspfad), Dateisystem-Dokumentablage, Feiertage, Kartenanbieter und künftige externe Adapter | `documents`, `identity`, `notifications`, `persistence` |
 | `notifications/` | Benachrichtigungsregeln, Zustellpolicy sowie Provider- und Persistenzports | keine anderen Kernpakete |
-| `persistence/` | Modelle, Datenbank, Migrationen und niedrige Store-Primitive | `documents`, `identity`, `notifications` |
+| `persistence/` | Modelle, Datenbank, Migrationen und niedrige Store-Primitive; der Absence-Adapter implementiert den Execution-eigenen UoW-Port | `documents`, `execution` (Absence-Port), `identity`, `notifications` |
 | `operations/` | Backup und Export samt eigenem Dokumenten-Snapshot-Protokoll, Empfängerverwaltung, Diagnose und Lifecycle | `documents`, `identity`, `integrations`, `persistence` |
 
 Der Paketroot enthält gemeinsame Runtime-Verträge und Adapter für FastAPI,
