@@ -11,6 +11,7 @@ from backend.application.exam_lifecycle_contracts import (
     DayClosureFacts,
     DayReopenCommand,
     RoundDecisionCommand,
+    RoundIhkStatusCommand,
     RoundLifecycleFacts,
     RoundReopenCommand,
 )
@@ -98,8 +99,28 @@ class ExamLifecycleApplication:
     ) -> dict[str, Any]:
         service = self._round_lifecycle_service()
         with self._unit_of_work_factory() as unit_of_work:
-            unit_of_work.execution.document_round_ihk_status(
-                service, scope, round_id, result_id, payload
+            exam_round = unit_of_work.planning_lifecycle.round_lifecycle_snapshot(round_id)
+            if exam_round is None:
+                raise ValueError("Prüfungsrunde nicht gefunden")
+            actor_id = scope.member_for_committee(exam_round.committee_id)
+            if actor_id is None or not scope.can_manage_committee(exam_round.committee_id):
+                raise PermissionError("Forbidden.")
+            result = unit_of_work.assessment.queries.result_by_id(result_id)
+            if result is None or result["round_id"] != round_id:
+                raise ValueError("Ergebnis gehört nicht zur Prüfungsrunde")
+            command = RoundIhkStatusCommand(
+                round_id=round_id,
+                result_id=result_id,
+                document_status=payload.get("document_status"),
+                document_reference=payload.get("document_reference"),
+                actor_member_id=actor_id,
+            )
+            unit_of_work.assessment.repository.record_ihk_status(
+                round_id=command.round_id,
+                result_id=command.result_id,
+                document_status=command.document_status,
+                document_reference=command.document_reference,
+                actor_member_id=command.actor_member_id,
             )
             response = self._read_round_lifecycle_response(unit_of_work, service, scope, round_id)
         return response

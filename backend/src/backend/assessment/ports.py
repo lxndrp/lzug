@@ -734,6 +734,16 @@ class AssessmentRepositoryPort(Protocol):
         reason: str | None = None,
     ) -> None: ...
 
+    def record_ihk_status(
+        self,
+        *,
+        round_id: int,
+        result_id: int,
+        document_status: str,
+        document_reference: str,
+        actor_member_id: int,
+    ) -> None: ...
+
 
 class AssessmentUnitOfWork(Protocol):
     """One transaction-scoped Assessment boundary; deliberately has no commit method."""

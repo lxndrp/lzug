@@ -76,15 +76,6 @@ class ExamLifecycleExecutionUnitOfWork(ExecutionUnitOfWork, Protocol):
         payload: dict,
     ) -> None: ...
 
-    def document_round_ihk_status(
-        self,
-        service: ExamRoundLifecycleService,
-        scope: AuthorizationScope,
-        round_id: int,
-        result_id: int,
-        payload: dict,
-    ) -> None: ...
-
     def delete_empty_draft_round(
         self, service: ExamRoundLifecycleService, scope: AuthorizationScope, round_id: int
     ) -> bool: ...

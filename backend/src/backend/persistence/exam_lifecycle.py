@@ -171,11 +171,6 @@ class _SQLiteExamLifecycleExecution:
             self._session, scope, round_id, candidate_id, payload
         )
 
-    def document_round_ihk_status(self, service, scope, round_id: int, result_id: int, payload):
-        return service.document_ihk_status_command_in_session(
-            self._session, scope, round_id, result_id, payload
-        )
-
     def delete_empty_draft_round(self, service, scope, round_id: int):
         return service.delete_empty_draft_in_session(self._session, scope, round_id)
 

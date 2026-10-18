@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 from collections.abc import Callable, Iterator, Mapping, Sequence
@@ -31,6 +32,7 @@ from backend.persistence.models import (
     ExamResult,
     ExamRound,
     ExamRoundAssessmentBinding,
+    ExamRoundIhkStatus,
     ExamSlot,
     ExternalExamResult,
     IndividualAssessment,
@@ -1239,3 +1241,39 @@ class SQLiteAssessmentRepository:
                 actor_member_id,
                 reason,
             )
+
+    def record_ihk_status(
+        self,
+        *,
+        round_id: int,
+        result_id: int,
+        document_status: str,
+        document_reference: str,
+        actor_member_id: int,
+    ) -> None:
+        fingerprint = hashlib.sha256(
+            _json(
+                {
+                    "round_id": round_id,
+                    "result_id": result_id,
+                    "document_status": document_status,
+                    "document_reference": document_reference,
+                }
+            ).encode("utf-8")
+        ).hexdigest()
+        existing = self.session.scalar(
+            select(ExamRoundIhkStatus).where(ExamRoundIhkStatus.command_fingerprint == fingerprint)
+        )
+        if existing is None:
+            self.session.add(
+                ExamRoundIhkStatus(
+                    exam_round_id=round_id,
+                    exam_result_id=result_id,
+                    document_status=document_status,
+                    document_reference=document_reference,
+                    recorded_by_member_id=actor_member_id,
+                    command_fingerprint=fingerprint,
+                    recorded_at=datetime.now(UTC).replace(microsecond=0).isoformat(),
+                )
+            )
+            self.session.flush()

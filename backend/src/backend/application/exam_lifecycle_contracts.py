@@ -22,6 +22,27 @@ from backend.identity.lifecycle_ports import (
 )
 
 
+@dataclass(frozen=True)
+class RoundIhkStatusCommand:
+    """Validated IHK status record for an authorized round result."""
+
+    round_id: int
+    result_id: int
+    document_status: str
+    document_reference: str
+    actor_member_id: int
+
+    def __post_init__(self) -> None:
+        for attribute, maximum in (("document_status", 300), ("document_reference", 1000)):
+            value = getattr(self, attribute)
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"{attribute} ist erforderlich")
+            normalized = value.strip()
+            if len(normalized) > maximum:
+                raise ValueError(f"{attribute} ist zu lang")
+            object.__setattr__(self, attribute, normalized)
+
+
 class DayClosureKind(StrEnum):
     REGULAR = "regular"
     EXCEPTION = "exception"

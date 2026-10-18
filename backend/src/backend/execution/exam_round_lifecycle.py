@@ -1028,51 +1028,6 @@ class ExamRoundLifecycleService:
         snapshot = export["snapshot"]
         return render_round_lifecycle_export(round_id, lifecycle, snapshot)
 
-    def document_ihk_status_command_in_session(
-        self,
-        session: Session,
-        scope: AuthorizationScope,
-        round_id: int,
-        result_id: int,
-        payload: dict[str, Any],
-    ) -> None:
-        document_status = self._required_text(
-            payload.get("document_status"), "document_status", 300
-        )
-        reference = self._required_text(
-            payload.get("document_reference"), "document_reference", 1000
-        )
-        fingerprint = _fingerprint(
-            {
-                "round_id": round_id,
-                "result_id": result_id,
-                "document_status": document_status,
-                "document_reference": reference,
-            }
-        )
-        planning = self.planning_lifecycle_work_factory(session)
-        exam_round = self._required_round(planning, round_id)
-        actor_id = self._require_management(exam_round, scope)
-        result = self.assessment_lifecycle_factory(session).result_by_id(result_id)
-        if result is None or result["round_id"] != round_id:
-            raise ValueError("Ergebnis gehört nicht zur Prüfungsrunde")
-        existing = session.scalar(
-            select(ExamRoundIhkStatus).where(ExamRoundIhkStatus.command_fingerprint == fingerprint)
-        )
-        if existing is None:
-            session.add(
-                ExamRoundIhkStatus(
-                    exam_round_id=round_id,
-                    exam_result_id=result_id,
-                    document_status=document_status,
-                    document_reference=reference,
-                    recorded_by_member_id=actor_id,
-                    command_fingerprint=fingerprint,
-                    recorded_at=_now(),
-                )
-            )
-            session.flush()
-
     def assert_mutation_allowed_in_session(
         self, session: Session, command: MutationLockCommand
     ) -> None:

@@ -72,6 +72,7 @@ class RoundLifecycleExportSnapshotTests(unittest.TestCase):
             "machine_export",
             "human_export",
             "document_ihk_status",
+            "document_ihk_status_command_in_session",
             "assert_mutable",
         ):
             with self.subTest(name=name):
