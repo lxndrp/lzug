@@ -71,7 +71,9 @@ Teile der Lifecycle-Schreiblogik verwenden weiterhin direkte SQLAlchemy-Abfragen
 und sind noch nicht vollständig hinter Persistence-Verträgen gekapselt.
 Ausfall-Audits und unveränderliche Application-Folgequellen werden gemeinsam
 committet. Die Quelle speichert Empfänger, Notice, Zuweisungsrevision,
-Kalender-Vorherbild und Tages-Guard. Application leitet daraus dauerhaft
+das Vorherbild aktiver Calendar-Generationen und den Tages-Guard. Bereits
+stornierte Generationen bleiben in der Calendar-Projektion, statt in jeder
+Quelle erneut kopiert zu werden. Application leitet daraus dauerhaft
 Notification- und Calendar-Tasks ab und verarbeitet sie mit Claim, Retry und
 stabiler Audit-Origin. Der Admin-Befehl `process-notifications` stößt denselben
 Wiederanlauf an. Die Migration speichert den maximalen Audit-ID-Stand als

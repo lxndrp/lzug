@@ -30,7 +30,12 @@ class SQLiteCalendarLifecycleWork:
         return recipients
 
     def assignment_before_image(self, assignment_id: int) -> tuple[dict[str, object], ...]:
-        """Materialize every current generation before an assignment mutation."""
+        """Materialize active generations before an assignment mutation.
+
+        Cancelled generations are already durable Calendar state and cannot
+        affect a later projection. Excluding them keeps immutable replay sources
+        bounded across repeated cancellation and reopen cycles.
+        """
         return tuple(
             {
                 "id": event.id,
@@ -56,7 +61,10 @@ class SQLiteCalendarLifecycleWork:
             }
             for event in self._session.scalars(
                 select(CalendarEvent)
-                .where(CalendarEvent.exam_day_assignment_id == assignment_id)
+                .where(
+                    CalendarEvent.exam_day_assignment_id == assignment_id,
+                    CalendarEvent.status != "cancelled",
+                )
                 .order_by(CalendarEvent.id)
             )
         )

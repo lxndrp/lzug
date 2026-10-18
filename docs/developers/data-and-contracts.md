@@ -64,8 +64,10 @@ erDiagram
 - **Ausfall und Folgen:** Ein Ausfall bezieht sich auf eine bestätigte
   Besetzung und ändert den Plan nicht voreilig.
   Audit, Zuweisungsrevision und unveränderliche Folgequelle werden gemeinsam
-  committet. Die Quelle friert Empfänger, Notice, Kalender-Vorherbild und
-  Tages-Guard ein. Application leitet daraus bei jedem Lauf fehlende
+  committet. Die Quelle friert Empfänger, Notice, das Vorherbild aktiver
+  Kalendergenerationen und den Tages-Guard ein. Bereits stornierte
+  Generationen bleiben in der Calendar-Projektion, statt in jeder Quelle
+  erneut kopiert zu werden. Application leitet daraus bei jedem Lauf fehlende
   Benachrichtigungs- und Kalenderaufträge ab und verarbeitet sie mit stabiler
   Origin, Claim und Retry. Das Upgrade speichert ein Audit-Cutover-Wasserzeichen;
   ältere Audits ohne Quelle werden gezählt, aber nicht rekonstruiert oder

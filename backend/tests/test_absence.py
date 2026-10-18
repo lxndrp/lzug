@@ -470,6 +470,40 @@ class AbsenceServiceTests(unittest.TestCase):
                 )
             )
 
+        current_report = reopened
+        for cycle in range(5):
+            cancelled = application.cancel_absence(
+                scope(1, management=True),
+                result["id"],
+                {"reason": f"Absage {cycle}", "version": current_report["version"]},
+                service,
+                now=datetime(2026, 11, 1, tzinfo=UTC),
+            )
+            current_report = application.reopen_absence(
+                scope(1, management=True),
+                result["id"],
+                {"reason": f"Wiederöffnung {cycle}", "version": cancelled["version"]},
+                service,
+                now=datetime(2026, 11, 1, tzinfo=UTC),
+            )
+
+        with session_scope(self.db_path) as session:
+            sources = (
+                session.query(AbsenceConsequenceSource)
+                .filter_by(assignment_id=self.assignment_id)
+                .all()
+            )
+            calendar_images = []
+            for source in sources:
+                payload = json.loads(source.source_json)
+                if (
+                    payload.get("calendar_action") == "cancel"
+                    or payload.get("notice", {}).get("event_type") == "absence_reopened"
+                ):
+                    calendar_images.append(payload["calendar_before_image"])
+            self.assertEqual(12, len(calendar_images))
+            self.assertLessEqual(max(map(len, calendar_images)), 1)
+
     def test_urgent_report_freezes_urgent_notification_replay(self) -> None:
         service = self.absence_service()
         current = datetime(2026, 11, 15, tzinfo=UTC)
