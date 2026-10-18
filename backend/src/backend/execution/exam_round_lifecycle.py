@@ -9,7 +9,7 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from backend.execution.lifecycle_errors import ExamRoundConflictError
@@ -659,24 +659,6 @@ class ExamRoundLifecycleService:
         ):
             export.superseded_at = now
             export.superseded_by_revision = exam_round.revision
-
-    def delete_empty_draft_in_session(
-        self, session: Session, scope: AuthorizationScope, round_id: int
-    ) -> bool:
-        planning = self.planning_lifecycle_work_factory(session)
-        exam_round = planning.round_lifecycle_snapshot(round_id)
-        if exam_round is None:
-            return False
-        self._require_management(exam_round, scope)
-        if exam_round.status != "draft" or exam_round.lifecycle_status != "open":
-            raise ValueError("Nur eine offene Entwurfsrunde kann gelöscht werden")
-        dependencies = self._dependency_counts(session, exam_round, planning)
-        present = [name for name, count in dependencies.items() if count]
-        if present:
-            raise ValueError("Die Prüfungsrunde besitzt abhängige Fachdaten: " + ", ".join(present))
-        if not planning.delete_empty_draft_round(round_id, exam_round.revision):
-            raise ExamRoundConflictError("Die Prüfungsrunde wurde zwischenzeitlich geändert")
-        return True
 
     @staticmethod
     def _render_human_export(round_id: int, export: dict[str, Any]) -> str:
@@ -1848,28 +1830,6 @@ class ExamRoundLifecycleService:
             raise ValueError("Ergebnisfeststellung und Ergebnismitteilung sind erforderlich")
         if any(item["status"] != "confirmed" for item in result["external_results"]):
             raise ValueError("Externe Eingangsergebnisse sind noch nicht bestätigt")
-
-    def _dependency_counts(
-        self,
-        session: Session,
-        exam_round: PlanningRoundLifecycleSnapshot,
-        planning: PlanningLifecycleWork,
-    ) -> dict[str, int]:
-        day_ids = select(ExamDay.id).where(ExamDay.exam_round_id == exam_round.id)
-        return {
-            **planning.dependency_counts(exam_round.id),
-            "Prüfungstage": self._count(session, ExamDay, ExamDay.exam_round_id == exam_round.id),
-            "Ausfallvorgänge": self._count(
-                session, AbsenceReport, AbsenceReport.exam_day_id.in_(day_ids)
-            ),
-            "Lebenszyklushistorie": self._count(
-                session, ExamRoundDecision, ExamRoundDecision.exam_round_id == exam_round.id
-            ),
-        }
-
-    @staticmethod
-    def _count(session: Session, model: type[Any], criterion: Any) -> int:
-        return int(session.scalar(select(func.count()).select_from(model).where(criterion)) or 0)
 
     def _require_mutable_scope(
         self, session: Session, exam_round: PlanningRoundLifecycleSnapshot, token: str

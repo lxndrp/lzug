@@ -7,7 +7,7 @@ from contextlib import AbstractContextManager, contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from backend.persistence.application_consequence_store import SQLiteLifecycleConsequenceReadPort
@@ -18,6 +18,7 @@ from backend.persistence.day_closure_snapshot import SQLiteExamDayClosureReadSna
 from backend.persistence.execution import SQLiteExecutionUnitOfWorkFactory
 from backend.persistence.identity_lifecycle import SQLiteIdentityLifecycleWork
 from backend.persistence.models import (
+    AbsenceReport,
     ExamDay,
     ExamDayClosure,
     ExamDayExport,
@@ -162,8 +163,20 @@ class _SQLiteExamLifecycleExecution:
             self._session
         ).load_round_lifecycle_read_snapshot(round_id)
 
-    def delete_empty_draft_round(self, service, scope, round_id: int):
-        return service.delete_empty_draft_in_session(self._session, scope, round_id)
+    def lifecycle_dependency_counts(self, round_id: int) -> dict[str, int]:
+        day_ids = select(ExamDay.id).where(ExamDay.exam_round_id == round_id)
+        return {
+            "Prüfungstage": self._count(ExamDay, ExamDay.exam_round_id == round_id),
+            "Ausfallvorgänge": self._count(AbsenceReport, AbsenceReport.exam_day_id.in_(day_ids)),
+            "Lebenszyklushistorie": self._count(
+                ExamRoundDecision, ExamRoundDecision.exam_round_id == round_id
+            ),
+        }
+
+    def _count(self, model, criterion) -> int:
+        return int(
+            self._session.scalar(select(func.count()).select_from(model).where(criterion)) or 0
+        )
 
     def export_round(
         self,

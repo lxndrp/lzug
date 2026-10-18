@@ -145,7 +145,27 @@ class ExamLifecycleApplication:
                 service,
                 MutationLockCommand(MutationLockKind.EXAM_ROUND, round_id, {}),
             )
-            return unit_of_work.execution.delete_empty_draft_round(service, scope, round_id)
+            exam_round = unit_of_work.planning_lifecycle.round_lifecycle_snapshot(round_id)
+            if exam_round is None:
+                return False
+            if not scope.can_manage_committee(exam_round.committee_id):
+                raise PermissionError("Forbidden.")
+            if exam_round.status != "draft" or exam_round.lifecycle_status != "open":
+                raise ValueError("Nur eine offene Entwurfsrunde kann gelöscht werden")
+            dependencies = {
+                **unit_of_work.planning_lifecycle.dependency_counts(round_id),
+                **unit_of_work.execution.lifecycle_dependency_counts(round_id),
+            }
+            present = [name for name, count in dependencies.items() if count]
+            if present:
+                raise ValueError(
+                    "Die Prüfungsrunde besitzt abhängige Fachdaten: " + ", ".join(present)
+                )
+            if not unit_of_work.planning_lifecycle.delete_empty_draft_round(
+                round_id, exam_round.revision
+            ):
+                raise ExamRoundConflictError("Die Prüfungsrunde wurde zwischenzeitlich geändert")
+            return True
 
     def export_exam_round(
         self, scope: AuthorizationScope, round_id: int, *, human: bool

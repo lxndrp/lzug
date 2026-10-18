@@ -58,9 +58,7 @@ class ExamLifecycleExecutionUnitOfWork(ExecutionUnitOfWork, Protocol):
         self, round_id: int
     ) -> ExamRoundLifecycleReadSnapshot | None: ...
 
-    def delete_empty_draft_round(
-        self, service: ExamRoundLifecycleService, scope: AuthorizationScope, round_id: int
-    ) -> bool: ...
+    def lifecycle_dependency_counts(self, round_id: int) -> dict[str, int]: ...
 
     def export_round(
         self,
