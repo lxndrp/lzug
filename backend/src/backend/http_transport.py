@@ -19,8 +19,10 @@ from backend.application.calendar_ports import CalendarApplicationPort
 from backend.application.consequence_ports import ApplicationConsequenceStoreFactory
 from backend.application.exam_lifecycle import ExamLifecycleApplication
 from backend.application.exam_lifecycle_ports import ExamLifecycleUnitOfWorkFactory
+from backend.application.execution_operations import ExecutionOperations
 from backend.application.plan_consequences import PlanConsequenceService
 from backend.application.planning_calendar_reads import PlanningCalendarReadService
+from backend.application.planning_operations import PlanningOperations
 from backend.application.resource_access import (
     ResourceAccessQueryFactory,
     ResourceKind,
@@ -30,6 +32,7 @@ from backend.application.resource_authorization import ResourceAuthorizer
 from backend.assessment.ports import AssessmentActorSnapshot
 from backend.assessment.service import ExamResultService
 from backend.execution.absence import AbsenceService
+from backend.execution.absence_ports import AbsenceUnitOfWorkFactory
 from backend.execution.exam_day_closures import ExamDayClosureService
 from backend.execution.exam_protocols import ExamProtocolService
 from backend.execution.exam_round_lifecycle import ExamRoundLifecycleService
@@ -37,6 +40,8 @@ from backend.execution.lifecycle_ports import (
     AssessmentLifecycleWorkFactory,
     CalendarLifecycleWorkFactory,
     IdentityLifecycleWorkFactory,
+    MutationLockCommand,
+    MutationLockKind,
     PlanningLifecycleWorkFactory,
 )
 from backend.execution.slot_service import ExecutionService
@@ -99,6 +104,8 @@ class RequestContext:
     assessment_lifecycle: AssessmentLifecycleWorkFactory
     assessment_round_queries: AssessmentLifecycleWorkFactory
     exam_lifecycle_unit_of_work_factory: ExamLifecycleUnitOfWorkFactory
+    absence_unit_of_work_factory: Callable[[Path], AbsenceUnitOfWorkFactory]
+    round_mutation_lock_checker_factory: Callable[[Path], Callable]
     candidate_day_service_factory: Callable[[Path], CandidateDayService]
     planning_resource_unit_of_work_factory: Callable[[Path], PlanningResourceUnitOfWorkFactory]
     resource_access_query_factory: Callable[[Path], ResourceAccessQueryFactory]
@@ -277,7 +284,7 @@ class RequestContext:
     @property
     def absence_service(self) -> AbsenceService:
         return AbsenceService(
-            self.db_path,
+            self.absence_unit_of_work_factory(self.db_path),
             notification_service=self.notification_service,
             calendar_service=self.calendar_service,
         )
@@ -291,17 +298,21 @@ class RequestContext:
         return self.execution_service_factory(self.db_path)
 
     @property
+    def execution_operations(self) -> ExecutionOperations:
+        return ExecutionOperations(self.calendar_service)
+
+    @property
+    def planning_operations(self) -> PlanningOperations:
+        return PlanningOperations(self.calendar_service)
+
+    @property
     def exam_result_service(self) -> ExamResultService:
         return self.exam_result_service_factory(self.db_path)
 
     @property
     def exam_day_closure_service(self) -> ExamDayClosureService:
         return ExamDayClosureService(
-            self.db_path,
             notification_service=self.notification_service,
-            assessment_lifecycle_factory=self.assessment_lifecycle,
-            planning_lifecycle_work_factory=self.planning_lifecycle_work_factory,
-            identity_lifecycle_work_factory=self.identity_lifecycle_work_factory,
         )
 
     @property
@@ -315,13 +326,7 @@ class RequestContext:
     @property
     def exam_round_lifecycle_service(self) -> ExamRoundLifecycleService:
         return ExamRoundLifecycleService(
-            self.db_path,
             notification_service=self.notification_service,
-            assessment_lifecycle_factory=self.assessment_round_queries,
-            planning_lifecycle_work_factory=self.planning_lifecycle_work_factory,
-            identity_lifecycle_work_factory=self.identity_lifecycle_work_factory,
-            calendar_lifecycle_work_factory=self.calendar_lifecycle_work_factory,
-            pending_consequence_ids=self.plan_consequence_service.pending_ids_for_round,
         )
 
     @property
@@ -403,11 +408,70 @@ class RequestContext:
 
     def authorize_mutation(self, method: str, path_parts: list[str], context: AuthContext) -> None:
         self.runtime_policy.authorize_mutation(self, method, path_parts, context)
-        self.exam_round_lifecycle_service.assert_http_mutation(
-            method,
-            path_parts,
-            self.read_json() if self._body else {},
+        command = self._mutation_lock_command(
+            method, path_parts, self.read_json() if self._body else {}
         )
+        if command is not None:
+            self.exam_lifecycle_application.assert_mutation_allowed(command)
+
+    @staticmethod
+    def _mutation_lock_command(
+        method: str, path_parts: list[str], payload: dict[str, Any]
+    ) -> MutationLockCommand | None:
+        """Translate a mutating resource route to its Execution lock reference."""
+        if method not in {"POST", "PUT", "PATCH", "DELETE"} or not path_parts:
+            return None
+        if (
+            path_parts[0] == "exam-rounds"
+            and len(path_parts) >= 3
+            and path_parts[2]
+            in {
+                "closure",
+                "cancellation",
+                "reopening-impact",
+                "reopenings",
+                "candidate-terminal-status",
+            }
+        ):
+            return None
+        if (
+            path_parts[0] == "exam-rounds"
+            and len(path_parts) == 5
+            and path_parts[2] == "candidates"
+            and path_parts[4] == "terminal-status"
+        ):
+            return None
+        if (
+            path_parts[0] == "exam-rounds"
+            and len(path_parts) == 5
+            and path_parts[2] == "results"
+            and path_parts[4] == "ihk-status"
+        ):
+            return None
+        if (
+            path_parts[0] in {"exam-protocols", "exam-results"}
+            and len(path_parts) == 3
+            and path_parts[2] == "retention"
+        ):
+            return None
+
+        kinds = {
+            "exam-rounds": MutationLockKind.EXAM_ROUND,
+            "planning-proposals": MutationLockKind.PLANNING_PROPOSAL,
+            "planning-settings": MutationLockKind.PLANNING_SETTINGS,
+            "candidate-exam-days": MutationLockKind.CANDIDATE_EXAM_DAY,
+            "member-availabilities": MutationLockKind.MEMBER_AVAILABILITY,
+            "round-candidates": MutationLockKind.ROUND_CANDIDATE,
+            "confirmed-plan-days": MutationLockKind.CONFIRMED_PLAN_DAY,
+            "exam-protocols": MutationLockKind.EXAM_PROTOCOL,
+            "exam-results": MutationLockKind.EXAM_RESULT,
+            "absence-reports": MutationLockKind.ABSENCE_REPORT,
+        }
+        kind = kinds.get(path_parts[0])
+        if kind is None:
+            return None
+        identifier = int(path_parts[1]) if len(path_parts) > 1 and path_parts[1].isdigit() else None
+        return MutationLockCommand(kind, identifier, payload)
 
     def require_round_access(self, round_id: int, *, manage: bool = False) -> None:
         ResourceAuthorizer(

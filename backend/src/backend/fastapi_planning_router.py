@@ -220,9 +220,7 @@ def _register_proposal_routes(
     @router.post("/api/exam-rounds/{id}/confirm-plan")
     def confirm_plan(context: ManageRoundEmptyWriteContext, id: int):
         confirmed = _plan_confirmation_payload(context.planning_service.confirm_plan(id))
-        try:
-            context.calendar_service.sync_round(id)
-        except Exception:
+        if not context.planning_operations.sync_confirmed_plan_calendar(id):
             emit_event("backend_error", severity="error", category="calendar_processing")
             confirmed["calendar_warning"] = (
                 "Der Plan wurde bestätigt, aber die persönlichen Kalender konnten nicht "

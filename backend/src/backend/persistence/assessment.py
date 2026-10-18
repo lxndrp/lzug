@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import AbstractContextManager, contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
@@ -14,6 +15,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.exc import OperationalError
 
 from backend.errors import AssessmentWriteConflictError
+from backend.mutation_locks import MutationLockCommand
 from backend.persistence.database import DEFAULT_DB_PATH, read_session_scope, session_scope
 from backend.persistence.models import (
     AssessmentDisclosure,
@@ -30,6 +32,7 @@ from backend.persistence.models import (
     ExamResult,
     ExamRound,
     ExamRoundAssessmentBinding,
+    ExamRoundIhkStatus,
     ExamSlot,
     ExternalExamResult,
     IndividualAssessment,
@@ -77,16 +80,24 @@ def _model(row: AssessmentModelVersion) -> dict[str, Any]:
 class SQLiteAssessmentUnitOfWorkFactory:
     """Open one session/transaction for Assessment queries and writes."""
 
-    def __init__(self, db_path: Path = DEFAULT_DB_PATH, day_mutation_handler=None) -> None:
+    def __init__(
+        self,
+        db_path: Path = DEFAULT_DB_PATH,
+        day_mutation_handler=None,
+        mutation_lock_checker: Callable[[Session, MutationLockCommand], None] | None = None,
+    ) -> None:
         self.db_path = Path(db_path)
         self.day_mutation_handler = day_mutation_handler
+        self.mutation_lock_checker = mutation_lock_checker
 
     def __call__(self, *, write: bool = False) -> AbstractContextManager[Any]:
         return self._scope(write)
 
     def in_session(self, session: Session) -> SQLiteAssessmentUnitOfWork:
         """Bind Assessment capabilities to an Application-owned session."""
-        return SQLiteAssessmentUnitOfWork(session, self.day_mutation_handler)
+        return SQLiteAssessmentUnitOfWork(
+            session, self.day_mutation_handler, self.mutation_lock_checker
+        )
 
     @contextmanager
     def _scope(self, write: bool) -> Iterator[Any]:
@@ -97,7 +108,9 @@ class SQLiteAssessmentUnitOfWorkFactory:
         )
         try:
             with scope as session:
-                yield SQLiteAssessmentUnitOfWork(session, self.day_mutation_handler)
+                yield SQLiteAssessmentUnitOfWork(
+                    session, self.day_mutation_handler, self.mutation_lock_checker
+                )
         except OperationalError as error:
             if getattr(error.orig, "sqlite_errorcode", None) == getattr(
                 sqlite3, "SQLITE_BUSY_SNAPSHOT", 517
@@ -109,10 +122,20 @@ class SQLiteAssessmentUnitOfWorkFactory:
 
 
 class SQLiteAssessmentUnitOfWork:
-    def __init__(self, session: Session, day_mutation_handler=None) -> None:
+    def __init__(
+        self,
+        session: Session,
+        day_mutation_handler=None,
+        mutation_lock_checker: Callable[[Session, MutationLockCommand], None] | None = None,
+    ) -> None:
         self._session = session
         self._queries = SQLiteAssessmentQueries(session)
         self._repository = SQLiteAssessmentRepository(session, day_mutation_handler)
+        self._mutation_lock_checker = mutation_lock_checker
+
+    def check_mutation_allowed(self, command: MutationLockCommand) -> None:
+        if self._mutation_lock_checker is not None:
+            self._mutation_lock_checker(self._session, command)
 
     @property
     def queries(self):
@@ -1218,3 +1241,39 @@ class SQLiteAssessmentRepository:
                 actor_member_id,
                 reason,
             )
+
+    def record_ihk_status(
+        self,
+        *,
+        round_id: int,
+        result_id: int,
+        document_status: str,
+        document_reference: str,
+        actor_member_id: int,
+    ) -> None:
+        fingerprint = hashlib.sha256(
+            _json(
+                {
+                    "round_id": round_id,
+                    "result_id": result_id,
+                    "document_status": document_status,
+                    "document_reference": document_reference,
+                }
+            ).encode("utf-8")
+        ).hexdigest()
+        existing = self.session.scalar(
+            select(ExamRoundIhkStatus).where(ExamRoundIhkStatus.command_fingerprint == fingerprint)
+        )
+        if existing is None:
+            self.session.add(
+                ExamRoundIhkStatus(
+                    exam_round_id=round_id,
+                    exam_result_id=result_id,
+                    document_status=document_status,
+                    document_reference=document_reference,
+                    recorded_by_member_id=actor_member_id,
+                    command_fingerprint=fingerprint,
+                    recorded_at=datetime.now(UTC).replace(microsecond=0).isoformat(),
+                )
+            )
+            self.session.flush()

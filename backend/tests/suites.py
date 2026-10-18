@@ -15,7 +15,8 @@ TEST_MODULES_BY_TIER: dict[str, frozenset[str]] = {
             "test_healthcheck",
             "test_notification_delivery",
             "test_operator_cli_layout",
-            "test_package_boundaries",
+            "test_execution_operations",
+            "test_planning_operations",
             "test_planning_payloads",
             "test_planning_resources",
             "test_planning_venue_policy",
@@ -53,6 +54,12 @@ TEST_MODULES_BY_TIER: dict[str, frozenset[str]] = {
             "test_repository",
             "test_resource_access",
             "test_venue_transport",
+            "test_package_boundaries",
+            "test_absence_uow",
+            "test_day_closure_snapshot",
+            "test_day_closure_mutation_snapshot",
+            "test_round_lifecycle_export_snapshot",
+            "test_round_lifecycle_mutation_snapshot",
         }
     ),
     "http": frozenset(

@@ -179,6 +179,12 @@ class ApplicationConsequenceStore(Protocol):
 ApplicationConsequenceStoreFactory = Callable[[Path], ApplicationConsequenceStore]
 
 
+class LifecycleConsequenceReadPort(Protocol):
+    """Expose Application-owned pending follow-ups in a caller's read snapshot."""
+
+    def pending_ids_for_round(self, round_id: int) -> tuple[int, ...]: ...
+
+
 class PlanConsequencePlanningPort(Protocol):
     """Expose immutable Planning facts and deterministic plan descriptions."""
 

@@ -423,9 +423,10 @@ def _add_slot_status_route(router, *, finish, not_found, write_security):
         )
         day_record = context.visible_resource_record(EXAM_DAY, day_id)
         if day_record and day_record.get("closure_status") == "open":
-            try:
-                context.calendar_service.sync_round(int(day_record["exam_round_id"]))
-            except Exception:
+            synced = context.execution_operations.sync_slot_status_calendar(
+                int(day_record["exam_round_id"])
+            )
+            if not synced:
                 emit_event("backend_error", severity="error", category="calendar_processing")
         return _confirmed_day(context, day_id, finish=finish, not_found=not_found)
 

@@ -12,6 +12,8 @@ from unittest.mock import patch
 
 from sqlalchemy.exc import SAWarning, SQLAlchemyError
 
+from backend.execution.lifecycle_ports import MutationLockCommand, MutationLockKind
+from backend.http_transport import RequestContext
 from backend.persistence.database import session_scope
 from backend.persistence.models import (
     CANDIDATE,
@@ -38,6 +40,68 @@ class StaticTestHandler(TestLzugHandler):
 
 
 class ApiTests(unittest.TestCase):
+    def test_mutation_lock_route_mapping(self) -> None:
+        payload = {"round_id": 23, "revision": 7}
+        cases = (
+            ("PUT", ["exam-rounds", "12"], MutationLockKind.EXAM_ROUND, 12),
+            (
+                "POST",
+                ["planning-proposals"],
+                MutationLockKind.PLANNING_PROPOSAL,
+                None,
+            ),
+            ("PUT", ["planning-settings"], MutationLockKind.PLANNING_SETTINGS, None),
+            (
+                "POST",
+                ["candidate-exam-days", "3"],
+                MutationLockKind.CANDIDATE_EXAM_DAY,
+                3,
+            ),
+            (
+                "PATCH",
+                ["member-availabilities", "4"],
+                MutationLockKind.MEMBER_AVAILABILITY,
+                4,
+            ),
+            ("DELETE", ["round-candidates", "5"], MutationLockKind.ROUND_CANDIDATE, 5),
+            (
+                "PUT",
+                ["confirmed-plan-days", "6"],
+                MutationLockKind.CONFIRMED_PLAN_DAY,
+                6,
+            ),
+            (
+                "POST",
+                ["exam-protocols", "31", "entries"],
+                MutationLockKind.EXAM_PROTOCOL,
+                31,
+            ),
+            ("POST", ["exam-results", "8", "determine"], MutationLockKind.EXAM_RESULT, 8),
+            (
+                "DELETE",
+                ["absence-reports", "42"],
+                MutationLockKind.ABSENCE_REPORT,
+                42,
+            ),
+        )
+        for method, path, kind, resource_id in cases:
+            with self.subTest(method=method, path=path):
+                self.assertEqual(
+                    MutationLockCommand(kind, resource_id, payload),
+                    RequestContext._mutation_lock_command(method, path, payload),
+                )
+
+        for method, path in (
+            ("POST", ["exam-rounds", "12", "closure"]),
+            ("PUT", ["exam-rounds", "12", "candidates", "4", "terminal-status"]),
+            ("PATCH", ["exam-rounds", "12", "results", "5", "ihk-status"]),
+            ("PUT", ["exam-results", "5", "retention"]),
+            ("GET", ["exam-rounds", "12"]),
+            ("POST", ["unrelated-resource", "12"]),
+        ):
+            with self.subTest(method=method, path=path):
+                self.assertIsNone(RequestContext._mutation_lock_command(method, path, payload))
+
     def test_round_candidate_delete_uses_the_planning_command(self) -> None:
         with TempDatabase() as db_path:
             with session_scope(db_path, begin_immediate=True) as session:
@@ -666,8 +730,8 @@ class ApiTests(unittest.TestCase):
 
             with (
                 patch(
-                    "backend.calendar.service.CalendarService.sync_round",
-                    side_effect=RuntimeError("calendar unavailable"),
+                    "backend.application.execution_operations.ExecutionOperations.sync_slot_status_calendar",
+                    return_value=False,
                 ) as sync_round,
                 patch("backend.fastapi_execution.emit_event") as emit_event,
             ):

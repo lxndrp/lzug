@@ -116,6 +116,9 @@ Domänentypen gehören ihrem fachlichen Eigentümer; einen globalen
 `contracts`-, `common`- oder `utils`-Eimer gibt es nicht.
 `Session`, `Query`, SQL-Ausdrücke, `Resource.model` und lazy ORM-Werte
 überschreiten nicht die Persistenzgrenze.
+Die Architekturprüfung sichert Importgrenzen rekursiv für absolute und
+relative Imports; ausgewählte Adaptertests prüfen materialisierte
+Laufzeitergebnisse nach dem Schließen ihres UoW auf SQLAlchemy-Werte.
 
 Explizite Context Manager und UoW-Factories drücken Transaktionen aus.
 Verbraucher-Ports beschreiben domänenspezifische Transaktionskontexte und

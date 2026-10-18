@@ -8,22 +8,16 @@ from collections.abc import Callable, Mapping
 from contextlib import nullcontext
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
-from sqlalchemy.exc import SQLAlchemyError
-
+from backend.application.consequence_ports import NotificationApplicationPort
 from backend.application.plan_consequences import PlanConsequenceService
 from backend.application.venue_consequences import VenueConsequenceService
 from backend.identity.admin_service import AdminOperationError, OperatorAuthService
 from backend.identity.committee_admin import CommitteeAdminService
-from backend.notifications.service import NotificationService
 from backend.operations.backup_recipients import BackupRecipientRepository
 from backend.operations.backup_restore import ArtifactError, ArtifactService
 from backend.operations.lifecycle import LifecycleError, LifecycleService
-from backend.persistence.database import (
-    MigrationError,
-    PersistencePaths,
-)
 from backend.runtime import RuntimeConflictError, RuntimeCoordinator
 
 PROTOCOL_VERSION = 1
@@ -161,6 +155,26 @@ class AdminApplicationResult:
         )
 
 
+class AdminPersistencePaths(Protocol):
+    """Path values required by admin use cases, supplied by the composition root."""
+
+    data_dir: Path
+    database: Path
+    documents: Path
+    backups: Path
+
+    @property
+    def directories(self) -> tuple[Path, ...]: ...
+
+
+class AdminNotificationPort(NotificationApplicationPort, Protocol):
+    """Expose the delivery and inspection actions used by Admin commands."""
+
+    def process_due_events(self) -> dict[str, Any]: ...
+
+    def synthetic_test(self, member_id: int, channel: str) -> dict[str, Any]: ...
+
+
 @dataclass(frozen=True)
 class AdminServices:
     """Explicit factories for every service used by the administrator core."""
@@ -168,14 +182,15 @@ class AdminServices:
     diagnostics: Callable[[str, Mapping[str, str] | None], tuple[dict[str, Any], int]]
     readiness_probe: Callable[[Path], Mapping[str, object]]
     operator_auth_factory: Callable[[Path], OperatorAuthService]
-    notification_factory: Callable[[Path], NotificationService]
+    notification_factory: Callable[[Path], AdminNotificationPort]
     committee_factory: Callable[[Path], CommitteeAdminService]
-    consequence_factory: Callable[[Path, NotificationService], PlanConsequenceService]
-    artifact_factory: Callable[[PersistencePaths], ArtifactService]
+    consequence_factory: Callable[[Path, NotificationApplicationPort], PlanConsequenceService]
+    artifact_factory: Callable[[AdminPersistencePaths], ArtifactService]
     recipient_repository_factory: Callable[[ArtifactService], BackupRecipientRepository]
-    lifecycle_factory: Callable[[PersistencePaths], LifecycleService]
+    lifecycle_factory: Callable[[AdminPersistencePaths], LifecycleService]
+    persistence_error: Callable[[Exception], bool] = lambda _error: False
     venue_consequence_factory: (
-        Callable[[Path, NotificationService], VenueConsequenceService] | None
+        Callable[[Path, NotificationApplicationPort], VenueConsequenceService] | None
     ) = None
 
 
@@ -330,7 +345,7 @@ def _execute_committee(
 
 
 def _execute_notification_processing(
-    notifications: NotificationService,
+    notifications: AdminNotificationPort,
     consequences: PlanConsequenceService,
     venue_consequences: VenueConsequenceService | None = None,
 ) -> dict[str, Any]:
@@ -355,7 +370,7 @@ def _execute_plan_consequences(
 
 def _execute_notification_test(
     arguments: Mapping[str, Any],
-    notifications: NotificationService,
+    notifications: AdminNotificationPort,
 ) -> dict[str, Any]:
     channel = _require_string(arguments, "channel")
     if channel not in {"web_push", "email"}:
@@ -390,7 +405,7 @@ def _execute_account(
 def _run_command(
     command: str,
     arguments: Mapping[str, Any],
-    paths: PersistencePaths,
+    paths: AdminPersistencePaths,
     services: AdminServices,
 ) -> tuple[dict[str, Any], int]:
     if command in _DIAGNOSTIC_COMMANDS:
@@ -447,7 +462,7 @@ class AdminApplication:
 
     def __init__(
         self,
-        paths: PersistencePaths,
+        paths: AdminPersistencePaths,
         services: AdminServices,
         *,
         runtime: RuntimeCoordinator | None = None,
@@ -503,9 +518,11 @@ class AdminApplication:
                 phase=error.phase,
                 details=error.details,
             )
-        except MigrationError, OSError, SQLAlchemyError, ValueError:
+        except OSError, ValueError:
             return _error("persistence_error", "Admin operation failed")
-        except Exception:
+        except Exception as error:
+            if self.services.persistence_error(error):
+                return _error("persistence_error", "Admin operation failed")
             return _error("internal_error", "Admin operation failed")
 
     def _inspect(self, command: str, arguments: Mapping[str, Any]) -> AdminApplicationResult:

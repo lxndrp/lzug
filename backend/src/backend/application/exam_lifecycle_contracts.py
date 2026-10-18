@@ -3,20 +3,45 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
 
+from backend.execution.day_lifecycle_contracts import ExamDayReopeningIntent
 from backend.execution.lifecycle_ports import (
+    AbsenceSnapshot,
     PlanAssignmentLifecycleSnapshot,
     PlanningCandidateLifecycleSnapshot,
     PlanningRoundLifecycleSnapshot,
     PlanSlotLifecycleSnapshot,
 )
+from backend.execution.protocol_ports import ProtocolDaySnapshot
+from backend.execution.slot_ports import AttendanceSnapshot
 from backend.identity.lifecycle_ports import (
     IdentityCommitteeLifecycleSnapshot,
     IdentityMemberLifecycleSnapshot,
 )
+
+
+@dataclass(frozen=True)
+class RoundIhkStatusCommand:
+    """Validated IHK status record for an authorized round result."""
+
+    round_id: int
+    result_id: int
+    document_status: str
+    document_reference: str
+    actor_member_id: int
+
+    def __post_init__(self) -> None:
+        for attribute, maximum in (("document_status", 300), ("document_reference", 1000)):
+            value = getattr(self, attribute)
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"{attribute} ist erforderlich")
+            normalized = value.strip()
+            if len(normalized) > maximum:
+                raise ValueError(f"{attribute} ist zu lang")
+            object.__setattr__(self, attribute, normalized)
 
 
 class DayClosureKind(StrEnum):
@@ -117,6 +142,10 @@ class DayClosureFacts:
     management_member_ids: frozenset[int] = frozenset()
     assessment_results: tuple[Mapping[str, Any], ...] = ()
     assessment_impacts: tuple[Mapping[str, Any], ...] = ()
+    candidate_attendance: Mapping[int, AttendanceSnapshot] = field(default_factory=dict)
+    member_attendance: Mapping[int, AttendanceSnapshot] = field(default_factory=dict)
+    absences: tuple[AbsenceSnapshot, ...] = ()
+    protocol_day_snapshot: ProtocolDaySnapshot | None = None
 
 
 def _require_round_revision(revision: object) -> None:
@@ -139,6 +168,7 @@ class RoundLifecycleFacts:
     committee: IdentityCommitteeLifecycleSnapshot
     members: tuple[IdentityMemberLifecycleSnapshot, ...]
     management_member_ids: frozenset[int]
+    lifecycle_records: Mapping[str, Any] = field(default_factory=dict)
 
     def round_lifecycle_snapshot(self, round_id: int):
         return self.round if round_id == self.round.id else None
@@ -217,3 +247,12 @@ class RoundLifecycleFacts:
             and item["ended_at"] is None
             for item in self.planning_context.get("candidate_assignment_history", ())
         )
+
+
+@dataclass(frozen=True)
+class DayReopeningHandle:
+    """Application state carried between reopening writes in the shared UoW."""
+
+    reopening_id: int
+    now: str
+    intent: ExamDayReopeningIntent

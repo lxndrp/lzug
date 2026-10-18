@@ -21,6 +21,7 @@ from backend.execution.protocol_ports import (
 )
 from backend.execution.slot_ports import DayMutationRequest
 from backend.identity.authorization import AuthorizationScope
+from backend.mutation_locks import MutationLockCommand, MutationLockKind
 
 DECLARATIONS = {"without_special_occurrences", "with_special_occurrences"}
 ENTRY_CATEGORIES = {
@@ -70,6 +71,9 @@ class ExamProtocolService:
         declaration, entries = self._normalize_content(payload)
         expected_version = self._required_version(payload)
         with self._unit_of_work_factory(write=True) as work:
+            work.check_mutation_allowed(
+                MutationLockCommand(MutationLockKind.EXAM_PROTOCOL, protocol_id, payload)
+            )
             protocol = self._required_protocol(work, protocol_id)
             actor_id, participants, can_manage = self._require_access(protocol, scope, edit=True)
             current = self._current_revision(protocol)
@@ -126,6 +130,9 @@ class ExamProtocolService:
     ) -> dict[str, Any]:
         expected_version = self._required_version(payload)
         with self._unit_of_work_factory(write=True) as work:
+            work.check_mutation_allowed(
+                MutationLockCommand(MutationLockKind.EXAM_PROTOCOL, protocol_id, payload)
+            )
             protocol = self._required_protocol(work, protocol_id)
             actor_id, participants, _managed = self._require_access(protocol, scope, react=True)
             revision = self._current_revision(protocol)
@@ -162,6 +169,9 @@ class ExamProtocolService:
         if response_type not in RESPONSE_TYPES:
             raise ValueError("Unbekannte Protokollreaktion")
         with self._unit_of_work_factory(write=True) as work:
+            work.check_mutation_allowed(
+                MutationLockCommand(MutationLockKind.EXAM_PROTOCOL, protocol_id, payload)
+            )
             protocol = self._required_protocol(work, protocol_id)
             actor_id, participants, _managed = self._require_access(protocol, scope, react=True)
             revision = self._current_revision(protocol)
@@ -225,6 +235,9 @@ class ExamProtocolService:
         expected_version = self._required_version(payload)
         reason = self._required_text(payload.get("reason"), "reason", 2000)
         with self._unit_of_work_factory(write=True) as work:
+            work.check_mutation_allowed(
+                MutationLockCommand(MutationLockKind.EXAM_PROTOCOL, protocol_id, payload)
+            )
             protocol = self._required_protocol(work, protocol_id)
             actor_id, participants, _managed = self._require_access(protocol, scope, react=True)
             revision = self._current_revision(protocol)
@@ -275,6 +288,9 @@ class ExamProtocolService:
         if not isinstance(raw_request_id, int) or isinstance(raw_request_id, bool):
             raise ValueError("Ein Korrekturvorgang benötigt einen Ergänzungsbedarf")
         with self._unit_of_work_factory(write=True) as work:
+            work.check_mutation_allowed(
+                MutationLockCommand(MutationLockKind.EXAM_PROTOCOL, protocol_id, payload)
+            )
             protocol = self._required_protocol(work, protocol_id)
             actor_id, _participants, can_manage = self._require_access(protocol, scope, manage=True)
             if not can_manage or actor_id is None:

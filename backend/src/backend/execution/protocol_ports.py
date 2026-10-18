@@ -7,6 +7,7 @@ from contextlib import AbstractContextManager
 from typing import NotRequired, Protocol, TypedDict
 
 from backend.execution.slot_ports import DayMutationHandle, DayMutationRequest
+from backend.mutation_locks import MutationLockCommand
 
 
 class ProtocolContentCommand(TypedDict):
@@ -264,6 +265,8 @@ class ProtocolDaySnapshot(TypedDict):
 
 class ExecutionProtocolUnitOfWork(Protocol):
     """Transaction-bound protocol reads and mutations owned by Execution."""
+
+    def check_mutation_allowed(self, command: MutationLockCommand) -> None: ...
 
     def protocol_by_id(self, protocol_id: int) -> ExecutionProtocolSnapshot | None: ...
 

@@ -3,9 +3,15 @@
 from __future__ import annotations
 
 import ast
+import tempfile
 import unittest
+from dataclasses import dataclass
 from pathlib import Path
 from typing import get_type_hints
+
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import Query, Session
+from sqlalchemy.pool import NullPool
 
 from backend.application.exam_lifecycle import ExamLifecycleApplication
 from backend.application.exam_lifecycle_contracts import (
@@ -16,6 +22,8 @@ from backend.application.exam_lifecycle_contracts import (
 )
 from backend.execution.protocol_ports import ProtocolReferencesSnapshot
 from backend.execution.slot_ports import DayMutationRequest
+from backend.persistence.models import Candidate
+from backend.tests.support.port_contracts import assert_materialized_port_value
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1] / "src" / "backend"
 TEST_ROOT = Path(__file__).resolve().parent
@@ -67,6 +75,7 @@ ROOT_MODULE_OWNERS = {
     "http_planning_payloads.py": "api",
     "http_resources.py": "api",
     "http_transport.py": "api",
+    "mutation_locks.py": "shared-contracts",
     "healthcheck.py": "operations-adapter",
     "observability.py": "runtime-foundation",
     "planning_ports.py": "planning-owned-contracts",
@@ -84,31 +93,28 @@ ALLOWED_PACKAGE_DEPENDENCIES = {
     "application": frozenset(
         {
             "assessment",
-            "calendar",
-            "documents",
             "execution",
             "identity",
-            "integrations",
             "operations",
-            "persistence",
             "planning",
-            "notifications",
         }
     ),
     "assessment": frozenset(),
     "calendar": frozenset(),
     "documents": frozenset(),
     "execution": frozenset(
-        {"calendar", "identity", "integrations", "notifications", "persistence", "presentation"}
+        {"calendar", "identity", "integrations", "notifications", "presentation"}
     ),
     "identity": frozenset(),
     "integrations": frozenset({"documents", "identity", "notifications", "persistence"}),
     "notifications": frozenset(),
     "operations": frozenset({"documents", "identity", "integrations", "persistence"}),
-    "persistence": frozenset({"calendar", "documents", "identity", "notifications"}),
+    "persistence": frozenset({"calendar", "documents", "execution", "identity", "notifications"}),
     "presentation": frozenset(),
     "planning": frozenset({"calendar", "integrations", "notifications", "persistence"}),
 }
+
+TRANSITIONAL_DEPENDENCY_IMPORTS = {}
 
 TEST_OWNERS = {
     "api": frozenset(
@@ -136,6 +142,8 @@ TEST_OWNERS = {
     "application": frozenset(
         {
             "test_exam_venue_api.py",
+            "test_execution_operations.py",
+            "test_planning_operations.py",
             "test_admin_application.py",
             "test_person_memberships.py",
             "test_repository.py",
@@ -159,9 +167,14 @@ TEST_OWNERS = {
     "execution": frozenset(
         {
             "test_absence.py",
+            "test_absence_uow.py",
+            "test_day_closure_snapshot.py",
             "test_exam_day_closures.py",
+            "test_day_closure_mutation_snapshot.py",
             "test_exam_protocols.py",
             "test_exam_round_lifecycle.py",
+            "test_round_lifecycle_export_snapshot.py",
+            "test_round_lifecycle_mutation_snapshot.py",
         }
     ),
     "identity": frozenset(
@@ -220,45 +233,404 @@ TEST_OWNERS = {
 }
 
 
-def _package_dependencies(package: str) -> set[str]:
-    dependencies: set[str] = set()
-    for path in (BACKEND_ROOT / package).glob("*.py"):
-        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+def _imported_modules(path: Path, root: Path) -> set[str]:
+    """Return absolute import names, including resolvable relative imports."""
+    relative = path.relative_to(root).with_suffix("")
+    module_parts = ["backend", *relative.parts]
+    package_parts = module_parts[:-1]
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    modules: set[str] = set()
 
-        class RuntimeImports(ast.NodeVisitor):
-            def __init__(self) -> None:
-                self.nodes: list[ast.AST] = []
+    class RuntimeImports(ast.NodeVisitor):
+        def visit_If(self, node: ast.If) -> None:
+            if isinstance(node.test, ast.Name) and node.test.id == "TYPE_CHECKING":
+                for item in node.orelse:
+                    self.visit(item)
+                return
+            self.generic_visit(node)
 
-            def visit_If(self, node: ast.If) -> None:
-                if isinstance(node.test, ast.Name) and node.test.id == "TYPE_CHECKING":
-                    for item in node.orelse:
-                        self.visit(item)
+        def visit_Import(self, node: ast.Import) -> None:
+            modules.update(alias.name for alias in node.names)
+
+        def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+            if node.level:
+                keep = len(package_parts) - node.level + 1
+                if keep < 0:
                     return
-                self.generic_visit(node)
+                base = package_parts[:keep]
+                if node.module:
+                    base.extend(node.module.split("."))
+                    modules.add(".".join(base))
+                else:
+                    modules.update(".".join([*base, alias.name]) for alias in node.names)
+            elif node.module == "backend":
+                modules.update(f"backend.{alias.name}" for alias in node.names)
+            elif node.module:
+                modules.add(node.module)
 
-            def visit_Import(self, node: ast.Import) -> None:
-                self.nodes.append(node)
+    RuntimeImports().visit(tree)
+    return modules
 
-            def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
-                self.nodes.append(node)
 
-        visitor = RuntimeImports()
-        visitor.visit(tree)
-        for node in visitor.nodes:
-            names: list[str] = []
-            if isinstance(node, ast.Import):
-                names.extend(alias.name for alias in node.names)
-            elif isinstance(node, ast.ImportFrom) and node.module:
-                names.append(node.module)
-            for name in names:
-                parts = name.split(".")
-                if len(parts) >= 2 and parts[0] == "backend" and parts[1] in CORE_PACKAGES:
-                    dependencies.add(parts[1])
+def _package_dependencies(package: str) -> set[str]:
+    return set(_package_dependency_imports(package))
+
+
+def _package_dependency_imports(package: str) -> dict[str, set[str]]:
+    imports_by_dependency: dict[str, set[str]] = {}
+    for path in (BACKEND_ROOT / package).rglob("*.py"):
+        for name in _imported_modules(path, BACKEND_ROOT):
+            parts = name.split(".")
+            if len(parts) >= 2 and parts[0] == "backend" and parts[1] in CORE_PACKAGES:
+                imports_by_dependency.setdefault(parts[1], set()).add(
+                    f"{path.relative_to(BACKEND_ROOT)}: {name}"
+                )
+    imports_by_dependency.pop(package, None)
+    return imports_by_dependency
+
+
+def _unexpected_dependencies(package: str, modules: set[str]) -> set[str]:
+    dependencies = {
+        parts[1]
+        for module in modules
+        if len(parts := module.split(".")) >= 2
+        and parts[0] == "backend"
+        and parts[1] in CORE_PACKAGES
+    }
     dependencies.discard(package)
-    return dependencies
+    return dependencies - ALLOWED_PACKAGE_DEPENDENCIES[package]
+
+
+def _dotted_name(node: ast.expr) -> str | None:
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        parent = _dotted_name(node.value)
+        return f"{parent}.{node.attr}" if parent is not None else None
+    return None
+
+
+def _annotation_import_targets(tree: ast.Module) -> dict[str, str]:
+    targets: dict[str, str] = {}
+
+    class ModuleScopeImports(ast.NodeVisitor):
+        def _is_type_checking(self, node: ast.expr) -> bool:
+            name = _dotted_name(node)
+            if name is None:
+                return False
+            first, *tail = name.split(".")
+            resolved = ".".join((targets.get(first, first), *tail))
+            return resolved in {
+                "typing.TYPE_CHECKING",
+                "typing_extensions.TYPE_CHECKING",
+            }
+
+        def visit_If(self, node: ast.If) -> None:
+            if self._is_type_checking(node.test):
+                for statement in node.orelse:
+                    self.visit(statement)
+                return
+            if (
+                isinstance(node.test, ast.UnaryOp)
+                and isinstance(node.test.op, ast.Not)
+                and self._is_type_checking(node.test.operand)
+            ):
+                for statement in node.body:
+                    self.visit(statement)
+                return
+            self.generic_visit(node)
+
+        def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+            return
+
+        def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+            return
+
+        def visit_ClassDef(self, node: ast.ClassDef) -> None:
+            return
+
+        def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+            if node.module:
+                for alias in node.names:
+                    targets[alias.asname or alias.name] = f"{node.module}.{alias.name}"
+
+        def visit_Import(self, node: ast.Import) -> None:
+            for alias in node.names:
+                bound_name = alias.asname or alias.name.split(".", maxsplit=1)[0]
+                targets[bound_name] = alias.name if alias.asname else bound_name
+
+    ModuleScopeImports().visit(tree)
+    return targets
+
+
+def _annotation_references(annotation: ast.expr) -> set[str]:
+    references: set[str] = set()
+    nested_attribute_ids = {
+        id(node.value) for node in ast.walk(annotation) if isinstance(node, ast.Attribute)
+    }
+    for node in ast.walk(annotation):
+        if isinstance(node, (ast.Name, ast.Attribute)):
+            if id(node) in nested_attribute_ids:
+                continue
+            name = _dotted_name(node)
+            if name is not None:
+                references.add(name)
+        elif isinstance(node, ast.Constant) and isinstance(node.value, str):
+            try:
+                parsed = ast.parse(node.value, mode="eval")
+            except SyntaxError:
+                continue
+            references.update(_annotation_references(parsed.body))
+    return references
+
+
+def _forbidden_port_annotation_references(
+    annotation: ast.expr, import_targets: dict[str, str]
+) -> set[str]:
+    leaks: set[str] = set()
+    for reference in _annotation_references(annotation):
+        first, *tail = reference.split(".")
+        resolved = ".".join((import_targets.get(first, first), *tail))
+        if resolved.startswith("sqlalchemy."):
+            leaks.add(resolved)
+        if resolved.endswith("Resource.model"):
+            leaks.add(resolved)
+    return leaks
+
+
+def _is_protocol_base(base: ast.expr, import_targets: dict[str, str]) -> bool:
+    expression = base.value if isinstance(base, ast.Subscript) else base
+    name = _dotted_name(expression)
+    if name is None:
+        return False
+    first, *tail = name.split(".")
+    resolved = ".".join((import_targets.get(first, first), *tail))
+    return resolved in {"typing.Protocol", "typing_extensions.Protocol"}
 
 
 class BackendPackageBoundaryTests(unittest.TestCase):
+    def test_runtime_port_contract_rejects_nested_sqlalchemy_values(self) -> None:
+        @dataclass
+        class Result:
+            payload: object
+
+        engine = create_engine("sqlite://", poolclass=NullPool)
+        with engine.connect() as connection, Session(engine) as session:
+            leaked_values = (
+                Session,
+                session,
+                Query(session, select(Candidate)),
+                select(Candidate),
+                engine,
+                connection,
+                Candidate,
+                Candidate(),
+            )
+        engine.dispose()
+        for leaked in leaked_values:
+            with self.subTest(value=leaked):
+                with self.assertRaises(AssertionError):
+                    assert_materialized_port_value(self, Result({"nested": [leaked]}))
+
+    def test_runtime_port_contract_accepts_materialized_values(self) -> None:
+        assert_materialized_port_value(self, {"id": 1, "nested": ("ready", None)})
+
+    def test_http_command_routes_do_not_call_calendar_sync_directly(self) -> None:
+        for relative in ("fastapi_execution.py", "fastapi_planning_router.py"):
+            tree = ast.parse((BACKEND_ROOT / relative).read_text(encoding="utf-8"))
+            direct_calls = [
+                node
+                for node in ast.walk(tree)
+                if isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "sync_round"
+                and isinstance(node.func.value, ast.Attribute)
+                and node.func.value.attr == "calendar_service"
+            ]
+            with self.subTest(module=relative):
+                self.assertEqual([], direct_calls)
+
+    def test_recursive_boundary_scanner_resolves_relative_and_absolute_imports(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            nested = root / "execution" / "submodule"
+            nested.mkdir(parents=True)
+            path = nested / "example.py"
+            path.write_text(
+                "from ...persistence.models import ExamDay\n"
+                "from ... import persistence\n"
+                "from backend import persistence as db\n"
+                "from backend.assessment import Result\n",
+                encoding="utf-8",
+            )
+            imports = _imported_modules(path, root)
+        self.assertIn("backend.persistence.models", imports)
+        self.assertIn("backend.persistence", imports)
+        self.assertIn("backend.assessment", imports)
+        self.assertEqual(
+            _unexpected_dependencies("identity", imports), {"assessment", "persistence"}
+        )
+
+    def test_relative_import_resolution_reports_target_package(self) -> None:
+        module = BACKEND_ROOT / "execution" / "absence.py"
+        imports = _imported_modules(module, BACKEND_ROOT)
+        self.assertIn("backend.execution.calendar_ports", imports)
+
+    def test_composition_root_wires_adapters_while_application_uses_ports(self) -> None:
+        composition_imports = _imported_modules(
+            BACKEND_ROOT / "composition.py", BACKEND_ROOT.parent
+        )
+        application_port_imports = _imported_modules(
+            BACKEND_ROOT / "application" / "exam_lifecycle_ports.py", BACKEND_ROOT
+        )
+        self.assertIn("backend.persistence.execution", composition_imports)
+        self.assertIn("backend.integrations.notification_delivery", composition_imports)
+        self.assertIn("backend.execution.slot_ports", application_port_imports)
+        self.assertNotIn("backend.persistence", application_port_imports)
+
+    def test_round_lifecycle_application_port_does_not_pass_concrete_service(self) -> None:
+        path = BACKEND_ROOT / "application" / "exam_lifecycle_ports.py"
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        concrete_services = {"ExamRoundLifecycleService"}
+        references = {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)} | {
+            node.attr for node in ast.walk(tree) if isinstance(node, ast.Attribute)
+        }
+        self.assertEqual(
+            set(),
+            references & concrete_services,
+            "Application round lifecycle ports must expose detached commands and "
+            "facts, not the concrete Session-bound round service",
+        )
+
+    def test_day_lifecycle_application_port_does_not_pass_concrete_service(self) -> None:
+        path = BACKEND_ROOT / "application" / "exam_lifecycle_ports.py"
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        references = {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)} | {
+            node.attr for node in ast.walk(tree) if isinstance(node, ast.Attribute)
+        }
+        self.assertNotIn("ExamDayClosureService", references)
+
+    def test_day_transition_execution_service_has_no_session_or_orm_dependency(self) -> None:
+        path = BACKEND_ROOT / "execution" / "exam_day_closures.py"
+        imports = _imported_modules(path, BACKEND_ROOT)
+        self.assertFalse(
+            {
+                module
+                for module in imports
+                if module == "sqlalchemy"
+                or module.startswith("sqlalchemy.")
+                or module.startswith("backend.persistence")
+            }
+        )
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        service = next(
+            node
+            for node in tree.body
+            if isinstance(node, ast.ClassDef) and node.name == "ExamDayClosureService"
+        )
+        self.assertFalse(
+            any(isinstance(node, ast.Name) and node.id == "Session" for node in ast.walk(service))
+        )
+
+    def test_lifecycle_execution_services_do_not_import_presentation(self) -> None:
+        for relative in (
+            "execution/exam_day_closures.py",
+            "execution/exam_round_lifecycle.py",
+        ):
+            imports = _imported_modules(BACKEND_ROOT / relative, BACKEND_ROOT)
+            self.assertFalse(
+                any(
+                    module == "backend.presentation" or module.startswith("backend.presentation.")
+                    for module in imports
+                ),
+                f"{relative} must return materialized export values for the HTTP renderer",
+            )
+
+    def test_public_port_annotations_do_not_expose_orm_or_sql_values(self) -> None:
+        leaks: list[str] = []
+        for package in (BACKEND_ROOT / name for name in CORE_PACKAGES):
+            if package.name in {"persistence", "integrations", "operations"}:
+                continue
+            for path in package.rglob("*.py"):
+                tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+                import_targets = _annotation_import_targets(tree)
+                for node in ast.walk(tree):
+                    if not isinstance(node, ast.ClassDef) or not any(
+                        _is_protocol_base(base, import_targets) for base in node.bases
+                    ):
+                        continue
+                    for method in node.body:
+                        if not isinstance(method, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                            continue
+                        annotations = [
+                            arg.annotation
+                            for arg in (
+                                *method.args.posonlyargs,
+                                *method.args.args,
+                                *method.args.kwonlyargs,
+                            )
+                            if arg.annotation is not None
+                        ]
+                        if method.returns is not None:
+                            annotations.append(method.returns)
+                        for annotation in annotations:
+                            leaks.extend(
+                                f"{path.relative_to(BACKEND_ROOT)}:{reference}"
+                                for reference in _forbidden_port_annotation_references(
+                                    annotation, import_targets
+                                )
+                            )
+        self.assertEqual(leaks, [])
+
+    def test_port_annotation_scanner_rejects_import_aliases_and_forward_references(self) -> None:
+        tree = ast.parse(
+            "from typing import Protocol as Contract, TypeVar\n"
+            "from typing import TYPE_CHECKING as TC\n"
+            "import typing as typing_alias\n"
+            "from sqlalchemy.orm import Session as DbSession\n"
+            "import sqlalchemy as sa\n"
+            "from backend.api_contracts import Resource as PublicResource\n"
+            "T = TypeVar('T')\n"
+            "def unrelated():\n"
+            "    from builtins import str as DbSession\n"
+            "class Unrelated:\n"
+            "    from builtins import str as DbSession\n"
+            "if TC:\n"
+            "    from builtins import str as DbSession\n"
+            "if typing_alias.TYPE_CHECKING:\n"
+            "    from builtins import str as DbSession\n"
+            "class Port(Contract[T]):\n"
+            "    def first(self, session: 'DbSession') -> None: ...\n"
+            "    def second(self, query: 'sa.orm.Query') -> None: ...\n"
+            "    def third(self, resource: 'PublicResource.model') -> None: ...\n"
+        )
+        imports = _annotation_import_targets(tree)
+        self.assertEqual("sqlalchemy.orm.Session", imports["DbSession"])
+        protocol = next(
+            node
+            for node in tree.body
+            if isinstance(node, ast.ClassDef)
+            and any(_is_protocol_base(base, imports) for base in node.bases)
+        )
+        annotations = [
+            node.annotation
+            for method in protocol.body
+            if isinstance(method, ast.FunctionDef)
+            for node in method.args.args
+            if node.annotation is not None
+        ]
+        leaks = set().union(
+            *(_forbidden_port_annotation_references(item, imports) for item in annotations)
+        )
+        self.assertEqual(
+            {
+                "sqlalchemy.orm.Session",
+                "sqlalchemy.orm.Query",
+                "backend.api_contracts.Resource.model",
+            },
+            leaks,
+        )
+
     def test_consequence_orchestration_uses_public_ports_not_models_or_adapters(self) -> None:
         modules = (
             "application/plan_consequences.py",
@@ -356,6 +728,24 @@ class BackendPackageBoundaryTests(unittest.TestCase):
                 self.assertFalse(foreign_models & imported)
 
     def test_application_modules_do_not_import_http_contracts(self) -> None:
+        forbidden_root_owners = {"api", "api-bootstrap", "composition-root", "operations-adapter"}
+        forbidden_root_modules = {
+            module.removesuffix(".py")
+            for module, owner in ROOT_MODULE_OWNERS.items()
+            if owner in forbidden_root_owners
+        }
+        for path in sorted((BACKEND_ROOT / "application").rglob("*.py")):
+            imported = _imported_modules(path, BACKEND_ROOT)
+            forbidden = {
+                module
+                for module in imported
+                if len(parts := module.split(".")) == 2 and parts[1] in forbidden_root_modules
+            }
+            with self.subTest(module=path.relative_to(BACKEND_ROOT)):
+                self.assertEqual(
+                    set(), forbidden, f"Application imports root adapters: {forbidden}"
+                )
+
         for relative in ("application/__init__.py", "application/resource_authorization.py"):
             with self.subTest(module=relative):
                 tree = ast.parse((BACKEND_ROOT / relative).read_text(encoding="utf-8"))
@@ -375,17 +765,54 @@ class BackendPackageBoundaryTests(unittest.TestCase):
                     any(name.startswith(("backend.http_", "fastapi")) for name in imports)
                 )
 
+        for path in sorted((BACKEND_ROOT / "application").rglob("*.py")):
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            imports = {
+                node.module
+                for node in ast.walk(tree)
+                if isinstance(node, ast.ImportFrom) and node.module is not None
+            }
+            with self.subTest(module=path.relative_to(BACKEND_ROOT)):
+                self.assertFalse(any(name.startswith("backend.integrations") for name in imports))
+
         for path in sorted((BACKEND_ROOT / "application").glob("*.py")):
             tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-            imports = [
+            imported_modules = [
                 node.module
                 for node in ast.walk(tree)
                 if isinstance(node, ast.ImportFrom) and node.module is not None
             ]
             self.assertFalse(
-                any(name.startswith(("backend.http_", "fastapi")) for name in imports),
+                any(name.startswith(("backend.http_", "fastapi")) for name in imported_modules),
                 f"Application module {path.name} imports an HTTP contract",
             )
+
+    def test_application_has_no_persistence_or_sqlalchemy_imports(self) -> None:
+        forbidden = ("backend.persistence", "sqlalchemy")
+        for path in sorted((BACKEND_ROOT / "application").rglob("*.py")):
+            imports = _imported_modules(path, BACKEND_ROOT)
+            with self.subTest(module=path.relative_to(BACKEND_ROOT)):
+                self.assertFalse(
+                    {
+                        module
+                        for module in imports
+                        if any(
+                            module == prefix or module.startswith(f"{prefix}.")
+                            for prefix in forbidden
+                        )
+                    }
+                )
+
+    def test_application_dependency_allowlist_excludes_concrete_adapters(self) -> None:
+        forbidden = {"integrations", "persistence"}
+        self.assertFalse(
+            forbidden & ALLOWED_PACKAGE_DEPENDENCIES["application"],
+            "Application dependency policy must not authorize concrete adapters",
+        )
+        self.assertEqual(
+            {"assessment", "execution", "identity", "operations", "planning"},
+            _package_dependencies("application"),
+        )
 
     def test_notification_consumers_receive_composition_instead_of_importing_it(self) -> None:
         modules = (
@@ -452,13 +879,24 @@ class BackendPackageBoundaryTests(unittest.TestCase):
         )
 
     def test_core_packages_follow_allowed_dependency_directions(self) -> None:
-        actual = {package: _package_dependencies(package) for package in CORE_PACKAGES}
+        actual = {package: _package_dependency_imports(package) for package in CORE_PACKAGES}
+        for (package, dependency), expected_imports in TRANSITIONAL_DEPENDENCY_IMPORTS.items():
+            imports = actual[package].pop(dependency, set())
+            self.assertEqual(
+                expected_imports,
+                imports,
+                f"Transitional dependency must stay localized: {package} -> {dependency}",
+            )
         unexpected = {
-            package: dependencies - ALLOWED_PACKAGE_DEPENDENCIES[package]
+            package: {
+                dependency: imports
+                for dependency, imports in dependencies.items()
+                if dependency not in ALLOWED_PACKAGE_DEPENDENCIES[package]
+            }
             for package, dependencies in actual.items()
-            if dependencies - ALLOWED_PACKAGE_DEPENDENCIES[package]
+            if dependencies.keys() - ALLOWED_PACKAGE_DEPENDENCIES[package]
         }
-        self.assertEqual(unexpected, {})
+        self.assertEqual({}, unexpected, f"Forbidden backend imports by file: {unexpected}")
 
     def test_assessment_core_has_no_persistence_http_or_renderer_dependencies(self) -> None:
         forbidden = (
@@ -470,7 +908,7 @@ class BackendPackageBoundaryTests(unittest.TestCase):
         )
         for path in sorted((BACKEND_ROOT / "assessment").glob("*.py")):
             tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-            imports = []
+            imports: list[str] = []
             for node in ast.walk(tree):
                 if isinstance(node, ast.Import):
                     imports.extend(alias.name for alias in node.names)
@@ -531,6 +969,7 @@ class BackendPackageBoundaryTests(unittest.TestCase):
         for relative in (
             "execution/exam_protocols.py",
             "execution/protocol_ports.py",
+            "execution/round_lifecycle_view.py",
         ):
             path = BACKEND_ROOT / relative
             tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
@@ -566,6 +1005,36 @@ class BackendPackageBoundaryTests(unittest.TestCase):
             },
             set(ProtocolReferencesSnapshot.__annotations__),
         )
+        pure_policy = BACKEND_ROOT / "execution" / "day_closure_policy.py"
+        pure_imports = _imported_modules(pure_policy, BACKEND_ROOT)
+        self.assertFalse(
+            {
+                module
+                for module in pure_imports
+                if module == "sqlalchemy"
+                or module.startswith("sqlalchemy.")
+                or module.startswith("backend.persistence")
+                or module.startswith("backend.presentation")
+            }
+        )
+
+        closure_service = BACKEND_ROOT / "execution" / "exam_day_closures.py"
+        closure_tree = ast.parse(closure_service.read_text(encoding="utf-8"))
+        closure_functions = {
+            node.name for node in closure_tree.body if isinstance(node, ast.FunctionDef)
+        }
+        self.assertNotIn("guard_day_mutation", closure_functions)
+        self.assertNotIn("complete_day_mutation", closure_functions)
+
+        composition = BACKEND_ROOT / "composition.py"
+        composition_tree = ast.parse(composition.read_text(encoding="utf-8"))
+        imports = {
+            node.module
+            for node in ast.walk(composition_tree)
+            if isinstance(node, ast.ImportFrom) and node.module is not None
+        }
+        self.assertNotIn("backend.execution.exam_day_closures", imports)
+        self.assertIn("backend.persistence.execution", imports)
 
     def test_committee_identity_use_case_has_no_transitive_transport_or_persistence_imports(
         self,

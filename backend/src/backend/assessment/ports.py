@@ -12,6 +12,7 @@ from contextlib import AbstractContextManager
 from typing import Any, Literal, Protocol, TypedDict
 
 from backend.assessment.rules import AssessmentRules
+from backend.mutation_locks import MutationLockCommand
 
 AssessmentStatus = Literal["incomplete", "calculation_ready", "determined", "communicated"]
 
@@ -733,9 +734,21 @@ class AssessmentRepositoryPort(Protocol):
         reason: str | None = None,
     ) -> None: ...
 
+    def record_ihk_status(
+        self,
+        *,
+        round_id: int,
+        result_id: int,
+        document_status: str,
+        document_reference: str,
+        actor_member_id: int,
+    ) -> None: ...
+
 
 class AssessmentUnitOfWork(Protocol):
     """One transaction-scoped Assessment boundary; deliberately has no commit method."""
+
+    def check_mutation_allowed(self, command: MutationLockCommand) -> None: ...
 
     @property
     def queries(self) -> ResultQueryPort: ...

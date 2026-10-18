@@ -16,6 +16,7 @@ from backend.persistence.application_consequence_ports import (
 )
 from backend.persistence.application_consequences import PlanConsequence, PlanConsequenceBatch
 from backend.persistence.database import DEFAULT_DB_PATH, session_scope
+from backend.persistence.models import ConfirmedPlanRevision
 
 
 class SQLiteApplicationConsequenceStore:
@@ -314,4 +315,28 @@ class SQLiteApplicationConsequenceStore:
             calendar_event_id=task.calendar_event_id,
             calendar_event_version=task.calendar_event_version,
             updated_at=task.updated_at,
+        )
+
+
+class SQLiteLifecycleConsequenceReadPort:
+    """Read lifecycle follow-up identifiers in the caller's transaction snapshot."""
+
+    def __init__(self, session) -> None:
+        self._session = session
+
+    def pending_ids_for_round(self, round_id: int) -> tuple[int, ...]:
+        return tuple(
+            self._session.scalars(
+                select(PlanConsequence.id)
+                .join(PlanConsequenceBatch, PlanConsequenceBatch.id == PlanConsequence.batch_id)
+                .join(
+                    ConfirmedPlanRevision,
+                    ConfirmedPlanRevision.id == PlanConsequenceBatch.confirmed_plan_revision_id,
+                )
+                .where(
+                    ConfirmedPlanRevision.exam_round_id == round_id,
+                    PlanConsequence.status.in_(("pending", "temporarily_failed")),
+                )
+                .order_by(PlanConsequence.id)
+            )
         )

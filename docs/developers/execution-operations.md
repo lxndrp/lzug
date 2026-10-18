@@ -29,7 +29,11 @@ Anwesenheit akzeptiert weiterhin `open`, `present`, `late` und `absent`.
 inhaltlich unveränderter Write erhöht die Tagesrevision nicht. Slotstatus,
 Begründung, tatsächliche Zeitangaben, erlaubte Übergänge und der Schutz
 bestätigter beziehungsweise wiedergeöffneter Tage behalten den vorhandenen
-Fachvertrag.
+Fachvertrag. Nach einem Slotstatus-Commit stößt Application für offene Tage
+den Calendar-Rundenabgleich über den Application-eigenen Calendar-Port an.
+Ein Fehler dieses Post-Commit-Schritts ändert weder die erfolgreiche
+HTTP-Antwort noch den bereits gespeicherten Slotstatus; er wird als
+`calendar_processing`-Fehler protokolliert.
 
 `ExamProtocolService` verwaltet Inhalt, Teilnehmende, Versionierung,
 Reaktionen, Korrekturen, Berechtigungen und Aufbewahrung über einen
@@ -52,9 +56,26 @@ werden über diese Eigentümerfähigkeiten aufgelöst. Rundeabsage verwendet
 zusätzlich den Calendar-Port, um künftige Ereignisse in derselben Transaktion
 zu stornieren und Empfänger für die Benachrichtigung nach dem Commit zu sammeln.
 Rundenabschluss und Rundenwiederöffnung verwenden dieselbe Application-Grenze.
-Der getrennte Ersatzbesetzungs-HTTP-Ablauf in `execution.absence` behält noch
-direkte Planning-Zugriffe und ist für die Boundary-/Transition-Fortsetzung #1085
-abgegrenzt. Schema, Datenformat und öffentliche API-Verträge bleiben unverändert.
+Der Tagesabschluss-GET, beide Tagesexportformate, die Antworten nach
+Tagesmutationen, der Rundenlebenszyklus-GET und die Antworten nach
+Rundenmutationen lesen History und Aufgaben über materialisierte
+Execution-Snapshots. Die Rundenexporte projizieren ebenfalls aus
+materialisierten Rundenfakten und export-spezifischen Records.
+Exportnachweis und Snapshot werden in derselben Sitzung geschrieben bzw.
+gelesen. Die SQLite-Reader verwenden die vom Composite-UoW besessene Sitzung;
+der Kalender-Read-Pfad bindet den Tagesabschluss-Reader an seine
+bestehende Lesetransaktion. Lifecycle-Views und Exportprojektionen verwenden
+direkt die detached Policies und Snapshot-Reader; Mutationsantworten werden im
+selben UoW gelesen.
+Teile der Lifecycle-Schreiblogik verwenden weiterhin direkte SQLAlchemy-Abfragen
+und sind noch nicht vollständig hinter Persistence-Verträgen gekapselt.
+Der Ersatzbesetzungsablauf in `execution.absence` nutzt für seine
+Planning-Abhängigkeiten den Execution-eigenen Absence-UoW-Port; der
+Persistence-Adapter liest und schreibt die Planning-Zuweisung innerhalb dieses
+UoW. Direkte Calendar- und Notification-Folgen nach dem Commit bleiben als
+migrationsfreier Übergang bis #1158 bestehen. Dauerhafte Folgequellen und
+Application-Replay gehören zu #1158. Schema, Datenformat und öffentliche
+API-Verträge bleiben in #1085 unverändert.
 
 ## Transaktionsmatrix für den Prüfungs-Lifecycle
 
@@ -71,6 +92,7 @@ Assessment-, Planning-, Identity- und Calendar-Fähigkeiten werden als framework
 bereits an den UoW gebundene Ports bereitgestellt; Execution bindet keine fremde
 Session an Fachports und liest im beschriebenen Lifecycle-Scope keine fremden
 ORM-Modelle. Der Persistence-Adapter übergibt
-für Execution-eigene ORM-Regeln weiterhin die gemeinsame Session. Der getrennte
-Abwesenheits-/Ersatzbesetzungsablauf bleibt eine nachgelagerte Boundary-Arbeit
-#1085.
+für Execution-eigene ORM-Regeln weiterhin die gemeinsame Session. Der
+Abwesenheits-/Ersatzbesetzungsablauf nutzt ebenfalls den Execution-eigenen
+Absence-UoW-Port; seine direkten Post-Commit-Folgen bleiben als Übergang bis
+#1158 bestehen.

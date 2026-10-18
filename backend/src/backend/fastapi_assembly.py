@@ -11,15 +11,20 @@ from functools import partial
 from pathlib import Path
 
 from fastapi import FastAPI
+from sqlalchemy.exc import SQLAlchemyError
 
 from .application.admin import AdminApplication, AdminServices
 from .application.calendar_ports import CalendarApplicationPort
 from .application.consequence_ports import ApplicationConsequenceStoreFactory
+from .application.exam_lifecycle import ExamLifecycleApplication
 from .application.plan_consequences import PlanConsequenceService
 from .application.planning_calendar_reads import PlanningCalendarReadService
 from .application.resource_access import ResourceAccessQueryFactory
 from .assessment.service import ExamResultService
 from .composition import SQLiteAssessmentLifecycleAdapter
+from .composition import (
+    absence_unit_of_work_factory as compose_absence_unit_of_work_factory,
+)
 from .composition import application_consequence_store as compose_application_consequence_store
 from .composition import (
     assessment_unit_of_work_factory as compose_assessment_unit_of_work_factory,
@@ -55,8 +60,9 @@ from .composition import (
     planning_resource_unit_of_work_factory as compose_planning_resource_unit_of_work_factory,
 )
 from .composition import planning_service as compose_planning_service
+from .composition import round_mutation_lock_checker as compose_round_mutation_lock_checker
 from .composition import venue_consequence_service as compose_venue_consequence_service
-from .execution.exam_day_closures import ExamDayClosureService
+from .execution.day_closure_policy import day_closure_view
 from .execution.exam_protocols import ExamProtocolService
 from .execution.slot_service import ExecutionService
 from .fastapi_app import (
@@ -83,7 +89,7 @@ from .operations.diagnostics import run_diagnostics
 from .operations.lifecycle import LifecycleService
 from .persistence.auth import SQLiteAuthenticationRepository
 from .persistence.backup_recipient_store import SQLiteBackupRecipientStore
-from .persistence.database import PersistencePaths, persistence_paths
+from .persistence.database import MigrationError, PersistencePaths, persistence_paths
 from .persistence.instance_storage import (
     SQLiteFileInstanceStorage,
     SQLiteInstanceMaintenance,
@@ -189,6 +195,7 @@ def create_admin_application(
                 ),
             )
         ),
+        persistence_error=lambda error: isinstance(error, (MigrationError, SQLAlchemyError)),
         venue_consequence_factory=lambda db_path, notification_service: (
             compose_venue_consequence_service(
                 db_path,
@@ -269,6 +276,8 @@ def create_app(
     app.state.exam_lifecycle_unit_of_work_factory = compose_exam_lifecycle_unit_of_work_factory(
         resolved.db_path
     )
+    app.state.absence_unit_of_work_factory = compose_absence_unit_of_work_factory
+    app.state.round_mutation_lock_checker_factory = compose_round_mutation_lock_checker
     app.state.planning_lifecycle_work_factory = compose_planning_lifecycle_work_factory()
     app.state.identity_lifecycle_work_factory = compose_identity_lifecycle_work_factory()
     app.state.calendar_lifecycle_work_factory = compose_calendar_lifecycle_work_factory()
@@ -322,19 +331,20 @@ def create_app(
     )
 
     def planning_calendar_read_service_factory(db_path: Path) -> PlanningCalendarReadService:
-        closure_service = ExamDayClosureService(
-            db_path,
-            notification_service=app.state.notification_service_factory(db_path),
-            assessment_lifecycle_factory=app.state.assessment_lifecycle,
-            planning_lifecycle_work_factory=app.state.planning_lifecycle_work_factory,
-            identity_lifecycle_work_factory=app.state.identity_lifecycle_work_factory,
-        )
+        def closure_view(session, day_id: int, scope):
+            unit_of_work = app.state.exam_lifecycle_unit_of_work_factory.in_session(session)
+            round_id = unit_of_work.execution.exam_day_round_id(day_id)
+            if round_id is None:
+                return None
+            facts = ExamLifecycleApplication._day_closure_facts(unit_of_work, day_id, round_id)
+            return day_closure_view(
+                scope, facts, unit_of_work.execution.day_closure_read_snapshot(day_id)
+            )
+
         return PlanningCalendarReadService(
             SQLitePlanningCalendarReadUnitOfWorkFactory(
                 db_path,
-                closure_view=lambda session, day_id, scope: closure_service.get_in_session(
-                    session, scope, day_id
-                ),
+                closure_view=closure_view,
             )
         )
 

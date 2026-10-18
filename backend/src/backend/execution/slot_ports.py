@@ -6,6 +6,8 @@ from collections.abc import Mapping, Sequence
 from contextlib import AbstractContextManager
 from typing import NotRequired, Protocol, TypedDict
 
+from backend.mutation_locks import MutationLockCommand
+
 
 class SlotSnapshot(TypedDict):
     id: int
@@ -37,6 +39,11 @@ class AttendanceSnapshot(TypedDict):
     id: int
     status: str
     arrived_at: str | None
+
+
+class AbsenceSnapshot(TypedDict):
+    id: int
+    status: str
 
 
 class MemberExecutionSnapshot(TypedDict):
@@ -90,6 +97,8 @@ class ExecutionIdentitySnapshots(Protocol):
 class ExecutionUnitOfWork(Protocol):
     """One transaction for execution reads, state changes, and day revision."""
 
+    def check_mutation_allowed(self, command: MutationLockCommand) -> None: ...
+
     def confirmed_slot(self, day_id: int, slot_id: int) -> SlotSnapshot: ...
 
     def day_execution_state(self, day_id: int) -> DayExecutionSnapshot: ...
@@ -116,7 +125,17 @@ class ExecutionUnitOfWork(Protocol):
 
     def candidate_attendance(self, slot_id: int) -> AttendanceSnapshot | None: ...
 
+    def candidate_attendance_for_slots(
+        self, slot_ids: Sequence[int]
+    ) -> Mapping[int, AttendanceSnapshot]: ...
+
     def member_attendance(self, day_id: int, member_id: int) -> AttendanceSnapshot | None: ...
+
+    def member_attendance_for_day(
+        self, day_id: int, member_ids: Sequence[int]
+    ) -> Mapping[int, AttendanceSnapshot]: ...
+
+    def absence_reports_for_day(self, day_id: int) -> Sequence[AbsenceSnapshot]: ...
 
     def assignments(self, day_id: int) -> Sequence[AssignmentSnapshot]: ...
 

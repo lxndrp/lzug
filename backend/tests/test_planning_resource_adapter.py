@@ -28,6 +28,7 @@ from backend.planning.resources import (
     RoundCandidateInUseError,
 )
 from backend.tests.helpers import TempDatabase
+from backend.tests.support.port_contracts import assert_materialized_port_value
 
 
 class PlanningResourceAdapterTests(unittest.TestCase):
@@ -232,7 +233,7 @@ class PlanningResourceAdapterTests(unittest.TestCase):
                     "training_company": "Port-Test",
                 }
             )
-            planning.create_candidate(
+            hidden = planning.create_candidate(
                 {
                     "first_name": "Hidden",
                     "last_name": "Candidate",
@@ -256,6 +257,8 @@ class PlanningResourceAdapterTests(unittest.TestCase):
             with patch.object(Store, "where", capture_where):
                 visible = scoped_service.list_visible_records("candidate")
 
+        assert_materialized_port_value(self, first)
+        assert_materialized_port_value(self, hidden)
         self.assertEqual([first.values["id"]], [record.values["id"] for record in visible])
         self.assertTrue(conditions)
         self.assertTrue(
@@ -288,6 +291,9 @@ class PlanningResourceAdapterTests(unittest.TestCase):
             sum(row.values["season"] == "winter" for row in half_years),
         )
         self.assertEqual(half_years[0].values["id"], created_round.values["exam_half_year_id"])
+        assert_materialized_port_value(self, created_round)
+        for half_year in half_years:
+            assert_materialized_port_value(self, half_year)
 
     def test_concurrent_duplicate_round_writes_serialize_half_year_creation(self) -> None:
         with TempDatabase() as db_path:
@@ -318,6 +324,8 @@ class PlanningResourceAdapterTests(unittest.TestCase):
 
         self.assertCountEqual(["created", "duplicate"], outcomes)
         self.assertEqual(1, len(half_years))
+        for half_year in half_years:
+            assert_materialized_port_value(self, half_year)
 
     def test_read_unit_of_work_does_not_reserve_sqlite_writer_intent(self) -> None:
         with TempDatabase() as db_path:
@@ -341,6 +349,7 @@ class PlanningResourceAdapterTests(unittest.TestCase):
                 }
             )
             half_year_id = round_record.values["exam_half_year_id"]
+            assert_materialized_port_value(self, round_record)
 
             with factory() as unit_of_work:
                 self.assertIsNotNone(unit_of_work.get_round(round_record.values["id"]))
@@ -428,11 +437,135 @@ class PlanningResourceAdapterTests(unittest.TestCase):
                 planning.list_availabilities({"exam_round_id": exam_round.values["id"]}),
             )
 
+    def test_planning_write_port_results_are_materialized(self) -> None:
+        with TempDatabase() as db_path:
+            planning = PlanningResourceService(SQLitePlanningResourceUnitOfWorkFactory(db_path))
+            candidate = planning.create_candidate(
+                {
+                    "first_name": "Port",
+                    "last_name": "Contract",
+                    "ihk_exam_number": "PORT-CONTRACT-WRITE",
+                    "specialization": "system_integration",
+                    "training_company": "Port-Test",
+                }
+            )
+            candidate_update = planning.update_candidate(
+                candidate.values["id"], {"training_company": "Updated"}
+            )
+            exam_round = planning.create_round(
+                {
+                    "season": "winter",
+                    "year": 2041,
+                    "committee_id": 1,
+                    "name": "Port Contract",
+                    "created_by_member_id": 1,
+                }
+            )
+            round_update = planning.update_round(
+                exam_round.values["id"], {"name": "Port Contract Updated"}
+            )
+            assignment = planning.assign_candidate_to_round(
+                {
+                    "exam_round_id": exam_round.values["id"],
+                    "candidate_id": candidate.values["id"],
+                    "attempt_number": 1,
+                    "requires_mep": 0,
+                    "is_active": 1,
+                }
+            )
+            candidate_day = planning.create_candidate_day(
+                {
+                    "exam_round_id": exam_round.values["id"],
+                    "date": "2041-01-10",
+                    "is_active": 1,
+                }
+            )
+            candidate_day_update = planning.update_candidate_day(
+                candidate_day.values["id"], {"is_active": 0}
+            )
+            settings = planning.save_settings(
+                {
+                    "exam_round_id": 1,
+                    "calendar_week_from": "2026-W47",
+                    "calendar_week_to": "2026-W50",
+                    "exams_per_day": 5,
+                    "max_exam_days_per_week": 4,
+                    "lunch_break_enabled": 0,
+                    "exclude_public_holidays": 1,
+                    "holiday_subdivision_code": "DE-NW",
+                    "default_room_id": 2,
+                    "updated_by_member_id": 1,
+                }
+            )
+            settings_update = planning.update_settings(settings.values["id"], {"exams_per_day": 6})
+            availability = planning.save_availability(
+                {
+                    "exam_round_id": 1,
+                    "committee_member_id": 1,
+                    "candidate_exam_day_id": 1,
+                    "availability": "full_day",
+                    "responded_at": "2026-01-01T00:00:00+00:00",
+                }
+            )
+            availability_update = planning.update_availability(
+                availability.values["id"], {"availability": "unavailable"}
+            )
+
+        for value in (
+            candidate,
+            candidate_update,
+            exam_round,
+            round_update,
+            assignment,
+            candidate_day,
+            candidate_day_update,
+            settings,
+            settings_update,
+            availability,
+            availability_update,
+        ):
+            assert_materialized_port_value(self, value)
+
     def test_sqlite_snapshot_is_detached_and_has_typed_sections(self) -> None:
         with TempDatabase() as db_path:
-            snapshot = PlanningResourceService(
-                SQLitePlanningResourceUnitOfWorkFactory(db_path)
-            ).planning_snapshot(1)
+            factory = SQLitePlanningResourceUnitOfWorkFactory(db_path)
+            records = PlanningResourceService(factory)
+            snapshot = records.planning_snapshot(1)
+            rounds = records.list_visible_records("exam_round")
+            candidates = records.list_visible_records("candidate")
+            round_summary = records.round_summary(1)
+
+            with factory() as unit_of_work:
+                port_results = (
+                    unit_of_work.list_half_years(),
+                    unit_of_work.get_half_year(1),
+                    unit_of_work.list_rounds({}),
+                    unit_of_work.get_round(1),
+                    unit_of_work.list_candidates({}),
+                    unit_of_work.get_candidate(1),
+                    unit_of_work.list_candidate_days({}),
+                    unit_of_work.get_candidate_day(1),
+                    unit_of_work.list_candidate_assignments({}),
+                    unit_of_work.list_round_candidates({}),
+                    unit_of_work.list_settings({}),
+                    unit_of_work.get_settings(1),
+                    unit_of_work.list_availabilities({}),
+                    unit_of_work.get_availability(1),
+                    unit_of_work.candidate_assignment_context(1, 1),
+                    unit_of_work.prepare_round_creation(
+                        {
+                            "season": "winter",
+                            "year": 2042,
+                            "committee_id": 1,
+                            "created_by_member_id": 1,
+                        }
+                    ),
+                    unit_of_work.settings_references(1, 1, 1),
+                    unit_of_work.availability_references(1, 1, 1),
+                    unit_of_work.availability_propagation_context(1, 1, 1),
+                    unit_of_work.planning_snapshot(1),
+                    unit_of_work.round_summary(1),
+                )
 
         self.assertIsNotNone(snapshot)
         assert snapshot is not None
@@ -440,6 +573,8 @@ class PlanningResourceAdapterTests(unittest.TestCase):
         self.assertIsInstance(snapshot.half_year.values, Mapping)
         self.assertTrue(all(isinstance(row.values, Mapping) for row in snapshot.candidates))
         self.assertFalse(hasattr(snapshot.exam_round, "model"))
+        for value in (snapshot, rounds, candidates, round_summary, *port_results):
+            assert_materialized_port_value(self, value)
 
 
 if __name__ == "__main__":

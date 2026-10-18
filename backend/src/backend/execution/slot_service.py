@@ -14,6 +14,7 @@ from backend.execution.slot_ports import (
     SlotStartCommand,
     SlotStatusCommand,
 )
+from backend.mutation_locks import MutationLockCommand, MutationLockKind
 
 ATTENDANCE_VALUES = frozenset({"open", "present", "late", "absent"})
 REPRESENTING_SIDES = frozenset({"employer", "employee", "school"})
@@ -48,6 +49,9 @@ class ExecutionService:
         actor_member_id: int,
     ) -> dict[str, Any]:
         with self._unit_of_work_factory(write=True) as work:
+            work.check_mutation_allowed(
+                MutationLockCommand(MutationLockKind.CONFIRMED_PLAN_DAY, day_id, command)
+            )
             work.confirmed_slot(day_id, slot_id)
             existing = work.candidate_attendance(slot_id)
             values = self._attendance_values(command, existing)
@@ -76,6 +80,9 @@ class ExecutionService:
         actor_member_id: int,
     ) -> dict[str, Any]:
         with self._unit_of_work_factory(write=True) as work:
+            work.check_mutation_allowed(
+                MutationLockCommand(MutationLockKind.CONFIRMED_PLAN_DAY, day_id, command)
+            )
             assignment = work.confirmed_assignment(day_id, assignment_id)
             member_id = assignment["committee_member_id"]
             existing = work.member_attendance(day_id, member_id)
@@ -106,6 +113,9 @@ class ExecutionService:
         actor_member_id: int,
     ) -> dict[str, Any]:
         with self._unit_of_work_factory(write=True) as work:
+            work.check_mutation_allowed(
+                MutationLockCommand(MutationLockKind.CONFIRMED_PLAN_DAY, day_id, command)
+            )
             slot = work.confirmed_slot(day_id, slot_id)
             self._validate_startable_slot(slot)
             candidate = work.candidate_attendance(slot_id)
@@ -177,6 +187,9 @@ class ExecutionService:
         actor_member_id: int,
     ) -> dict[str, Any]:
         with self._unit_of_work_factory(write=True) as work:
+            work.check_mutation_allowed(
+                MutationLockCommand(MutationLockKind.CONFIRMED_PLAN_DAY, day_id, command)
+            )
             slot = work.confirmed_slot(day_id, slot_id)
             correction_mode = work.day_execution_state(day_id)["closure_status"] == "reopening"
             target_status = command.get("status")

@@ -20,6 +20,11 @@ from backend.planning.resources import (
 )
 
 
+class _MutationGuardDouble:
+    def check_mutation_allowed(self, command) -> None:
+        return None
+
+
 class PlanningResourcePortTests(unittest.TestCase):
     def test_service_uses_a_plain_test_double_and_returns_typed_values(self) -> None:
         @dataclass(frozen=True)
@@ -37,7 +42,7 @@ class PlanningResourcePortTests(unittest.TestCase):
         )
         calls: list[str] = []
 
-        class FakeUnitOfWork:
+        class FakeUnitOfWork(_MutationGuardDouble):
             def list_candidates(self, filters):
                 calls.append(f"list:{dict(filters)}")
                 return (record,)
@@ -62,7 +67,7 @@ class PlanningResourcePortTests(unittest.TestCase):
         query_snapshot = object()
         events: list[str] = []
 
-        class FakeUnitOfWork:
+        class FakeUnitOfWork(_MutationGuardDouble):
             def authorization_queries(self):
                 events.append("queries")
                 return query_snapshot
@@ -96,7 +101,7 @@ class PlanningResourcePortTests(unittest.TestCase):
     def test_authorization_failure_prevents_planning_write(self) -> None:
         events: list[str] = []
 
-        class FakeUnitOfWork:
+        class FakeUnitOfWork(_MutationGuardDouble):
             def authorization_queries(self):
                 events.append("queries")
                 return object()
@@ -121,7 +126,7 @@ class PlanningResourcePortTests(unittest.TestCase):
         query_snapshot = object()
         events: list[str] = []
 
-        class FakeUnitOfWork:
+        class FakeUnitOfWork(_MutationGuardDouble):
             def authorization_queries(self):
                 events.append("queries")
                 return query_snapshot
@@ -169,7 +174,7 @@ class PlanningResourcePortTests(unittest.TestCase):
         events: list[str] = []
         active = False
 
-        class FakeUnitOfWork:
+        class FakeUnitOfWork(_MutationGuardDouble):
             def list_rounds(self, filters, visible_ids=None):
                 self.assert_active()
                 events.append(f"planning-read:{sorted(visible_ids or ())}")
@@ -224,7 +229,7 @@ class PlanningResourcePortTests(unittest.TestCase):
         events: list[str] = []
         active = False
 
-        class FakeUnitOfWork:
+        class FakeUnitOfWork(_MutationGuardDouble):
             def authorization_queries(self):
                 if not active:
                     raise AssertionError("Visibility escaped its unit of work")
@@ -261,7 +266,7 @@ class PlanningResourcePortTests(unittest.TestCase):
         calls: list[str] = []
         summary = object()
 
-        class FakeUnitOfWork:
+        class FakeUnitOfWork(_MutationGuardDouble):
             def get_round(self, round_id):
                 calls.append(f"round:{round_id}")
                 if round_id == 9:
@@ -314,7 +319,7 @@ class PlanningResourcePortTests(unittest.TestCase):
         )
         writes: list[dict[str, PlanningValue]] = []
 
-        class FakeUnitOfWork:
+        class FakeUnitOfWork(_MutationGuardDouble):
             def get_round(self, round_id):
                 return existing
 
@@ -335,7 +340,7 @@ class PlanningResourcePortTests(unittest.TestCase):
     def test_round_reference_policy_runs_with_detached_facts_before_write(self) -> None:
         writes: list[dict[str, PlanningValue]] = []
 
-        class FakeUnitOfWork:
+        class FakeUnitOfWork(_MutationGuardDouble):
             def prepare_round_creation(self, values):
                 return PlanningRoundCreationContext(9, True, True, True, True, 2)
 
@@ -372,7 +377,7 @@ class PlanningResourcePortTests(unittest.TestCase):
             (PlanningRoundCreationContext(None, False, True, True, False, 3), "not ready"),
         )
 
-        class FakeUnitOfWork:
+        class FakeUnitOfWork(_MutationGuardDouble):
             def __init__(self, round_context, created_rounds):
                 self.round_context = round_context
                 self.created_rounds = created_rounds
@@ -420,7 +425,7 @@ class PlanningResourcePortTests(unittest.TestCase):
             PlanningRoundCreationContext(12, True, True, True, True, 3),
         ]
 
-        class FakeUnitOfWork:
+        class FakeUnitOfWork(_MutationGuardDouble):
             def prepare_round_creation(self, values):
                 return contexts.pop(0)
 
@@ -451,7 +456,7 @@ class PlanningResourcePortTests(unittest.TestCase):
         self.assertEqual(12, plans[1].exam_half_year_id)
 
     def test_settings_domain_validation_runs_with_plain_port(self) -> None:
-        class FakeUnitOfWork:
+        class FakeUnitOfWork(_MutationGuardDouble):
             def settings_references(self, round_id, updater_member_id, room_id):
                 raise AssertionError("Pure subdivision validation must run first")
 
@@ -487,7 +492,7 @@ class PlanningResourcePortTests(unittest.TestCase):
             ),
         )
 
-        class FakeUnitOfWork:
+        class FakeUnitOfWork(_MutationGuardDouble):
             def settings_references(self, round_id, updater_member_id, room_id):
                 return references
 
@@ -510,7 +515,7 @@ class PlanningResourcePortTests(unittest.TestCase):
     def test_availability_normalization_runs_before_the_port_write(self) -> None:
         saved: list[dict[str, PlanningValue]] = []
 
-        class FakeUnitOfWork:
+        class FakeUnitOfWork(_MutationGuardDouble):
             def availability_references(self, round_id, member_id, day_id):
                 return PlanningAvailabilityReferences(3, 3, True, 1)
 
@@ -553,7 +558,7 @@ class PlanningResourcePortTests(unittest.TestCase):
             ),
         )
 
-        class FakeUnitOfWork:
+        class FakeUnitOfWork(_MutationGuardDouble):
             def availability_references(self, round_id, member_id, day_id):
                 return PlanningAvailabilityReferences(10, 10, True, round_id)
 
@@ -597,7 +602,7 @@ class PlanningResourcePortTests(unittest.TestCase):
     def test_candidate_reassignment_reason_is_enforced_by_planning(self) -> None:
         writes: list[dict[str, PlanningValue]] = []
 
-        class FakeUnitOfWork:
+        class FakeUnitOfWork(_MutationGuardDouble):
             def candidate_assignment_context(self, candidate_id, round_id):
                 return PlanningCandidateAssignmentContext(True, True, 2, False)
 
@@ -619,7 +624,7 @@ class PlanningResourcePortTests(unittest.TestCase):
     def test_candidate_assignment_policy_passes_an_explicit_persistence_plan(self) -> None:
         captured: list[object] = []
 
-        class FakeUnitOfWork:
+        class FakeUnitOfWork(_MutationGuardDouble):
             def candidate_assignment_context(self, candidate_id, round_id):
                 return PlanningCandidateAssignmentContext(
                     True,

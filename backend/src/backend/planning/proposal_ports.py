@@ -11,6 +11,8 @@ from collections.abc import Mapping, Sequence
 from contextlib import AbstractContextManager
 from typing import Protocol, TypedDict
 
+from backend.mutation_locks import MutationLockCommand
+
 
 class ExamRoundSnapshot(TypedDict):
     """Planning-owned round state needed by proposal use cases."""
@@ -159,6 +161,8 @@ class ConfirmedPlanRevisionSnapshot(Protocol):
 
 class PlanningUnitOfWork(Protocol):
     """Use-case persistence boundary; all methods share one transaction."""
+
+    def check_mutation_allowed(self, command: MutationLockCommand) -> None: ...
 
     def planning_context(self, round_id: int) -> PlanningContextSnapshot: ...
 

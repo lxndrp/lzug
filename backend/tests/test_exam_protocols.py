@@ -36,6 +36,7 @@ from backend.persistence.models import (
     MemberExamAttendance,
 )
 from backend.tests.helpers import ApiServer, TempDatabase, assert_status
+from backend.tests.support.port_contracts import assert_materialized_port_value
 from backend.tests.test_database import rewind_exam_protocol_migration
 
 
@@ -669,6 +670,94 @@ class ExecutionPortTests(unittest.TestCase):
             self.assertEqual("2026-11-16T09:03:00+00:00", slot.actual_started_at)
             self.assertEqual(2, day.revision)
             self.assertEqual({1, 2, 3}, participants)
+
+    def test_execution_protocol_port_reads_are_materialized(self) -> None:
+        self._mark_quorum_present()
+        self.service.start_slot(
+            self.day_id,
+            self.slot_id,
+            {"expected_day_revision": 1},
+            actor_member_id=1,
+        )
+
+        with self.execution_factory() as unit_of_work:
+            by_slot = unit_of_work.protocol_by_slot(self.slot_id)
+            self.assertIsNotNone(by_slot)
+            assert by_slot is not None
+            values = (
+                unit_of_work.protocol_by_id(by_slot["id"]),
+                by_slot,
+                unit_of_work.protocol_references(by_slot["id"]),
+                unit_of_work.protocol_day_snapshot(self.day_id),
+            )
+
+        for value in values:
+            assert_materialized_port_value(self, value)
+
+    def test_execution_slot_port_reads_are_materialized(self) -> None:
+        with self.execution_factory() as unit_of_work:
+            slot = unit_of_work.confirmed_slot(self.day_id, self.slot_id)
+            day_state = unit_of_work.day_execution_state(self.day_id)
+            candidate_attendance = unit_of_work.candidate_attendance(self.slot_id)
+            member_attendance = unit_of_work.member_attendance(self.day_id, 1)
+            assignments = unit_of_work.assignments(self.day_id)
+            confirmed_assignment = unit_of_work.confirmed_assignment(
+                self.day_id, assignments[0]["id"]
+            )
+            members = unit_of_work.members_by_id((1, 2, 3))
+
+        for value in (
+            slot,
+            day_state,
+            candidate_attendance,
+            member_attendance,
+            assignments,
+            confirmed_assignment,
+            members,
+        ):
+            assert_materialized_port_value(self, value)
+
+    def test_execution_slot_port_write_results_are_materialized(self) -> None:
+        with self.execution_factory(write=True) as unit_of_work:
+            candidate_attendance = unit_of_work.save_candidate_attendance(
+                self.day_id,
+                self.slot_id,
+                {"status": "present", "arrived_at": None},
+                actor_member_id=1,
+                expected_day_revision=1,
+            )
+            assignment = unit_of_work.assignments(self.day_id)[0]
+            member_attendance = unit_of_work.save_member_attendance(
+                self.day_id,
+                assignment["id"],
+                assignment["committee_member_id"],
+                {"status": "present", "arrived_at": None},
+                actor_member_id=1,
+                expected_day_revision=2,
+            )
+            started_at = "2026-11-16T09:03:00+00:00"
+            started_slot = unit_of_work.start_slot(
+                self.day_id,
+                self.slot_id,
+                started_at=started_at,
+                participant_member_ids=frozenset({1, 2, 3}),
+                actor_member_id=1,
+                expected_day_revision=3,
+            )
+            completed_slot = unit_of_work.update_slot_status(
+                self.day_id,
+                self.slot_id,
+                status="completed",
+                changed_at="2026-11-16T10:00:00+00:00",
+                reason=None,
+                actual_started_at=started_at,
+                actual_completed_at="2026-11-16T10:00:00+00:00",
+                actor_member_id=1,
+                expected_day_revision=4,
+            )
+
+        for value in (candidate_attendance, member_attendance, started_slot, completed_slot):
+            assert_materialized_port_value(self, value)
 
     def test_quorum_failure_leaves_start_and_revision_unchanged(self) -> None:
         with session_scope(self.db_path) as session:

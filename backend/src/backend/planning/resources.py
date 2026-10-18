@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from types import MappingProxyType
 from typing import Protocol
 
+from backend.mutation_locks import MutationLockCommand, MutationLockKind
 from backend.planning.candidate_days import CandidateDayRecord
 
 PlanningValue = str | int | bool | None
@@ -258,6 +259,8 @@ class PlanningResourceUnitOfWork(Protocol):
     the persistence technology. The boundary deliberately has no table or
     ORM model parameter.
     """
+
+    def check_mutation_allowed(self, command: MutationLockCommand) -> None: ...
 
     def authorization_queries(self) -> object:
         """Return materialized authorization queries bound to this UoW."""
@@ -866,7 +869,10 @@ class PlanningResourceService:
 
     def delete_round_candidate(self, round_candidate_id: int) -> bool:
         with self._write_unit_of_work() as unit_of_work:
-            self._authorized(unit_of_work, "round_candidate", round_candidate_id, {})
+            payload = self._authorized(unit_of_work, "round_candidate", round_candidate_id, {})
+            unit_of_work.check_mutation_allowed(
+                MutationLockCommand(MutationLockKind.ROUND_CANDIDATE, round_candidate_id, payload)
+            )
             if unit_of_work.round_candidate_is_in_use(round_candidate_id):
                 raise RoundCandidateInUseError(
                     "A round candidate with assignment history, scheduled slots, or exam results "
@@ -889,6 +895,9 @@ class PlanningResourceService:
     def assign_candidate_to_round(self, values: Mapping[str, PlanningValue]) -> PlanningRecord:
         with self._write_unit_of_work() as unit_of_work:
             payload = self._authorized(unit_of_work, "round_candidate", None, values)
+            unit_of_work.check_mutation_allowed(
+                MutationLockCommand(MutationLockKind.ROUND_CANDIDATE, None, payload)
+            )
             candidate_id = self._required_id(payload, "candidate_id")
             round_id = self._required_id(payload, "exam_round_id")
             context = unit_of_work.candidate_assignment_context(candidate_id, round_id)
@@ -908,6 +917,9 @@ class PlanningResourceService:
     def save_settings(self, values: Mapping[str, PlanningValue]) -> PlanningRecord:
         with self._write_unit_of_work() as unit_of_work:
             payload = self._authorized(unit_of_work, "planning_settings", None, values)
+            unit_of_work.check_mutation_allowed(
+                MutationLockCommand(MutationLockKind.PLANNING_SETTINGS, None, payload)
+            )
             payload = self._normalize_settings(payload)
             references = unit_of_work.settings_references(
                 self._required_id(payload, "exam_round_id"),
@@ -926,6 +938,9 @@ class PlanningResourceService:
     ) -> PlanningRecord | None:
         with self._write_unit_of_work() as unit_of_work:
             payload = self._authorized(unit_of_work, "planning_settings", settings_id, values)
+            unit_of_work.check_mutation_allowed(
+                MutationLockCommand(MutationLockKind.PLANNING_SETTINGS, settings_id, payload)
+            )
             existing = unit_of_work.get_settings(settings_id)
             if existing is None:
                 return None
@@ -944,7 +959,10 @@ class PlanningResourceService:
 
     def delete_settings(self, settings_id: int) -> bool:
         with self._write_unit_of_work() as unit_of_work:
-            self._authorized(unit_of_work, "planning_settings", settings_id, {})
+            payload = self._authorized(unit_of_work, "planning_settings", settings_id, {})
+            unit_of_work.check_mutation_allowed(
+                MutationLockCommand(MutationLockKind.PLANNING_SETTINGS, settings_id, payload)
+            )
             return unit_of_work.delete_settings(settings_id)
 
     def list_availabilities(
@@ -960,6 +978,9 @@ class PlanningResourceService:
     def save_availability(self, values: Mapping[str, PlanningValue]) -> PlanningRecord:
         with self._write_unit_of_work() as unit_of_work:
             payload = self._authorized(unit_of_work, "member_availability", None, values)
+            unit_of_work.check_mutation_allowed(
+                MutationLockCommand(MutationLockKind.MEMBER_AVAILABILITY, None, payload)
+            )
             payload = self._normalize_availability(payload)
             references = unit_of_work.availability_references(
                 self._required_id(payload, "exam_round_id"),
@@ -980,6 +1001,9 @@ class PlanningResourceService:
     ) -> PlanningRecord | None:
         with self._write_unit_of_work() as unit_of_work:
             payload = self._authorized(unit_of_work, "member_availability", availability_id, values)
+            unit_of_work.check_mutation_allowed(
+                MutationLockCommand(MutationLockKind.MEMBER_AVAILABILITY, availability_id, payload)
+            )
             existing = unit_of_work.get_availability(availability_id)
             if existing is None:
                 return None
@@ -1000,7 +1024,10 @@ class PlanningResourceService:
 
     def delete_availability(self, availability_id: int) -> bool:
         with self._write_unit_of_work() as unit_of_work:
-            self._authorized(unit_of_work, "member_availability", availability_id, {})
+            payload = self._authorized(unit_of_work, "member_availability", availability_id, {})
+            unit_of_work.check_mutation_allowed(
+                MutationLockCommand(MutationLockKind.MEMBER_AVAILABILITY, availability_id, payload)
+            )
             return unit_of_work.delete_availability(availability_id)
 
     def planning_snapshot(self, round_id: int) -> PlanningSnapshot | None:
@@ -1113,6 +1140,9 @@ class PlanningResourceService:
     def create_candidate_day(self, values: Mapping[str, PlanningValue]) -> PlanningRecord:
         with self._write_unit_of_work() as unit_of_work:
             payload = self._authorized(unit_of_work, "candidate_exam_day", None, values)
+            unit_of_work.check_mutation_allowed(
+                MutationLockCommand(MutationLockKind.CANDIDATE_EXAM_DAY, None, payload)
+            )
             return unit_of_work.create_candidate_day(payload)
 
     def update_candidate_day(
@@ -1120,9 +1150,15 @@ class PlanningResourceService:
     ) -> PlanningRecord | None:
         with self._write_unit_of_work() as unit_of_work:
             payload = self._authorized(unit_of_work, "candidate_exam_day", candidate_day_id, values)
+            unit_of_work.check_mutation_allowed(
+                MutationLockCommand(MutationLockKind.CANDIDATE_EXAM_DAY, candidate_day_id, payload)
+            )
             return unit_of_work.update_candidate_day(candidate_day_id, payload)
 
     def delete_candidate_day(self, candidate_day_id: int) -> bool:
         with self._write_unit_of_work() as unit_of_work:
-            self._authorized(unit_of_work, "candidate_exam_day", candidate_day_id, {})
+            payload = self._authorized(unit_of_work, "candidate_exam_day", candidate_day_id, {})
+            unit_of_work.check_mutation_allowed(
+                MutationLockCommand(MutationLockKind.CANDIDATE_EXAM_DAY, candidate_day_id, payload)
+            )
             return unit_of_work.delete_candidate_day(candidate_day_id)

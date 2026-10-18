@@ -11,10 +11,6 @@ from backend.application.venue_consequences import VenueConsequenceService
 from backend.assessment.service import ExamResultService
 from backend.calendar.service import CalendarService
 from backend.documents.commands import DocumentUseCases
-from backend.execution.exam_day_closures import (
-    complete_day_mutation,
-    guard_day_mutation,
-)
 from backend.execution.exam_protocols import ExamProtocolService
 from backend.execution.slot_service import ExecutionService
 from backend.identity.admin_service import OperatorAuthService
@@ -28,6 +24,7 @@ from backend.integrations.holiday_provider import PythonHolidaysProvider
 from backend.integrations.map_provider import MapProviderConfig, NominatimGeocoder
 from backend.integrations.notification_delivery import NotificationDeliveryGateway
 from backend.notifications.service import NotificationService
+from backend.persistence.absence_uow import SQLiteAbsenceUnitOfWorkFactory
 from backend.persistence.application_consequence_store import SQLiteApplicationConsequenceStore
 from backend.persistence.assessment import SQLiteAssessmentUnitOfWorkFactory
 from backend.persistence.auth import (
@@ -56,7 +53,6 @@ from backend.persistence.local_auth import (
     SQLiteLocalAuthenticationKey,
     SQLiteLocalAuthUnitOfWorkFactory,
 )
-from backend.persistence.models import ExamDay
 from backend.persistence.notifications import (
     SQLiteNotificationDeliveryUnitOfWorkFactory,
     SQLiteNotificationUnitOfWorkFactory,
@@ -95,6 +91,16 @@ def application_consequence_store(db_path: Path) -> SQLiteApplicationConsequence
     return SQLiteApplicationConsequenceStore(db_path)
 
 
+def round_mutation_lock_checker(db_path: Path):
+    """Compose the persistence-owned resolver as a same-session callback."""
+    from backend.persistence.exam_lifecycle import _SQLiteExamLifecycleExecution
+
+    def assert_allowed(session, command):
+        _SQLiteExamLifecycleExecution(None, session).assert_mutation_allowed(command)
+
+    return assert_allowed
+
+
 def venue_consequence_service(
     db_path: Path,
     *,
@@ -127,6 +133,7 @@ def planning_resource_unit_of_work_factory(
     return SQLitePlanningResourceUnitOfWorkFactory(
         db_path,
         require_confirmed_coordinates=require_confirmed_coordinates,
+        mutation_lock_checker=round_mutation_lock_checker(db_path),
     )
 
 
@@ -141,6 +148,7 @@ def planning_service(
             db_path,
             identity_snapshot_factory=SQLiteIdentityPlanningSnapshotFactory(),
             require_confirmed_coordinates=require_confirmed_coordinates,
+            mutation_lock_checker=round_mutation_lock_checker(db_path),
         )
     )
 
@@ -151,6 +159,7 @@ def execution_service(db_path: Path) -> ExecutionService:
         SQLiteExecutionUnitOfWorkFactory(
             db_path,
             identity_snapshot_factory=SQLiteIdentityExecutionSnapshotFactory(),
+            mutation_lock_checker=round_mutation_lock_checker(db_path),
         )
     )
 
@@ -158,8 +167,15 @@ def execution_service(db_path: Path) -> ExecutionService:
 def assessment_unit_of_work_factory(db_path: Path) -> SQLiteAssessmentUnitOfWorkFactory:
     """Create Assessment persistence bound to the request-selected database."""
     return SQLiteAssessmentUnitOfWorkFactory(
-        db_path, day_mutation_handler=_complete_assessment_day_mutation
+        db_path,
+        day_mutation_handler=_complete_assessment_day_mutation,
+        mutation_lock_checker=round_mutation_lock_checker(db_path),
     )
+
+
+def absence_unit_of_work_factory(db_path: Path) -> SQLiteAbsenceUnitOfWorkFactory:
+    """Create Execution absence persistence bound to the request-selected database."""
+    return SQLiteAbsenceUnitOfWorkFactory(db_path)
 
 
 def exam_lifecycle_unit_of_work_factory(db_path: Path) -> SQLiteExamLifecycleUnitOfWorkFactory:
@@ -169,6 +185,7 @@ def exam_lifecycle_unit_of_work_factory(db_path: Path) -> SQLiteExamLifecycleUni
         SQLiteExecutionUnitOfWorkFactory(
             db_path,
             identity_snapshot_factory=SQLiteIdentityExecutionSnapshotFactory(),
+            mutation_lock_checker=round_mutation_lock_checker(db_path),
         ),
         assessment_factory,
         db_path,
@@ -197,6 +214,7 @@ def exam_protocol_service(db_path: Path) -> ExamProtocolService:
         SQLiteExecutionUnitOfWorkFactory(
             db_path,
             identity_snapshot_factory=SQLiteIdentityExecutionSnapshotFactory(),
+            mutation_lock_checker=round_mutation_lock_checker(db_path),
         )
     )
 
@@ -205,7 +223,9 @@ def exam_result_service(db_path: Path) -> ExamResultService:
     """Wire Assessment commands and queries to the SQLite unit of work."""
     return ExamResultService(
         unit_of_work_factory=SQLiteAssessmentUnitOfWorkFactory(
-            db_path, day_mutation_handler=_complete_assessment_day_mutation
+            db_path,
+            day_mutation_handler=_complete_assessment_day_mutation,
+            mutation_lock_checker=round_mutation_lock_checker(db_path),
         )
     )
 
@@ -332,23 +352,31 @@ def _complete_assessment_day_mutation(
     days = (
         SQLiteAssessmentUnitOfWorkFactory().in_session(session).queries.days_for_result(result_id)
     )
+    execution = SQLiteExecutionUnitOfWorkFactory(
+        identity_snapshot_factory=SQLiteIdentityExecutionSnapshotFactory()
+    ).in_session(session)
     guards = []
     for snapshot in days:
-        day = session.get(ExamDay, snapshot["day_id"])
-        if day is None:
-            continue
+        revisions = payload.get("day_revisions")
+        expected_revision = (
+            revisions.get(str(snapshot["day_id"]), revisions.get(snapshot["day_id"]))
+            if isinstance(revisions, dict)
+            else payload.get("day_revision")
+        )
         guards.append(
-            guard_day_mutation(
-                session,
-                day=day,
-                kind=kind,
-                entity_id=result_id,
-                payload=payload,
-                actor_member_id=actor_member_id,
+            execution.guard_day_mutation(
+                {
+                    "day_id": snapshot["day_id"],
+                    "kind": kind,
+                    "entity_id": result_id,
+                    "expected_day_revision": expected_revision,
+                    "actor_member_id": actor_member_id,
+                    "protocol_revision_id": None,
+                }
             )
         )
     for guard in guards:
-        complete_day_mutation(session, guard, actor_member_id=actor_member_id, reason=reason)
+        execution.complete_day_mutation(guard, actor_member_id=actor_member_id, reason=reason)
 
 
 def notification_service(

@@ -11,3 +11,7 @@ class TransactionUnavailableError(Exception):
 
 class AssessmentWriteConflictError(ValueError):
     """An assessment revision or model binding changed before the write committed."""
+
+
+class ExamRoundConflictError(ValueError):
+    """Signal a stale, duplicate-different, or parallel lifecycle command."""

@@ -398,7 +398,7 @@ def _resource_delete_route(resolved: FastAPIConfig, resource_name: str, resource
         elif resource_name == "round-candidates":
             deleted = context.planning_resource_service.delete_round_candidate(id)
         elif resource_name == "exam-rounds":
-            deleted = context.exam_round_lifecycle_service.delete_empty_draft(
+            deleted = context.exam_lifecycle_application.delete_empty_exam_round_draft(
                 context.authorization_scope, id
             )
         elif (

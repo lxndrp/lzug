@@ -4,27 +4,37 @@ import unittest
 from http import HTTPStatus
 from unittest.mock import patch
 
-from sqlalchemy import event, select, text
+from sqlalchemy import select, text
 
 from backend.application.exam_lifecycle import ExamLifecycleApplication
 from backend.application.exam_lifecycle_commands import day_close_command, day_reopen_command
 from backend.assessment.service import ExamResultService
 from backend.composition import (
     SQLiteAssessmentLifecycleAdapter,
-    identity_lifecycle_work_factory,
-    planning_lifecycle_work_factory,
+    authorization_service,
+)
+from backend.execution.day_closure_policy import (
+    ExamDayClosurePolicy,
+    day_closure_view,
+    evaluate_day_closure,
 )
 from backend.execution.exam_day_closures import (
     ExamDayClosureService,
 )
+from backend.execution.exam_round_lifecycle import ExamRoundLifecycleService
+from backend.execution.round_lifecycle_view import round_lifecycle_view
 from backend.identity.authorization import AuthorizationScope
 from backend.persistence.assessment import SQLiteAssessmentUnitOfWorkFactory
 from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.persistence.database import session_scope
-from backend.persistence.exam_lifecycle import SQLiteExamLifecycleUnitOfWorkFactory
+from backend.persistence.exam_lifecycle import (
+    SQLiteExamLifecycleUnitOfWorkFactory,
+    _SQLiteExamLifecycleExecution,
+)
 from backend.persistence.execution import SQLiteExecutionUnitOfWorkFactory
 from backend.persistence.identity import SQLiteIdentityExecutionSnapshotFactory
 from backend.persistence.models import (
+    AssessmentModelVersion,
     ExamDay,
     ExamDayAuditEvent,
     ExamDayClosure,
@@ -32,6 +42,7 @@ from backend.persistence.models import (
     ExamDayReopening,
     ExamDayTask,
     ExamResult,
+    ExamRound,
     ExamRoundAssessmentBinding,
     ExamSlot,
     MemberExamAttendance,
@@ -48,6 +59,7 @@ from backend.tests.helpers import (
     assert_status,
     notification_service_for_test,
 )
+from backend.tests.support.port_contracts import assert_materialized_port_value
 
 
 class ExamDayClosureTests(unittest.TestCase):
@@ -98,19 +110,194 @@ class ExamDayClosureTests(unittest.TestCase):
         with session_scope(self.db_path) as session:
             self.assertEqual(1, session.get(ExamDay, 2).revision)
 
-    def test_closure_evaluation_keeps_finding_order(self) -> None:
+    def test_exam_lifecycle_work_port_results_are_materialized(self) -> None:
         with session_scope(self.db_path) as session:
-            evaluation = ExamDayClosureService._evaluate(
-                ExamDayClosureService(
-                    self.db_path,
-                    notification_service=notification_service_for_test(self.db_path),
-                    assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(),
-                    planning_lifecycle_work_factory=planning_lifecycle_work_factory(),
-                    identity_lifecycle_work_factory=identity_lifecycle_work_factory(),
-                ),
-                session,
-                session.get(ExamDay, 2),
+            model = AssessmentModelVersion(
+                model_key="lifecycle-port-contract",
+                version=1,
+                ihk="IHK Teststadt",
+                occupation="Fachinformatiker/in",
+                specialization=None,
+                training_regulation="Testordnung",
+                exam_regulation="Prüfungsordnung",
+                ihk_guidelines="Richtlinie",
+                valid_from="2026-01-01",
+                valid_until="2026-12-31",
+                rules_json="{}",
+                retention_rule_reference="PrüfO § 1",
+                created_by_member_id=1,
             )
+            session.add(model)
+            session.flush()
+            session.add(
+                ExamRoundAssessmentBinding(
+                    exam_round_id=1,
+                    assessment_model_version_id=model.id,
+                    bound_by_member_id=1,
+                    binding_reason="Materialized port contract fixture",
+                )
+            )
+            result = ExamResult(round_candidate_id=1, source="migration")
+            session.add(result)
+            session.flush()
+            result_id = result.id
+        factory = SQLiteExamLifecycleUnitOfWorkFactory(
+            SQLiteExecutionUnitOfWorkFactory(
+                self.db_path,
+                identity_snapshot_factory=SQLiteIdentityExecutionSnapshotFactory(),
+            ),
+            SQLiteAssessmentUnitOfWorkFactory(self.db_path),
+            self.db_path,
+            SQLiteAssessmentLifecycleAdapter(SQLiteAssessmentUnitOfWorkFactory(self.db_path)),
+        )
+        auth_context = SQLiteAuthenticationRepository(self.db_path).authenticate(self.chair.token)
+        assert auth_context is not None
+        scope = authorization_service(self.db_path).scope(auth_context)
+        day_closure_service = ExamDayClosureService(
+            notification_service=notification_service_for_test(self.db_path),
+        )
+        self.assertFalse(hasattr(day_closure_service, "get_in_session"))
+        self.assertFalse(hasattr(day_closure_service, "machine_export_in_session"))
+        self.assertFalse(hasattr(day_closure_service, "human_export_in_session"))
+        round_lifecycle_service = ExamRoundLifecycleService(
+            notification_service=notification_service_for_test(self.db_path),
+        )
+        with factory() as unit_of_work:
+            round_snapshot = unit_of_work.planning_lifecycle.round_lifecycle_snapshot(1)
+            candidates = unit_of_work.planning_lifecycle.round_candidates(1)
+            candidate_ids = tuple(item["candidate_id"] for item in candidates)
+            day_slots, day_assignments = unit_of_work.planning_lifecycle.exam_day_plan(2)
+            slot_ids = tuple(item.id for item in day_slots)
+            reopening_impacts = unit_of_work.assessment_lifecycle.result_reopening_impacts(
+                {result_id}
+            )
+            result_by_id = unit_of_work.assessment_lifecycle.result_by_id(result_id)
+            lifecycle_facts = ExamLifecycleApplication._day_closure_facts(unit_of_work, 2, 1)
+            lifecycle_day = day_closure_view(
+                scope,
+                lifecycle_facts,
+                unit_of_work.execution.day_closure_read_snapshot(2),
+            )
+            pending_consequence_ids = unit_of_work.consequences.pending_ids_for_round(1)
+            round_facts = ExamLifecycleApplication._round_facts(unit_of_work, 1)
+            lifecycle_round = round_lifecycle_view(
+                scope,
+                round_facts,
+                pending_consequence_ids,
+                unit_of_work.execution.round_lifecycle_read_snapshot(1),
+            )
+            day_snapshot = unit_of_work.execution.record_day_export(
+                scope, 2, human=False, facts=lifecycle_facts
+            )
+            day_export = day_closure_service.export_from_read_snapshot(
+                scope, lifecycle_facts, day_snapshot
+            )
+            lifecycle_snapshot, export_snapshot, export_record = (
+                unit_of_work.execution.record_round_export(
+                    1,
+                    scope.member_for_committee(round_facts.round.committee_id),
+                    human=False,
+                    facts=round_facts,
+                )
+            )
+            round_export = round_lifecycle_service.export_from_read_snapshots(
+                scope,
+                round_facts,
+                lifecycle_snapshot,
+                export_snapshot,
+                export_record,
+                pending_consequence_ids,
+            )
+            round_results = unit_of_work.assessment_lifecycle.results_for_round(1)
+            candidate_result = unit_of_work.assessment_lifecycle.result_for_round_candidate(
+                candidates[0]["id"] if candidates else -1
+            )
+            self.assertIsNotNone(result_by_id)
+            assert result_by_id is not None
+            self.assertEqual(result_id, result_by_id["id"])
+            self.assertTrue(round_results)
+            assert_materialized_port_value(self, lifecycle_round)
+            self.assertFalse(hasattr(round_lifecycle_service, "get"))
+            self.assertFalse(hasattr(round_lifecycle_service, "get_in_session"))
+            self.assertTrue(any(item["id"] == result_id for item in round_results))
+            self.assertIsNotNone(candidate_result)
+            assert candidate_result is not None
+            self.assertEqual(result_id, candidate_result["id"])
+            values = (
+                round_snapshot,
+                candidates,
+                unit_of_work.planning_lifecycle.candidate_details(candidate_ids),
+                unit_of_work.planning_lifecycle.round_candidate(1, candidates[0]["id"]),
+                unit_of_work.planning_lifecycle.candidate_assignment(candidates[0]["id"], 1),
+                unit_of_work.planning_lifecycle.lifecycle_context(1, 1, candidate_ids),
+                unit_of_work.planning_lifecycle.dependency_counts(1),
+                day_slots,
+                day_assignments,
+                unit_of_work.planning_lifecycle.exam_day_assignments((2,)),
+                unit_of_work.planning_lifecycle.exam_day_slots((2,)),
+                unit_of_work.planning_lifecycle.exam_day_slot_ids((2,)),
+                unit_of_work.execution.exam_day_round_id(2),
+                unit_of_work.execution.exam_day_ids_for_round(1),
+                unit_of_work.execution.candidate_attendance_for_slots(slot_ids),
+                unit_of_work.execution.member_attendance_for_day(2, (1, 2, 3)),
+                unit_of_work.execution.absence_reports_for_day(2),
+                unit_of_work.consequences.pending_ids_for_round(1),
+                lifecycle_day,
+                lifecycle_round,
+                day_export,
+                round_export,
+                lifecycle_facts.candidate_attendance,
+                lifecycle_facts.member_attendance,
+                lifecycle_facts.absences,
+                lifecycle_facts.protocol_day_snapshot,
+                unit_of_work.assessment_lifecycle.day_completion(2),
+                unit_of_work.assessment_lifecycle.results_for_day_slots(2, slot_ids),
+                reopening_impacts,
+                result_by_id,
+                round_results,
+                candidate_result,
+                unit_of_work.identity_lifecycle.committee_members(1),
+                unit_of_work.identity_lifecycle.committee(1),
+            )
+
+        for value in values:
+            assert_materialized_port_value(self, value)
+
+    def test_exam_lifecycle_read_scope_pins_one_snapshot_without_write_intent(self) -> None:
+        factory = SQLiteExamLifecycleUnitOfWorkFactory(
+            SQLiteExecutionUnitOfWorkFactory(
+                self.db_path,
+                identity_snapshot_factory=SQLiteIdentityExecutionSnapshotFactory(),
+            ),
+            SQLiteAssessmentUnitOfWorkFactory(self.db_path),
+            self.db_path,
+            SQLiteAssessmentLifecycleAdapter(SQLiteAssessmentUnitOfWorkFactory(self.db_path)),
+        )
+        with factory.read_scope() as unit_of_work:
+            before = unit_of_work.planning_lifecycle.round_lifecycle_snapshot(1)
+            self.assertIsNotNone(before)
+            with session_scope(self.db_path, begin_immediate=True) as writer:
+                writer.get(ExamRound, 1).revision += 1
+            after = unit_of_work.planning_lifecycle.round_lifecycle_snapshot(1)
+
+        self.assertIsNotNone(after)
+        self.assertEqual(before.revision, after.revision)
+        with session_scope(self.db_path) as session:
+            self.assertEqual(before.revision + 1, session.get(ExamRound, 1).revision)
+
+    def test_closure_evaluation_keeps_finding_order(self) -> None:
+        factory = SQLiteExamLifecycleUnitOfWorkFactory(
+            SQLiteExecutionUnitOfWorkFactory(
+                self.db_path,
+                identity_snapshot_factory=SQLiteIdentityExecutionSnapshotFactory(),
+            ),
+            SQLiteAssessmentUnitOfWorkFactory(self.db_path),
+            self.db_path,
+            SQLiteAssessmentLifecycleAdapter(SQLiteAssessmentUnitOfWorkFactory(self.db_path)),
+        )
+        with factory.read_scope() as unit_of_work:
+            facts = ExamLifecycleApplication._day_closure_facts(unit_of_work, 2, 1)
+            evaluation = evaluate_day_closure(facts, 2)
         self.assertEqual(
             [
                 "day_has_slots",
@@ -128,27 +315,22 @@ class ExamDayClosureTests(unittest.TestCase):
         )
 
     def test_closure_snapshot_loads_attendance_in_bounded_queries(self) -> None:
-        statements: list[str] = []
-        with session_scope(self.db_path) as session:
-            day = session.get(ExamDay, 2)
-            connection = session.connection()
-
-            def count_statement(_conn, _cursor, statement, _parameters, _context, _executemany):
-                statements.append(statement)
-
-            event.listen(connection, "before_cursor_execute", count_statement)
-            try:
-                snapshot = ExamDayClosureService._load_closure_snapshot(
-                    session,
-                    day,
-                    planning_lifecycle_work_factory()(session),
-                    identity_lifecycle_work_factory()(session),
-                )
-            finally:
-                event.remove(connection, "before_cursor_execute", count_statement)
-
+        factory = SQLiteExamLifecycleUnitOfWorkFactory(
+            SQLiteExecutionUnitOfWorkFactory(
+                self.db_path,
+                identity_snapshot_factory=SQLiteIdentityExecutionSnapshotFactory(),
+            ),
+            SQLiteAssessmentUnitOfWorkFactory(self.db_path),
+            self.db_path,
+            SQLiteAssessmentLifecycleAdapter(SQLiteAssessmentUnitOfWorkFactory(self.db_path)),
+        )
+        with factory.read_scope() as unit_of_work:
+            facts = ExamLifecycleApplication._day_closure_facts(unit_of_work, 2, 1)
+            snapshot = ExamDayClosurePolicy()._load_closure_snapshot(facts)
         self.assertEqual(1, len(snapshot.slots))
-        self.assertEqual(5, len(statements))
+        self.assertEqual("cancelled", snapshot.slots[0].execution_status)
+        self.assertTrue(all(not hasattr(value, "_sa_instance_state") for value in snapshot.slots))
+        assert_materialized_port_value(self, snapshot)
 
     def test_result_without_determination_is_not_mutated_by_reopening(self) -> None:
         with session_scope(self.db_path) as session:
@@ -172,6 +354,7 @@ class ExamDayClosureTests(unittest.TestCase):
         with session_scope(self.db_path) as session:
             self.assertEqual(expected_version + 1, session.get(ExamResult, 2).version)
         self.assertIsNone(receipt["determination_id"])
+        assert_materialized_port_value(self, receipt)
 
     def test_missing_assessment_binding_is_reported_as_blocked_day_completion(self) -> None:
         with session_scope(self.db_path) as session:
@@ -338,6 +521,71 @@ class ExamDayClosureTests(unittest.TestCase):
             self.assertEqual(1, session.query(ExamDayClosure).filter_by(exam_day_id=2).count())
             self.assertEqual(2, session.query(ExamDayExport).filter_by(exam_day_id=2).count())
             self.assertEqual(2, session.get(ExamDay, 2).revision)
+
+    def test_day_export_prefers_current_closure_over_newer_noncurrent_history(self) -> None:
+        with session_scope(self.db_path) as session:
+            current = ExamDayClosure(
+                exam_day_id=3,
+                requested_revision=1,
+                resulting_revision=2,
+                closure_type="regular",
+                actor_member_id=1,
+                reason=None,
+                clarification_attempts=None,
+                checklist_json="[]",
+                warnings_json="[]",
+                protocol_references_json="[]",
+                result_references_json="[]",
+                status="current",
+                command_fingerprint="a" * 64,
+            )
+            newer = ExamDayClosure(
+                exam_day_id=3,
+                requested_revision=2,
+                resulting_revision=3,
+                closure_type="regular",
+                actor_member_id=1,
+                reason=None,
+                clarification_attempts=None,
+                checklist_json="[]",
+                warnings_json="[]",
+                protocol_references_json="[]",
+                result_references_json="[]",
+                status="superseded",
+                command_fingerprint="b" * 64,
+            )
+            session.add_all([current, newer])
+            session.flush()
+            current_closure_id = current.id
+            newer_closure_id = newer.id
+
+        factory = SQLiteExamLifecycleUnitOfWorkFactory(
+            SQLiteExecutionUnitOfWorkFactory(
+                self.db_path,
+                identity_snapshot_factory=SQLiteIdentityExecutionSnapshotFactory(),
+            ),
+            SQLiteAssessmentUnitOfWorkFactory(self.db_path),
+            self.db_path,
+            SQLiteAssessmentLifecycleAdapter(SQLiteAssessmentUnitOfWorkFactory(self.db_path)),
+        )
+        auth_context = SQLiteAuthenticationRepository(self.db_path).authenticate(self.chair.token)
+        assert auth_context is not None
+        scope = authorization_service(self.db_path).scope(auth_context)
+        service = ExamDayClosureService(
+            notification_service=notification_service_for_test(self.db_path),
+        )
+        with factory() as unit_of_work:
+            facts = ExamLifecycleApplication._day_closure_facts(unit_of_work, 3, 1)
+            snapshot = unit_of_work.execution.record_day_export(scope, 3, human=False, facts=facts)
+            exported = service.export_from_read_snapshot(scope, facts, snapshot)
+        self.assertLess(current_closure_id, newer_closure_id)
+        self.assertEqual(
+            [current_closure_id, newer_closure_id],
+            [item["id"] for item in exported["closure"]["history"] if item["kind"] == "closure"],
+        )
+        with session_scope(self.db_path) as session:
+            export = session.query(ExamDayExport).filter_by(exam_day_id=3).one()
+            self.assertEqual(current_closure_id, export.closure_id)
 
     def test_exception_late_response_targeted_reopening_and_reclose(self) -> None:
         with ApiServer(self.db_path) as api:
@@ -631,11 +879,7 @@ class ExamDayClosureTests(unittest.TestCase):
 
     def test_close_transaction_outcome_defers_notifications_until_published(self) -> None:
         service = ExamDayClosureService(
-            self.db_path,
             notification_service=notification_service_for_test(self.db_path),
-            assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(),
-            planning_lifecycle_work_factory=planning_lifecycle_work_factory(),
-            identity_lifecycle_work_factory=identity_lifecycle_work_factory(),
         )
         scope = AuthorizationScope(
             person_id=1,
@@ -683,11 +927,7 @@ class ExamDayClosureTests(unittest.TestCase):
 
     def test_application_close_rolls_back_execution_write_failure(self) -> None:
         service = ExamDayClosureService(
-            self.db_path,
             notification_service=notification_service_for_test(self.db_path),
-            assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(),
-            planning_lifecycle_work_factory=planning_lifecycle_work_factory(),
-            identity_lifecycle_work_factory=identity_lifecycle_work_factory(),
         )
         application = ExamLifecycleApplication(
             SQLiteExamLifecycleUnitOfWorkFactory(
@@ -709,10 +949,17 @@ class ExamDayClosureTests(unittest.TestCase):
             management_committee_ids=frozenset({1}),
             member_by_committee={1: 1},
         )
+        original_apply = _SQLiteExamLifecycleExecution.apply_day_close
+
+        def fail_after_close_write(execution, intent):
+            original_apply(execution, intent)
+            raise RuntimeError("synthetic execution write failure")
+
         with patch.object(
-            ExamDayClosureService,
-            "_record_closure",
-            side_effect=RuntimeError("synthetic execution write failure"),
+            _SQLiteExamLifecycleExecution,
+            "apply_day_close",
+            autospec=True,
+            side_effect=fail_after_close_write,
         ):
             with self.assertRaisesRegex(RuntimeError, "synthetic execution write failure"):
                 application.close_exam_day(
@@ -737,11 +984,7 @@ class ExamDayClosureTests(unittest.TestCase):
 
     def test_reopen_rolls_back_assessment_correction_and_execution_evidence(self) -> None:
         service = ExamDayClosureService(
-            self.db_path,
             notification_service=notification_service_for_test(self.db_path),
-            assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(),
-            planning_lifecycle_work_factory=planning_lifecycle_work_factory(),
-            identity_lifecycle_work_factory=identity_lifecycle_work_factory(),
         )
         application = ExamLifecycleApplication(
             SQLiteExamLifecycleUnitOfWorkFactory(
@@ -763,7 +1006,7 @@ class ExamDayClosureTests(unittest.TestCase):
             management_committee_ids=frozenset({1}),
             member_by_committee={1: 1},
         )
-        application.close_exam_day(
+        closed = application.close_exam_day(
             scope,
             3,
             day_close_command(
@@ -776,6 +1019,7 @@ class ExamDayClosureTests(unittest.TestCase):
                 }
             ),
         )
+        assert_materialized_port_value(self, closed)
         with session_scope(self.db_path) as session:
             calculation = ResultCalculation(
                 exam_result_id=2,
@@ -810,8 +1054,8 @@ class ExamDayClosureTests(unittest.TestCase):
             task_count = session.query(ExamDayTask).filter_by(exam_day_id=3).count()
             audit_count = session.query(ExamDayAuditEvent).filter_by(exam_day_id=3).count()
 
-        def fail_after_assessment_mutation(*args, **kwargs):
-            transaction = args[0]
+        def fail_after_assessment_mutation(execution, handle, facts, corrections):
+            transaction = execution._session
             self.assertTrue(transaction.get(ExamResult, 2).correction_open)
             self.assertEqual(1, transaction.query(ResultCorrection).count())
             self.assertEqual("reopening", transaction.get(ExamDay, 3).closure_status)
@@ -822,11 +1066,11 @@ class ExamDayClosureTests(unittest.TestCase):
             self.assertEqual(
                 task_count, transaction.query(ExamDayTask).filter_by(exam_day_id=3).count()
             )
-            self.assertEqual(1, args[4][2]["determination_id"])
+            self.assertEqual(1, corrections[2]["determination_id"])
             updated_completion = next(
                 (
                     item
-                    for item in args[3].assessment_completion["slots"]
+                    for item in facts.assessment_completion["slots"]
                     if item["exam_result_id"] == 2
                 ),
                 None,
@@ -837,8 +1081,9 @@ class ExamDayClosureTests(unittest.TestCase):
 
         with (
             patch.object(
-                service,
-                "complete_reopen_intent",
+                _SQLiteExamLifecycleExecution,
+                "complete_day_reopen",
+                autospec=True,
                 side_effect=fail_after_assessment_mutation,
             ),
         ):
@@ -907,11 +1152,7 @@ class ExamDayClosureTests(unittest.TestCase):
 
     def _assert_reopen_result_follow_up(self, external_document_status: str | None, expected: str):
         service = ExamDayClosureService(
-            self.db_path,
             notification_service=notification_service_for_test(self.db_path),
-            assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(),
-            planning_lifecycle_work_factory=planning_lifecycle_work_factory(),
-            identity_lifecycle_work_factory=identity_lifecycle_work_factory(),
         )
         application = ExamLifecycleApplication(
             SQLiteExamLifecycleUnitOfWorkFactory(
@@ -987,7 +1228,7 @@ class ExamDayClosureTests(unittest.TestCase):
                 )
             )
 
-        application.reopen_exam_day(
+        reopened = application.reopen_exam_day(
             scope,
             3,
             day_reopen_command(
@@ -1000,6 +1241,7 @@ class ExamDayClosureTests(unittest.TestCase):
                 }
             ),
         )
+        assert_materialized_port_value(self, reopened)
         with session_scope(self.db_path) as session:
             tasks = session.query(ExamDayTask).filter_by(exam_day_id=3).all()
             task_types = {task.task_type for task in tasks}

@@ -5,9 +5,17 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any, Protocol
 
+from backend.execution.protocol_ports import ProtocolDaySnapshot
+from backend.execution.slot_ports import AbsenceSnapshot, AttendanceSnapshot
 from backend.identity.lifecycle_ports import (
     IdentityCommitteeLifecycleSnapshot,
     IdentityMemberLifecycleSnapshot,
+)
+from backend.mutation_locks import (
+    MutationLockCommand as MutationLockCommand,
+)
+from backend.mutation_locks import (
+    MutationLockKind as MutationLockKind,
 )
 
 
@@ -83,6 +91,10 @@ class DayClosureFacts(Protocol):
     management_member_ids: frozenset[int]
     assessment_results: Sequence[Mapping[str, Any]]
     assessment_impacts: Sequence[Mapping[str, Any]]
+    candidate_attendance: Mapping[int, AttendanceSnapshot]
+    member_attendance: Mapping[int, AttendanceSnapshot]
+    absences: Sequence[AbsenceSnapshot]
+    protocol_day_snapshot: ProtocolDaySnapshot | None
 
 
 class RoundLifecycleFacts(Protocol):

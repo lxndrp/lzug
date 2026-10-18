@@ -114,6 +114,7 @@ def request_context(request: Request) -> RequestContext:
         assessment_lifecycle=request.app.state.assessment_lifecycle,
         assessment_round_queries=request.app.state.assessment_round_queries,
         exam_lifecycle_unit_of_work_factory=(request.app.state.exam_lifecycle_unit_of_work_factory),
+        absence_unit_of_work_factory=request.app.state.absence_unit_of_work_factory,
         candidate_day_service_factory=request.app.state.candidate_day_service_factory,
         planning_resource_unit_of_work_factory=(
             request.app.state.planning_resource_unit_of_work_factory
@@ -130,6 +131,7 @@ def request_context(request: Request) -> RequestContext:
         ),
         consequence_store_factory=request.app.state.consequence_store_factory,
         notification_service_factory=request.app.state.notification_service_factory,
+        round_mutation_lock_checker_factory=request.app.state.round_mutation_lock_checker_factory,
         runtime_settings=config.runtime_settings,
         auth_rate_limiter=request.app.state.auth_rate_limiter,
         observability_rate_limiter=request.app.state.observability_rate_limiter,
