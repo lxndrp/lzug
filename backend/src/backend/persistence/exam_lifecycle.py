@@ -158,11 +158,10 @@ class _SQLiteExamLifecycleExecution:
         ).load_day_closure_read_snapshot(day_id)
         return service.get_from_read_snapshot(scope, facts, snapshot)
 
-    def read_round_lifecycle(self, service, scope, round_id: int, pending_consequence_ids, facts):
-        snapshot = SQLiteExamRoundLifecycleReadSnapshotReader(
+    def round_lifecycle_read_snapshot(self, round_id: int):
+        return SQLiteExamRoundLifecycleReadSnapshotReader(
             self._session
         ).load_round_lifecycle_read_snapshot(round_id)
-        return service.get_from_read_snapshot(scope, facts, pending_consequence_ids, snapshot)
 
     def set_round_candidate_terminal_status(
         self, service, scope, round_id: int, candidate_id: int, payload

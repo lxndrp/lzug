@@ -41,16 +41,17 @@ class RoundLifecycleExportSnapshotTests(unittest.TestCase):
             identity_lifecycle_work_factory=identity_lifecycle_work_factory(),
             calendar_lifecycle_work_factory=calendar_lifecycle_work_factory(),
         )
-        self.application = ExamLifecycleApplication(
-            SQLiteExamLifecycleUnitOfWorkFactory(
-                SQLiteExecutionUnitOfWorkFactory(
-                    self.db_path,
-                    identity_snapshot_factory=SQLiteIdentityExecutionSnapshotFactory(),
-                ),
-                assessment_factory,
+        self.unit_of_work_factory = SQLiteExamLifecycleUnitOfWorkFactory(
+            SQLiteExecutionUnitOfWorkFactory(
                 self.db_path,
-                SQLiteAssessmentLifecycleAdapter(assessment_factory),
+                identity_snapshot_factory=SQLiteIdentityExecutionSnapshotFactory(),
             ),
+            assessment_factory,
+            self.db_path,
+            SQLiteAssessmentLifecycleAdapter(assessment_factory),
+        )
+        self.application = ExamLifecycleApplication(
+            self.unit_of_work_factory,
             lambda: ExamDayClosureService(
                 self.db_path,
                 notification_service=notification_service_for_test(self.db_path),
@@ -78,6 +79,17 @@ class RoundLifecycleExportSnapshotTests(unittest.TestCase):
             with self.subTest(name=name):
                 self.assertFalse(hasattr(self.service, name))
         self.assertFalse(hasattr(self.service, "db_path"))
+
+    def test_round_lifecycle_read_uses_the_detached_snapshot_projection(self):
+        application = ExamLifecycleApplication(
+            self.unit_of_work_factory,
+            lambda: self.fail("round lifecycle reads must not construct an Execution service"),
+        )
+
+        actual = application.get_exam_round_lifecycle(self.scope, 1)
+
+        assert_materialized_port_value(self, actual)
+        self.assertEqual(1, actual["round_id"])
 
     def test_machine_export_uses_the_application_snapshot_path(self):
         with session_scope(self.db_path) as session:

@@ -899,6 +899,7 @@ class BackendPackageBoundaryTests(unittest.TestCase):
         for relative in (
             "execution/exam_protocols.py",
             "execution/protocol_ports.py",
+            "execution/round_lifecycle_view.py",
         ):
             path = BACKEND_ROOT / relative
             tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))

@@ -37,6 +37,7 @@ from backend.execution.lifecycle_ports import (
     PlanningLifecycleWork,
 )
 from backend.execution.protocol_ports import ProtocolDaySnapshot
+from backend.execution.round_lifecycle_snapshot import ExamRoundLifecycleReadSnapshot
 from backend.execution.slot_ports import ExecutionUnitOfWork
 from backend.identity.authorization import AuthorizationScope
 
@@ -58,14 +59,9 @@ class ExamLifecycleExecutionUnitOfWork(ExecutionUnitOfWork, Protocol):
         facts: DayClosureFacts,
     ) -> dict | None: ...
 
-    def read_round_lifecycle(
-        self,
-        service: ExamRoundLifecycleService,
-        scope: AuthorizationScope,
-        round_id: int,
-        pending_consequence_ids: Sequence[int],
-        facts: RoundLifecycleFacts,
-    ) -> dict | None: ...
+    def round_lifecycle_read_snapshot(
+        self, round_id: int
+    ) -> ExamRoundLifecycleReadSnapshot | None: ...
 
     def set_round_candidate_terminal_status(
         self,

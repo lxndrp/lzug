@@ -20,6 +20,7 @@ from backend.execution.exam_day_closures import (
     ExamDayClosureService,
 )
 from backend.execution.exam_round_lifecycle import ExamRoundLifecycleService
+from backend.execution.round_lifecycle_view import round_lifecycle_view
 from backend.identity.authorization import AuthorizationScope
 from backend.persistence.assessment import SQLiteAssessmentUnitOfWorkFactory
 from backend.persistence.auth import SQLiteAuthenticationRepository
@@ -180,8 +181,11 @@ class ExamDayClosureTests(unittest.TestCase):
             )
             pending_consequence_ids = unit_of_work.consequences.pending_ids_for_round(1)
             round_facts = ExamLifecycleApplication._round_facts(unit_of_work, 1)
-            lifecycle_round = unit_of_work.execution.read_round_lifecycle(
-                round_lifecycle_service, scope, 1, pending_consequence_ids, round_facts
+            lifecycle_round = round_lifecycle_view(
+                scope,
+                round_facts,
+                pending_consequence_ids,
+                unit_of_work.execution.round_lifecycle_read_snapshot(1),
             )
             expected_round_view = round_lifecycle_service._view(
                 unit_of_work.execution._session,

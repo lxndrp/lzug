@@ -544,9 +544,8 @@ class ExamRoundLifecycleTests(unittest.TestCase):
         )
         close = round_decision_command({"revision": 1, "confirmed": True})
         with (
-            patch.object(
-                service,
-                "get_from_read_snapshot",
+            patch(
+                "backend.application.exam_lifecycle.round_lifecycle_view",
                 side_effect=RuntimeError("test snapshot failure"),
             ),
             self.assertRaisesRegex(RuntimeError, "test snapshot failure"),
@@ -570,9 +569,8 @@ class ExamRoundLifecycleTests(unittest.TestCase):
         }
         command = round_reopen_command(command_payload)
         with (
-            patch.object(
-                service,
-                "get_from_read_snapshot",
+            patch(
+                "backend.application.exam_lifecycle.round_lifecycle_view",
                 side_effect=RuntimeError("test snapshot failure"),
             ),
             patch.object(service, "_notify") as notify,
@@ -681,9 +679,8 @@ class ExamRoundLifecycleTests(unittest.TestCase):
             "postponed_until": "2027-12-01",
         }
         with (
-            patch.object(
-                service,
-                "get_from_read_snapshot",
+            patch(
+                "backend.application.exam_lifecycle.round_lifecycle_view",
                 side_effect=RuntimeError("test snapshot failure"),
             ),
             self.assertRaisesRegex(RuntimeError, "test snapshot failure"),

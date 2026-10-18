@@ -22,6 +22,7 @@ from backend.application.exam_lifecycle_ports import (
 from backend.execution.exam_day_closures import ExamDayClosureService
 from backend.execution.exam_round_lifecycle import ExamRoundLifecycleService
 from backend.execution.lifecycle_ports import MutationLockCommand, MutationLockKind
+from backend.execution.round_lifecycle_view import round_lifecycle_view
 from backend.identity.authorization import AuthorizationScope
 
 
@@ -53,9 +54,6 @@ class ExamLifecycleApplication:
     def get_exam_round_lifecycle(
         self, scope: AuthorizationScope, round_id: int
     ) -> dict[str, Any] | None:
-        if self._round_lifecycle_service_factory is None:
-            raise RuntimeError("Round lifecycle service factory is not configured")
-        service = self._round_lifecycle_service_factory()
         with self._unit_of_work_factory.read_scope() as unit_of_work:
             exam_round = unit_of_work.planning_lifecycle.round_lifecycle_snapshot(round_id)
             if exam_round is None:
@@ -64,9 +62,8 @@ class ExamLifecycleApplication:
                 raise PermissionError("Forbidden.")
             pending_consequence_ids = unit_of_work.consequences.pending_ids_for_round(round_id)
             facts = self._round_facts(unit_of_work, round_id, exam_round=exam_round)
-            return unit_of_work.execution.read_round_lifecycle(
-                service, scope, round_id, pending_consequence_ids, facts
-            )
+            snapshot = unit_of_work.execution.round_lifecycle_read_snapshot(round_id)
+            return round_lifecycle_view(scope, facts, pending_consequence_ids, snapshot)
 
     def assert_mutation_allowed(self, command: MutationLockCommand) -> None:
         """Apply the shared lifecycle lock through the configured Execution boundary."""
@@ -91,13 +88,12 @@ class ExamLifecycleApplication:
             unit_of_work.execution.set_round_candidate_terminal_status(
                 service, scope, round_id, candidate_id, payload
             )
-            response = self._read_round_lifecycle_response(unit_of_work, service, scope, round_id)
+            response = self._read_round_lifecycle_response(unit_of_work, scope, round_id)
         return response
 
     def document_exam_round_ihk_status(
         self, scope: AuthorizationScope, round_id: int, result_id: int, payload: dict[str, Any]
     ) -> dict[str, Any]:
-        service = self._round_lifecycle_service()
         with self._unit_of_work_factory() as unit_of_work:
             exam_round = unit_of_work.planning_lifecycle.round_lifecycle_snapshot(round_id)
             if exam_round is None:
@@ -122,7 +118,7 @@ class ExamLifecycleApplication:
                 document_reference=command.document_reference,
                 actor_member_id=command.actor_member_id,
             )
-            response = self._read_round_lifecycle_response(unit_of_work, service, scope, round_id)
+            response = self._read_round_lifecycle_response(unit_of_work, scope, round_id)
         return response
 
     def delete_empty_exam_round_draft(self, scope: AuthorizationScope, round_id: int) -> bool:
@@ -368,7 +364,7 @@ class ExamLifecycleApplication:
                 outcome = unit_of_work.execution.apply_round_decision(
                     service, scope, intent, facts, recipients
                 )
-            response = self._read_round_lifecycle_response(unit_of_work, service, scope, round_id)
+            response = self._read_round_lifecycle_response(unit_of_work, scope, round_id)
         service.publish_decision_notifications(outcome)
         return response
 
@@ -428,14 +424,13 @@ class ExamLifecycleApplication:
                         "Die Prüfungsrunde wurde zwischenzeitlich geändert"
                     )
                 outcome = unit_of_work.execution.apply_round_reopen(service, scope, intent, facts)
-            response = self._read_round_lifecycle_response(unit_of_work, service, scope, round_id)
+            response = self._read_round_lifecycle_response(unit_of_work, scope, round_id)
         service.publish_decision_notifications(outcome)
         return response
 
     def _read_round_lifecycle_response(
         self,
         unit_of_work,
-        service: ExamRoundLifecycleService,
         scope: AuthorizationScope,
         round_id: int,
     ) -> dict[str, Any]:
@@ -444,13 +439,8 @@ class ExamLifecycleApplication:
             raise RuntimeError("Exam round disappeared before its lifecycle response was read")
         facts = self._round_facts(unit_of_work, round_id, exam_round=exam_round)
         pending_consequence_ids = unit_of_work.consequences.pending_ids_for_round(round_id)
-        response = unit_of_work.execution.read_round_lifecycle(
-            service,
-            scope,
-            round_id,
-            pending_consequence_ids,
-            facts,
-        )
+        snapshot = unit_of_work.execution.round_lifecycle_read_snapshot(round_id)
+        response = round_lifecycle_view(scope, facts, pending_consequence_ids, snapshot)
         if response is None:
             raise RuntimeError("Exam round disappeared before its lifecycle response was read")
         return response
