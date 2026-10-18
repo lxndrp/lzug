@@ -360,7 +360,11 @@ einen offenen Prüfungstag und ruft dann `sync_round` vor der
 Abwesenheitsmutation auf.
 Nach dem Commit ruft es `sync_round` erneut auf, ebenfalls nur bei offenem
 Prüfungstag.
-Der Zielvertrag entfernt diesen Pre-Sync.
+Diese direkten Pre- und Post-Commit-Aufrufe sind ein dokumentierter
+Übergangspfad bis zum abhängigen Issue [#1158](https://github.com/lxndrp/lzug/issues/1158).
+Sie bleiben in #1085 migrationsfrei bestehen und sind keine Abnahmebedingung
+dieses Issues; ihre Entfernung und dauerhafte Application-Orchestrierung
+gehören zu #1158.
 Nur wenn der Prüfungstag beim `select_replacement`-Commit offen ist, speichert
 die Execution-Folgequelle im selben Mutation-UoW das unveränderliche
 Before-Image einschließlich des Guard-Snapshots `closure_status == "open"`,
