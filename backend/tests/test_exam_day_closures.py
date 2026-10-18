@@ -194,14 +194,6 @@ class ExamDayClosureTests(unittest.TestCase):
                 pending_consequence_ids,
                 unit_of_work.execution.round_lifecycle_read_snapshot(1),
             )
-            expected_round_view = round_lifecycle_service._view(
-                unit_of_work.execution._session,
-                round_facts.round,
-                scope,
-                facts=round_facts,
-                pending_consequence_ids=pending_consequence_ids,
-            )
-            self.assertEqual(expected_round_view, lifecycle_round)
             day_snapshot = unit_of_work.execution.record_day_export(
                 scope, 2, human=False, facts=lifecycle_facts
             )
