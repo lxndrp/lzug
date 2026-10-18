@@ -378,6 +378,10 @@ class SocketMigrationTests(unittest.TestCase):
             recipient, self.fingerprint
         )
         with closing(sqlite3.connect(self.paths.database)) as db, db:
+            db.execute("DROP TABLE calendar_assignment_execution_origin")
+            db.execute("DROP TABLE absence_consequence_source")
+            db.execute("DROP TABLE absence_consequence_cutover")
+            db.execute("ALTER TABLE exam_day_assignment DROP COLUMN revision")
             for migration_prefix in ("028_%", "029_%"):
                 db.execute(
                     "DELETE FROM schema_migration_checksum WHERE name LIKE ?",
