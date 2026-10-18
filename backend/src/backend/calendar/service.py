@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import secrets
+from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from datetime import UTC, date, datetime, time
 from typing import Any
@@ -204,6 +205,140 @@ class CalendarService:
                 changed += 1
             return changed
 
+    def apply_absence_follow_up(
+        self,
+        assignment_id: int,
+        round_id: int,
+        origin_id: str,
+        execution_version: int,
+        action: str,
+        before_image: Sequence[Mapping[str, object]],
+    ) -> str:
+        """Replay one immutable Execution consequence in a Calendar UoW."""
+        if action not in {"update", "cancel"}:
+            raise ValueError("unsupported_calendar_absence_action")
+        if execution_version < 1 or not origin_id:
+            raise ValueError("invalid_calendar_execution_origin")
+
+        with self._unit_of_work_factory() as work:
+            reservation = work.reserve_execution_origin(
+                assignment_id, origin_id, execution_version, action
+            )
+            if reservation == "superseded":
+                return "superseded"
+            if reservation == "conflict":
+                return "conflict"
+            if reservation != "apply":
+                raise ValueError("invalid_calendar_execution_reservation")
+
+            prefix = f"assignment:{assignment_id}"
+            events = tuple(work.events_for_source(prefix))
+            snapshot = self._planning.round_snapshot(round_id)
+            assignment = (
+                next(
+                    (item for item in snapshot.assignments if item.id == assignment_id),
+                    None,
+                )
+                if snapshot is not None
+                else None
+            )
+
+            changed = 0
+            if action == "cancel":
+                changed += self._cancel_replay_generations(
+                    work, assignment_id, events, before_image
+                )
+            else:
+                current_recipient = assignment.member_id if assignment is not None else None
+                changed += self._cancel_replay_generations(
+                    work,
+                    assignment_id,
+                    events,
+                    before_image,
+                    excluding_recipient=current_recipient,
+                )
+                if snapshot is not None and assignment is not None:
+                    self._sync_assignment(work, snapshot, assignment)
+            return "applied"
+
+    def _cancel_replay_generations(
+        self,
+        work,
+        assignment_id: int,
+        events: tuple[CalendarEventSnapshot, ...],
+        before_image: Sequence[Mapping[str, object]],
+        *,
+        excluding_recipient: int | None = None,
+    ) -> int:
+        """Cancel old generations, recreating a missing row from its frozen image."""
+        by_source = {event.source_key: event for event in events}
+        candidates: dict[str, CalendarEventSnapshot] = dict(by_source)
+        for image in before_image:
+            try:
+                source_key = str(image["source_key"])
+                recipient = int(image["recipient_member_id"])
+                if not source_key.startswith(f"assignment:{assignment_id}:"):
+                    continue
+                if excluding_recipient is not None and recipient == excluding_recipient:
+                    continue
+                existing = by_source.get(source_key)
+                if existing is None:
+                    existing = self._snapshot_from_before_image(image, assignment_id)
+                    if existing is not None:
+                        candidates[source_key] = existing
+            except KeyError, TypeError, ValueError:
+                continue
+
+        changed = 0
+        for event in candidates.values():
+            if event.status == "cancelled":
+                continue
+            if excluding_recipient is not None and event.recipient_member_id == excluding_recipient:
+                continue
+            work.save_event(
+                replace(
+                    event,
+                    status="cancelled",
+                    version=event.version + 1,
+                    updated_at=_timestamp(),
+                )
+            )
+            changed += 1
+        return changed
+
+    @staticmethod
+    def _snapshot_from_before_image(
+        image: Mapping[str, object], assignment_id: int
+    ) -> CalendarEventSnapshot | None:
+        try:
+            return CalendarEventSnapshot(
+                id=None,
+                external_event_id=str(image["external_event_id"]),
+                exam_half_year_id=int(image["exam_half_year_id"]),
+                exam_round_id=int(image["exam_round_id"]),
+                exam_day_id=(
+                    int(image["exam_day_id"]) if image.get("exam_day_id") is not None else None
+                ),
+                exam_day_assignment_id=assignment_id,
+                recipient_member_id=int(image["recipient_member_id"]),
+                date=str(image["date"]),
+                starts_at=str(image["starts_at"]),
+                ends_at=str(image["ends_at"]),
+                time_zone=str(image["time_zone"]),
+                location=str(image["location"]),
+                role=str(image["role"]),
+                round_name=str(image["round_name"]),
+                source_key=str(image["source_key"]),
+                version=int(image["version"]),
+                status=str(image["status"]),
+                content_hash=str(image["content_hash"]),
+                sent_at=(str(image["sent_at"]) if image.get("sent_at") is not None else None),
+                created_at=str(image.get("created_at") or _timestamp()),
+                updated_at=str(image.get("updated_at") or _timestamp()),
+            )
+        except KeyError, TypeError, ValueError:
+            return None
+
     def feed_ics(self, token: str) -> str | None:
         """Return the current-period feed for a valid token and active identity scope."""
         with self._unit_of_work_factory() as work:
@@ -291,12 +426,26 @@ class CalendarService:
         round_snapshot: CalendarRoundSnapshot,
         assignment: CalendarAssignmentSnapshot,
     ) -> tuple[str | None, int]:
+        prefix = f"assignment:{assignment.id}"
+        events = tuple(work.events_for_source(prefix))
+        if work.execution_action(assignment.id) == "cancel":
+            changed = 0
+            for event in events:
+                if event.status != "cancelled":
+                    work.save_event(
+                        replace(
+                            event,
+                            status="cancelled",
+                            version=event.version + 1,
+                            updated_at=_timestamp(),
+                        )
+                    )
+                    changed += 1
+            return prefix, changed
         section_slots = self._section_slots(assignment.slots, assignment.day_part)
         if not section_slots:
             return None, 0
         active_slots = tuple(slot for slot in section_slots if slot.status != "cancelled")
-        prefix = f"assignment:{assignment.id}"
-        events = tuple(work.events_for_source(prefix))
         event = self._latest_event(events, assignment.member_id)
         cancelled = assignment.day_status == "cancelled" or not active_slots
         event_slots = active_slots or section_slots
@@ -317,7 +466,11 @@ class CalendarService:
                     )
                 )
                 changed += 1
-        generation = len(events) + 1 if event is None else None
+        # Source keys are durable generation identities.  Count-based allocation
+        # can reuse a key after an old row has been removed or a partially
+        # migrated history contains gaps, so advance from the greatest persisted
+        # generation instead.
+        generation = self._next_generation(prefix, events) if event is None else None
         source_key = f"{prefix}:{generation}" if generation is not None else event.source_key
         payload = self._event_payload(
             round_snapshot,
@@ -329,6 +482,19 @@ class CalendarService:
         )
         changed += self._store_event(work, event, payload, assignment.id, generation, cancelled)
         return prefix, changed
+
+    @staticmethod
+    def _next_generation(prefix: str, events: tuple[CalendarEventSnapshot, ...]) -> int:
+        generations = []
+        for event in events:
+            origin, separator, suffix = event.source_key.rpartition(":")
+            if origin != prefix or not separator:
+                continue
+            try:
+                generations.append(int(suffix))
+            except ValueError:
+                continue
+        return max(generations, default=0) + 1
 
     def _store_event(
         self,

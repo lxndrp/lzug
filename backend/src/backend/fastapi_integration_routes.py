@@ -333,8 +333,10 @@ def create_absence_router() -> APIRouter:
         return finish(
             context,
             context.respond(
-                context.absence_service.report(
-                    context.authorization_scope, payload_data(context, payload)
+                context.exam_lifecycle_application.report_absence(
+                    context.authorization_scope,
+                    payload_data(context, payload),
+                    context.absence_service,
                 ),
                 HTTPStatus.CREATED,
             ),
@@ -349,12 +351,18 @@ def create_absence_router() -> APIRouter:
             data = payload_data(context, payload)
             service = context.absence_service
             result = {
-                "select-replacement": lambda: service.select_replacement(
-                    context.authorization_scope, report_id, data
+                "select-replacement": lambda: (
+                    context.exam_lifecycle_application.select_absence_replacement(
+                        context.authorization_scope, report_id, data, service
+                    )
                 ),
                 "withdraw": lambda: service.withdraw(context.authorization_scope, report_id),
-                "reopen": lambda: service.reopen(context.authorization_scope, report_id, data),
-                "cancel": lambda: service.cancel(context.authorization_scope, report_id, data),
+                "reopen": lambda: context.exam_lifecycle_application.reopen_absence(
+                    context.authorization_scope, report_id, data, service
+                ),
+                "cancel": lambda: context.exam_lifecycle_application.cancel_absence(
+                    context.authorization_scope, report_id, data, service
+                ),
             }[action]()
             return finish(context, context.respond(result))
 
@@ -377,10 +385,11 @@ def create_absence_router() -> APIRouter:
         return finish(
             context,
             context.respond(
-                context.absence_service.respond(
+                context.exam_lifecycle_application.respond_absence(
                     context.authorization_scope,
                     response_id,
                     payload_data(context, payload),
+                    context.absence_service,
                 )
             ),
         )
@@ -394,10 +403,11 @@ def create_absence_router() -> APIRouter:
         return finish(
             context,
             context.respond(
-                context.absence_service.respond(
+                context.exam_lifecycle_application.respond_absence(
                     context.authorization_scope,
                     response_id,
                     payload_data(context, payload),
+                    context.absence_service,
                 )
             ),
         )

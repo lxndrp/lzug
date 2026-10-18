@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from contextlib import AbstractContextManager
 from dataclasses import dataclass
-from typing import NewType, Protocol
+from typing import Any, NewType, Protocol
 
 from backend.mutation_locks import MutationLockCommand
 
@@ -74,6 +74,7 @@ class AbsenceAssignmentSnapshot:
     id: int
     exam_day_id: int
     committee_member_id: int
+    revision: int
     assignment_role: str
     day_part: str
     fallback_status: str | None
@@ -183,6 +184,26 @@ class AbsenceUnitOfWork(Protocol):
         reason: str | None = None,
     ) -> None: ...
 
+    def day_guard_snapshot(self, handle: AbsenceDayMutationHandle) -> dict[str, object]: ...
+
+    def record_consequence_source(
+        self,
+        *,
+        audit_event_id: int,
+        report_id: int,
+        report_version: int,
+        assignment_id: int,
+        assignment_revision: int,
+        source_json: str,
+        created_at: str,
+    ) -> dict[str, Any]: ...
+
+    def sources_after_cutover(self) -> Sequence[dict[str, Any]]: ...
+
+    def source_by_origin(self, origin_id: str) -> dict[str, Any] | None: ...
+
+    def legacy_unreplayable_count(self) -> int: ...
+
     def insert_report(
         self,
         *,
@@ -213,7 +234,7 @@ class AbsenceUnitOfWork(Protocol):
         to_status: str | None,
         created_at: str,
         details: dict[str, object] | None = None,
-    ) -> None: ...
+    ) -> int: ...
 
     def update_report(
         self,

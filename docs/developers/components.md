@@ -354,54 +354,30 @@ Application revalidiert den Claim unmittelbar vor dem Seiteneffekt und
 schreibt den Abschluss nur unter dem gespeicherten Leasewert.
 Externe Seiteneffekte sind damit nicht Exactly-once.
 
-Weitere heutige Kalenderpfade liegen in `execution.absence`:
-`select_replacement` ermittelt über `_report_round_id` eine Runde nur für
-einen offenen Prüfungstag und ruft dann `sync_round` vor der
-Abwesenheitsmutation auf.
-Nach dem Commit ruft es `sync_round` erneut auf, ebenfalls nur bei offenem
-Prüfungstag.
-Diese direkten Pre- und Post-Commit-Aufrufe sind ein dokumentierter
-Übergangspfad bis zum abhängigen Issue [#1158](https://github.com/lxndrp/lzug/issues/1158).
-Sie bleiben in #1085 migrationsfrei bestehen und sind keine Abnahmebedingung
-dieses Issues; ihre Entfernung und dauerhafte Application-Orchestrierung
-gehören zu #1158.
-Aktuell speichert `AbsenceUnitOfWork` keine Calendar-Before-Image-Quelle,
-keinen Guard-Snapshot und keine ursprünglichen Notification-Empfänger.
-Calendar- und Notification-Aufrufe erfolgen direkt nach dem Commit; nach einem
-Prozessabbruch gibt es für diese Folgen keine dauerhafte Wiederholung.
-Die nachfolgende Replay-Beschreibung ist das Ziel von #1158, nicht der
-implementierte Stand von #1085.
-In #1158 soll nur bei offenem Prüfungstag eine unveränderliche
-Execution-Folgequelle im Mutation-UoW das Before-Image samt
-`closure_status == "open"`, Assignment-ID, altem Empfänger und
-materialisiertem Eventinhalt speichern. Application soll diese Quelle ohne
-Neubewertung des späteren Tagesstatus replayen und an Calendar übergeben.
-Bei `reopening` soll keine Calendar-Quelle entstehen.
-Auch die ursprünglichen Notification-Empfänger für
-`replacement_selected` sollen erst dort im gemeinsamen Cross-Domain-UoW
-eingefroren werden.
-Für die in #1158 geplante Before-Image-Wiederholung soll Calendar die
-Generationreservierung je Assignment in seinem eigenen Repository-UoW
-serialisieren und die idempotente Zuordnung von stabilem Quellursprung zu
-Generation speichern.
-`sync_round`, `sync_assignment` und `sync_person` sollen dabei vor jeder
-Assignment-Reconciliation den Planning-Snapshot mit der neuesten Execution-
-Folgeversion samt Cancellation-Tombstone kombinieren. Ein verzögerter
-Planning-Auftrag soll keine stornierte Zuweisung reaktivieren; nur eine höhere
-Execution-Folgeversion darf sie wieder aktivieren. ICS-read-triggered Sync und
-Before-Image-Replay sollen denselben Calendar-Allocator verwenden.
-Damit soll ein Read-Sync die Ersatzprojektion bereits anlegen können, ohne
-UID-Kollision oder zweite aktive Generation; Wiederholungen behalten dieselben
-Origin-zu-Generation-Zuordnungen.
-Wiederöffnung stellt im Execution-Zustand den ursprünglichen
-Assignee wieder her und ruft `sync_round` nach dem Commit nur für einen
-offenen Prüfungstag auf.
-Dieser Sync storniert das Ersatz-Event mit Versionssprung und erzeugt für den
-ursprünglichen Assignee eine neue Eventgeneration.
-Abbruch ruft `cancel_assignment` nach dem Commit ebenfalls nur für einen
-offenen Prüfungstag auf.
-Diese Aufrufe sind direkte synchrone Folgen ohne dauerhaften Application-
-Auftrag und ohne garantierte Wiederholung nach Prozessabbruch.
+Der Abwesenheits- und Ersatzpfad wird durch #1158 über Application
+orchestriert.
+`AbsenceUnitOfWork` schreibt mit der Mutation eine unveränderliche
+Folgequelle mit Audit-Ursprung, Guard-Snapshot, ursprünglichen
+Notification-Empfängern und – bei offenem Prüfungstag – Calendar-Before-Image.
+Die Empfänger werden zum auslösenden Zustand eingefroren und beim Replay nicht
+aus späteren Memberships neu berechnet.
+Application verarbeitet nach dem Commit nur die neu angelegte Quelle; ein
+expliziter `lzug-admin notification process` stellt fehlende Batches wieder her
+und verarbeitet fällige oder erneut freigegebene Aufgaben.
+Ein Prozessneustart startet keinen automatischen Replay-Worker.
+
+Ersatzwahl, Wiederöffnung und Absage teilen Assignment-CAS, Execution-Audit
+und Folgequelle im Application-UoW.
+Kalenderfolgen entstehen nur für offene Prüfungstage; eine Wiederöffnung nach
+einer Absage erzeugt eine Update-Quelle und erhöht die Assignment-Revision.
+Calendar reserviert die Generation pro Assignment in seinem Repository-UoW
+und persistiert die Zuordnung von Ursprung und Ausführungsrevision samt Aktion.
+Eine Cancellation-Tombstone bleibt bei `sync_round`, `sync_assignment` und
+`sync_person` wirksam; nur eine neuere Execution-Folgeversion darf die
+Zuweisung wieder aktivieren.
+ICS-Read-Sync und Folgequellen-Replay verwenden denselben Allocator.
+Wiederholungen behalten dieselbe Ursprungszuordnung und erzeugen keine zweite
+aktive Generation.
 Eine Rundungsabsage verhält sich anders:
 `ExamRoundLifecycleService` setzt nicht stornierte `CalendarEvent`-Zeilen mit
 `date >= now[:10]` während derselben Rundungsentscheidungs-Transaktion auf
