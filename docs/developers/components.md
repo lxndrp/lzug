@@ -365,37 +365,33 @@ Diese direkten Pre- und Post-Commit-Aufrufe sind ein dokumentierter
 Sie bleiben in #1085 migrationsfrei bestehen und sind keine Abnahmebedingung
 dieses Issues; ihre Entfernung und dauerhafte Application-Orchestrierung
 gehören zu #1158.
-Nur wenn der Prüfungstag beim `select_replacement`-Commit offen ist, speichert
-die Execution-Folgequelle im selben Mutation-UoW das unveränderliche
-Before-Image einschließlich des Guard-Snapshots `closure_status == "open"`,
-Assignment-ID, alter Empfänger-Membership-ID und materialisiertem Eventinhalt.
-Generationen gehören ausschließlich Calendar und werden nicht von Execution
-vorhergesagt oder gespeichert.
-Application replayt diese bereits autorisierte Quelle samt Guard-Snapshot
-ohne den zwischenzeitlich veränderlichen Tagesstatus neu zu bewerten und
-übergibt das Image an den Calendar-Port: dieser storniert die alte Generation
-und erzeugt die stornierte Zeile aus dem Before-Image auch dann, wenn noch
-keine Projektion existiert; danach synchronisiert er die neue
-Zuweisungsgeneration.
-Wenn der Tag beim Mutation-Commit den Status `reopening` hat, entstehen aus
-`select_replacement` weder Before-Image noch Calendar-Quelle.
-So bleiben Abwesenheitsmutation und Wiederherstellung der alten
-Kalenderprojektion/Eventzeile nach Prozessabbruch wiederholbar.
-Die unveränderliche `replacement_selected`-Notification-Quelle friert im
-gleichen Cross-Domain-UoW den bisherigen Assignee, das Ersatzmitglied und alle
-übrigen aktiven Ausschussmitglieder als ursprüngliche Empfänger-IDs ein.
-Calendar serialisiert die Generationreservierung je Assignment in seinem
-eigenen Repository-UoW und speichert die idempotente Zuordnung von stabilem
-Quellursprung zu Generation.
-`sync_round`, `sync_assignment` und `sync_person` kombinieren vor jeder
+Aktuell speichert `AbsenceUnitOfWork` keine Calendar-Before-Image-Quelle,
+keinen Guard-Snapshot und keine ursprünglichen Notification-Empfänger.
+Calendar- und Notification-Aufrufe erfolgen direkt nach dem Commit; nach einem
+Prozessabbruch gibt es für diese Folgen keine dauerhafte Wiederholung.
+Die nachfolgende Replay-Beschreibung ist das Ziel von #1158, nicht der
+implementierte Stand von #1085.
+In #1158 soll nur bei offenem Prüfungstag eine unveränderliche
+Execution-Folgequelle im Mutation-UoW das Before-Image samt
+`closure_status == "open"`, Assignment-ID, altem Empfänger und
+materialisiertem Eventinhalt speichern. Application soll diese Quelle ohne
+Neubewertung des späteren Tagesstatus replayen und an Calendar übergeben.
+Bei `reopening` soll keine Calendar-Quelle entstehen.
+Auch die ursprünglichen Notification-Empfänger für
+`replacement_selected` sollen erst dort im gemeinsamen Cross-Domain-UoW
+eingefroren werden.
+Für die in #1158 geplante Before-Image-Wiederholung soll Calendar die
+Generationreservierung je Assignment in seinem eigenen Repository-UoW
+serialisieren und die idempotente Zuordnung von stabilem Quellursprung zu
+Generation speichern.
+`sync_round`, `sync_assignment` und `sync_person` sollen dabei vor jeder
 Assignment-Reconciliation den Planning-Snapshot mit der neuesten Execution-
-Folgeversion samt Cancellation-Tombstone. Ein verzögerter Planning-Auftrag
-reaktiviert keine stornierte Zuweisung; nur eine höhere Execution-Folgeversion
-kann sie wieder aktivieren. ICS-read-triggered Sync und Before-Image-Replay
-reservieren ausschließlich über denselben Calendar-Allocator.
-Damit kann ein Read-Sync die Ersatzprojektion bereits anlegen, ohne dass ein
-späteres Replay der alten Empfängerzeile eine UID-Kollision oder zweite
-aktive Generation erzeugt; Wiederholungen behalten dieselben
+Folgeversion samt Cancellation-Tombstone kombinieren. Ein verzögerter
+Planning-Auftrag soll keine stornierte Zuweisung reaktivieren; nur eine höhere
+Execution-Folgeversion darf sie wieder aktivieren. ICS-read-triggered Sync und
+Before-Image-Replay sollen denselben Calendar-Allocator verwenden.
+Damit soll ein Read-Sync die Ersatzprojektion bereits anlegen können, ohne
+UID-Kollision oder zweite aktive Generation; Wiederholungen behalten dieselben
 Origin-zu-Generation-Zuordnungen.
 Wiederöffnung stellt im Execution-Zustand den ursprünglichen
 Assignee wieder her und ruft `sync_round` nach dem Commit nur für einen

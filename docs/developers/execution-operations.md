@@ -69,9 +69,13 @@ direkt die detached Policies und Snapshot-Reader; Mutationsantworten werden im
 selben UoW gelesen.
 Teile der Lifecycle-Schreiblogik verwenden weiterhin direkte SQLAlchemy-Abfragen
 und sind noch nicht vollständig hinter Persistence-Verträgen gekapselt.
-Der getrennte Ersatzbesetzungs-HTTP-Ablauf in `execution.absence` behält noch
-direkte Planning-Zugriffe und ist für die Boundary-/Transition-Fortsetzung #1085
-abgegrenzt. Schema, Datenformat und öffentliche API-Verträge bleiben unverändert.
+Der Ersatzbesetzungsablauf in `execution.absence` nutzt für seine
+Planning-Abhängigkeiten den Execution-eigenen Absence-UoW-Port; der
+Persistence-Adapter liest und schreibt die Planning-Zuweisung innerhalb dieses
+UoW. Direkte Calendar- und Notification-Folgen nach dem Commit bleiben als
+migrationsfreier Übergang bis #1158 bestehen. Dauerhafte Folgequellen und
+Application-Replay gehören zu #1158. Schema, Datenformat und öffentliche
+API-Verträge bleiben in #1085 unverändert.
 
 ## Transaktionsmatrix für den Prüfungs-Lifecycle
 
