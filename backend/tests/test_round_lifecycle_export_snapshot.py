@@ -8,9 +8,6 @@ from backend.application.exam_lifecycle import ExamLifecycleApplication
 from backend.composition import (
     SQLiteAssessmentLifecycleAdapter,
     authorization_service,
-    calendar_lifecycle_work_factory,
-    identity_lifecycle_work_factory,
-    planning_lifecycle_work_factory,
 )
 from backend.execution.exam_day_closures import ExamDayClosureService
 from backend.execution.exam_round_lifecycle import ExamRoundLifecycleService
@@ -36,10 +33,6 @@ class RoundLifecycleExportSnapshotTests(unittest.TestCase):
         assessment_factory = SQLiteAssessmentUnitOfWorkFactory(self.db_path)
         self.service = ExamRoundLifecycleService(
             notification_service=notification_service_for_test(self.db_path),
-            assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(),
-            planning_lifecycle_work_factory=planning_lifecycle_work_factory(),
-            identity_lifecycle_work_factory=identity_lifecycle_work_factory(),
-            calendar_lifecycle_work_factory=calendar_lifecycle_work_factory(),
         )
         self.unit_of_work_factory = SQLiteExamLifecycleUnitOfWorkFactory(
             SQLiteExecutionUnitOfWorkFactory(
@@ -53,11 +46,7 @@ class RoundLifecycleExportSnapshotTests(unittest.TestCase):
         self.application = ExamLifecycleApplication(
             self.unit_of_work_factory,
             lambda: ExamDayClosureService(
-                self.db_path,
                 notification_service=notification_service_for_test(self.db_path),
-                assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(),
-                planning_lifecycle_work_factory=planning_lifecycle_work_factory(),
-                identity_lifecycle_work_factory=identity_lifecycle_work_factory(),
             ),
             lambda: self.service,
         )

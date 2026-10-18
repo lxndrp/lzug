@@ -13,9 +13,6 @@ from backend.application.exam_lifecycle_contracts import RoundLifecycleFacts
 from backend.composition import (
     SQLiteAssessmentLifecycleAdapter,
     authorization_service,
-    calendar_lifecycle_work_factory,
-    identity_lifecycle_work_factory,
-    planning_lifecycle_work_factory,
 )
 from backend.execution.exam_day_closures import ExamDayClosureService
 from backend.execution.exam_round_lifecycle import ExamRoundLifecycleService
@@ -82,11 +79,7 @@ class ExamRoundLifecycleTests(unittest.TestCase):
                 SQLiteAssessmentLifecycleAdapter(assessment_factory),
             ),
             lambda: ExamDayClosureService(
-                self.db_path,
                 notification_service=notification_service_for_test(self.db_path),
-                assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(),
-                planning_lifecycle_work_factory=planning_lifecycle_work_factory(),
-                identity_lifecycle_work_factory=identity_lifecycle_work_factory(),
             ),
             lambda: service,
         )
@@ -94,10 +87,6 @@ class ExamRoundLifecycleTests(unittest.TestCase):
     def test_application_mutation_ports_return_materialized_values(self) -> None:
         service = ExamRoundLifecycleService(
             notification_service=notification_service_for_test(self.db_path),
-            assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(),
-            planning_lifecycle_work_factory=planning_lifecycle_work_factory(),
-            identity_lifecycle_work_factory=identity_lifecycle_work_factory(),
-            calendar_lifecycle_work_factory=calendar_lifecycle_work_factory(),
         )
         application = self._exam_lifecycle_application(service)
         chair = SQLiteAuthenticationRepository(self.db_path).authenticate(self.chair.token)
@@ -377,10 +366,6 @@ class ExamRoundLifecycleTests(unittest.TestCase):
 
         service = ExamRoundLifecycleService(
             notification_service=notification_service_for_test(self.db_path),
-            assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(),
-            planning_lifecycle_work_factory=planning_lifecycle_work_factory(),
-            identity_lifecycle_work_factory=identity_lifecycle_work_factory(),
-            calendar_lifecycle_work_factory=calendar_lifecycle_work_factory(),
         )
         application = self._exam_lifecycle_application(service)
         deputy = SQLiteAuthenticationRepository(self.db_path).authenticate(self.deputy.token)
@@ -517,10 +502,6 @@ class ExamRoundLifecycleTests(unittest.TestCase):
         self._make_round_closable()
         service = ExamRoundLifecycleService(
             notification_service=notification_service_for_test(self.db_path),
-            assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(),
-            planning_lifecycle_work_factory=planning_lifecycle_work_factory(),
-            identity_lifecycle_work_factory=identity_lifecycle_work_factory(),
-            calendar_lifecycle_work_factory=calendar_lifecycle_work_factory(),
         )
         context = SQLiteAuthenticationRepository(self.db_path).authenticate(self.chair.token)
         scope = authorization_service(self.db_path).scope(context)
@@ -535,11 +516,7 @@ class ExamRoundLifecycleTests(unittest.TestCase):
                 SQLiteAssessmentLifecycleAdapter(SQLiteAssessmentUnitOfWorkFactory(self.db_path)),
             ),
             lambda: ExamDayClosureService(
-                self.db_path,
                 notification_service=notification_service_for_test(self.db_path),
-                assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(),
-                planning_lifecycle_work_factory=planning_lifecycle_work_factory(),
-                identity_lifecycle_work_factory=identity_lifecycle_work_factory(),
             ),
             lambda: service,
         )
@@ -649,10 +626,6 @@ class ExamRoundLifecycleTests(unittest.TestCase):
     def test_terminal_candidate_evidence_and_revision_guard_precede_mutation(self) -> None:
         service = ExamRoundLifecycleService(
             notification_service=notification_service_for_test(self.db_path),
-            assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(),
-            planning_lifecycle_work_factory=planning_lifecycle_work_factory(),
-            identity_lifecycle_work_factory=identity_lifecycle_work_factory(),
-            calendar_lifecycle_work_factory=calendar_lifecycle_work_factory(),
         )
         context = SQLiteAuthenticationRepository(self.db_path).authenticate(self.chair.token)
         scope = authorization_service(self.db_path).scope(context)
@@ -748,10 +721,6 @@ class ExamRoundLifecycleTests(unittest.TestCase):
     def test_transferred_status_requires_effective_assignment_in_the_target_round(self) -> None:
         service = ExamRoundLifecycleService(
             notification_service=notification_service_for_test(self.db_path),
-            assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(),
-            planning_lifecycle_work_factory=planning_lifecycle_work_factory(),
-            identity_lifecycle_work_factory=identity_lifecycle_work_factory(),
-            calendar_lifecycle_work_factory=calendar_lifecycle_work_factory(),
         )
         context = SQLiteAuthenticationRepository(self.db_path).authenticate(self.chair.token)
         scope = authorization_service(self.db_path).scope(context)

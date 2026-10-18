@@ -26,7 +26,7 @@ from backend.application.exam_lifecycle_commands import (
 )
 from backend.assessment.exam_results import ExamResultConflictError
 from backend.errors import TransactionConflictError, TransactionUnavailableError
-from backend.execution.exam_day_closures import ExamDayConflictError, ExamDayValidationError
+from backend.execution.day_lifecycle_contracts import ExamDayConflictError, ExamDayValidationError
 from backend.execution.exam_protocols import ExamProtocolConflictError
 from backend.execution.exam_round_lifecycle import ExamRoundConflictError, ExamRoundValidationError
 from backend.http_transport import (

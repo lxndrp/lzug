@@ -10,6 +10,7 @@ from backend.application.exam_lifecycle_contracts import (
     DayCloseCommand,
     DayClosureFacts,
     DayReopenCommand,
+    DayReopeningHandle,
     RoundDecisionCommand,
     RoundIhkStatusCommand,
     RoundLifecycleFacts,
@@ -20,10 +21,12 @@ from backend.application.exam_lifecycle_ports import (
     ExamLifecycleUnitOfWorkFactory,
 )
 from backend.execution.day_closure_policy import day_closure_view
-from backend.execution.exam_day_closures import (
+from backend.execution.day_lifecycle_contracts import (
     ExamDayClosureOutcome,
-    ExamDayClosureService,
+    ExamDayConflictError,
+    NotificationJob,
 )
+from backend.execution.exam_day_closures import ExamDayClosureService
 from backend.execution.exam_round_lifecycle import (
     ExamRoundDecisionOutcome,
     ExamRoundLifecycleService,
@@ -224,10 +227,14 @@ class ExamLifecycleApplication:
             if committee_id is None:
                 raise PermissionError("Forbidden.")
             facts = self._day_closure_facts(unit_of_work, day_id, round_id, committee_id)
-            intent = unit_of_work.execution.evaluate_day_close(
-                service, scope, day_id, command, facts
+            intent = service.evaluate_close_intent(
+                scope,
+                day_id,
+                command,
+                facts,
+                unit_of_work.execution.day_lifecycle_snapshot(day_id),
             )
-            outcome = unit_of_work.execution.apply_day_close(service, scope, intent, facts)
+            outcome = self._day_closure_outcome(unit_of_work.execution.apply_day_close(intent))
             response = day_closure_view(
                 scope, facts, unit_of_work.execution.day_closure_read_snapshot(day_id)
             )
@@ -248,8 +255,12 @@ class ExamLifecycleApplication:
             if committee_id is None:
                 raise PermissionError("Forbidden.")
             facts = self._day_closure_facts(unit_of_work, day_id, round_id, committee_id)
-            return unit_of_work.execution.day_reopening_impact(
-                service, scope, day_id, raw_scope, facts
+            return service.reopening_impact_from_facts(
+                scope,
+                day_id,
+                raw_scope,
+                facts,
+                unit_of_work.execution.day_lifecycle_snapshot(day_id),
             )
 
     def reopen_exam_day(
@@ -264,13 +275,24 @@ class ExamLifecycleApplication:
             if committee_id is None:
                 raise PermissionError("Forbidden.")
             facts = self._day_closure_facts(unit_of_work, day_id, round_id, committee_id)
-            intent = unit_of_work.execution.evaluate_day_reopen(
-                service, scope, day_id, command, facts
+            intent = service.evaluate_reopen_intent(
+                scope,
+                day_id,
+                command,
+                facts,
+                unit_of_work.execution.day_lifecycle_snapshot(day_id),
             )
             if intent.replayed:
                 outcome = ExamDayClosureOutcome(day_id=intent.day_id)
             else:
-                handle = unit_of_work.execution.begin_day_reopen(service, intent)
+                handle_data = unit_of_work.execution.begin_day_reopen(intent)
+                if "conflict" in handle_data:
+                    raise ExamDayConflictError(str(handle_data["conflict"]))
+                handle = DayReopeningHandle(
+                    reopening_id=int(handle_data["reopening_id"]),
+                    now=str(handle_data["now"]),
+                    intent=intent,
+                )
                 corrections = {
                     result_id: unit_of_work.assessment_lifecycle.open_result_correction(
                         result_id=result_id,
@@ -285,9 +307,12 @@ class ExamLifecycleApplication:
                     facts,
                     assessment_completion=unit_of_work.assessment_lifecycle.day_completion(day_id),
                 )
-                outcome = unit_of_work.execution.complete_day_reopen(
-                    service, scope, handle, facts, corrections
+                outcome_data = unit_of_work.execution.complete_day_reopen(
+                    handle, facts, corrections
                 )
+                if "conflict" in outcome_data:
+                    raise ExamDayConflictError(str(outcome_data["conflict"]))
+                outcome = self._day_closure_outcome(outcome_data)
             response = day_closure_view(
                 scope, facts, unit_of_work.execution.day_closure_read_snapshot(day_id)
             )
@@ -295,6 +320,24 @@ class ExamLifecycleApplication:
                 raise RuntimeError("Reopened exam day disappeared before its response was read")
         service.publish_reopening_notifications(outcome)
         return response
+
+    @staticmethod
+    def _day_closure_outcome(value: dict[str, Any]) -> ExamDayClosureOutcome:
+        return ExamDayClosureOutcome(
+            committee_id=value.get("committee_id"),
+            round_id=value.get("round_id"),
+            day_id=value.get("day_id"),
+            notification_jobs=tuple(
+                NotificationJob(
+                    recipient_member_ids=set(item["recipient_member_ids"]),
+                    event_type=str(item["event_type"]),
+                    title=str(item["title"]),
+                    message=str(item["message"]),
+                    origin_key=str(item["origin_key"]),
+                )
+                for item in value.get("notification_jobs", ())
+            ),
+        )
 
     @staticmethod
     def _day_closure_facts(
@@ -376,10 +419,8 @@ class ExamLifecycleApplication:
             raise RuntimeError("Round lifecycle service factory is not configured")
         service = self._round_lifecycle_service_factory()
         with self._unit_of_work_factory() as unit_of_work:
-            facts = self._round_facts(unit_of_work, round_id)
-            intent = unit_of_work.execution.evaluate_round_decision(
-                service, scope, command, decision_type, facts
-            )
+            facts = self._round_facts(unit_of_work, round_id, include_transition_records=True)
+            intent = service.evaluate_decision_intent(scope, command, decision_type, facts)
             if intent.replayed:
                 outcome = ExamRoundDecisionOutcome()
             else:
@@ -393,10 +434,10 @@ class ExamLifecycleApplication:
                 recipients: set[int] = set()
                 if decision_type == "cancel":
                     unit_of_work.planning_lifecycle.cancel_exam_day_slots(facts.day_ids, intent.now)
-                    facts = self._round_facts(unit_of_work, round_id)
-                    intent = unit_of_work.execution.refresh_round_decision_snapshot(
-                        service, intent, facts
+                    facts = self._round_facts(
+                        unit_of_work, round_id, include_transition_records=True
                     )
+                    intent = service.refresh_decision_snapshot(intent, facts)
                     recipients.update(facts.management_member_ids)
                     recipients.update(item.committee_member_id for item in facts.assignments)
                     recipients.update(
@@ -404,15 +445,17 @@ class ExamLifecycleApplication:
                             round_id, intent.now[:10], intent.now
                         )
                     )
-                outcome = unit_of_work.execution.apply_round_decision(
-                    service, scope, intent, facts, recipients
+                outcome = ExamRoundDecisionOutcome(
+                    **unit_of_work.execution.apply_round_decision(intent, facts, recipients)
                 )
             response = self._read_round_lifecycle_response(unit_of_work, scope, round_id)
         service.publish_decision_notifications(outcome)
         return response
 
     @staticmethod
-    def _round_facts(unit_of_work, round_id: int, *, exam_round=None) -> RoundLifecycleFacts:
+    def _round_facts(
+        unit_of_work, round_id: int, *, exam_round=None, include_transition_records: bool = False
+    ) -> RoundLifecycleFacts:
         planning = unit_of_work.planning_lifecycle
         exam_round = exam_round or planning.round_lifecycle_snapshot(round_id)
         if exam_round is None:
@@ -428,6 +471,17 @@ class ExamLifecycleApplication:
         committee = unit_of_work.identity_lifecycle.committee(exam_round.committee_id)
         if committee is None:
             raise PermissionError("Forbidden.")
+        lifecycle_records = {}
+        if include_transition_records:
+            lifecycle_snapshot = unit_of_work.execution.round_lifecycle_read_snapshot(round_id)
+            export_snapshot = unit_of_work.execution.round_lifecycle_export_snapshot(round_id)
+            lifecycle_records = {
+                "read": lifecycle_snapshot.records if lifecycle_snapshot is not None else {},
+                "export": export_snapshot.records,
+                "pending_consequence_ids": tuple(
+                    unit_of_work.consequences.pending_ids_for_round(round_id)
+                ),
+            }
         return RoundLifecycleFacts(
             round=exam_round,
             day_ids=day_ids,
@@ -444,6 +498,7 @@ class ExamLifecycleApplication:
             management_member_ids=frozenset(
                 unit_of_work.identity_lifecycle.management_member_ids(exam_round.committee_id)
             ),
+            lifecycle_records=lifecycle_records,
         )
 
     def reopen_exam_round(
@@ -453,8 +508,8 @@ class ExamLifecycleApplication:
             raise RuntimeError("Round lifecycle service factory is not configured")
         service = self._round_lifecycle_service_factory()
         with self._unit_of_work_factory() as unit_of_work:
-            facts = self._round_facts(unit_of_work, round_id)
-            intent = unit_of_work.execution.evaluate_round_reopen(service, scope, command, facts)
+            facts = self._round_facts(unit_of_work, round_id, include_transition_records=True)
+            intent = service.evaluate_reopen_intent(scope, command, facts)
             if intent.replayed:
                 outcome = ExamRoundDecisionOutcome()
             else:
@@ -464,7 +519,9 @@ class ExamLifecycleApplication:
                     raise ExamRoundConflictError(
                         "Die Prüfungsrunde wurde zwischenzeitlich geändert"
                     )
-                outcome = unit_of_work.execution.apply_round_reopen(service, scope, intent, facts)
+                outcome = ExamRoundDecisionOutcome(
+                    **unit_of_work.execution.apply_round_reopen(intent, facts)
+                )
             response = self._read_round_lifecycle_response(unit_of_work, scope, round_id)
         service.publish_decision_notifications(outcome)
         return response
@@ -493,5 +550,5 @@ class ExamLifecycleApplication:
             raise RuntimeError("Round lifecycle service factory is not configured")
         service = self._round_lifecycle_service_factory()
         with self._unit_of_work_factory() as unit_of_work:
-            facts = self._round_facts(unit_of_work, round_id)
-            return unit_of_work.execution.round_reopening_impact(service, scope, facts, raw_scope)
+            facts = self._round_facts(unit_of_work, round_id, include_transition_records=True)
+            return service.reopening_impact_from_facts(scope, facts, raw_scope)

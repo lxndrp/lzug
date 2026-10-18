@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import unittest
-from unittest.mock import patch
 
 from sqlalchemy import text
 
@@ -11,9 +10,6 @@ from backend.assessment.service import ExamResultService
 from backend.composition import (
     SQLiteAssessmentLifecycleAdapter,
     authorization_service,
-    calendar_lifecycle_work_factory,
-    identity_lifecycle_work_factory,
-    planning_lifecycle_work_factory,
     round_mutation_lock_checker,
 )
 from backend.execution.exam_day_closures import ExamDayClosureService
@@ -48,10 +44,6 @@ class RoundLifecycleMutationSnapshotTests(unittest.TestCase):
         assessment_factory = SQLiteAssessmentUnitOfWorkFactory(self.db_path)
         self.service = ExamRoundLifecycleService(
             notification_service=notification_service_for_test(self.db_path),
-            assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(),
-            planning_lifecycle_work_factory=planning_lifecycle_work_factory(),
-            identity_lifecycle_work_factory=identity_lifecycle_work_factory(),
-            calendar_lifecycle_work_factory=calendar_lifecycle_work_factory(),
         )
         self.application = ExamLifecycleApplication(
             SQLiteExamLifecycleUnitOfWorkFactory(
@@ -64,11 +56,7 @@ class RoundLifecycleMutationSnapshotTests(unittest.TestCase):
                 SQLiteAssessmentLifecycleAdapter(assessment_factory),
             ),
             lambda: ExamDayClosureService(
-                self.db_path,
                 notification_service=notification_service_for_test(self.db_path),
-                assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(),
-                planning_lifecycle_work_factory=planning_lifecycle_work_factory(),
-                identity_lifecycle_work_factory=identity_lifecycle_work_factory(),
             ),
             lambda: self.service,
         )
@@ -79,31 +67,30 @@ class RoundLifecycleMutationSnapshotTests(unittest.TestCase):
         self.database.__exit__(None, None, None)
 
     def test_candidate_and_ihk_responses_use_detached_round_snapshot(self) -> None:
-        with patch.object(self.service, "_view", side_effect=AssertionError("ORM response path")):
-            candidate = self.application.set_exam_round_candidate_terminal_status(
-                self.chair_scope,
-                1,
-                1,
-                {
-                    "revision": 1,
-                    "terminal_status": "postponed",
-                    "reason": "Verbindliche Nachplanung",
-                    "postponed_until": "2027-12-01",
-                },
-            )
-            ihk = self.application.document_exam_round_ihk_status(
-                self.deputy_scope,
-                2,
-                1,
-                {
-                    "document_status": "Zeugnis extern zugestellt",
-                    "document_reference": "IHK-TEST-89-1",
-                },
-            )
+        candidate = self.application.set_exam_round_candidate_terminal_status(
+            self.chair_scope,
+            1,
+            1,
+            {
+                "revision": 1,
+                "terminal_status": "postponed",
+                "reason": "Verbindliche Nachplanung",
+                "postponed_until": "2027-12-01",
+            },
+        )
+        ihk = self.application.document_exam_round_ihk_status(
+            self.deputy_scope,
+            2,
+            1,
+            {
+                "document_status": "Zeugnis extern zugestellt",
+                "document_reference": "IHK-TEST-89-1",
+            },
+        )
         assert_materialized_port_value(self, candidate)
         assert_materialized_port_value(self, ihk)
-        self.assertEqual(self._legacy_view(1, self.chair_scope), candidate)
-        self.assertEqual(self._legacy_view(2, self.deputy_scope), ihk)
+        self.assertEqual(self._current_view(1, self.chair_scope), candidate)
+        self.assertEqual(self._current_view(2, self.deputy_scope), ihk)
         self.assertEqual(
             ("postponed", 2), (candidate["candidates"][0]["terminal_status"], candidate["revision"])
         )
@@ -121,17 +108,13 @@ class RoundLifecycleMutationSnapshotTests(unittest.TestCase):
                 "scope": [{"kind": "planning", "entity_id": 1}],
             }
         )
-        with patch.object(self.service, "_view", side_effect=AssertionError("ORM response path")):
-            closed = self.application.close_exam_round(self.chair_scope, 1, close)
-        self.assertEqual(self._legacy_view(1, self.chair_scope), closed)
-        with patch.object(self.service, "_view", side_effect=AssertionError("ORM response path")):
-            closed_replay = self.application.close_exam_round(self.chair_scope, 1, close)
-        self.assertEqual(self._legacy_view(1, self.chair_scope), closed_replay)
-        with patch.object(self.service, "_view", side_effect=AssertionError("ORM response path")):
-            reopened = self.application.reopen_exam_round(self.chair_scope, 1, reopen)
-        self.assertEqual(self._legacy_view(1, self.chair_scope), reopened)
-        with patch.object(self.service, "_view", side_effect=AssertionError("ORM response path")):
-            reopened_replay = self.application.reopen_exam_round(self.chair_scope, 1, reopen)
+        closed = self.application.close_exam_round(self.chair_scope, 1, close)
+        self.assertEqual(self._current_view(1, self.chair_scope), closed)
+        closed_replay = self.application.close_exam_round(self.chair_scope, 1, close)
+        self.assertEqual(self._current_view(1, self.chair_scope), closed_replay)
+        reopened = self.application.reopen_exam_round(self.chair_scope, 1, reopen)
+        self.assertEqual(self._current_view(1, self.chair_scope), reopened)
+        reopened_replay = self.application.reopen_exam_round(self.chair_scope, 1, reopen)
         for response in (closed, closed_replay, reopened, reopened_replay):
             assert_materialized_port_value(self, response)
         self.assertEqual(("closed", 2), (closed["status"], closed["revision"]))
@@ -144,13 +127,12 @@ class RoundLifecycleMutationSnapshotTests(unittest.TestCase):
         cancel = round_decision_command(
             {"revision": 1, "confirmed": True, "reason": "Prüfung abgesagt"}
         )
-        with patch.object(self.service, "_view", side_effect=AssertionError("ORM response path")):
-            cancelled = self.application.cancel_exam_round(self.chair_scope, 1, cancel)
-            replayed = self.application.cancel_exam_round(self.chair_scope, 1, cancel)
+        cancelled = self.application.cancel_exam_round(self.chair_scope, 1, cancel)
+        replayed = self.application.cancel_exam_round(self.chair_scope, 1, cancel)
         assert_materialized_port_value(self, cancelled)
         self.assertEqual(("cancelled", 2), (cancelled["status"], cancelled["revision"]))
         self.assertEqual(cancelled, replayed)
-        self.assertEqual(self._legacy_view(1, self.chair_scope), cancelled)
+        self.assertEqual(self._current_view(1, self.chair_scope), cancelled)
 
     def test_candidate_mutation_checks_round_lock_inside_writer_uow(self) -> None:
         with session_scope(self.db_path) as session:
@@ -259,11 +241,8 @@ class RoundLifecycleMutationSnapshotTests(unittest.TestCase):
                 {"assessment_model_version_id": 1, "reason": "Korrektur"},
             )
 
-    def _legacy_view(self, round_id: int, scope):
-        with session_scope(self.db_path) as session:
-            planning = self.service.planning_lifecycle_work_factory(session)
-            exam_round = planning.round_lifecycle_snapshot(round_id)
-            return self.service._view(session, exam_round, scope, planning_work=planning)
+    def _current_view(self, round_id: int, scope):
+        return self.application.get_exam_round_lifecycle(scope, round_id)
 
     def _make_round_closable(self) -> None:
         with session_scope(self.db_path) as session:

@@ -483,6 +483,50 @@ class BackendPackageBoundaryTests(unittest.TestCase):
         self.assertIn("backend.execution.slot_ports", application_port_imports)
         self.assertNotIn("backend.persistence", application_port_imports)
 
+    def test_round_lifecycle_application_port_does_not_pass_concrete_service(self) -> None:
+        path = BACKEND_ROOT / "application" / "exam_lifecycle_ports.py"
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        concrete_services = {"ExamRoundLifecycleService"}
+        references = {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)} | {
+            node.attr for node in ast.walk(tree) if isinstance(node, ast.Attribute)
+        }
+        self.assertEqual(
+            set(),
+            references & concrete_services,
+            "Application round lifecycle ports must expose detached commands and "
+            "facts, not the concrete Session-bound round service",
+        )
+
+    def test_day_lifecycle_application_port_does_not_pass_concrete_service(self) -> None:
+        path = BACKEND_ROOT / "application" / "exam_lifecycle_ports.py"
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        references = {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)} | {
+            node.attr for node in ast.walk(tree) if isinstance(node, ast.Attribute)
+        }
+        self.assertNotIn("ExamDayClosureService", references)
+
+    def test_day_transition_execution_service_has_no_session_or_orm_dependency(self) -> None:
+        path = BACKEND_ROOT / "execution" / "exam_day_closures.py"
+        imports = _imported_modules(path, BACKEND_ROOT)
+        self.assertFalse(
+            {
+                module
+                for module in imports
+                if module == "sqlalchemy"
+                or module.startswith("sqlalchemy.")
+                or module.startswith("backend.persistence")
+            }
+        )
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        service = next(
+            node
+            for node in tree.body
+            if isinstance(node, ast.ClassDef) and node.name == "ExamDayClosureService"
+        )
+        self.assertFalse(
+            any(isinstance(node, ast.Name) and node.id == "Session" for node in ast.walk(service))
+        )
+
     def test_public_port_annotations_do_not_expose_orm_or_sql_values(self) -> None:
         leaks: list[str] = []
         for package in (BACKEND_ROOT / name for name in CORE_PACKAGES):

@@ -6,8 +6,6 @@ from backend.application.exam_lifecycle import ExamLifecycleApplication
 from backend.application.exam_lifecycle_commands import day_close_command, day_reopen_command
 from backend.composition import (
     SQLiteAssessmentLifecycleAdapter,
-    identity_lifecycle_work_factory,
-    planning_lifecycle_work_factory,
 )
 from backend.execution.exam_day_closures import ExamDayClosureService
 from backend.identity.authorization import AuthorizationScope
@@ -47,11 +45,7 @@ class DayClosureMutationSnapshotTests(unittest.TestCase):
                 SQLiteAssessmentLifecycleAdapter(SQLiteAssessmentUnitOfWorkFactory(self.db_path)),
             ),
             lambda: ExamDayClosureService(
-                self.db_path,
                 notification_service=notification_service_for_test(self.db_path),
-                assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(),
-                planning_lifecycle_work_factory=planning_lifecycle_work_factory(),
-                identity_lifecycle_work_factory=identity_lifecycle_work_factory(),
             ),
         )
 

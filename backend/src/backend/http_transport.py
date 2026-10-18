@@ -311,11 +311,7 @@ class RequestContext:
     @property
     def exam_day_closure_service(self) -> ExamDayClosureService:
         return ExamDayClosureService(
-            self.db_path,
             notification_service=self.notification_service,
-            assessment_lifecycle_factory=self.assessment_lifecycle,
-            planning_lifecycle_work_factory=self.planning_lifecycle_work_factory,
-            identity_lifecycle_work_factory=self.identity_lifecycle_work_factory,
         )
 
     @property
@@ -330,11 +326,6 @@ class RequestContext:
     def exam_round_lifecycle_service(self) -> ExamRoundLifecycleService:
         return ExamRoundLifecycleService(
             notification_service=self.notification_service,
-            assessment_lifecycle_factory=self.assessment_round_queries,
-            planning_lifecycle_work_factory=self.planning_lifecycle_work_factory,
-            identity_lifecycle_work_factory=self.identity_lifecycle_work_factory,
-            calendar_lifecycle_work_factory=self.calendar_lifecycle_work_factory,
-            pending_consequence_ids=self.plan_consequence_service.pending_ids_for_round,
         )
 
     @property

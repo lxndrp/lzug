@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
 
+from backend.execution.day_lifecycle_contracts import ExamDayReopeningIntent
 from backend.execution.lifecycle_ports import (
     AbsenceSnapshot,
     PlanAssignmentLifecycleSnapshot,
@@ -167,6 +168,7 @@ class RoundLifecycleFacts:
     committee: IdentityCommitteeLifecycleSnapshot
     members: tuple[IdentityMemberLifecycleSnapshot, ...]
     management_member_ids: frozenset[int]
+    lifecycle_records: Mapping[str, Any] = field(default_factory=dict)
 
     def round_lifecycle_snapshot(self, round_id: int):
         return self.round if round_id == self.round.id else None
@@ -245,3 +247,12 @@ class RoundLifecycleFacts:
             and item["ended_at"] is None
             for item in self.planning_context.get("candidate_assignment_history", ())
         )
+
+
+@dataclass(frozen=True)
+class DayReopeningHandle:
+    """Application state carried between reopening writes in the shared UoW."""
+
+    reopening_id: int
+    now: str
+    intent: ExamDayReopeningIntent

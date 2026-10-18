@@ -4,23 +4,13 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import select
-from sqlalchemy.orm import Session
-
 from backend.execution.lifecycle_errors import ExamRoundConflictError
 from backend.execution.lifecycle_ports import (
-    AssessmentLifecycleWork,
-    AssessmentLifecycleWorkFactory,
-    CalendarLifecycleWorkFactory,
-    IdentityLifecycleWork,
-    IdentityLifecycleWorkFactory,
-    PlanningLifecycleWork,
-    PlanningLifecycleWorkFactory,
     PlanningRoundLifecycleSnapshot,
     RoundDecisionCommand,
     RoundLifecycleFacts,
@@ -33,20 +23,6 @@ from backend.execution.round_lifecycle_snapshot import (
 from backend.execution.round_lifecycle_view import round_lifecycle_view
 from backend.identity.authorization import AuthorizationScope
 from backend.notifications.service import NotificationService
-from backend.persistence.models import (
-    AbsenceReport,
-    ExamDay,
-    ExamDayClosure,
-    ExamDayTask,
-    ExamProtocol,
-    ExamProtocolCorrectionRequest,
-    ExamProtocolRevision,
-    ExamRoundAuditEvent,
-    ExamRoundDecision,
-    ExamRoundExport,
-    ExamRoundReopening,
-    ExamRoundTask,
-)
 from backend.presentation.exam_exports import render_round_lifecycle_export
 
 TERMINAL_LIFECYCLE_STATUSES = {"closed", "cancelled", "historical"}
@@ -148,18 +124,8 @@ class ExamRoundLifecycleService:
         self,
         *,
         notification_service: NotificationService,
-        assessment_lifecycle_factory: AssessmentLifecycleWorkFactory,
-        planning_lifecycle_work_factory: PlanningLifecycleWorkFactory,
-        identity_lifecycle_work_factory: IdentityLifecycleWorkFactory,
-        calendar_lifecycle_work_factory: CalendarLifecycleWorkFactory,
-        pending_consequence_ids: Callable[[int], Sequence[int]] | None = None,
     ) -> None:
         self.notification_service = notification_service
-        self.assessment_lifecycle_factory = assessment_lifecycle_factory
-        self.planning_lifecycle_work_factory = planning_lifecycle_work_factory
-        self.identity_lifecycle_work_factory = identity_lifecycle_work_factory
-        self.calendar_lifecycle_work_factory = calendar_lifecycle_work_factory
-        self.pending_consequence_ids = pending_consequence_ids or (lambda _round_id: ())
 
     def export_from_read_snapshots(
         self,
@@ -209,7 +175,6 @@ class ExamRoundLifecycleService:
 
     def evaluate_decision_intent(
         self,
-        session: Session,
         scope: AuthorizationScope,
         command: RoundDecisionCommand,
         decision_type: str,
@@ -233,13 +198,11 @@ class ExamRoundLifecycleService:
         )
         exam_round = facts.round
         actor_id = self._require_management(exam_round, scope)
-        repeated = session.scalar(
-            select(ExamRoundDecision).where(
-                ExamRoundDecision.exam_round_id == exam_round.id,
-                ExamRoundDecision.command_fingerprint == fingerprint,
-            )
+        repeated = any(
+            item["command_fingerprint"] == fingerprint
+            for item in facts.lifecycle_records.get("read", {}).get("decisions", ())
         )
-        if repeated is not None:
+        if repeated:
             return ExamRoundDecisionIntent(
                 exam_round.id,
                 command.revision,
@@ -256,7 +219,7 @@ class ExamRoundLifecycleService:
                 True,
             )
         reopening, evaluation = self._decision_prerequisites(
-            session, exam_round, command.revision, decision_type, facts=facts
+            exam_round, command.revision, decision_type, facts=facts
         )
         return ExamRoundDecisionIntent(
             exam_round.id,
@@ -267,16 +230,15 @@ class ExamRoundLifecycleService:
             actor_id,
             exam_round.committee_id,
             exam_round.lifecycle_status,
-            reopening.id if reopening else None,
+            reopening["id"] if reopening else None,
             evaluation,
-            self._snapshot(session, exam_round, facts=facts),
+            self._snapshot(exam_round, facts=facts),
             _now(),
             False,
         )
 
     def refresh_decision_snapshot(
         self,
-        session: Session,
         intent: ExamRoundDecisionIntent,
         facts: RoundLifecycleFacts,
     ) -> ExamRoundDecisionIntent:
@@ -289,13 +251,12 @@ class ExamRoundLifecycleService:
         return replace(
             intent,
             snapshot=self._snapshot(
-                session, facts.round, facts=facts, day_status_overrides=day_status_overrides
+                facts.round, facts=facts, day_status_overrides=day_status_overrides
             ),
         )
 
     def evaluate_reopen_intent(
         self,
-        session: Session,
         scope: AuthorizationScope,
         command: RoundReopenCommand,
         facts: RoundLifecycleFacts,
@@ -315,14 +276,12 @@ class ExamRoundLifecycleService:
         )
         exam_round = facts.round
         actor_id = self._require_management(exam_round, scope)
-        repeated = session.scalar(
-            select(ExamRoundReopening).where(
-                ExamRoundReopening.exam_round_id == exam_round.id,
-                ExamRoundReopening.command_fingerprint == fingerprint,
-            )
+        repeated = any(
+            item["command_fingerprint"] == fingerprint
+            for item in facts.lifecycle_records.get("read", {}).get("reopenings", ())
         )
-        if repeated is not None:
-            previous = self._current_or_latest_decision(session, exam_round.id)
+        if repeated:
+            previous = self._current_or_latest_decision_record(facts)
             return ExamRoundReopeningIntent(
                 exam_round.id,
                 command.revision,
@@ -332,18 +291,17 @@ class ExamRoundLifecycleService:
                 occasion,
                 source,
                 {},
-                previous.id if previous else None,
+                previous["id"] if previous else None,
                 _now(),
                 True,
             )
         impact = self._reopening_prerequisites(
-            session,
             exam_round,
             command.revision,
             [item.payload() for item in command.scope],
             facts=facts,
         )
-        previous = self._current_or_latest_decision(session, exam_round.id)
+        previous = self._current_or_latest_decision_record(facts)
         return ExamRoundReopeningIntent(
             exam_round.id,
             command.revision,
@@ -353,159 +311,28 @@ class ExamRoundLifecycleService:
             occasion,
             source,
             impact,
-            previous.id if previous else None,
+            previous["id"] if previous else None,
             _now(),
             False,
         )
 
-    def apply_reopen_intent(self, session, scope, intent, facts):
-        previous = self._current_or_latest_decision(session, intent.round_id)
-        if previous is not None:
-            previous.status = "superseded"
-        reopening = ExamRoundReopening(
-            exam_round_id=intent.round_id,
-            previous_decision_id=previous.id if previous else None,
-            requested_revision=intent.expected_revision,
-            resulting_revision=intent.expected_revision + 1,
-            occasion=intent.occasion,
-            source=intent.source,
-            reason=intent.reason,
-            requested_scope_json=_json(intent.impact["requested_scope"]),
-            scope_json=_json(intent.impact["expanded_scope"]),
-            impacts_json=_json(intent.impact["impacts"]),
-            actor_member_id=intent.actor_member_id,
-            status="open",
-            command_fingerprint=intent.command_fingerprint,
-            opened_at=intent.now,
-        )
-        session.add(reopening)
-        session.flush()
-        updated = replace(
-            facts.round, revision=intent.expected_revision + 1, lifecycle_status="reopening"
-        )
-        self._supersede_exports(session, updated, intent.now)
-        recipients = self._create_reopening_tasks(
-            session, updated, reopening, intent.impact, intent.now, None, facts
-        )
-        session.add(
-            ExamRoundAuditEvent(
-                exam_round_id=intent.round_id,
-                round_revision=updated.revision,
-                event_type="reopened",
-                actor_member_id=intent.actor_member_id,
-                reopening_id=reopening.id,
-                reason=intent.reason,
-                scope_json=reopening.requested_scope_json,
-                created_at=intent.now,
-            )
-        )
-        return ExamRoundDecisionOutcome(
-            committee_id=intent.impact and updated.committee_id if recipients else None,
-            round_id=intent.round_id if recipients else None,
-            recipient_member_ids=frozenset(recipients),
-            title="Prüfungsrunde zur Korrektur wieder geöffnet" if recipients else "",
-            message=(
-                "Von Ihnen erfasste oder bestätigte Daten sind von einer begründeten "
-                "Korrektur betroffen."
-                if recipients
-                else ""
-            ),
-            origin_key=f"exam-round-reopening:{reopening.id}:affected" if recipients else "",
-        )
-
-    def apply_decision_intent(
-        self,
-        session: Session,
-        scope: AuthorizationScope,
-        intent: ExamRoundDecisionIntent,
-        facts: RoundLifecycleFacts,
-        cancelled_recipients: set[int] | None = None,
-    ) -> ExamRoundDecisionOutcome:
-        """Persist Execution-owned decision, audit, and response after owner mutations."""
-        previous = self._current_or_latest_decision(session, intent.round_id)
-        if previous is not None:
-            previous.status = "superseded"
-        reopening = (
-            session.get(ExamRoundReopening, intent.reopening_id) if intent.reopening_id else None
-        )
-        decision = ExamRoundDecision(
-            exam_round_id=intent.round_id,
-            decision_type=intent.decision_type,
-            requested_revision=intent.expected_revision,
-            resulting_revision=intent.expected_revision + 1,
-            actor_member_id=intent.actor_member_id,
-            reason=intent.reason,
-            checklist_json=_json(intent.evaluation["items"]),
-            snapshot_json=_json(intent.snapshot),
-            previous_decision_id=previous.id if previous else None,
-            status="current",
-            command_fingerprint=intent.command_fingerprint,
-            decided_at=intent.now,
-        )
-        session.add(decision)
-        session.flush()
-        lifecycle_status = "closed" if intent.decision_type == "close" else "cancelled"
-        updated = replace(
-            facts.round, revision=intent.expected_revision + 1, lifecycle_status=lifecycle_status
-        )
-        if intent.decision_type == "cancel":
-            for day in session.scalars(
-                select(ExamDay).where(ExamDay.exam_round_id == intent.round_id)
-            ):
-                day.status = "cancelled"
-                day.updated_at = intent.now
-        self._complete_reopening(session, reopening, intent.now)
-        session.add(
-            ExamRoundAuditEvent(
-                exam_round_id=intent.round_id,
-                round_revision=updated.revision,
-                event_type=(
-                    ("reclosed" if intent.decision_type == "close" else "recancelled")
-                    if reopening
-                    else lifecycle_status
-                ),
-                actor_member_id=intent.actor_member_id,
-                decision_id=decision.id,
-                reopening_id=reopening.id if reopening else None,
-                reason=intent.reason,
-                scope_json=reopening.requested_scope_json if reopening else "[]",
-                created_at=intent.now,
-            )
-        )
-        recipients = cancelled_recipients or set()
-        return ExamRoundDecisionOutcome(
-            committee_id=intent.committee_id if recipients else None,
-            round_id=intent.round_id if recipients else None,
-            recipient_member_ids=frozenset(recipients),
-            title="Prüfungsrunde abgesagt" if recipients else "",
-            message=(
-                "Die Prüfungsrunde wurde vollständig und begründet abgesagt." if recipients else ""
-            ),
-            origin_key=f"exam-round-decision:{decision.id}:cancelled" if recipients else "",
-        )
-
     def _decision_prerequisites(
         self,
-        session: Session,
         exam_round: PlanningRoundLifecycleSnapshot,
         expected_revision: int,
         decision_type: str,
-        assessment_work: AssessmentLifecycleWork | None = None,
-        planning_work: PlanningLifecycleWork | None = None,
-        facts: RoundLifecycleFacts | None = None,
-    ) -> tuple[ExamRoundReopening | None, dict[str, Any]]:
+        facts: RoundLifecycleFacts,
+    ) -> tuple[dict[str, Any] | None, dict[str, Any]]:
         """Evaluate the current state after replay detection and before any mutation."""
         if exam_round.revision != expected_revision:
             raise ExamRoundConflictError("Die Prüfungsrunde wurde zwischenzeitlich geändert")
         if exam_round.lifecycle_status not in {"open", "reopening"}:
             raise ExamRoundConflictError("Die Prüfungsrunde ist bereits fachlich beendet")
-        reopening = self._active_reopening(session, exam_round.id)
+        reopening = self._active_reopening_record(facts)
         if exam_round.lifecycle_status == "reopening" and reopening is None:
             raise ExamRoundConflictError("Der Wiederöffnungsstand ist inkonsistent")
 
-        evaluation = self._evaluate(
-            session, exam_round, decision_type, assessment_work, planning_work, facts
-        )
+        evaluation = self._evaluate(exam_round, decision_type, facts)
         if not evaluation["ready"]:
             raise ExamRoundValidationError(
                 "Die Voraussetzungen für diesen Rundenstand sind nicht erfüllt",
@@ -514,26 +341,8 @@ class ExamRoundLifecycleService:
 
         return reopening, evaluation
 
-    @staticmethod
-    def _complete_reopening(
-        session: Session, reopening: ExamRoundReopening | None, now: str
-    ) -> None:
-        """Complete the correction and its open tasks in the decision transaction."""
-        if reopening is not None:
-            reopening.status = "completed"
-            reopening.completed_at = now
-            for task in session.scalars(
-                select(ExamRoundTask).where(
-                    ExamRoundTask.reopening_id == reopening.id,
-                    ExamRoundTask.status == "open",
-                )
-            ):
-                task.status = "completed"
-                task.completed_at = now
-
     def reopening_impact_from_facts(
         self,
-        session: Session,
         scope: AuthorizationScope,
         facts: RoundLifecycleFacts,
         raw_scope: Any,
@@ -544,19 +353,16 @@ class ExamRoundLifecycleService:
             raise ExamRoundConflictError(
                 "Nur eine beendete Prüfungsrunde kann wieder geöffnet werden"
             )
-        if self._active_reopening(session, exam_round.id) is not None:
+        if self._active_reopening_record(facts) is not None:
             raise ExamRoundConflictError("Für die Prüfungsrunde läuft bereits eine Wiederöffnung")
-        return self._impact(session, exam_round, raw_scope, facts=facts)
+        return self._impact(exam_round, raw_scope, facts=facts)
 
     def _reopening_prerequisites(
         self,
-        session: Session,
         exam_round: PlanningRoundLifecycleSnapshot,
         expected_revision: int,
         raw_scope: Any,
-        assessment_work: AssessmentLifecycleWork | None = None,
-        planning_work: PlanningLifecycleWork | None = None,
-        facts: RoundLifecycleFacts | None = None,
+        facts: RoundLifecycleFacts,
     ) -> dict[str, Any]:
         """Read and validate correction impact without superseding any current evidence."""
         if exam_round.revision != expected_revision:
@@ -565,102 +371,25 @@ class ExamRoundLifecycleService:
             raise ExamRoundConflictError(
                 "Nur eine beendete Prüfungsrunde kann wieder geöffnet werden"
             )
-        if self._active_reopening(session, exam_round.id) is not None:
+        if self._active_reopening_record(facts) is not None:
             raise ExamRoundConflictError("Für die Prüfungsrunde läuft bereits eine Wiederöffnung")
-        return self._impact(
-            session, exam_round, raw_scope, assessment_work, planning_work, facts=facts
-        )
-
-    def _create_reopening_tasks(
-        self,
-        session: Session,
-        exam_round: PlanningRoundLifecycleSnapshot,
-        reopening: ExamRoundReopening,
-        impact: dict[str, Any],
-        now: str,
-        identity: IdentityLifecycleWork | None,
-        facts: RoundLifecycleFacts | None = None,
-    ) -> set[int]:
-        """Persist reconfirmation and IHK follow-up work with the reopening audit."""
-        round_id = exam_round.id
-        reason = reopening.reason
-        recipients = set(impact["impacts"]["recipient_member_ids"])
-        for recipient_id in sorted(recipients):
-            session.add(
-                ExamRoundTask(
-                    exam_round_id=round_id,
-                    reopening_id=reopening.id,
-                    recipient_member_id=recipient_id,
-                    task_type="reconfirmation",
-                    origin_key=f"exam-round-reopening:{reopening.id}:affected",
-                    details_json=_json({"reason": reason, "scope": impact["expanded_scope"]}),
-                    status="open",
-                    created_at=now,
-                )
-            )
-        for result_id in impact["impacts"]["ihk_processed_result_ids"]:
-            managers = (
-                set(facts.management_member_ids)
-                if facts is not None
-                else self._management_member_ids(session, exam_round, identity)
-            )
-            for recipient_id in managers:
-                session.add(
-                    ExamRoundTask(
-                        exam_round_id=round_id,
-                        reopening_id=reopening.id,
-                        recipient_member_id=recipient_id,
-                        task_type="ihk_clarification",
-                        origin_key=f"exam-round-reopening:{reopening.id}:ihk:{result_id}",
-                        details_json=_json({"exam_result_id": result_id, "reason": reason}),
-                        status="open",
-                        created_at=now,
-                    )
-                )
-        return recipients
-
-    @staticmethod
-    def _supersede_exports(
-        session: Session, exam_round: PlanningRoundLifecycleSnapshot, now: str
-    ) -> None:
-        """Mark earlier exports obsolete with the authoritative new revision."""
-        for export in session.scalars(
-            select(ExamRoundExport).where(
-                ExamRoundExport.exam_round_id == exam_round.id,
-                ExamRoundExport.superseded_at.is_(None),
-            )
-        ):
-            export.superseded_at = now
-            export.superseded_by_revision = exam_round.revision
-
-    @staticmethod
-    def _render_human_export(round_id: int, export: dict[str, Any]) -> str:
-        lifecycle = export["lifecycle"]
-        snapshot = export["snapshot"]
-        return render_round_lifecycle_export(round_id, lifecycle, snapshot)
+        return self._impact(exam_round, raw_scope, facts=facts)
 
     def _evaluate(
         self,
-        session: Session,
         exam_round: PlanningRoundLifecycleSnapshot,
         decision_type: str,
-        assessment_work: AssessmentLifecycleWork | None = None,
-        planning_work: PlanningLifecycleWork | None = None,
-        facts: RoundLifecycleFacts | None = None,
+        facts: RoundLifecycleFacts,
         pending_consequence_ids: Sequence[int] | None = None,
     ) -> dict[str, Any]:
-        planning = planning_work or self.planning_lifecycle_work_factory(session)
         items: list[dict[str, Any]] = []
-        days = list(session.scalars(select(ExamDay).where(ExamDay.exam_round_id == exam_round.id)))
-        day_ids = list(facts.day_ids) if facts is not None else [item.id for item in days]
-        slots = (
-            facts.exam_day_slots(day_ids) if facts is not None else planning.exam_day_slots(day_ids)
-        )
-        candidates = (
-            facts.round_candidates(exam_round.id)
-            if facts is not None
-            else planning.round_candidates(exam_round.id)
-        )
+        records = facts.lifecycle_records
+        read_records = records.get("read", {})
+        export_records = records.get("export", {})
+        days = list(export_records.get("days", ()))
+        day_ids = list(facts.day_ids)
+        slots = facts.exam_day_slots(day_ids)
+        candidates = facts.round_candidates(exam_round.id)
         started = [item.id for item in slots if item.actual_started_at is not None]
         if decision_type == "cancel":
             self._finding(
@@ -697,23 +426,12 @@ class ExamRoundLifecycleService:
             exam_round.status in {"plan_confirmed", "in_progress", "completed"} and bool(days),
             {"planning_status": exam_round.status, "exam_day_count": len(days)},
         )
-        formal_day_ids = (
-            set(
-                session.scalars(
-                    select(ExamDayClosure.exam_day_id).where(
-                        ExamDayClosure.exam_day_id.in_(day_ids),
-                        ExamDayClosure.status == "current",
-                    )
-                )
-            )
-            if day_ids
-            else set()
-        )
+        formal_day_ids = set(read_records.get("current_closure_day_ids", ()))
         incomplete_days = [
-            item.id
+            item["id"]
             for item in days
-            if item.closure_status not in {"closed", "closed_exception", "historical"}
-            or (item.closure_status != "historical" and item.id not in formal_day_ids)
+            if item["closure_status"] not in {"closed", "closed_exception", "historical"}
+            or (item["closure_status"] != "historical" and item["id"] not in formal_day_ids)
         ]
         self._finding(
             items,
@@ -726,34 +444,20 @@ class ExamRoundLifecycleService:
             items,
             "no_day_reopening",
             "Kein Prüfungstag ist wieder geöffnet",
-            all(item.closure_status != "reopening" for item in days),
-            [item.id for item in days if item.closure_status == "reopening"],
+            all(item["closure_status"] != "reopening" for item in days),
+            [item["id"] for item in days if item["closure_status"] == "reopening"],
         )
-        follow_ups = (
-            list(
-                session.scalars(
-                    select(ExamDayTask).where(
-                        ExamDayTask.exam_day_id.in_(day_ids),
-                        ExamDayTask.task_type == "protocol_follow_up",
-                        ExamDayTask.status == "open",
-                    )
-                )
-            )
-            if day_ids
-            else []
-        )
+        follow_ups = list(read_records.get("follow_up_task_ids", ()))
         self._finding(
             items,
             "no_protocol_follow_up",
             "Keine Protokoll-Nachfassaufgabe ist offen",
             not follow_ups,
-            [item.id for item in follow_ups],
+            follow_ups,
         )
         non_terminal = [item["id"] for item in candidates if item["terminal_status"] == "open"]
         invalid_terminal = [
-            item["id"]
-            for item in candidates
-            if not self._candidate_terminal_valid(session, item, planning, facts)
+            item["id"] for item in candidates if not self._candidate_terminal_valid(item, facts)
         ]
         self._finding(
             items,
@@ -762,57 +466,24 @@ class ExamRoundLifecycleService:
             not non_terminal and not invalid_terminal,
             sorted(set(non_terminal + invalid_terminal)),
         )
-        results = (
-            facts.results_for_round(exam_round.id)
-            if facts is not None
-            else (assessment_work or self.assessment_lifecycle_factory(session)).results_for_round(
-                exam_round.id
-            )
-        )
+        results = facts.results_for_round(exam_round.id)
         corrections = [
             (result["id"], correction["id"])
             for result in results
             for correction in result["corrections"]
             if correction["status"] == "open"
         ]
-        slot_ids = (
-            facts.exam_day_slot_ids(day_ids)
-            if facts is not None
-            else planning.exam_day_slot_ids(day_ids)
-        )
-        protocol_corrections = (
-            list(
-                session.scalars(
-                    select(ExamProtocolCorrectionRequest)
-                    .join(
-                        ExamProtocol,
-                        ExamProtocol.id == ExamProtocolCorrectionRequest.exam_protocol_id,
-                    )
-                    .where(
-                        ExamProtocol.exam_slot_id.in_(slot_ids),
-                        ExamProtocolCorrectionRequest.status.in_({"requested", "opened"}),
-                    )
-                )
-            )
-            if day_ids
-            else []
-        )
+        protocol_corrections = list(read_records.get("protocol_correction_ids", ()))
         self._finding(
             items,
             "no_corrections",
             "Keine Protokoll-, Bewertungs- oder Ergebniskorrektur ist offen",
             not corrections and not protocol_corrections,
-            [item[1] for item in corrections] + [item.id for item in protocol_corrections],
+            [item[1] for item in corrections] + protocol_corrections,
         )
-        absences = (
-            list(
-                session.scalars(select(AbsenceReport).where(AbsenceReport.exam_day_id.in_(day_ids)))
-            )
-            if day_ids
-            else []
-        )
+        absences = list(export_records.get("absences", ()))
         open_absences = [
-            item.id for item in absences if item.status not in TERMINAL_ABSENCE_STATUSES
+            item["id"] for item in absences if item["status"] not in TERMINAL_ABSENCE_STATUSES
         ]
         self._finding(
             items,
@@ -834,7 +505,7 @@ class ExamRoundLifecycleService:
         pending_consequences = (
             tuple(pending_consequence_ids)
             if pending_consequence_ids is not None
-            else self.pending_consequence_ids(exam_round.id)
+            else records.get("pending_consequence_ids", ())
         )
         self._finding(
             items,
@@ -1009,52 +680,21 @@ class ExamRoundLifecycleService:
 
     def _snapshot(
         self,
-        session: Session,
         exam_round: PlanningRoundLifecycleSnapshot,
-        assessment_work: AssessmentLifecycleWork | None = None,
-        planning_work: PlanningLifecycleWork | None = None,
-        identity_work: IdentityLifecycleWork | None = None,
-        facts: RoundLifecycleFacts | None = None,
+        facts: RoundLifecycleFacts,
         day_status_overrides: dict[int, str] | None = None,
     ) -> dict[str, Any]:
-        planning = planning_work or self.planning_lifecycle_work_factory(session)
-        identity = identity_work or self.identity_lifecycle_work_factory(session)
-        planning_context = (
-            facts.lifecycle_context(
-                exam_round.id,
-                exam_round.exam_half_year_id,
-                tuple(item["candidate_id"] for item in facts.candidates),
-            )
-            if facts is not None
-            else planning.lifecycle_context(
-                exam_round.id,
-                exam_round.exam_half_year_id,
-                tuple(item["candidate_id"] for item in planning.round_candidates(exam_round.id)),
-            )
+        planning_context = facts.lifecycle_context(
+            exam_round.id,
+            exam_round.exam_half_year_id,
+            tuple(item["candidate_id"] for item in facts.candidates),
         )
         half_year = planning_context["half_year"]
-        committee = (
-            facts.committee if facts is not None else identity.committee(exam_round.committee_id)
-        )
-        members = (
-            list(facts.members)
-            if facts is not None
-            else list(identity.committee_members(exam_round.committee_id))
-        )
+        committee = facts.committee
+        members = list(facts.members)
         candidates = []
-        round_candidates = (
-            facts.round_candidates(exam_round.id)
-            if facts is not None
-            else planning.round_candidates(exam_round.id)
-        )
-        candidate_details = {
-            item.id: item
-            for item in (
-                facts.candidate_details
-                if facts is not None
-                else planning.candidate_details([row["candidate_id"] for row in round_candidates])
-            )
-        }
+        round_candidates = facts.round_candidates(exam_round.id)
+        candidate_details = {item.id: item for item in facts.candidate_details}
         for item in round_candidates:
             person = candidate_details[item["candidate_id"]]
             candidates.append(
@@ -1072,55 +712,15 @@ class ExamRoundLifecycleService:
                     "terminal_at": item["terminal_at"],
                 }
             )
-        days = list(
-            session.scalars(
-                select(ExamDay).where(ExamDay.exam_round_id == exam_round.id).order_by(ExamDay.id)
-            )
-        )
-        day_ids = list(facts.day_ids) if facts is not None else [item.id for item in days]
-        slots = (
-            facts.exam_day_slots(day_ids) if facts is not None else planning.exam_day_slots(day_ids)
-        )
-        result_rows = (
-            facts.results_for_round(exam_round.id)
-            if facts is not None
-            else (assessment_work or self.assessment_lifecycle_factory(session)).results_for_round(
-                exam_round.id
-            )
-        )
-        slot_ids = (
-            facts.exam_day_slot_ids(day_ids)
-            if facts is not None
-            else planning.exam_day_slot_ids(day_ids)
-        )
-        protocol_rows = (
-            list(
-                session.scalars(
-                    select(ExamProtocol)
-                    .where(ExamProtocol.exam_slot_id.in_(slot_ids))
-                    .order_by(ExamProtocol.id)
-                )
-            )
-            if day_ids
-            else []
-        )
+        records = facts.lifecycle_records.get("export", {})
+        days = list(records.get("days", ()))
+        day_ids = list(facts.day_ids)
+        slots = facts.exam_day_slots(day_ids)
+        result_rows = facts.results_for_round(exam_round.id)
+        protocol_rows = list(records.get("protocols", ()))
         result_ids = [item["id"] for item in result_rows]
-        assignment_rows = (
-            facts.exam_day_assignments(day_ids)
-            if facts is not None
-            else planning.exam_day_assignments(day_ids)
-        )
-        absence_rows = (
-            list(
-                session.scalars(
-                    select(AbsenceReport)
-                    .where(AbsenceReport.exam_day_id.in_(day_ids))
-                    .order_by(AbsenceReport.id)
-                )
-            )
-            if day_ids
-            else []
-        )
+        assignment_rows = facts.exam_day_assignments(day_ids)
+        absence_rows = list(records.get("absences", ()))
         return {
             "round": {
                 "id": exam_round.id,
@@ -1159,11 +759,11 @@ class ExamRoundLifecycleService:
             "plan_revisions": planning_context["plan_revisions"],
             "days": [
                 {
-                    "id": item.id,
-                    "date": item.date,
-                    "status": (day_status_overrides or {}).get(item.id, item.status),
-                    "revision": item.revision,
-                    "closure_status": item.closure_status,
+                    "id": item["id"],
+                    "date": item["date"],
+                    "status": (day_status_overrides or {}).get(item["id"], item["status"]),
+                    "revision": item["revision"],
+                    "closure_status": item["closure_status"],
                 }
                 for item in days
             ],
@@ -1193,26 +793,21 @@ class ExamRoundLifecycleService:
             ],
             "absences": [
                 {
-                    "id": item.id,
-                    "exam_day_id": item.exam_day_id,
-                    "exam_day_assignment_id": item.exam_day_assignment_id,
-                    "status": item.status,
-                    "selected_replacement_member_id": item.selected_replacement_member_id,
-                    "version": item.version,
+                    "id": item["id"],
+                    "exam_day_id": item["exam_day_id"],
+                    "exam_day_assignment_id": item["exam_day_assignment_id"],
+                    "status": item["status"],
+                    "selected_replacement_member_id": item["selected_replacement_member_id"],
+                    "version": item["version"],
                 }
                 for item in absence_rows
             ],
             "protocols": [
                 {
-                    "id": item.id,
-                    "exam_slot_id": item.exam_slot_id,
-                    "current_version": item.current_version,
-                    "workflow_state": session.scalar(
-                        select(ExamProtocolRevision.workflow_state).where(
-                            ExamProtocolRevision.exam_protocol_id == item.id,
-                            ExamProtocolRevision.version == item.current_version,
-                        )
-                    ),
+                    "id": item["id"],
+                    "exam_slot_id": item["exam_slot_id"],
+                    "current_version": item["current_version"],
+                    "workflow_state": item["workflow_state"],
                 }
                 for item in protocol_rows
             ],
@@ -1281,60 +876,22 @@ class ExamRoundLifecycleService:
 
     def _impact(
         self,
-        session: Session,
         exam_round: PlanningRoundLifecycleSnapshot,
         raw_scope: Any,
-        assessment_work: AssessmentLifecycleWork | None = None,
-        planning_work: PlanningLifecycleWork | None = None,
-        identity_work: IdentityLifecycleWork | None = None,
-        facts: RoundLifecycleFacts | None = None,
+        facts: RoundLifecycleFacts,
     ) -> dict[str, Any]:
-        planning = planning_work or self.planning_lifecycle_work_factory(session)
-        identity = identity_work or self.identity_lifecycle_work_factory(session)
         requested = self._normalize_scope(raw_scope)
-        day_ids = (
-            set(facts.day_ids)
-            if facts is not None
-            else set(
-                session.scalars(select(ExamDay.id).where(ExamDay.exam_round_id == exam_round.id))
-            )
-        )
-        slot_ids = (
-            facts.exam_day_slot_ids(tuple(day_ids))
-            if facts is not None
-            else planning.exam_day_slot_ids(tuple(day_ids))
-        )
-        candidate_ids = (
-            facts.lifecycle_candidate_ids(exam_round.id)
-            if facts is not None
-            else planning.lifecycle_candidate_ids(exam_round.id)
-        )
-        protocol_ids = (
-            set(
-                session.scalars(
-                    select(ExamProtocol.id).where(ExamProtocol.exam_slot_id.in_(slot_ids))
-                )
-            )
-            if day_ids
-            else set()
-        )
-        round_results = (
-            facts.results_for_round(exam_round.id)
-            if facts is not None
-            else (assessment_work or self.assessment_lifecycle_factory(session)).results_for_round(
-                exam_round.id
-            )
-        )
+        day_ids = set(facts.day_ids)
+        candidate_ids = facts.lifecycle_candidate_ids(exam_round.id)
+        records = facts.lifecycle_records.get("export", {})
+        protocols = records.get("protocols", ())
+        protocol_ids = {item["id"] for item in protocols}
+        protocol_ids_by_slot: dict[int, set[int]] = {}
+        for item in protocols:
+            protocol_ids_by_slot.setdefault(item["exam_slot_id"], set()).add(item["id"])
+        round_results = facts.results_for_round(exam_round.id)
         result_ids = {item["id"] for item in round_results}
-        absence_ids = (
-            set(
-                session.scalars(
-                    select(AbsenceReport.id).where(AbsenceReport.exam_day_id.in_(day_ids))
-                )
-            )
-            if day_ids
-            else set()
-        )
+        absence_ids = {item["id"] for item in records.get("absences", ())}
         valid_ids = {
             "candidate_assignment": candidate_ids,
             "exam_day": day_ids,
@@ -1353,17 +910,12 @@ class ExamRoundLifecycleService:
             kind, raw_id = token.split(":", 1)
             entity_id = int(raw_id)
             if kind == "exam_day":
-                day_slots = (
-                    facts.exam_day_slots([entity_id])
-                    if facts is not None
-                    else planning.exam_day_slots([entity_id])
-                )
+                day_slots = facts.exam_day_slots([entity_id])
                 day_slot_ids = {item.id for item in day_slots}
                 expanded.update(
                     _token("exam_protocol", item)
-                    for item in session.scalars(
-                        select(ExamProtocol.id).where(ExamProtocol.exam_slot_id.in_(day_slot_ids))
-                    )
+                    for slot_id in day_slot_ids
+                    for item in protocol_ids_by_slot.get(slot_id, ())
                 )
                 day_candidate_ids = {item.round_candidate_id for item in day_slots}
                 expanded.update(
@@ -1374,11 +926,7 @@ class ExamRoundLifecycleService:
         impacted_result_ids = sorted(
             int(item.split(":", 1)[1]) for item in expanded if item.startswith("exam_result:")
         )
-        recipients = (
-            set(facts.management_member_ids)
-            if facts is not None
-            else self._management_member_ids(session, exam_round, identity)
-        )
+        recipients = set(facts.management_member_ids)
         results_by_id = {item["id"]: item for item in round_results}
         for result_id in impacted_result_ids:
             result = results_by_id[result_id]
@@ -1410,14 +958,12 @@ class ExamRoundLifecycleService:
 
     def _candidate_terminal_valid(
         self,
-        session: Session,
         candidate: dict[str, Any],
-        planning: PlanningLifecycleWork,
-        facts: RoundLifecycleFacts | None = None,
+        facts: RoundLifecycleFacts,
     ) -> bool:
         if candidate["terminal_status"] == "result_communicated":
             try:
-                self._assert_result_communicated(session, candidate, facts)
+                self._assert_result_communicated(candidate, facts)
             except ValueError:
                 return False
             return True
@@ -1428,24 +974,11 @@ class ExamRoundLifecycleService:
                 or candidate["is_active"]
                 or not (
                     facts.original_assignment_ended(candidate["id"], candidate["exam_round_id"])
-                    if facts is not None
-                    else planning.original_assignment_ended(
-                        candidate["id"], candidate["exam_round_id"]
-                    )
                 )
             ):
                 return False
-            if facts is not None:
-                return facts.effective_transfer_exists(
-                    facts.round.exam_half_year_id,
-                    candidate["effective_new_round_id"],
-                    candidate["candidate_id"],
-                )
-            return planning.effective_transfer_exists(
-                self._required_round(
-                    self.planning_lifecycle_work_factory(session),
-                    candidate["exam_round_id"],
-                ).exam_half_year_id,
+            return facts.effective_transfer_exists(
+                facts.round.exam_half_year_id,
                 candidate["effective_new_round_id"],
                 candidate["candidate_id"],
             )
@@ -1454,39 +987,21 @@ class ExamRoundLifecycleService:
                 candidate["terminal_reason"]
                 and candidate["postponed_until"]
                 and not candidate["is_active"]
-                and (
-                    facts.original_assignment_ended(candidate["id"], candidate["exam_round_id"])
-                    if facts is not None
-                    else planning.original_assignment_ended(
-                        candidate["id"], candidate["exam_round_id"]
-                    )
-                )
+                and (facts.original_assignment_ended(candidate["id"], candidate["exam_round_id"]))
             )
         if candidate["terminal_status"] == "ihk_terminated":
             return bool(
                 candidate["terminal_reason"]
                 and candidate["ihk_decision_reference"]
                 and not candidate["is_active"]
-                and (
-                    facts.original_assignment_ended(candidate["id"], candidate["exam_round_id"])
-                    if facts is not None
-                    else planning.original_assignment_ended(
-                        candidate["id"], candidate["exam_round_id"]
-                    )
-                )
+                and (facts.original_assignment_ended(candidate["id"], candidate["exam_round_id"]))
             )
         return False
 
     def _assert_result_communicated(
-        self, session: Session, candidate: dict[str, Any], facts: RoundLifecycleFacts | None = None
+        self, candidate: dict[str, Any], facts: RoundLifecycleFacts
     ) -> None:
-        result = (
-            facts.result_for_round_candidate(candidate["id"])
-            if facts is not None
-            else self.assessment_lifecycle_factory(session).result_for_round_candidate(
-                candidate["id"]
-            )
-        )
+        result = facts.result_for_round_candidate(candidate["id"])
         if result is None or result["state"] != "determined" or result["correction_open"]:
             raise ValueError("Das Ergebnis ist nicht vollständig festgestellt")
         determination = next(
@@ -1499,21 +1014,6 @@ class ExamRoundLifecycleService:
             raise ValueError("Ergebnisfeststellung und Ergebnismitteilung sind erforderlich")
         if any(item["status"] != "confirmed" for item in result["external_results"]):
             raise ValueError("Externe Eingangsergebnisse sind noch nicht bestätigt")
-
-    def _require_mutable_scope(
-        self, session: Session, exam_round: PlanningRoundLifecycleSnapshot, token: str
-    ) -> None:
-        if exam_round.lifecycle_status == "open":
-            return
-        if exam_round.lifecycle_status != "reopening":
-            raise ExamRoundConflictError(
-                "Die Prüfungsrunde ist fachlich beendet und für Änderungen gesperrt"
-            )
-        reopening = self._active_reopening(session, exam_round.id)
-        if reopening is None or token not in set(json.loads(reopening.scope_json)):
-            raise ExamRoundConflictError(
-                "Diese Daten gehören nicht zum freigegebenen Korrekturumfang"
-            )
 
     def _notify(
         self,
@@ -1543,15 +1043,6 @@ class ExamRoundLifecycleService:
         items: list[dict[str, Any]], code: str, label: str, ok: bool, details: Any
     ) -> None:
         items.append({"code": code, "label": label, "ok": ok, "details": details})
-
-    @staticmethod
-    def _required_round(
-        planning: PlanningLifecycleWork, round_id: int
-    ) -> PlanningRoundLifecycleSnapshot:
-        exam_round = planning.round_lifecycle_snapshot(round_id)
-        if exam_round is None:
-            raise ValueError("Prüfungsrunde nicht gefunden")
-        return exam_round
 
     @staticmethod
     def _required_revision(payload: dict[str, Any]) -> int:
@@ -1616,29 +1107,23 @@ class ExamRoundLifecycleService:
         return actor_id
 
     @staticmethod
-    def _active_reopening(session: Session, round_id: int) -> ExamRoundReopening | None:
-        return session.scalar(
-            select(ExamRoundReopening).where(
-                ExamRoundReopening.exam_round_id == round_id,
-                ExamRoundReopening.status == "open",
-            )
+    def _active_reopening_record(facts: RoundLifecycleFacts) -> dict[str, Any] | None:
+        return next(
+            (
+                item
+                for item in facts.lifecycle_records.get("read", {}).get("reopenings", ())
+                if item["status"] == "open"
+            ),
+            None,
         )
 
     @staticmethod
-    def _current_or_latest_decision(session: Session, round_id: int) -> ExamRoundDecision | None:
-        return session.scalar(
-            select(ExamRoundDecision)
-            .where(ExamRoundDecision.exam_round_id == round_id)
-            .order_by(
-                (ExamRoundDecision.status == "current").desc(),
-                ExamRoundDecision.id.desc(),
-            )
+    def _current_or_latest_decision_record(
+        facts: RoundLifecycleFacts,
+    ) -> dict[str, Any] | None:
+        decisions = list(facts.lifecycle_records.get("read", {}).get("decisions", ()))
+        return max(
+            decisions,
+            key=lambda item: (item["status"] == "current", item["id"]),
+            default=None,
         )
-
-    @staticmethod
-    def _management_member_ids(
-        session: Session,
-        exam_round: PlanningRoundLifecycleSnapshot,
-        identity: IdentityLifecycleWork,
-    ) -> set[int]:
-        return identity.management_member_ids(exam_round.committee_id)
