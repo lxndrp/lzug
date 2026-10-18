@@ -718,6 +718,26 @@ class ExamRoundLifecycleTests(unittest.TestCase):
                 ).ended_at,
             )
 
+    def test_candidate_terminal_authorization_precedes_lifecycle_lock(self) -> None:
+        service = ExamRoundLifecycleService(
+            notification_service=notification_service_for_test(self.db_path),
+        )
+        application = self._exam_lifecycle_application(service)
+        with session_scope(self.db_path) as session:
+            session.execute(
+                text("UPDATE exam_round SET lifecycle_status = 'closed', revision = 2 WHERE id = 1")
+            )
+        examiner = SQLiteAuthenticationRepository(self.db_path).authenticate(self.examiner.token)
+        scope = authorization_service(self.db_path).scope(examiner)
+
+        with self.assertRaisesRegex(PermissionError, "Forbidden"):
+            application.set_exam_round_candidate_terminal_status(
+                scope,
+                1,
+                1,
+                {"revision": 2, "terminal_status": "result_communicated"},
+            )
+
     def test_transferred_status_requires_effective_assignment_in_the_target_round(self) -> None:
         service = ExamRoundLifecycleService(
             notification_service=notification_service_for_test(self.db_path),

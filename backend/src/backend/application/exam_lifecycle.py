@@ -87,12 +87,16 @@ class ExamLifecycleApplication:
         self, scope: AuthorizationScope, round_id: int, candidate_id: int, payload: dict[str, Any]
     ) -> dict[str, Any]:
         with self._unit_of_work_factory() as unit_of_work:
-            unit_of_work.execution.assert_mutation_allowed(
-                MutationLockCommand(MutationLockKind.ROUND_CANDIDATE, candidate_id, payload)
-            )
             facts = self._round_facts(unit_of_work, round_id)
             expected_revision, transition = candidate_terminal_values(
                 scope, facts, candidate_id, payload
+            )
+            unit_of_work.execution.assert_mutation_allowed(
+                MutationLockCommand(
+                    MutationLockKind.ROUND_CANDIDATE,
+                    transition["round_candidate_id"],
+                    payload,
+                )
             )
             if not unit_of_work.planning_lifecycle.update_candidate_terminal(
                 transition["round_id"],
