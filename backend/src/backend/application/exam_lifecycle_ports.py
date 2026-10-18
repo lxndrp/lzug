@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from contextlib import AbstractContextManager
 from typing import Protocol
 
@@ -38,7 +37,10 @@ from backend.execution.lifecycle_ports import (
     PlanningLifecycleWork,
 )
 from backend.execution.protocol_ports import ProtocolDaySnapshot
-from backend.execution.round_lifecycle_snapshot import ExamRoundLifecycleReadSnapshot
+from backend.execution.round_lifecycle_snapshot import (
+    ExamRoundLifecycleExportSnapshot,
+    ExamRoundLifecycleReadSnapshot,
+)
 from backend.execution.slot_ports import ExecutionUnitOfWork
 from backend.identity.authorization import AuthorizationScope
 
@@ -60,16 +62,14 @@ class ExamLifecycleExecutionUnitOfWork(ExecutionUnitOfWork, Protocol):
 
     def lifecycle_dependency_counts(self, round_id: int) -> dict[str, int]: ...
 
-    def export_round(
+    def record_round_export(
         self,
-        service: ExamRoundLifecycleService,
-        scope: AuthorizationScope,
         round_id: int,
+        actor_member_id: int,
         *,
         human: bool,
         facts: RoundLifecycleFacts,
-        pending_consequence_ids: Sequence[int],
-    ) -> dict | str: ...
+    ) -> tuple[ExamRoundLifecycleReadSnapshot, ExamRoundLifecycleExportSnapshot, dict]: ...
 
     def record_day_export(
         self,

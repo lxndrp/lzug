@@ -177,15 +177,24 @@ class ExamLifecycleApplication:
                 raise ValueError("Prüfungsrunde nicht gefunden")
             if not scope.can_read_committee(exam_round.committee_id):
                 raise PermissionError("Forbidden.")
+            actor_id = scope.member_for_committee(exam_round.committee_id)
+            if actor_id is None:
+                raise PermissionError("Forbidden.")
             facts = self._round_facts(unit_of_work, round_id, exam_round=exam_round)
             pending_consequence_ids = unit_of_work.consequences.pending_ids_for_round(round_id)
-            return unit_of_work.execution.export_round(
-                service,
+            lifecycle_snapshot, export_snapshot, export_record = (
+                unit_of_work.execution.record_round_export(
+                    round_id, actor_id, human=human, facts=facts
+                )
+            )
+            return service.export_from_read_snapshots(
                 scope,
-                round_id,
+                facts,
+                lifecycle_snapshot,
+                export_snapshot,
+                export_record,
+                pending_consequence_ids,
                 human=human,
-                facts=facts,
-                pending_consequence_ids=pending_consequence_ids,
             )
 
     def export_exam_day(

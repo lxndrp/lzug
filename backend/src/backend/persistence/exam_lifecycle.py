@@ -178,22 +178,8 @@ class _SQLiteExamLifecycleExecution:
             self._session.scalar(select(func.count()).select_from(model).where(criterion)) or 0
         )
 
-    def export_round(
-        self,
-        service,
-        scope,
-        round_id: int,
-        *,
-        human: bool,
-        facts=None,
-        pending_consequence_ids=None,
-    ):
-        if facts is None or pending_consequence_ids is None:
-            raise RuntimeError("Round lifecycle exports require detached Application facts")
+    def record_round_export(self, round_id: int, actor_member_id: int, *, human: bool, facts):
         exam_round = facts.round
-        actor_id = service._require_access(exam_round, scope)
-        if actor_id is None:
-            raise PermissionError("Forbidden.")
         decision = self._session.scalar(
             select(ExamRoundDecision)
             .where(ExamRoundDecision.exam_round_id == round_id)
@@ -208,7 +194,7 @@ class _SQLiteExamLifecycleExecution:
             round_revision=exam_round.revision,
             export_kind="human" if human else "machine",
             lifecycle_status=exam_round.lifecycle_status,
-            generated_by_member_id=actor_id,
+            generated_by_member_id=actor_member_id,
             generated_at=datetime.now(UTC).replace(microsecond=0).isoformat(),
         )
         self._session.add(row)
@@ -230,15 +216,7 @@ class _SQLiteExamLifecycleExecution:
             "superseded_by_revision": row.superseded_by_revision,
             "obsolete": row.superseded_at is not None,
         }
-        return service.export_from_read_snapshots(
-            scope,
-            facts,
-            lifecycle_snapshot,
-            export_snapshot,
-            export_record,
-            pending_consequence_ids,
-            human=human,
-        )
+        return lifecycle_snapshot, export_snapshot, export_record
 
     def record_day_export(self, scope, day_id: int, *, human: bool, facts):
         if not scope.can_read_committee(facts.committee_id):

@@ -204,13 +204,22 @@ class ExamDayClosureTests(unittest.TestCase):
             day_export = day_closure_service.export_from_read_snapshot(
                 scope, lifecycle_facts, day_snapshot, human=False
             )
-            round_export = unit_of_work.execution.export_round(
-                round_lifecycle_service,
+            lifecycle_snapshot, export_snapshot, export_record = (
+                unit_of_work.execution.record_round_export(
+                    1,
+                    scope.member_for_committee(round_facts.round.committee_id),
+                    human=False,
+                    facts=round_facts,
+                )
+            )
+            round_export = round_lifecycle_service.export_from_read_snapshots(
                 scope,
-                1,
+                round_facts,
+                lifecycle_snapshot,
+                export_snapshot,
+                export_record,
+                pending_consequence_ids,
                 human=False,
-                facts=round_facts,
-                pending_consequence_ids=pending_consequence_ids,
             )
             round_results = unit_of_work.assessment_lifecycle.results_for_round(1)
             candidate_result = unit_of_work.assessment_lifecycle.result_for_round_candidate(
