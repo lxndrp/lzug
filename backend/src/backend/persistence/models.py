@@ -1826,6 +1826,7 @@ class CalendarAssignmentExecutionOrigin(Base):
     )
     origin_id: Mapped[str] = mapped_column(String, nullable=False)
     execution_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    action: Mapped[str] = mapped_column(String, nullable=False)
     updated_at: Mapped[str] = mapped_column(String, nullable=False)
 
 

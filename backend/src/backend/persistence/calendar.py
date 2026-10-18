@@ -121,16 +121,21 @@ class SQLiteCalendarUnitOfWork:
         return tuple(_event_snapshot(event) for event in events)
 
     def reserve_execution_origin(
-        self, assignment_id: int, origin_id: str, execution_version: int
+        self, assignment_id: int, origin_id: str, execution_version: int, action: str
     ) -> str:
         current = self._session.get(CalendarAssignmentExecutionOrigin, assignment_id)
         if current is not None:
             if current.execution_version > execution_version:
                 return "superseded"
             if current.execution_version == execution_version:
-                return "apply" if current.origin_id == origin_id else "conflict"
+                return (
+                    "apply"
+                    if current.origin_id == origin_id and current.action == action
+                    else "conflict"
+                )
             current.origin_id = origin_id
             current.execution_version = execution_version
+            current.action = action
             current.updated_at = _timestamp()
             self._session.flush()
             return "apply"
@@ -140,11 +145,16 @@ class SQLiteCalendarUnitOfWork:
                 assignment_id=assignment_id,
                 origin_id=origin_id,
                 execution_version=execution_version,
+                action=action,
                 updated_at=_timestamp(),
             )
         )
         self._session.flush()
         return "apply"
+
+    def execution_action(self, assignment_id: int) -> str | None:
+        origin = self._session.get(CalendarAssignmentExecutionOrigin, assignment_id)
+        return origin.action if origin is not None else None
 
     def events_for_round(
         self,

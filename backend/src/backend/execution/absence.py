@@ -178,6 +178,7 @@ class AbsenceService:
                 message="Für einen bestätigten Prüfungstag wurde eine Ausfallmeldung erfasst.",
                 created_at=_stamp(current),
                 guard_snapshot=guard_snapshot,
+                urgent=urgent,
             )
             result = self.required_view(unit_of_work, report.id)
         return result
@@ -619,6 +620,7 @@ class AbsenceService:
         calendar_before_image: tuple[dict[str, object], ...] = (),
         calendar_enabled: bool = False,
         calendar_action: str = "update",
+        urgent: bool = False,
     ) -> None:
         """Freeze post-commit inputs beside the Execution audit event."""
         source = {
@@ -642,6 +644,7 @@ class AbsenceService:
                 "title": title,
                 "message": message,
                 "action_path": f"/absence-reports/{report.id}",
+                "urgent": urgent,
             },
             "calendar_before_image": list(calendar_before_image),
             "guard_snapshot": guard_snapshot,

@@ -170,7 +170,7 @@ class CalendarUnitOfWork(Protocol):
     def events_for_source(self, source_prefix: str) -> Sequence[CalendarEventSnapshot]: ...
 
     def reserve_execution_origin(
-        self, assignment_id: int, origin_id: str, execution_version: int
+        self, assignment_id: int, origin_id: str, execution_version: int, action: str
     ) -> str:
         """Atomically reserve this assignment's monotone execution origin.
 
@@ -180,6 +180,8 @@ class CalendarUnitOfWork(Protocol):
         Reservation and any ensuing projection writes share this UoW.
         """
         ...
+
+    def execution_action(self, assignment_id: int) -> str | None: ...
 
     def events_for_round(
         self,

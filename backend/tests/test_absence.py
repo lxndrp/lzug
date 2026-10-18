@@ -398,13 +398,15 @@ class AbsenceServiceTests(unittest.TestCase):
 
     def test_cancellation_freezes_calendar_follow_up_for_durable_processing(self) -> None:
         service = self.absence_service()
+        self.calendar_service.sync_round(1)
         result = service.report(
             scope(1),
             {"exam_day_id": self.day_id, "exam_day_assignment_id": self.assignment_id},
             now=datetime(2026, 11, 1, tzinfo=UTC),
         )
 
-        self.absence_lifecycle_application(service).cancel_absence(
+        application = self.absence_lifecycle_application(service)
+        cancelled = application.cancel_absence(
             scope(1, management=True),
             result["id"],
             {"reason": "Kein Ersatz verfügbar"},
@@ -422,6 +424,107 @@ class AbsenceServiceTests(unittest.TestCase):
             self.assertEqual("cancel", payload["calendar_action"])
             self.assertTrue(payload["calendar_enabled"])
             self.assertEqual(2, session.get(ExamDayAssignment, self.assignment_id).revision)
+            events = (
+                session.query(CalendarEvent)
+                .filter_by(exam_day_assignment_id=self.assignment_id)
+                .all()
+            )
+            self.assertTrue(events)
+            self.assertTrue(all(event.status == "cancelled" for event in events))
+
+        self.calendar_service.sync_round(1)
+        with session_scope(self.db_path) as session:
+            self.assertTrue(
+                all(
+                    event.status == "cancelled"
+                    for event in session.query(CalendarEvent).filter_by(
+                        exam_day_assignment_id=self.assignment_id
+                    )
+                )
+            )
+
+        reopened = application.reopen_absence(
+            scope(1, management=True),
+            result["id"],
+            {"reason": "Termin wiederhergestellt", "version": cancelled["version"]},
+            service,
+            now=datetime(2026, 11, 1, tzinfo=UTC),
+        )
+        self.assertEqual("replacement_requested", reopened["status"])
+        with session_scope(self.db_path) as session:
+            source = (
+                session.query(AbsenceConsequenceSource)
+                .order_by(AbsenceConsequenceSource.id.desc())
+                .first()
+            )
+            payload = json.loads(source.source_json)
+            self.assertTrue(payload["calendar_enabled"])
+            self.assertEqual(3, source.assignment_revision)
+            self.assertEqual(3, session.get(ExamDayAssignment, self.assignment_id).revision)
+            self.assertTrue(
+                any(
+                    event.status == "sent"
+                    for event in session.query(CalendarEvent).filter_by(
+                        exam_day_assignment_id=self.assignment_id
+                    )
+                )
+            )
+
+    def test_urgent_report_freezes_urgent_notification_replay(self) -> None:
+        service = self.absence_service()
+        current = datetime(2026, 11, 15, tzinfo=UTC)
+        application = self.absence_lifecycle_application(service)
+        application.report_absence(
+            scope(1),
+            {"exam_day_id": self.day_id, "exam_day_assignment_id": self.assignment_id},
+            service,
+            now=current,
+        )
+        with session_scope(self.db_path) as session:
+            source = (
+                session.query(AbsenceConsequenceSource)
+                .order_by(AbsenceConsequenceSource.id.desc())
+                .first()
+            )
+            self.assertTrue(json.loads(source.source_json)["notice"]["urgent"])
+            notification = (
+                session.query(Notification)
+                .filter_by(event_type="urgent_replacement_requested")
+                .first()
+            )
+            self.assertIsNotNone(notification)
+
+    def test_post_commit_source_failure_does_not_fail_report_and_admin_retries_permanent_tasks(
+        self,
+    ) -> None:
+        service = self.absence_service()
+        application = self.absence_lifecycle_application(service)
+        processor = application._absence_consequences
+        with (
+            patch.object(processor, "process_due") as full_scan,
+            patch.object(processor, "process_source", side_effect=RuntimeError("store offline")),
+        ):
+            result = application.report_absence(
+                scope(1),
+                {"exam_day_id": self.day_id, "exam_day_assignment_id": self.assignment_id},
+                service,
+                now=datetime(2026, 11, 1, tzinfo=UTC),
+            )
+        full_scan.assert_not_called()
+        self.assertGreater(result["id"], 0)
+        with session_scope(self.db_path) as session:
+            self.assertEqual(1, session.query(AbsenceConsequenceSource).count())
+            for task in session.query(PlanConsequence):
+                task.status = "permanently_failed"
+                task.attempt_count = 4
+            session.query(Notification).delete()
+
+        processor.process_due(now=datetime(2026, 11, 1, tzinfo=UTC))
+        with session_scope(self.db_path) as session:
+            self.assertTrue(
+                all(task.status == "succeeded" for task in session.query(PlanConsequence))
+            )
+            self.assertGreater(session.query(Notification).count(), 0)
 
     def test_failed_selection_preserves_assignment_audit_version_and_follow_up_work(self) -> None:
         service = self.absence_service()

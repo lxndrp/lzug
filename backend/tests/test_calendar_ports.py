@@ -23,7 +23,7 @@ class _FakeCalendarStore:
         self.events: dict[int, CalendarEventSnapshot] = {}
         self.member_ids_by_person: dict[int, frozenset[int]] = {8: frozenset({12})}
         self._next_event_id = 1
-        self.execution_origins: dict[int, tuple[int, str]] = {}
+        self.execution_origins: dict[int, tuple[int, str, str]] = {}
         self.replay_applications = 0
 
     @contextmanager
@@ -79,17 +79,23 @@ class _FakeCalendarStore:
             if event.source_key == source_prefix or event.source_key.startswith(f"{source_prefix}:")
         )
 
-    def reserve_execution_origin(self, assignment_id: int, origin_id: str, execution_version: int):
+    def reserve_execution_origin(
+        self, assignment_id: int, origin_id: str, execution_version: int, action: str
+    ):
         current = self.execution_origins.get(assignment_id)
         if current is not None:
-            version, origin = current
+            version, origin, current_action = current
             if execution_version < version:
                 return "superseded"
-            if execution_version == version and origin != origin_id:
-                return "conflict"
+            if execution_version == version:
+                return "apply" if (origin, current_action) == (origin_id, action) else "conflict"
         if current is None or execution_version > current[0]:
-            self.execution_origins[assignment_id] = (execution_version, origin_id)
+            self.execution_origins[assignment_id] = (execution_version, origin_id, action)
         return "apply"
+
+    def execution_action(self, assignment_id: int):
+        origin = self.execution_origins.get(assignment_id)
+        return origin[2] if origin is not None else None
 
     def events_for_round(self, round_id: int, *, person_id: int | None = None):
         member_ids = (

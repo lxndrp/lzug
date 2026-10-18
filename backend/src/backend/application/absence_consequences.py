@@ -48,19 +48,12 @@ class AbsenceConsequenceApplication:
         errors = 0
         for source in sources:
             try:
-                details = json.loads(str(source["source_json"]))
-                drafts = self._drafts(details)
-                self.consequence_store.record_batch(
-                    origin_type="absence_audit_event",
-                    origin_key=str(source["origin_id"]),
-                    confirmed_plan_revision_id=None,
-                    notification_scope=tuple(details["recipient_member_ids"]),
-                    tasks=drafts,
-                    error_code=None,
-                    now=_timestamp(current),
-                )
+                self._record_source(source, current)
             except Exception:
                 errors += 1
+        self.consequence_store.retry_permanently_failed_tasks(
+            origin_type="absence_audit_event", now=_timestamp(current)
+        )
         task_ids = self.consequence_store.due_task_ids(
             origin_type="absence_audit_event", now=_timestamp(current)
         )
@@ -84,6 +77,37 @@ class AbsenceConsequenceApplication:
             "legacy_unreplayable": legacy_unreplayable,
         }
 
+    def process_source(self, origin_id: str, *, now: datetime | None = None) -> dict[str, int]:
+        """Record and process only one source created by the just-committed command."""
+        current = now or datetime.now(UTC)
+        with self.unit_of_work_factory.read_scope() as unit_of_work:
+            source = unit_of_work.absence.source_by_origin(origin_id)
+        if source is None:
+            return {"sources": 0, "processed": 0, "problems": 0}
+        try:
+            batch = self._record_source(source, current)
+        except Exception:
+            return {"sources": 1, "processed": 0, "problems": 1}
+        task_ids = self.consequence_store.due_task_ids(
+            origin_type="absence_audit_event",
+            now=_timestamp(current),
+            batch_id=batch,
+        )
+        problems = sum(not self._process_task(task_id, current) for task_id in task_ids)
+        return {"sources": 1, "processed": len(task_ids), "problems": problems}
+
+    def _record_source(self, source: dict[str, Any], current: datetime) -> int:
+        details = json.loads(str(source["source_json"]))
+        return self.consequence_store.record_batch(
+            origin_type="absence_audit_event",
+            origin_key=str(source["origin_id"]),
+            confirmed_plan_revision_id=None,
+            notification_scope=tuple(details["recipient_member_ids"]),
+            tasks=self._drafts(details),
+            error_code=None,
+            now=_timestamp(current),
+        )
+
     def _drafts(self, source: dict[str, Any]) -> tuple[ConsequenceTaskDraft, ...]:
         origin = str(source["origin_id"])
         notice = source["notice"]
@@ -104,6 +128,7 @@ class AbsenceConsequenceApplication:
                         "title": notice["title"],
                         "message": notice["message"],
                         "action_path": notice["action_path"],
+                        "urgent": bool(notice.get("urgent", False)),
                     },
                     ensure_ascii=False,
                     sort_keys=True,
@@ -171,6 +196,7 @@ class AbsenceConsequenceApplication:
                     origin_key=str(
                         details.get("origin_key") or f"absence-source:{task.origin_key}"
                     ),
+                    urgent=bool(details.get("urgent", False)),
                 )
                 event_id = None
                 event_version = None

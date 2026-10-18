@@ -46,6 +46,7 @@ CREATE TABLE calendar_assignment_execution_origin (
     REFERENCES exam_day_assignment(id) ON DELETE CASCADE,
   origin_id TEXT NOT NULL,
   execution_version INTEGER NOT NULL CHECK (execution_version >= 1),
+  action TEXT NOT NULL CHECK (action IN ('update', 'cancel')),
   updated_at TEXT NOT NULL,
   UNIQUE (assignment_id, execution_version)
 );

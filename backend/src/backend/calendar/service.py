@@ -221,7 +221,9 @@ class CalendarService:
             raise ValueError("invalid_calendar_execution_origin")
 
         with self._unit_of_work_factory() as work:
-            reservation = work.reserve_execution_origin(assignment_id, origin_id, execution_version)
+            reservation = work.reserve_execution_origin(
+                assignment_id, origin_id, execution_version, action
+            )
             if reservation == "superseded":
                 return "superseded"
             if reservation == "conflict":
@@ -424,12 +426,26 @@ class CalendarService:
         round_snapshot: CalendarRoundSnapshot,
         assignment: CalendarAssignmentSnapshot,
     ) -> tuple[str | None, int]:
+        prefix = f"assignment:{assignment.id}"
+        events = tuple(work.events_for_source(prefix))
+        if work.execution_action(assignment.id) == "cancel":
+            changed = 0
+            for event in events:
+                if event.status != "cancelled":
+                    work.save_event(
+                        replace(
+                            event,
+                            status="cancelled",
+                            version=event.version + 1,
+                            updated_at=_timestamp(),
+                        )
+                    )
+                    changed += 1
+            return prefix, changed
         section_slots = self._section_slots(assignment.slots, assignment.day_part)
         if not section_slots:
             return None, 0
         active_slots = tuple(slot for slot in section_slots if slot.status != "cancelled")
-        prefix = f"assignment:{assignment.id}"
-        events = tuple(work.events_for_source(prefix))
         event = self._latest_event(events, assignment.member_id)
         cancelled = assignment.day_status == "cancelled" or not active_slots
         event_slots = active_slots or section_slots

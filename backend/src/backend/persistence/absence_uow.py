@@ -391,6 +391,18 @@ class SQLiteAbsenceUnitOfWork(AbsenceUnitOfWork):
             )
         )
 
+    def source_by_origin(self, origin_id: str) -> dict[str, Any] | None:
+        cutover = self._session.get(AbsenceConsequenceCutover, 1)
+        if cutover is None:
+            return None
+        row = self._session.scalar(
+            select(AbsenceConsequenceSource).where(
+                AbsenceConsequenceSource.origin_id == origin_id,
+                AbsenceConsequenceSource.audit_event_id > cutover.audit_watermark,
+            )
+        )
+        return self._consequence_source_snapshot(row) if row is not None else None
+
     def legacy_unreplayable_count(self) -> int:
         cutover = self._session.get(AbsenceConsequenceCutover, 1)
         if cutover is None:

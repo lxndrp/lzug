@@ -81,15 +81,25 @@ class CalendarServiceTests(unittest.TestCase):
             assert assignment_id is not None
             unit_of_work_factory = SQLiteCalendarPersistence(db_path)
             with unit_of_work_factory() as work:
-                self.assertEqual("apply", work.reserve_execution_origin(assignment_id, "a", 2))
+                self.assertEqual(
+                    "apply", work.reserve_execution_origin(assignment_id, "a", 2, "update")
+                )
             with unit_of_work_factory() as work:
-                self.assertEqual("apply", work.reserve_execution_origin(assignment_id, "a", 2))
+                self.assertEqual(
+                    "apply", work.reserve_execution_origin(assignment_id, "a", 2, "update")
+                )
             with unit_of_work_factory() as work:
-                self.assertEqual("conflict", work.reserve_execution_origin(assignment_id, "b", 2))
+                self.assertEqual(
+                    "conflict", work.reserve_execution_origin(assignment_id, "b", 2, "update")
+                )
             with unit_of_work_factory() as work:
-                self.assertEqual("superseded", work.reserve_execution_origin(assignment_id, "c", 1))
+                self.assertEqual(
+                    "superseded", work.reserve_execution_origin(assignment_id, "c", 1, "update")
+                )
             with unit_of_work_factory() as work:
-                self.assertEqual("apply", work.reserve_execution_origin(assignment_id, "c", 3))
+                self.assertEqual(
+                    "apply", work.reserve_execution_origin(assignment_id, "c", 3, "cancel")
+                )
         finally:
             database.__exit__(None, None, None)
 

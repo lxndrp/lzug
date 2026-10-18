@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from collections.abc import Callable
 from dataclasses import replace
 from datetime import UTC, datetime
@@ -39,6 +40,8 @@ from backend.execution.lifecycle_ports import MutationLockCommand, MutationLockK
 from backend.execution.round_candidate_policy import candidate_terminal_values
 from backend.execution.round_lifecycle_view import round_lifecycle_view
 from backend.identity.authorization import AuthorizationScope
+
+logger = logging.getLogger(__name__)
 
 
 class ExamLifecycleApplication:
@@ -98,7 +101,7 @@ class ExamLifecycleApplication:
     ) -> dict[str, Any]:
         result = absence_service.report(scope, payload, now=now)
         if self._absence_consequences is not None:
-            self._absence_consequences.process_due(now=now)
+            self._process_absence_source(self._audit_origin(result), now)
         return result
 
     def respond_absence(
@@ -112,7 +115,7 @@ class ExamLifecycleApplication:
     ) -> dict[str, Any]:
         result = absence_service.respond(scope, response_id, payload, now=now)
         if self._absence_consequences is not None:
-            self._absence_consequences.process_due(now=now)
+            self._process_absence_source(self._audit_origin(result), now)
         return result
 
     def select_absence_replacement(
@@ -230,7 +233,7 @@ class ExamLifecycleApplication:
             )
             result = absence_service.required_view(absence, report.id)
         if self._absence_consequences is not None:
-            self._absence_consequences.process_due(now=current)
+            self._process_absence_source(f"absence-audit:{audit_id}", current)
         return result
 
     def reopen_absence(
@@ -271,9 +274,7 @@ class ExamLifecycleApplication:
                 payload=payload,
                 actor_member_id=actor_id,
             )
-            calendar_enabled = (
-                day.closure_status == "open" and report.selected_replacement_member_id is not None
-            )
+            calendar_enabled = day.closure_status == "open"
             before_image = (
                 unit_of_work.calendar_lifecycle.assignment_before_image(assignment.id)
                 if calendar_enabled
@@ -331,8 +332,7 @@ class ExamLifecycleApplication:
                 "assignment_id": assignment.id,
                 "previous_member_id": assignment.committee_member_id,
                 "selected_member_id": report.committee_member_id,
-                "assignment_revision": assignment.revision
-                + int(report.selected_replacement_member_id is not None),
+                "assignment_revision": assignment.revision + 1,
                 "day_id": day.id,
                 "day_closure_status": day.closure_status,
                 "calendar_enabled": calendar_enabled,
@@ -362,7 +362,7 @@ class ExamLifecycleApplication:
             )
             result = absence_service.required_view(absence, report.id)
         if self._absence_consequences is not None:
-            self._absence_consequences.process_due(now=current)
+            self._process_absence_source(f"absence-audit:{audit_id}", current)
         return result
 
     def cancel_absence(
@@ -472,8 +472,25 @@ class ExamLifecycleApplication:
             )
             result = absence_service.required_view(absence, report.id)
         if self._absence_consequences is not None:
-            self._absence_consequences.process_due(now=current)
+            self._process_absence_source(f"absence-audit:{audit_id}", current)
         return result
+
+    @staticmethod
+    def _audit_origin(result: dict[str, Any]) -> str:
+        audit = result.get("audit", [])
+        if not audit:
+            return ""
+        return f"absence-audit:{audit[-1]['id']}"
+
+    def _process_absence_source(self, origin_id: str, now: datetime | None) -> None:
+        if not origin_id:
+            return
+        try:
+            self._absence_consequences.process_source(origin_id, now=now)
+        except Exception as exc:
+            logger.warning(
+                "Post-commit absence consequence processing failed (%s)", type(exc).__name__
+            )
 
     def set_exam_round_candidate_terminal_status(
         self, scope: AuthorizationScope, round_id: int, candidate_id: int, payload: dict[str, Any]
