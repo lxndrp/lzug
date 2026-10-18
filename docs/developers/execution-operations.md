@@ -64,9 +64,9 @@ materialisierten Rundenfakten und export-spezifischen Records.
 Exportnachweis und Snapshot werden in derselben Sitzung geschrieben bzw.
 gelesen. Die SQLite-Reader verwenden die vom Composite-UoW besessene Sitzung;
 der Kalender-Read-Pfad bindet den Tagesabschluss-Reader an seine
-bestehende Lesetransaktion. Direkte Lifecycle-Service-Aufrufe behalten
-ORM-basierte Projektionen als Kompatibilitäts-API; die FastAPI-Application-Pfade
-lesen Mutationsantworten innerhalb desselben UoW über den Snapshot-Reader.
+bestehende Lesetransaktion. Lifecycle-Views und Exportprojektionen verwenden
+direkt die detached Policies und Snapshot-Reader; Mutationsantworten werden im
+selben UoW gelesen.
 Teile der Lifecycle-Schreiblogik verwenden weiterhin direkte SQLAlchemy-Abfragen
 und sind noch nicht vollständig hinter Persistence-Verträgen gekapselt.
 Der getrennte Ersatzbesetzungs-HTTP-Ablauf in `execution.absence` behält noch
