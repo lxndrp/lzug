@@ -92,6 +92,7 @@ Assessment-, Planning-, Identity- und Calendar-Fähigkeiten werden als framework
 bereits an den UoW gebundene Ports bereitgestellt; Execution bindet keine fremde
 Session an Fachports und liest im beschriebenen Lifecycle-Scope keine fremden
 ORM-Modelle. Der Persistence-Adapter übergibt
-für Execution-eigene ORM-Regeln weiterhin die gemeinsame Session. Der getrennte
-Abwesenheits-/Ersatzbesetzungsablauf bleibt eine nachgelagerte Boundary-Arbeit
-#1085.
+für Execution-eigene ORM-Regeln weiterhin die gemeinsame Session. Der
+Abwesenheits-/Ersatzbesetzungsablauf nutzt ebenfalls den Execution-eigenen
+Absence-UoW-Port; seine direkten Post-Commit-Folgen bleiben als Übergang bis
+#1158 bestehen.
