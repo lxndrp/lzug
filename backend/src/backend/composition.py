@@ -24,6 +24,7 @@ from backend.integrations.holiday_provider import PythonHolidaysProvider
 from backend.integrations.map_provider import MapProviderConfig, NominatimGeocoder
 from backend.integrations.notification_delivery import NotificationDeliveryGateway
 from backend.notifications.service import NotificationService
+from backend.persistence.absence_uow import SQLiteAbsenceUnitOfWorkFactory
 from backend.persistence.application_consequence_store import SQLiteApplicationConsequenceStore
 from backend.persistence.assessment import SQLiteAssessmentUnitOfWorkFactory
 from backend.persistence.auth import (
@@ -170,6 +171,11 @@ def assessment_unit_of_work_factory(db_path: Path) -> SQLiteAssessmentUnitOfWork
         day_mutation_handler=_complete_assessment_day_mutation,
         mutation_lock_checker=round_mutation_lock_checker(db_path),
     )
+
+
+def absence_unit_of_work_factory(db_path: Path) -> SQLiteAbsenceUnitOfWorkFactory:
+    """Create Execution absence persistence bound to the request-selected database."""
+    return SQLiteAbsenceUnitOfWorkFactory(db_path)
 
 
 def exam_lifecycle_unit_of_work_factory(db_path: Path) -> SQLiteExamLifecycleUnitOfWorkFactory:

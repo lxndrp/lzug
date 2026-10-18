@@ -22,6 +22,9 @@ from .application.planning_calendar_reads import PlanningCalendarReadService
 from .application.resource_access import ResourceAccessQueryFactory
 from .assessment.service import ExamResultService
 from .composition import SQLiteAssessmentLifecycleAdapter
+from .composition import (
+    absence_unit_of_work_factory as compose_absence_unit_of_work_factory,
+)
 from .composition import application_consequence_store as compose_application_consequence_store
 from .composition import (
     assessment_unit_of_work_factory as compose_assessment_unit_of_work_factory,
@@ -273,6 +276,7 @@ def create_app(
     app.state.exam_lifecycle_unit_of_work_factory = compose_exam_lifecycle_unit_of_work_factory(
         resolved.db_path
     )
+    app.state.absence_unit_of_work_factory = compose_absence_unit_of_work_factory
     app.state.round_mutation_lock_checker_factory = compose_round_mutation_lock_checker
     app.state.planning_lifecycle_work_factory = compose_planning_lifecycle_work_factory()
     app.state.identity_lifecycle_work_factory = compose_identity_lifecycle_work_factory()

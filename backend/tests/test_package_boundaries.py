@@ -109,20 +109,12 @@ ALLOWED_PACKAGE_DEPENDENCIES = {
     "integrations": frozenset({"documents", "identity", "notifications", "persistence"}),
     "notifications": frozenset(),
     "operations": frozenset({"documents", "identity", "integrations", "persistence"}),
-    "persistence": frozenset({"calendar", "documents", "identity", "notifications"}),
+    "persistence": frozenset({"calendar", "documents", "execution", "identity", "notifications"}),
     "presentation": frozenset(),
     "planning": frozenset({"calendar", "integrations", "notifications", "persistence"}),
 }
 
-TRANSITIONAL_DEPENDENCY_IMPORTS = {
-    ("execution", "persistence"): frozenset(
-        {
-            "execution/absence.py: backend.persistence.database",
-            "execution/absence.py: backend.persistence.day_mutations",
-            "execution/absence.py: backend.persistence.models",
-        }
-    ),
-}
+TRANSITIONAL_DEPENDENCY_IMPORTS = {}
 
 TEST_OWNERS = {
     "api": frozenset(
@@ -173,6 +165,7 @@ TEST_OWNERS = {
     "execution": frozenset(
         {
             "test_absence.py",
+            "test_absence_uow.py",
             "test_day_closure_snapshot.py",
             "test_exam_day_closures.py",
             "test_day_closure_mutation_snapshot.py",

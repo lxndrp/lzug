@@ -32,6 +32,7 @@ from backend.application.resource_authorization import ResourceAuthorizer
 from backend.assessment.ports import AssessmentActorSnapshot
 from backend.assessment.service import ExamResultService
 from backend.execution.absence import AbsenceService
+from backend.execution.absence_ports import AbsenceUnitOfWorkFactory
 from backend.execution.exam_day_closures import ExamDayClosureService
 from backend.execution.exam_protocols import ExamProtocolService
 from backend.execution.exam_round_lifecycle import ExamRoundLifecycleService
@@ -103,6 +104,7 @@ class RequestContext:
     assessment_lifecycle: AssessmentLifecycleWorkFactory
     assessment_round_queries: AssessmentLifecycleWorkFactory
     exam_lifecycle_unit_of_work_factory: ExamLifecycleUnitOfWorkFactory
+    absence_unit_of_work_factory: Callable[[Path], AbsenceUnitOfWorkFactory]
     round_mutation_lock_checker_factory: Callable[[Path], Callable]
     candidate_day_service_factory: Callable[[Path], CandidateDayService]
     planning_resource_unit_of_work_factory: Callable[[Path], PlanningResourceUnitOfWorkFactory]
@@ -282,10 +284,9 @@ class RequestContext:
     @property
     def absence_service(self) -> AbsenceService:
         return AbsenceService(
-            self.db_path,
+            self.absence_unit_of_work_factory(self.db_path),
             notification_service=self.notification_service,
             calendar_service=self.calendar_service,
-            mutation_lock_checker=self.round_mutation_lock_checker_factory(self.db_path),
         )
 
     @property

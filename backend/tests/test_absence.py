@@ -7,8 +7,8 @@ from unittest.mock import patch
 
 from backend.composition import calendar_service as compose_calendar_service
 from backend.execution.absence import AbsenceService
-from backend.execution.lifecycle_ports import MutationLockCommand, MutationLockKind
 from backend.identity.authorization import AuthorizationScope
+from backend.persistence.absence_uow import SQLiteAbsenceUnitOfWorkFactory
 from backend.persistence.database import session_scope
 from backend.persistence.models import (
     CalendarEvent,
@@ -111,12 +111,15 @@ class AbsenceServiceTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.database.__exit__(None, None, None)
 
-    def test_report_uses_exclusive_fallback_window_and_audit_history(self) -> None:
-        result = AbsenceService(
-            self.db_path,
+    def absence_service(self) -> AbsenceService:
+        return AbsenceService(
+            SQLiteAbsenceUnitOfWorkFactory(self.db_path),
             notification_service=notification_service_for_test(self.db_path),
             calendar_service=self.calendar_service,
-        ).report(
+        )
+
+    def test_report_uses_exclusive_fallback_window_and_audit_history(self) -> None:
+        result = self.absence_service().report(
             scope(1),
             {"exam_day_id": self.day_id, "exam_day_assignment_id": self.assignment_id},
             now=datetime(2026, 11, 1, tzinfo=UTC),
@@ -138,11 +141,7 @@ class AbsenceServiceTests(unittest.TestCase):
         )
 
     def test_urgent_report_requests_fallback_and_other_eligible_members(self) -> None:
-        result = AbsenceService(
-            self.db_path,
-            notification_service=notification_service_for_test(self.db_path),
-            calendar_service=self.calendar_service,
-        ).report(
+        result = self.absence_service().report(
             scope(1),
             {"exam_day_id": self.day_id, "exam_day_assignment_id": self.assignment_id},
             now=datetime(2026, 11, 15, tzinfo=UTC),
@@ -153,11 +152,7 @@ class AbsenceServiceTests(unittest.TestCase):
         self.assertTrue(all(item["urgent"] for item in result["responses"]))
 
     def test_expired_fallback_opens_further_search_and_audits_deadline(self) -> None:
-        service = AbsenceService(
-            self.db_path,
-            notification_service=notification_service_for_test(self.db_path),
-            calendar_service=self.calendar_service,
-        )
+        service = self.absence_service()
         result = service.report(
             scope(1),
             {"exam_day_id": self.day_id, "exam_day_assignment_id": self.assignment_id},
@@ -178,63 +173,43 @@ class AbsenceServiceTests(unittest.TestCase):
         self.assertIn("replacement_search_opened", audit_types)
 
     def test_report_checks_round_lock_in_its_writer_session(self) -> None:
-        observed: list[tuple[object, MutationLockCommand]] = []
-
-        def reject_locked_report(session, command: MutationLockCommand) -> None:
-            observed.append((session, command))
-            raise ValueError("round locked")
-
-        service = AbsenceService(
-            self.db_path,
-            notification_service=notification_service_for_test(self.db_path),
-            calendar_service=self.calendar_service,
-            mutation_lock_checker=reject_locked_report,
-        )
-        with self.assertRaisesRegex(ValueError, "round locked"):
+        service = self.absence_service()
+        with session_scope(self.db_path) as session:
+            session.get(ExamRound, 1).lifecycle_status = "closed"
+        with self.assertRaisesRegex(ValueError, "fachlich beendet"):
             service.report(
                 scope(1),
                 {"exam_day_id": self.day_id, "exam_day_assignment_id": self.assignment_id},
                 now=datetime(2026, 11, 1, tzinfo=UTC),
             )
 
-        self.assertEqual(1, len(observed))
-        _, command = observed[0]
-        self.assertIs(command.kind, MutationLockKind.ABSENCE_REPORT)
-        self.assertIsNone(command.resource_id)
-        self.assertEqual(self.assignment_id, command.payload["exam_day_assignment_id"])
+        with session_scope(self.db_path) as session:
+            self.assertEqual(0, session.query(ReplacementResponse).count())
 
     def test_selection_checks_round_lock_before_calendar_preflight_sync(self) -> None:
-        service = AbsenceService(
-            self.db_path,
-            notification_service=notification_service_for_test(self.db_path),
-            calendar_service=self.calendar_service,
-        )
+        service = self.absence_service()
         report = service.report(
             scope(1),
             {"exam_day_id": self.day_id, "exam_day_assignment_id": self.assignment_id},
             now=datetime(2026, 11, 1, tzinfo=UTC),
         )
         report = service.respond(
-            scope(7), report["responses"][0]["id"], {"response": "available"},
+            scope(7),
+            report["responses"][0]["id"],
+            {"response": "available"},
             now=datetime(2026, 11, 1, tzinfo=UTC),
         )
 
-        def reject_locked_report(session, command: MutationLockCommand) -> None:
-            raise ValueError("round locked")
-
-        locked_service = AbsenceService(
-            self.db_path,
-            notification_service=notification_service_for_test(self.db_path),
-            calendar_service=self.calendar_service,
-            mutation_lock_checker=reject_locked_report,
-        )
+        with session_scope(self.db_path) as session:
+            session.get(ExamRound, 1).lifecycle_status = "closed"
+        locked_service = self.absence_service()
         with (
             patch.object(
                 self.calendar_service,
                 "sync_round",
                 wraps=self.calendar_service.sync_round,
             ) as sync,
-            self.assertRaisesRegex(ValueError, "round locked"),
+            self.assertRaisesRegex(ValueError, "fachlich beendet"),
         ):
             locked_service.select_replacement(
                 scope(1, management=True),
@@ -245,11 +220,7 @@ class AbsenceServiceTests(unittest.TestCase):
         sync.assert_not_called()
 
     def test_selection_is_single_versioned_transition_and_emits_calendar_work(self) -> None:
-        service = AbsenceService(
-            self.db_path,
-            notification_service=notification_service_for_test(self.db_path),
-            calendar_service=self.calendar_service,
-        )
+        service = self.absence_service()
         result = service.report(
             scope(1),
             {"exam_day_id": self.day_id, "exam_day_assignment_id": self.assignment_id},
@@ -282,11 +253,7 @@ class AbsenceServiceTests(unittest.TestCase):
             self.assertEqual(1, session.query(ReplacementResponse).count())
 
     def test_cancellation_marks_only_the_affected_calendar_assignment(self) -> None:
-        service = AbsenceService(
-            self.db_path,
-            notification_service=notification_service_for_test(self.db_path),
-            calendar_service=self.calendar_service,
-        )
+        service = self.absence_service()
         result = service.report(
             scope(1),
             {"exam_day_id": self.day_id, "exam_day_assignment_id": self.assignment_id},
@@ -310,11 +277,7 @@ class AbsenceServiceTests(unittest.TestCase):
             self.assertTrue(all(event.status == "cancelled" for event in events))
 
     def test_failed_selection_preserves_assignment_audit_version_and_follow_up_work(self) -> None:
-        service = AbsenceService(
-            self.db_path,
-            notification_service=notification_service_for_test(self.db_path),
-            calendar_service=self.calendar_service,
-        )
+        service = self.absence_service()
         current = datetime(2026, 11, 1, tzinfo=UTC)
         report = service.report(
             scope(1),
@@ -337,7 +300,7 @@ class AbsenceServiceTests(unittest.TestCase):
         with session_scope(self.db_path) as session:
             day_revision = session.get(ExamDay, self.day_id).revision
         with (
-            patch.object(service, "_view", side_effect=RuntimeError("test view failure")),
+            patch.object(service, "_required_view", side_effect=RuntimeError("test view failure")),
             patch.object(service, "_notify") as notify,
             patch.object(
                 service.calendar_service, "sync_round", wraps=service.calendar_service.sync_round
@@ -371,11 +334,7 @@ class AbsenceServiceTests(unittest.TestCase):
 
     def test_member_cannot_report_another_member_absence(self) -> None:
         with self.assertRaises(PermissionError):
-            AbsenceService(
-                self.db_path,
-                notification_service=notification_service_for_test(self.db_path),
-                calendar_service=self.calendar_service,
-            ).report(
+            self.absence_service().report(
                 scope(2),
                 {"exam_day_id": self.day_id, "exam_day_assignment_id": self.assignment_id},
                 now=datetime(2026, 11, 1, tzinfo=UTC),
