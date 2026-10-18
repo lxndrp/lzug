@@ -121,7 +121,7 @@ tasks:
       - task: test:tooling
 
   test:backend:
-    desc: Run backend unit tests
+    desc: Run all backend test tiers
     cmds:
       - task: backend:test
 
