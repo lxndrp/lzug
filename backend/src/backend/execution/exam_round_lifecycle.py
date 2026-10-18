@@ -23,7 +23,6 @@ from backend.execution.round_lifecycle_snapshot import (
 from backend.execution.round_lifecycle_view import round_lifecycle_view
 from backend.identity.authorization import AuthorizationScope
 from backend.notifications.service import NotificationService
-from backend.presentation.exam_exports import render_round_lifecycle_export
 
 TERMINAL_LIFECYCLE_STATUSES = {"closed", "cancelled", "historical"}
 TERMINAL_CANDIDATE_STATUSES = {
@@ -135,10 +134,8 @@ class ExamRoundLifecycleService:
         export_snapshot: ExamRoundLifecycleExportSnapshot,
         export_record: dict[str, Any],
         pending_consequence_ids: Sequence[int],
-        *,
-        human: bool,
-    ) -> dict[str, Any] | str:
-        """Project and render an export using only detached facts and records."""
+    ) -> dict[str, Any]:
+        """Project an export using only detached facts and records."""
         lifecycle = round_lifecycle_view(
             scope,
             facts,
@@ -148,8 +145,6 @@ class ExamRoundLifecycleService:
         if lifecycle is None:
             raise ValueError("Prüfungsrunde nicht gefunden")
         snapshot = self._snapshot_from_export_snapshot(facts, export_snapshot)
-        if human:
-            return render_round_lifecycle_export(facts.round.id, lifecycle, snapshot)
         return {
             "export_version": 1,
             "export": export_record,

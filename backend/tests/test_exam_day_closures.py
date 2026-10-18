@@ -190,7 +190,7 @@ class ExamDayClosureTests(unittest.TestCase):
                 scope, 2, human=False, facts=lifecycle_facts
             )
             day_export = day_closure_service.export_from_read_snapshot(
-                scope, lifecycle_facts, day_snapshot, human=False
+                scope, lifecycle_facts, day_snapshot
             )
             lifecycle_snapshot, export_snapshot, export_record = (
                 unit_of_work.execution.record_round_export(
@@ -207,7 +207,6 @@ class ExamDayClosureTests(unittest.TestCase):
                 export_snapshot,
                 export_record,
                 pending_consequence_ids,
-                human=False,
             )
             round_results = unit_of_work.assessment_lifecycle.results_for_round(1)
             candidate_result = unit_of_work.assessment_lifecycle.result_for_round_candidate(
@@ -578,7 +577,7 @@ class ExamDayClosureTests(unittest.TestCase):
         with factory() as unit_of_work:
             facts = ExamLifecycleApplication._day_closure_facts(unit_of_work, 3, 1)
             snapshot = unit_of_work.execution.record_day_export(scope, 3, human=False, facts=facts)
-            exported = service.export_from_read_snapshot(scope, facts, snapshot, human=False)
+            exported = service.export_from_read_snapshot(scope, facts, snapshot)
         self.assertLess(current_closure_id, newer_closure_id)
         self.assertEqual(
             [current_closure_id, newer_closure_id],

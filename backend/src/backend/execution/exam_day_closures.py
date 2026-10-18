@@ -31,7 +31,6 @@ from backend.execution.lifecycle_ports import (
 from backend.execution.protocol_ports import ExecutionProtocolSnapshot
 from backend.identity.authorization import AuthorizationScope
 from backend.notifications.service import NotificationService
-from backend.presentation.exam_exports import render_day_closure_export
 
 CLOSED_STATUSES = {"closed", "closed_exception", "historical"}
 REOPENING_SCOPE_KINDS = {
@@ -72,9 +71,7 @@ class ExamDayClosureService:
         scope: AuthorizationScope,
         facts: DayClosureFacts,
         read_snapshot: ExamDayClosureReadSnapshot | None,
-        *,
-        human: bool,
-    ) -> dict[str, Any] | str:
+    ) -> dict[str, Any]:
         if read_snapshot is None:
             raise ValueError("Prüfungstag nicht gefunden")
         closure = day_closure_view(scope, facts, read_snapshot)
@@ -90,8 +87,6 @@ class ExamDayClosureService:
             },
             "closure": closure,
         }
-        if human:
-            return self._render_human_export(export)
         return export
 
     def evaluate_close_intent(
@@ -320,12 +315,6 @@ class ExamDayClosureService:
             outcome.day_id,
             list(outcome.notification_jobs),
         )
-
-    @staticmethod
-    def _render_human_export(export: dict[str, Any]) -> str:
-        day = export["exam_day"]
-        closure = export["closure"]
-        return render_day_closure_export(day, closure)
 
     def _impact(
         self,

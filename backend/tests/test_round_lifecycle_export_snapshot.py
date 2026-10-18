@@ -99,7 +99,10 @@ class RoundLifecycleExportSnapshotTests(unittest.TestCase):
         with session_scope(self.db_path) as session:
             initial_export_count = len(session.scalars(select(ExamRoundExport)).all())
         actual = self.application.export_exam_round(self.scope, 1, human=True)
-        self.assertIn("Prüfungsrunde", actual)
+        assert_materialized_port_value(self, actual)
+        self.assertEqual(1, actual["export_version"])
+        self.assertIn("status", actual["lifecycle"])
+        self.assertIn("round", actual["snapshot"])
         with session_scope(self.db_path) as session:
             self.assertEqual(
                 initial_export_count + 1,

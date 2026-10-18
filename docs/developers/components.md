@@ -259,8 +259,11 @@ und dessen read-scope-UoW; sie bleibt ein HTTP-gebundener Vorabcheck, der getren
 von der anschließenden Ressourcenmutation ausgeführt wird.
 `ExamRoundLifecycleService` und `ExamDayClosureService` verwenden gebundene,
 frameworkfreie Planning- und Assessment-Ports für fremde Planungs-/Ergebnisfakten.
-Der Persistence-Adapter bindet beide Fähigkeiten an die UoW-Session; die Services
-behalten ihre Execution-eigenen Regeln und ORM-Zugriffe.
+Application übergibt autorisierte detached Fakten; Persistence materialisiert die
+Übergangsschreibvorgänge innerhalb der gemeinsamen UoW-Session. Die Services
+behalten ihre Execution-eigenen Regeln, aber weder Session- noch ORM-Zugriffe.
+Export-Use-Cases liefern materialisierte Projektionen; FastAPI rendert Textdateien
+erst nach Rückkehr aus dem UoW.
 Die Ergebnisänderung auf einem geschlossenen Prüfungstag verwendet heute
 `ExamResultService` mit Execution-Prüfung und -Abschluss im selben
 Session-Kontext; die Ziel-Orchestrierung über Application-Ports steht separat

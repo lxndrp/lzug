@@ -168,7 +168,7 @@ class ExamLifecycleApplication:
 
     def export_exam_round(
         self, scope: AuthorizationScope, round_id: int, *, human: bool
-    ) -> dict[str, Any] | str:
+    ) -> dict[str, Any]:
         service = self._round_lifecycle_service()
         with self._unit_of_work_factory() as unit_of_work:
             exam_round = unit_of_work.planning_lifecycle.round_lifecycle_snapshot(round_id)
@@ -193,12 +193,11 @@ class ExamLifecycleApplication:
                 export_snapshot,
                 export_record,
                 pending_consequence_ids,
-                human=human,
             )
 
     def export_exam_day(
         self, scope: AuthorizationScope, day_id: int, *, human: bool
-    ) -> dict[str, Any] | str:
+    ) -> dict[str, Any]:
         service = self._day_closure_service_factory()
         with self._unit_of_work_factory() as unit_of_work:
             round_id = unit_of_work.execution.exam_day_round_id(day_id)
@@ -208,7 +207,7 @@ class ExamLifecycleApplication:
             snapshot = unit_of_work.execution.record_day_export(
                 scope, day_id, human=human, facts=facts
             )
-            return service.export_from_read_snapshot(scope, facts, snapshot, human=human)
+            return service.export_from_read_snapshot(scope, facts, snapshot)
 
     def _round_lifecycle_service(self) -> ExamRoundLifecycleService:
         if self._round_lifecycle_service_factory is None:

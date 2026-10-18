@@ -527,6 +527,20 @@ class BackendPackageBoundaryTests(unittest.TestCase):
             any(isinstance(node, ast.Name) and node.id == "Session" for node in ast.walk(service))
         )
 
+    def test_lifecycle_execution_services_do_not_import_presentation(self) -> None:
+        for relative in (
+            "execution/exam_day_closures.py",
+            "execution/exam_round_lifecycle.py",
+        ):
+            imports = _imported_modules(BACKEND_ROOT / relative, BACKEND_ROOT)
+            self.assertFalse(
+                any(
+                    module == "backend.presentation" or module.startswith("backend.presentation.")
+                    for module in imports
+                ),
+                f"{relative} must return materialized export values for the HTTP renderer",
+            )
+
     def test_public_port_annotations_do_not_expose_orm_or_sql_values(self) -> None:
         leaks: list[str] = []
         for package in (BACKEND_ROOT / name for name in CORE_PACKAGES):

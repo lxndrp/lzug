@@ -49,6 +49,10 @@ from backend.planning_ports import (
     ExamVenueConflictError,
     ExamVenueInUseError,
 )
+from backend.presentation.exam_exports import (
+    render_day_closure_export,
+    render_round_lifecycle_export,
+)
 
 from .api_contracts import (
     ApiRootResponse,
@@ -891,7 +895,8 @@ def _register_exam_round_routes(app, resolved, application, read_security, write
         result = context.exam_lifecycle_application.export_exam_round(
             context.authorization_scope, id, human=True
         )
-        return _plain_text(context, result, f"pruefungsrunde-{id}-nachweis.txt")
+        content = render_round_lifecycle_export(id, result["lifecycle"], result["snapshot"])
+        return _plain_text(context, content, f"pruefungsrunde-{id}-nachweis.txt")
 
 
 def _register_exam_day_routes(app, resolved, application, read_security, write_security):
@@ -973,7 +978,8 @@ def _register_exam_day_routes(app, resolved, application, read_security, write_s
         result = context.exam_lifecycle_application.export_exam_day(
             context.authorization_scope, id, human=True
         )
-        return _plain_text(context, result, f"pruefungstag-{id}-abschluss.txt")
+        content = render_day_closure_export(result["exam_day"], result["closure"])
+        return _plain_text(context, content, f"pruefungstag-{id}-abschluss.txt")
 
 
 def _register_round_routes(app, resolved, application, read_security, write_security):
