@@ -103,7 +103,7 @@ ALLOWED_PACKAGE_DEPENDENCIES = {
     "calendar": frozenset(),
     "documents": frozenset(),
     "execution": frozenset(
-        {"calendar", "identity", "integrations", "notifications", "persistence", "presentation"}
+        {"calendar", "identity", "integrations", "notifications", "presentation"}
     ),
     "identity": frozenset(),
     "integrations": frozenset({"documents", "identity", "notifications", "persistence"}),
@@ -112,6 +112,16 @@ ALLOWED_PACKAGE_DEPENDENCIES = {
     "persistence": frozenset({"calendar", "documents", "identity", "notifications"}),
     "presentation": frozenset(),
     "planning": frozenset({"calendar", "integrations", "notifications", "persistence"}),
+}
+
+TRANSITIONAL_DEPENDENCY_IMPORTS = {
+    ("execution", "persistence"): frozenset(
+        {
+            "execution/absence.py: backend.persistence.database",
+            "execution/absence.py: backend.persistence.day_mutations",
+            "execution/absence.py: backend.persistence.models",
+        }
+    ),
 }
 
 TEST_OWNERS = {
@@ -875,6 +885,13 @@ class BackendPackageBoundaryTests(unittest.TestCase):
 
     def test_core_packages_follow_allowed_dependency_directions(self) -> None:
         actual = {package: _package_dependency_imports(package) for package in CORE_PACKAGES}
+        for (package, dependency), expected_imports in TRANSITIONAL_DEPENDENCY_IMPORTS.items():
+            imports = actual[package].pop(dependency, set())
+            self.assertEqual(
+                expected_imports,
+                imports,
+                f"Transitional dependency must stay localized: {package} -> {dependency}",
+            )
         unexpected = {
             package: {
                 dependency: imports
