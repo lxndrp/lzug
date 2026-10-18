@@ -343,6 +343,12 @@ class AbsenceService:
         sync_calendar = True
         report_round_id = self._report_round_id(report_id)
         if report_round_id is not None:
+            with session_scope(self.db_path) as session:
+                report = session.get(AbsenceReport, report_id)
+                if report is None:
+                    raise ValueError("Ausfallmeldung nicht gefunden")
+                self._require_replacement_selection(session, report, scope, payload, current)
+                self._assert_round_mutation_allowed(session, report.id, payload)
             self.calendar_service.sync_round(report_round_id)
         with session_scope(self.db_path, begin_immediate=True) as session:
             report = session.get(AbsenceReport, report_id)

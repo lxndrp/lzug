@@ -203,6 +203,47 @@ class AbsenceServiceTests(unittest.TestCase):
         self.assertIsNone(command.resource_id)
         self.assertEqual(self.assignment_id, command.payload["exam_day_assignment_id"])
 
+    def test_selection_checks_round_lock_before_calendar_preflight_sync(self) -> None:
+        service = AbsenceService(
+            self.db_path,
+            notification_service=notification_service_for_test(self.db_path),
+            calendar_service=self.calendar_service,
+        )
+        report = service.report(
+            scope(1),
+            {"exam_day_id": self.day_id, "exam_day_assignment_id": self.assignment_id},
+            now=datetime(2026, 11, 1, tzinfo=UTC),
+        )
+        report = service.respond(
+            scope(7), report["responses"][0]["id"], {"response": "available"},
+            now=datetime(2026, 11, 1, tzinfo=UTC),
+        )
+
+        def reject_locked_report(session, command: MutationLockCommand) -> None:
+            raise ValueError("round locked")
+
+        locked_service = AbsenceService(
+            self.db_path,
+            notification_service=notification_service_for_test(self.db_path),
+            calendar_service=self.calendar_service,
+            mutation_lock_checker=reject_locked_report,
+        )
+        with (
+            patch.object(
+                self.calendar_service,
+                "sync_round",
+                wraps=self.calendar_service.sync_round,
+            ) as sync,
+            self.assertRaisesRegex(ValueError, "round locked"),
+        ):
+            locked_service.select_replacement(
+                scope(1, management=True),
+                report["id"],
+                {"committee_member_id": 7, "version": report["version"]},
+                now=datetime(2026, 11, 1, tzinfo=UTC),
+            )
+        sync.assert_not_called()
+
     def test_selection_is_single_versioned_transition_and_emits_calendar_work(self) -> None:
         service = AbsenceService(
             self.db_path,
