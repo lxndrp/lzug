@@ -378,8 +378,12 @@ class SocketMigrationTests(unittest.TestCase):
             recipient, self.fingerprint
         )
         with closing(sqlite3.connect(self.paths.database)) as db, db:
-            db.execute("DELETE FROM schema_migration_checksum WHERE name LIKE '028_%'")
-            db.execute("DELETE FROM schema_migration WHERE name LIKE '028_%'")
+            for migration_prefix in ("028_%", "029_%"):
+                db.execute(
+                    "DELETE FROM schema_migration_checksum WHERE name LIKE ?",
+                    (migration_prefix,),
+                )
+                db.execute("DELETE FROM schema_migration WHERE name LIKE ?", (migration_prefix,))
         self.runtime._probe = lambda: database_readiness(self.paths.database)
         self.runtime.start()
         lifecycle = self.listener.artifacts.lifecycle
