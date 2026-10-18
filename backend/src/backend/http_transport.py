@@ -103,6 +103,7 @@ class RequestContext:
     assessment_lifecycle: AssessmentLifecycleWorkFactory
     assessment_round_queries: AssessmentLifecycleWorkFactory
     exam_lifecycle_unit_of_work_factory: ExamLifecycleUnitOfWorkFactory
+    round_mutation_lock_checker_factory: Callable[[Path], Callable]
     candidate_day_service_factory: Callable[[Path], CandidateDayService]
     planning_resource_unit_of_work_factory: Callable[[Path], PlanningResourceUnitOfWorkFactory]
     resource_access_query_factory: Callable[[Path], ResourceAccessQueryFactory]
@@ -284,7 +285,7 @@ class RequestContext:
             self.db_path,
             notification_service=self.notification_service,
             calendar_service=self.calendar_service,
-            mutation_lock_checker=self.exam_lifecycle_application.assert_mutation_allowed_in_session,
+            mutation_lock_checker=self.round_mutation_lock_checker_factory(self.db_path),
         )
 
     @property

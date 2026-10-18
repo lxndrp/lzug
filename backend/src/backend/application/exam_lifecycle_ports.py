@@ -48,11 +48,7 @@ from backend.identity.authorization import AuthorizationScope
 class ExamLifecycleExecutionUnitOfWork(ExecutionUnitOfWork, Protocol):
     """Execution capabilities required by Application lifecycle commands."""
 
-    def assert_mutation_allowed(
-        self,
-        service: ExamRoundLifecycleService,
-        command: MutationLockCommand,
-    ) -> None: ...
+    def assert_mutation_allowed(self, command: MutationLockCommand) -> None: ...
 
     def day_closure_read_snapshot(self, day_id: int) -> ExamDayClosureReadSnapshot | None: ...
 

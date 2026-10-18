@@ -12,7 +12,6 @@ from backend.assessment.service import ExamResultService
 from backend.calendar.service import CalendarService
 from backend.documents.commands import DocumentUseCases
 from backend.execution.exam_protocols import ExamProtocolService
-from backend.execution.exam_round_lifecycle import ExamRoundLifecycleService
 from backend.execution.slot_service import ExecutionService
 from backend.identity.admin_service import OperatorAuthService
 from backend.identity.auth import AuthenticationRepository
@@ -92,17 +91,13 @@ def application_consequence_store(db_path: Path) -> SQLiteApplicationConsequence
 
 
 def round_mutation_lock_checker(db_path: Path):
-    """Compose the lifecycle policy as a same-session persistence callback."""
-    assessment_factory = SQLiteAssessmentUnitOfWorkFactory(db_path)
-    service = ExamRoundLifecycleService(
-        notification_service=notification_service(db_path),
-        assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(assessment_factory),
-        planning_lifecycle_work_factory=SQLitePlanningLifecycleWork,
-        identity_lifecycle_work_factory=SQLiteIdentityLifecycleWork,
-        calendar_lifecycle_work_factory=SQLiteCalendarLifecycleWork,
-        pending_consequence_ids=lambda _round_id: (),
-    )
-    return service.assert_mutation_allowed_in_session
+    """Compose the persistence-owned resolver as a same-session callback."""
+    from backend.persistence.exam_lifecycle import _SQLiteExamLifecycleExecution
+
+    def assert_allowed(session, command):
+        _SQLiteExamLifecycleExecution(None, session).assert_mutation_allowed(command)
+
+    return assert_allowed
 
 
 def venue_consequence_service(

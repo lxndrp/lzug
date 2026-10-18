@@ -14,6 +14,7 @@ from backend.composition import (
     calendar_lifecycle_work_factory,
     identity_lifecycle_work_factory,
     planning_lifecycle_work_factory,
+    round_mutation_lock_checker,
 )
 from backend.execution.exam_day_closures import ExamDayClosureService
 from backend.execution.exam_round_lifecycle import (
@@ -180,25 +181,8 @@ class RoundLifecycleMutationSnapshotTests(unittest.TestCase):
                 None,
                 {"exam_day_id": 1, "exam_day_assignment_id": 1},
             )
-            self.assertEqual(
-                (2, "staffing:1"), self.service._round_mutation_token(session, command)
-            )
-            self.assertEqual(
-                "closed",
-                self.service.planning_lifecycle_work_factory(session)
-                .round_lifecycle_snapshot(2)
-                .lifecycle_status,
-            )
             with self.assertRaisesRegex(ExamRoundConflictError, "fachlich beendet"):
-                self.service._require_mutable_scope(
-                    session,
-                    self.service.planning_lifecycle_work_factory(session).round_lifecycle_snapshot(
-                        2
-                    ),
-                    "staffing:1",
-                )
-            with self.assertRaisesRegex(ExamRoundConflictError, "fachlich beendet"):
-                self.service.assert_mutation_allowed_in_session(session, command)
+                round_mutation_lock_checker(self.db_path)(session, command)
 
     def test_planning_execution_and_assessment_writers_check_lock_in_their_uow(self) -> None:
         with session_scope(self.db_path) as session:
@@ -237,7 +221,7 @@ class RoundLifecycleMutationSnapshotTests(unittest.TestCase):
 
         planning = PlanningResourceService(
             SQLitePlanningResourceUnitOfWorkFactory(
-                self.db_path, mutation_lock_checker=self.service.assert_mutation_allowed_in_session
+                self.db_path, mutation_lock_checker=round_mutation_lock_checker(self.db_path)
             )
         )
         with self.assertRaisesRegex(ExamRoundConflictError, "fachlich beendet"):
@@ -247,7 +231,7 @@ class RoundLifecycleMutationSnapshotTests(unittest.TestCase):
             SQLiteExecutionUnitOfWorkFactory(
                 self.db_path,
                 identity_snapshot_factory=SQLiteIdentityExecutionSnapshotFactory(),
-                mutation_lock_checker=self.service.assert_mutation_allowed_in_session,
+                mutation_lock_checker=round_mutation_lock_checker(self.db_path),
             )
         )
         with self.assertRaisesRegex(ExamRoundConflictError, "fachlich beendet"):
@@ -257,7 +241,7 @@ class RoundLifecycleMutationSnapshotTests(unittest.TestCase):
 
         assessment = ExamResultService(
             SQLiteAssessmentUnitOfWorkFactory(
-                self.db_path, mutation_lock_checker=self.service.assert_mutation_allowed_in_session
+                self.db_path, mutation_lock_checker=round_mutation_lock_checker(self.db_path)
             )
         )
         actor = {

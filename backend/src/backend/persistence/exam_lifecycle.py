@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable, Iterator
 from contextlib import AbstractContextManager, contextmanager
 from datetime import UTC, datetime
@@ -10,6 +11,8 @@ from pathlib import Path
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from backend.errors import ExamRoundConflictError
+from backend.mutation_locks import MutationLockCommand, MutationLockKind
 from backend.persistence.application_consequence_store import SQLiteLifecycleConsequenceReadPort
 from backend.persistence.assessment import SQLiteAssessmentUnitOfWorkFactory
 from backend.persistence.calendar_lifecycle import SQLiteCalendarLifecycleWork
@@ -20,13 +23,22 @@ from backend.persistence.identity_lifecycle import SQLiteIdentityLifecycleWork
 from backend.persistence.models import (
     AbsenceReport,
     ExamDay,
+    ExamDayAssignment,
     ExamDayClosure,
     ExamDayExport,
+    ExamProtocol,
+    ExamResult,
     ExamRoundDecision,
     ExamRoundExport,
+    ExamRoundReopening,
+    RoundCandidate,
 )
 from backend.persistence.planning_lifecycle import SQLitePlanningLifecycleWork
 from backend.persistence.round_lifecycle_snapshot import SQLiteExamRoundLifecycleReadSnapshotReader
+
+
+def _is_int(value) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
 
 
 class SQLiteExamLifecycleUnitOfWorkFactory:
@@ -150,8 +162,105 @@ class _SQLiteExamLifecycleExecution:
             )
         )
 
-    def assert_mutation_allowed(self, service, command) -> None:
-        service.assert_mutation_allowed_in_session(self._session, command)
+    def assert_mutation_allowed(self, command: MutationLockCommand) -> None:
+        planning = SQLitePlanningLifecycleWork(self._session)
+        resolved = self._round_mutation_token(command, planning)
+        if resolved is None:
+            return
+        round_id, token = resolved
+        exam_round = planning.round_lifecycle_snapshot(round_id)
+        if exam_round is None:
+            raise ValueError("Prüfungsrunde nicht gefunden")
+        if exam_round.lifecycle_status == "open":
+            return
+        if exam_round.lifecycle_status != "reopening":
+            raise ExamRoundConflictError(
+                "Die Prüfungsrunde ist fachlich beendet und für Änderungen gesperrt"
+            )
+        reopening = self._session.scalar(
+            select(ExamRoundReopening).where(
+                ExamRoundReopening.exam_round_id == round_id,
+                ExamRoundReopening.status == "open",
+            )
+        )
+        if reopening is None or token not in set(json.loads(reopening.scope_json)):
+            raise ExamRoundConflictError(
+                "Diese Daten gehören nicht zum freigegebenen Korrekturumfang"
+            )
+
+    def _round_mutation_token(self, command: MutationLockCommand, planning):
+        kind = command.kind
+        identifier = command.resource_id
+        payload = command.payload
+        if kind is MutationLockKind.EXAM_ROUND:
+            return (identifier, f"planning:{identifier}") if identifier is not None else None
+        if kind is MutationLockKind.PLANNING_PROPOSAL:
+            round_id = payload.get("round_id")
+            return (round_id, f"planning:{round_id}") if _is_int(round_id) else None
+        planning_resources = {
+            MutationLockKind.PLANNING_SETTINGS: "planning-settings",
+            MutationLockKind.CANDIDATE_EXAM_DAY: "candidate-exam-days",
+            MutationLockKind.MEMBER_AVAILABILITY: "member-availabilities",
+            MutationLockKind.ROUND_CANDIDATE: "round-candidates",
+        }
+        if kind in planning_resources:
+            target = planning.mutation_target(planning_resources[kind], identifier, dict(payload))
+            if target is None:
+                return None
+            round_id, entity_id = target
+            token_kind = (
+                "availability"
+                if kind is MutationLockKind.MEMBER_AVAILABILITY
+                else (
+                    "candidate_assignment"
+                    if kind is MutationLockKind.ROUND_CANDIDATE
+                    else "planning"
+                )
+            )
+            return round_id, f"{token_kind}:{entity_id}"
+        if kind is MutationLockKind.CONFIRMED_PLAN_DAY and identifier is not None:
+            day = self._session.get(ExamDay, identifier)
+            return (day.exam_round_id, f"exam_day:{identifier}") if day else None
+        if kind is MutationLockKind.EXAM_PROTOCOL and identifier is not None:
+            slot_id = self._session.scalar(
+                select(ExamProtocol.exam_slot_id).where(ExamProtocol.id == identifier)
+            )
+            round_id = planning.round_id_for_slot(slot_id) if slot_id is not None else None
+            return (round_id, f"exam_protocol:{identifier}") if round_id else None
+        if kind is MutationLockKind.EXAM_RESULT and identifier is not None:
+            round_id = self._session.scalar(
+                select(RoundCandidate.exam_round_id)
+                .join(ExamResult, ExamResult.round_candidate_id == RoundCandidate.id)
+                .where(ExamResult.id == identifier)
+            )
+            return (round_id, f"exam_result:{identifier}") if round_id else None
+        if kind is MutationLockKind.ABSENCE_REPORT:
+            return self._absence_report_mutation_token(identifier, payload)
+        return None
+
+    def _absence_report_mutation_token(self, identifier, payload):
+        if identifier is not None:
+            round_id = self._session.scalar(
+                select(ExamDay.exam_round_id)
+                .join(AbsenceReport, AbsenceReport.exam_day_id == ExamDay.id)
+                .where(AbsenceReport.id == identifier)
+            )
+            return (round_id, f"absence:{identifier}") if round_id else None
+        day_id = payload.get("exam_day_id")
+        if not _is_int(day_id):
+            return None
+        round_id = self._session.scalar(select(ExamDay.exam_round_id).where(ExamDay.id == day_id))
+        assignment_id = payload.get("exam_day_assignment_id")
+        if assignment_id is None and payload.get("committee_member_id") is not None:
+            assignment_id = self._session.scalar(
+                select(ExamDayAssignment.id).where(
+                    ExamDayAssignment.exam_day_id == day_id,
+                    ExamDayAssignment.committee_member_id == payload["committee_member_id"],
+                )
+            )
+        if not _is_int(assignment_id):
+            return (round_id, "unresolved_absence_report") if round_id else None
+        return (round_id, f"staffing:{assignment_id}") if round_id else None
 
     def day_closure_read_snapshot(self, day_id: int):
         return SQLiteExamDayClosureReadSnapshotReader(self._session).load_day_closure_read_snapshot(

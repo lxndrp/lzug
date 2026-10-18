@@ -70,24 +70,16 @@ class ExamLifecycleApplication:
             return round_lifecycle_view(scope, facts, pending_consequence_ids, snapshot)
 
     def assert_mutation_allowed(self, command: MutationLockCommand) -> None:
-        """Apply the shared lifecycle lock through the configured Execution boundary."""
-        service = self._round_lifecycle_service()
+        """Apply the shared lifecycle lock through the configured transaction boundary."""
         with self._unit_of_work_factory.read_scope() as unit_of_work:
-            unit_of_work.execution.assert_mutation_allowed(service, command)
-
-    def assert_mutation_allowed_in_session(self, session, command: MutationLockCommand) -> None:
-        """Check a domain mutation lock in the caller's existing write transaction."""
-        service = self._round_lifecycle_service()
-        service.assert_mutation_allowed_in_session(session, command)
+            unit_of_work.execution.assert_mutation_allowed(command)
 
     def set_exam_round_candidate_terminal_status(
         self, scope: AuthorizationScope, round_id: int, candidate_id: int, payload: dict[str, Any]
     ) -> dict[str, Any]:
-        service = self._round_lifecycle_service()
         with self._unit_of_work_factory() as unit_of_work:
             unit_of_work.execution.assert_mutation_allowed(
-                service,
-                MutationLockCommand(MutationLockKind.ROUND_CANDIDATE, candidate_id, payload),
+                MutationLockCommand(MutationLockKind.ROUND_CANDIDATE, candidate_id, payload)
             )
             facts = self._round_facts(unit_of_work, round_id)
             expected_revision, transition = candidate_terminal_values(
@@ -139,11 +131,9 @@ class ExamLifecycleApplication:
         return response
 
     def delete_empty_exam_round_draft(self, scope: AuthorizationScope, round_id: int) -> bool:
-        service = self._round_lifecycle_service()
         with self._unit_of_work_factory() as unit_of_work:
             unit_of_work.execution.assert_mutation_allowed(
-                service,
-                MutationLockCommand(MutationLockKind.EXAM_ROUND, round_id, {}),
+                MutationLockCommand(MutationLockKind.EXAM_ROUND, round_id, {})
             )
             exam_round = unit_of_work.planning_lifecycle.round_lifecycle_snapshot(round_id)
             if exam_round is None:

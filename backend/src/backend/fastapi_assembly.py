@@ -57,6 +57,7 @@ from .composition import (
     planning_resource_unit_of_work_factory as compose_planning_resource_unit_of_work_factory,
 )
 from .composition import planning_service as compose_planning_service
+from .composition import round_mutation_lock_checker as compose_round_mutation_lock_checker
 from .composition import venue_consequence_service as compose_venue_consequence_service
 from .execution.day_closure_policy import day_closure_view
 from .execution.exam_protocols import ExamProtocolService
@@ -272,6 +273,7 @@ def create_app(
     app.state.exam_lifecycle_unit_of_work_factory = compose_exam_lifecycle_unit_of_work_factory(
         resolved.db_path
     )
+    app.state.round_mutation_lock_checker_factory = compose_round_mutation_lock_checker
     app.state.planning_lifecycle_work_factory = compose_planning_lifecycle_work_factory()
     app.state.identity_lifecycle_work_factory = compose_identity_lifecycle_work_factory()
     app.state.calendar_lifecycle_work_factory = compose_calendar_lifecycle_work_factory()

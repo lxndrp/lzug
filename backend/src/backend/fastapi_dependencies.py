@@ -130,6 +130,7 @@ def request_context(request: Request) -> RequestContext:
         ),
         consequence_store_factory=request.app.state.consequence_store_factory,
         notification_service_factory=request.app.state.notification_service_factory,
+        round_mutation_lock_checker_factory=request.app.state.round_mutation_lock_checker_factory,
         runtime_settings=config.runtime_settings,
         auth_rate_limiter=request.app.state.auth_rate_limiter,
         observability_rate_limiter=request.app.state.observability_rate_limiter,

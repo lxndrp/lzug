@@ -1,5 +1,5 @@
-"""Domain errors shared by lifecycle policies and Application orchestration."""
+"""Execution lifecycle error aliases retained for existing callers."""
 
+from backend.errors import ExamRoundConflictError
 
-class ExamRoundConflictError(ValueError):
-    """Signal a stale, duplicate-different, or parallel lifecycle command."""
+__all__ = ["ExamRoundConflictError"]
