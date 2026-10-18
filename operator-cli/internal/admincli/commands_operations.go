@@ -218,7 +218,7 @@ func planConsequenceCommand(action string) Command {
 		legacy = backendCommand
 		summary = "Retry technical confirmed-plan consequences."
 		description = "Retry eligible technical follow-up work for one confirmed plan revision without exposing business content."
-		output = OutputSpec{Human: HumanSilent, Verbose: VerboseSummary, JSON: JSONProjected, Summary: "Successful human output is silent; JSON includes technical counters only.", ResultKeys: []string{"revision_id", "derivation_status", "processed", "problems", "pending", "superseded"}}
+		output = OutputSpec{Human: HumanSilent, Verbose: VerboseSummary, JSON: JSONProjected, Summary: "Successful human output is silent; JSON includes notification and consequence recovery counters.", ResultKeys: []string{"revision_id", "derivation_status", "processed", "problems", "pending", "superseded"}}
 	}
 	effect := ReadOnlyEffect
 	retry := RetryAllowed
