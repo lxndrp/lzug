@@ -32,9 +32,10 @@ class SQLiteCalendarLifecycleWork:
     def assignment_before_image(self, assignment_id: int) -> tuple[dict[str, object], ...]:
         """Materialize active generations before an assignment mutation.
 
-        Cancelled generations are already durable Calendar state and cannot
-        affect a later projection. Excluding them keeps immutable replay sources
-        bounded across repeated cancellation and reopen cycles.
+        Cancelled generations remain durable Calendar state and are still
+        considered by its generation allocator. Their event payloads are not
+        needed in later replay sources, which keeps those sources bounded across
+        repeated cancellation and reopen cycles.
         """
         return tuple(
             {
