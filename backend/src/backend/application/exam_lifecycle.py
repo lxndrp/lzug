@@ -22,6 +22,7 @@ from backend.application.exam_lifecycle_ports import (
     ExamLifecycleUnitOfWork,
     ExamLifecycleUnitOfWorkFactory,
 )
+from backend.execution.absence import AbsenceService
 from backend.execution.day_closure_policy import day_closure_view
 from backend.execution.day_lifecycle_contracts import (
     ExamDayClosureOutcome,
@@ -91,7 +92,7 @@ class ExamLifecycleApplication:
         self,
         scope: AuthorizationScope,
         payload: dict[str, Any],
-        absence_service: Any,
+        absence_service: AbsenceService,
         *,
         now: datetime | None = None,
     ) -> dict[str, Any]:
@@ -105,7 +106,7 @@ class ExamLifecycleApplication:
         scope: AuthorizationScope,
         response_id: int,
         payload: dict[str, Any],
-        absence_service: Any,
+        absence_service: AbsenceService,
         *,
         now: datetime | None = None,
     ) -> dict[str, Any]:
@@ -119,7 +120,7 @@ class ExamLifecycleApplication:
         scope: AuthorizationScope,
         report_id: int,
         payload: dict[str, Any],
-        absence_service,
+        absence_service: AbsenceService,
         *,
         now: datetime | None = None,
     ) -> dict[str, Any]:
@@ -137,7 +138,7 @@ class ExamLifecycleApplication:
             unit_of_work.execution.assert_mutation_allowed(
                 MutationLockCommand(MutationLockKind.ABSENCE_REPORT, report.id, payload)
             )
-            actor_id = absence_service._require_replacement_selection(
+            actor_id = absence_service.require_replacement_selection(
                 absence, report, day, round_row, scope, payload, current
             )
             day_guard = absence.guard_day_mutation(
@@ -147,8 +148,8 @@ class ExamLifecycleApplication:
                 payload=payload,
                 actor_member_id=actor_id,
             )
-            member_id = absence_service._required_int(payload, "committee_member_id")
-            assignment, replacement = absence_service._available_replacement(
+            member_id = absence_service.required_int(payload, "committee_member_id")
+            assignment, replacement = absence_service.available_replacement(
                 absence, report, day, member_id
             )
             calendar_enabled = day.closure_status == "open"
@@ -207,7 +208,7 @@ class ExamLifecycleApplication:
                 "committee_id": round_row.committee_id,
                 "recipient_member_ids": sorted(recipients),
                 "notice": {
-                    "origin_key": f"absence-report:{report.id}:replacement_selected",
+                    "origin_key": f"absence-audit:{audit_id}",
                     "event_type": "replacement_selected",
                     "title": "Ersatzmitglied ausgewählt",
                     "message": "Die Ersatzbesetzung wurde kontrolliert ausgewählt.",
@@ -227,7 +228,7 @@ class ExamLifecycleApplication:
                 ),
                 created_at=stamp,
             )
-            result = absence_service._required_view(absence, report.id)
+            result = absence_service.required_view(absence, report.id)
         if self._absence_consequences is not None:
             self._absence_consequences.process_due(now=current)
         return result
@@ -237,7 +238,7 @@ class ExamLifecycleApplication:
         scope: AuthorizationScope,
         report_id: int,
         payload: dict[str, Any],
-        absence_service,
+        absence_service: AbsenceService,
         *,
         now: datetime | None = None,
     ) -> dict[str, Any]:
@@ -245,11 +246,11 @@ class ExamLifecycleApplication:
         current = now or datetime.now(UTC)
         current = current.replace(tzinfo=UTC) if current.tzinfo is None else current.astimezone(UTC)
         stamp = current.replace(microsecond=0).isoformat()
-        reason = absence_service._required_reason(payload)
+        reason = absence_service.required_reason(payload)
         calendar_enabled = False
         with self._unit_of_work_factory() as unit_of_work:
             absence = unit_of_work.absence
-            report, day, round_row = absence_service._authorized_report(absence, scope, report_id)
+            report, day, round_row = absence_service.authorized_report(absence, scope, report_id)
             unit_of_work.execution.assert_mutation_allowed(
                 MutationLockCommand(MutationLockKind.ABSENCE_REPORT, report.id, payload)
             )
@@ -259,7 +260,7 @@ class ExamLifecycleApplication:
             assignment = absence.assignment(report.exam_day_assignment_id)
             if assignment is None:
                 raise ValueError("Besetzung nicht gefunden")
-            absence_service._assert_before_start(absence, day, assignment, current)
+            absence_service.assert_before_start(absence, day, assignment, current)
             if report.status not in {"replacement_selected", "resolved", "exam_day_cancelled"}:
                 raise ValueError("Die Ausfallmeldung ist nicht wieder zu öffnen")
             actor_id = actor_id or report.committee_member_id
@@ -339,7 +340,7 @@ class ExamLifecycleApplication:
                 "committee_id": round_row.committee_id,
                 "recipient_member_ids": sorted(recipients),
                 "notice": {
-                    "origin_key": f"absence-report:{report.id}:absence_reopened",
+                    "origin_key": f"absence-audit:{audit_id}",
                     "event_type": "absence_reopened",
                     "title": "Ausfallmeldung wieder geöffnet",
                     "message": "Der Ausfallprozess wurde wieder geöffnet.",
@@ -359,7 +360,7 @@ class ExamLifecycleApplication:
                 ),
                 created_at=stamp,
             )
-            result = absence_service._required_view(absence, report.id)
+            result = absence_service.required_view(absence, report.id)
         if self._absence_consequences is not None:
             self._absence_consequences.process_due(now=current)
         return result
@@ -369,7 +370,7 @@ class ExamLifecycleApplication:
         scope: AuthorizationScope,
         report_id: int,
         payload: dict[str, Any],
-        absence_service,
+        absence_service: AbsenceService,
         *,
         now: datetime | None = None,
     ) -> dict[str, Any]:
@@ -377,10 +378,10 @@ class ExamLifecycleApplication:
         current = now or datetime.now(UTC)
         current = current.replace(tzinfo=UTC) if current.tzinfo is None else current.astimezone(UTC)
         stamp = current.replace(microsecond=0).isoformat()
-        reason = absence_service._required_reason(payload)
+        reason = absence_service.required_reason(payload)
         with self._unit_of_work_factory() as unit_of_work:
             absence = unit_of_work.absence
-            report, day, round_row = absence_service._authorized_report(absence, scope, report_id)
+            report, day, round_row = absence_service.authorized_report(absence, scope, report_id)
             unit_of_work.execution.assert_mutation_allowed(
                 MutationLockCommand(MutationLockKind.ABSENCE_REPORT, report.id, payload)
             )
@@ -391,7 +392,7 @@ class ExamLifecycleApplication:
             assignment = absence.assignment(report.exam_day_assignment_id)
             if assignment is None:
                 raise ValueError("Besetzung nicht gefunden")
-            absence_service._assert_before_start(absence, day, assignment, current)
+            absence_service.assert_before_start(absence, day, assignment, current)
             actor_id = (
                 scope.member_for_committee(round_row.committee_id) or report.committee_member_id
             )
@@ -469,7 +470,7 @@ class ExamLifecycleApplication:
                 ),
                 created_at=stamp,
             )
-            result = absence_service._required_view(absence, report.id)
+            result = absence_service.required_view(absence, report.id)
         if self._absence_consequences is not None:
             self._absence_consequences.process_due(now=current)
         return result

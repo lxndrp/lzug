@@ -33,6 +33,7 @@ from backend.persistence.models import (
     ExamRound,
     ExamSlot,
     MemberAvailability,
+    Notification,
     ReplacementResponse,
 )
 from backend.tests.helpers import (
@@ -345,6 +346,56 @@ class AbsenceServiceTests(unittest.TestCase):
         with session_scope(self.db_path) as session:
             self.assertEqual(3, session.query(PlanConsequenceBatch).count())
 
+    def test_repeated_selection_cycles_create_distinct_notice_origins(self) -> None:
+        service = self.absence_service()
+        current = datetime(2026, 11, 1, tzinfo=UTC)
+        report = service.report(
+            scope(1),
+            {"exam_day_id": self.day_id, "exam_day_assignment_id": self.assignment_id},
+            now=current,
+        )
+        report = service.respond(
+            scope(7), report["responses"][0]["id"], {"response": "available"}, now=current
+        )
+        application = self.absence_lifecycle_application(service)
+        selected = application.select_absence_replacement(
+            scope(1, management=True),
+            report["id"],
+            {"committee_member_id": 7, "version": report["version"]},
+            service,
+            now=current,
+        )
+        reopened = application.reopen_absence(
+            scope(1, management=True),
+            report["id"],
+            {"reason": "Erneute Prüfung", "version": selected["version"]},
+            service,
+            now=current,
+        )
+        application.select_absence_replacement(
+            scope(1, management=True),
+            report["id"],
+            {"committee_member_id": 7, "version": reopened["version"]},
+            service,
+            now=current,
+        )
+
+        with session_scope(self.db_path) as session:
+            notices = (
+                session.query(Notification)
+                .filter(Notification.event_type.in_(("replacement_selected", "absence_reopened")))
+                .all()
+            )
+            selected_notices = [
+                item for item in notices if item.event_type == "replacement_selected"
+            ]
+            reopened_notices = [item for item in notices if item.event_type == "absence_reopened"]
+            self.assertEqual(16, len(selected_notices))
+            self.assertEqual(8, len(reopened_notices))
+            self.assertEqual(16, len({item.origin_key for item in selected_notices}))
+            self.assertEqual(8, len({item.origin_key for item in reopened_notices}))
+            self.assertTrue(all(item.origin_key.startswith("absence-audit:") for item in notices))
+
     def test_cancellation_freezes_calendar_follow_up_for_durable_processing(self) -> None:
         service = self.absence_service()
         result = service.report(
@@ -398,7 +449,7 @@ class AbsenceServiceTests(unittest.TestCase):
         with session_scope(self.db_path) as session:
             day_revision = session.get(ExamDay, self.day_id).revision
         with (
-            patch.object(service, "_required_view", side_effect=RuntimeError("test view failure")),
+            patch.object(service, "required_view", side_effect=RuntimeError("test view failure")),
             patch.object(
                 self.calendar_service,
                 "apply_absence_follow_up",

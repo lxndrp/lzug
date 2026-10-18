@@ -179,7 +179,7 @@ diagnostizierbar.
 Die gemeinsame Zustands- und Sperrgrenze beschreibt
 [Komponenten](components.md#backend).
 
-Die Migrationen bis `028_add_exam_venue_change_notifications.sql` bilden den aktuellen
+Die Migrationen bis `029_add_absence_consequence_sources.sql` bilden den aktuellen
 Stand von Authentifizierung und Sitzungen, Planrevisionen, Benachrichtigungen,
 Kalendern, Ausfall und Ersatz, Prüfungsprotokollen, Ergebnissen,
 Tagesabschlüssen, Ausschuss-Bootstrap, Planfolgen, Rundenlebenszyklus sowie
@@ -201,6 +201,11 @@ technische Operator-Akteure und die Ereignisse für beantragte, genehmigte oder
 abgelehnte Hochstufungen.
 `028_add_exam_venue_change_notifications.sql` ergänzt den Ereignistyp für
 persistierte Benachrichtigungen nach wirksamen Prüfungsortänderungen.
+`029_add_absence_consequence_sources.sql` versieht Besetzungen mit Revisionen
+und speichert unveränderliche Ausfall-Folgequellen samt Cutover-Wasserzeichen.
+Historische Ausfall-Audits vor diesem Wasserzeichen werden nicht nachträglich
+als Replay-Quellen ausgegeben; die Migration weist sie als nicht replaybar aus.
+Calendar-Folgen werden anhand ihrer gespeicherten Origin-Version gefenced.
 Unbekannte oder nicht unterstützte Schemastände verhindern Start, Restore oder
 Lifecycle-Mutation an der jeweiligen kontrollierenden Grenze.
 

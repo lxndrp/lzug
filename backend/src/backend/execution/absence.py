@@ -88,7 +88,7 @@ class AbsenceService:
                 raise PermissionError(
                     "Ein Ausfall darf nur für das eigene Mitglied gemeldet werden"
                 )
-            self._assert_before_start(unit_of_work, target.day, target.assignment, current)
+            self.assert_before_start(unit_of_work, target.day, target.assignment, current)
             if target.round.status != "plan_confirmed" or target.day.status != "confirmed":
                 raise ValueError(
                     "Ausfälle können nur in einem bestätigten Prüfungsplan gemeldet werden"
@@ -179,7 +179,7 @@ class AbsenceService:
                 created_at=_stamp(current),
                 guard_snapshot=guard_snapshot,
             )
-            result = self._required_view(unit_of_work, report.id)
+            result = self.required_view(unit_of_work, report.id)
         return result
 
     def respond(
@@ -290,10 +290,10 @@ class AbsenceService:
                     created_at=_stamp(current),
                     guard_snapshot=guard_snapshot,
                 )
-            result = self._required_view(unit_of_work, report.id)
+            result = self.required_view(unit_of_work, report.id)
         return result
 
-    def _available_replacement(
+    def available_replacement(
         self,
         unit_of_work: AbsenceUnitOfWork,
         report: AbsenceReportSnapshot,
@@ -326,7 +326,7 @@ class AbsenceService:
             raise ValueError("Das gewählte Mitglied ist nicht mehr geeignet oder verfügbar")
         return assignment, replacement
 
-    def _require_replacement_selection(
+    def require_replacement_selection(
         self,
         unit_of_work: AbsenceUnitOfWork,
         report: AbsenceReportSnapshot,
@@ -340,7 +340,7 @@ class AbsenceService:
         if not scope.can_manage_committee(round_row.committee_id):
             raise PermissionError("Nur Vorsitz oder Stellvertretung dürfen Ersatz auswählen")
         assignment = unit_of_work.assignment(report.exam_day_assignment_id)
-        self._assert_before_start(unit_of_work, day, assignment, current)
+        self.assert_before_start(unit_of_work, day, assignment, current)
         if report.status not in {
             "fallback_confirmed",
             "replacement_requested",
@@ -364,7 +364,7 @@ class AbsenceService:
         current = _now(now)
         mutation_payload = payload or {}
         with self.unit_of_work_factory() as unit_of_work:
-            report, day, round_row = self._authorized_report(unit_of_work, scope, report_id)
+            report, day, round_row = self.authorized_report(unit_of_work, scope, report_id)
             unit_of_work.assert_mutation_allowed(
                 MutationLockCommand(MutationLockKind.ABSENCE_REPORT, report.id, mutation_payload)
             )
@@ -374,7 +374,7 @@ class AbsenceService:
             ):
                 raise PermissionError("Nur die meldende Person oder die Leitung darf zurücknehmen")
             assignment = unit_of_work.assignment(report.exam_day_assignment_id)
-            self._assert_before_start(unit_of_work, day, assignment, current)
+            self.assert_before_start(unit_of_work, day, assignment, current)
             if report.selected_replacement_member_id is not None:
                 raise ValueError("Nach einer Ersatzwahl ist eine Rücknahme nicht mehr möglich")
             effective_actor_id = actor_id or report.committee_member_id
@@ -397,12 +397,12 @@ class AbsenceService:
                 created_at=_stamp(current),
             )
             unit_of_work.complete_day_mutation(day_guard, actor_member_id=effective_actor_id)
-            return self._required_view(unit_of_work, report.id)
+            return self.required_view(unit_of_work, report.id)
 
     def _target(
         self, unit_of_work: AbsenceUnitOfWork, payload: dict[str, Any]
     ) -> AbsenceTargetSnapshot:
-        day_id = self._required_int(payload, "exam_day_id")
+        day_id = self.required_int(payload, "exam_day_id")
         assignment_id = payload.get("exam_day_assignment_id")
         member_id = payload.get("committee_member_id")
         target = unit_of_work.target(
@@ -499,7 +499,7 @@ class AbsenceService:
         )
         return status
 
-    def _authorized_report(
+    def authorized_report(
         self, unit_of_work: AbsenceUnitOfWork, scope: AuthorizationScope, report_id: int
     ) -> tuple[AbsenceReportSnapshot, AbsenceDaySnapshot, AbsenceRoundSnapshot]:
         context = unit_of_work.report_context(report_id)
@@ -510,7 +510,7 @@ class AbsenceService:
             raise PermissionError("Ausfallmeldung ist nicht zugänglich")
         return report, day, round_row
 
-    def _assert_before_start(
+    def assert_before_start(
         self,
         unit_of_work: AbsenceUnitOfWork,
         day: AbsenceDaySnapshot,
@@ -595,7 +595,7 @@ class AbsenceService:
         }
 
     @staticmethod
-    def _required_view(unit_of_work: AbsenceUnitOfWork, report_id: int) -> dict[str, Any]:
+    def required_view(unit_of_work: AbsenceUnitOfWork, report_id: int) -> dict[str, Any]:
         snapshot = unit_of_work.report_view(report_id)
         if snapshot is None:
             raise ValueError("Ausfallmeldung nicht gefunden")
@@ -637,7 +637,7 @@ class AbsenceService:
             "committee_id": round_row.committee_id,
             "recipient_member_ids": sorted(recipients),
             "notice": {
-                "origin_key": f"absence-report:{report.id}:{event_type}",
+                "origin_key": f"absence-audit:{audit_id}",
                 "event_type": event_type,
                 "title": title,
                 "message": message,
@@ -659,7 +659,7 @@ class AbsenceService:
         )
 
     @staticmethod
-    def _required_int(payload, field):
+    def required_int(payload, field):
         try:
             value = int(payload[field])
         except (KeyError, TypeError, ValueError) as error:
@@ -677,7 +677,7 @@ class AbsenceService:
         return value.strip() or None
 
     @classmethod
-    def _required_reason(cls, payload):
+    def required_reason(cls, payload):
         reason = cls._optional_reason(payload.get("reason"))
         if not reason:
             raise ValueError("Eine Begründung ist erforderlich")

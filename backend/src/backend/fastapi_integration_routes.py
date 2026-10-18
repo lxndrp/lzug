@@ -403,10 +403,11 @@ def create_absence_router() -> APIRouter:
         return finish(
             context,
             context.respond(
-                context.absence_service.respond(
+                context.exam_lifecycle_application.respond_absence(
                     context.authorization_scope,
                     response_id,
                     payload_data(context, payload),
+                    context.absence_service,
                 )
             ),
         )
