@@ -14,7 +14,6 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from backend.execution.day_closure_policy import (
-    ExamDayClosurePolicy,
     day_closure_view,
     evaluate_day_closure,
 )
@@ -181,20 +180,6 @@ class ExamDayClosureService:
         self.planning_lifecycle_work_factory = planning_lifecycle_work_factory
         self.identity_lifecycle_work_factory = identity_lifecycle_work_factory
 
-    @staticmethod
-    def _load_closure_snapshot(facts: DayClosureFacts):
-        """Compatibility wrapper for the detached closure readiness snapshot."""
-        return ExamDayClosurePolicy()._load_closure_snapshot(facts)
-
-    def get_from_read_snapshot(
-        self,
-        scope: AuthorizationScope,
-        facts: DayClosureFacts,
-        read_snapshot: ExamDayClosureReadSnapshot | None,
-    ) -> dict[str, Any] | None:
-        """Compatibility wrapper for the pure detached day closure view."""
-        return day_closure_view(scope, facts, read_snapshot)
-
     def export_from_read_snapshot(
         self,
         scope: AuthorizationScope,
@@ -205,7 +190,7 @@ class ExamDayClosureService:
     ) -> dict[str, Any] | str:
         if read_snapshot is None:
             raise ValueError("Prüfungstag nicht gefunden")
-        closure = self.get_from_read_snapshot(scope, facts, read_snapshot)
+        closure = day_closure_view(scope, facts, read_snapshot)
         if closure is None:
             raise ValueError("Prüfungstag nicht gefunden")
         day = read_snapshot.day

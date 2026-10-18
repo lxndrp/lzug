@@ -163,16 +163,6 @@ class ExamRoundLifecycleService:
         self.calendar_lifecycle_work_factory = calendar_lifecycle_work_factory
         self.pending_consequence_ids = pending_consequence_ids or (lambda _round_id: ())
 
-    def get_from_read_snapshot(
-        self,
-        scope: AuthorizationScope,
-        facts: RoundLifecycleFacts,
-        pending_consequence_ids: Sequence[int],
-        snapshot: ExamRoundLifecycleReadSnapshot | None,
-    ) -> dict[str, Any] | None:
-        """Compatibility wrapper for the pure detached lifecycle projection."""
-        return round_lifecycle_view(scope, facts, pending_consequence_ids, snapshot)
-
     def export_from_read_snapshots(
         self,
         scope: AuthorizationScope,
@@ -185,7 +175,7 @@ class ExamRoundLifecycleService:
         human: bool,
     ) -> dict[str, Any] | str:
         """Project and render an export using only detached facts and records."""
-        lifecycle = self.get_from_read_snapshot(
+        lifecycle = round_lifecycle_view(
             scope,
             facts,
             pending_consequence_ids,

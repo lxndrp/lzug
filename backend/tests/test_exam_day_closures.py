@@ -16,7 +16,7 @@ from backend.composition import (
     identity_lifecycle_work_factory,
     planning_lifecycle_work_factory,
 )
-from backend.execution.day_closure_policy import day_closure_view
+from backend.execution.day_closure_policy import ExamDayClosurePolicy, day_closure_view
 from backend.execution.exam_day_closures import (
     ExamDayClosureService,
 )
@@ -346,7 +346,7 @@ class ExamDayClosureTests(unittest.TestCase):
         )
         with factory.read_scope() as unit_of_work:
             facts = ExamLifecycleApplication._day_closure_facts(unit_of_work, 2, 1)
-            snapshot = ExamDayClosureService._load_closure_snapshot(facts)
+            snapshot = ExamDayClosurePolicy()._load_closure_snapshot(facts)
         self.assertEqual(1, len(snapshot.slots))
         self.assertEqual("cancelled", snapshot.slots[0].execution_status)
         self.assertTrue(all(not hasattr(value, "_sa_instance_state") for value in snapshot.slots))
