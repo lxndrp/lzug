@@ -234,7 +234,7 @@ class _SQLiteExamLifecycleExecution:
             human=human,
         )
 
-    def export_day(self, service, scope, day_id: int, *, human: bool, facts):
+    def record_day_export(self, scope, day_id: int, *, human: bool, facts):
         if not scope.can_read_committee(facts.committee_id):
             raise PermissionError("Forbidden.")
         actor_id = scope.member_for_committee(facts.committee_id)
@@ -264,12 +264,9 @@ class _SQLiteExamLifecycleExecution:
         )
         self._session.flush()
         snapshot = reader.load_day_closure_read_snapshot(day_id)
-        return service.export_from_read_snapshot(
-            scope,
-            facts,
-            snapshot,
-            human=human,
-        )
+        if snapshot is None:
+            raise ValueError("Prüfungstag nicht gefunden")
+        return snapshot
 
     def evaluate_round_decision(self, service, scope, command, decision_type, facts):
         return service.evaluate_decision_intent(self._session, scope, command, decision_type, facts)

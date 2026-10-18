@@ -82,15 +82,14 @@ class ExamLifecycleExecutionUnitOfWork(ExecutionUnitOfWork, Protocol):
         pending_consequence_ids: Sequence[int],
     ) -> dict | str: ...
 
-    def export_day(
+    def record_day_export(
         self,
-        service: ExamDayClosureService,
         scope: AuthorizationScope,
         day_id: int,
         *,
         human: bool,
         facts: DayClosureFacts,
-    ) -> dict | str: ...
+    ) -> ExamDayClosureReadSnapshot: ...
 
     def exam_day_round_id(self, day_id: int) -> int | None: ...
 
