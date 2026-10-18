@@ -286,15 +286,6 @@ class ExamRoundLifecycleService:
             False,
         )
 
-    def replay_decision_intent(
-        self,
-        session: Session,
-        scope: AuthorizationScope,
-        intent: ExamRoundDecisionIntent,
-        facts: RoundLifecycleFacts,
-    ) -> ExamRoundDecisionOutcome:
-        return ExamRoundDecisionOutcome()
-
     def refresh_decision_snapshot(
         self,
         session: Session,
@@ -378,9 +369,6 @@ class ExamRoundLifecycleService:
             _now(),
             False,
         )
-
-    def replay_reopen_intent(self, session, scope, intent, facts):
-        return ExamRoundDecisionOutcome()
 
     def apply_reopen_intent(self, session, scope, intent, facts):
         previous = self._current_or_latest_decision(session, intent.round_id)

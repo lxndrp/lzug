@@ -20,8 +20,14 @@ from backend.application.exam_lifecycle_ports import (
     ExamLifecycleUnitOfWorkFactory,
 )
 from backend.execution.day_closure_policy import day_closure_view
-from backend.execution.exam_day_closures import ExamDayClosureService
-from backend.execution.exam_round_lifecycle import ExamRoundLifecycleService
+from backend.execution.exam_day_closures import (
+    ExamDayClosureOutcome,
+    ExamDayClosureService,
+)
+from backend.execution.exam_round_lifecycle import (
+    ExamRoundDecisionOutcome,
+    ExamRoundLifecycleService,
+)
 from backend.execution.lifecycle_errors import ExamRoundConflictError
 from backend.execution.lifecycle_ports import MutationLockCommand, MutationLockKind
 from backend.execution.round_candidate_policy import candidate_terminal_values
@@ -262,7 +268,7 @@ class ExamLifecycleApplication:
                 service, scope, day_id, command, facts
             )
             if intent.replayed:
-                outcome = unit_of_work.execution.replay_day_reopen(service, scope, intent, facts)
+                outcome = ExamDayClosureOutcome(day_id=intent.day_id)
             else:
                 handle = unit_of_work.execution.begin_day_reopen(service, intent)
                 corrections = {
@@ -375,9 +381,7 @@ class ExamLifecycleApplication:
                 service, scope, command, decision_type, facts
             )
             if intent.replayed:
-                outcome = unit_of_work.execution.replay_round_decision(
-                    service, scope, intent, facts
-                )
+                outcome = ExamRoundDecisionOutcome()
             else:
                 lifecycle_status = "closed" if decision_type == "close" else "cancelled"
                 if not unit_of_work.planning_lifecycle.advance_round_lifecycle(
@@ -452,7 +456,7 @@ class ExamLifecycleApplication:
             facts = self._round_facts(unit_of_work, round_id)
             intent = unit_of_work.execution.evaluate_round_reopen(service, scope, command, facts)
             if intent.replayed:
-                outcome = unit_of_work.execution.replay_round_reopen(service, scope, intent, facts)
+                outcome = ExamRoundDecisionOutcome()
             else:
                 if not unit_of_work.planning_lifecycle.advance_round_lifecycle(
                     round_id, command.revision, intent.now, lifecycle_status="reopening"

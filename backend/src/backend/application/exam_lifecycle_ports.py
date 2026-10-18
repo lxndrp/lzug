@@ -130,14 +130,6 @@ class ExamLifecycleExecutionUnitOfWork(ExecutionUnitOfWork, Protocol):
         assessment_corrections: dict[int, dict],
     ) -> ExamDayClosureOutcome: ...
 
-    def replay_day_reopen(
-        self,
-        service: ExamDayClosureService,
-        scope: AuthorizationScope,
-        intent: ExamDayReopeningIntent,
-        facts: DayClosureFacts,
-    ) -> ExamDayClosureOutcome: ...
-
     def evaluate_round_decision(
         self,
         service: ExamRoundLifecycleService,
@@ -146,14 +138,6 @@ class ExamLifecycleExecutionUnitOfWork(ExecutionUnitOfWork, Protocol):
         decision_type: str,
         facts: RoundLifecycleFacts,
     ) -> ExamRoundDecisionIntent: ...
-
-    def replay_round_decision(
-        self,
-        service: ExamRoundLifecycleService,
-        scope: AuthorizationScope,
-        intent: ExamRoundDecisionIntent,
-        facts: RoundLifecycleFacts,
-    ) -> ExamRoundDecisionOutcome: ...
 
     def refresh_round_decision_snapshot(
         self,
@@ -186,14 +170,6 @@ class ExamLifecycleExecutionUnitOfWork(ExecutionUnitOfWork, Protocol):
         facts: RoundLifecycleFacts,
         raw_scope: object,
     ) -> dict[str, object]: ...
-
-    def replay_round_reopen(
-        self,
-        service: ExamRoundLifecycleService,
-        scope: AuthorizationScope,
-        intent: ExamRoundReopeningIntent,
-        facts: RoundLifecycleFacts,
-    ) -> ExamRoundDecisionOutcome: ...
 
     def apply_round_reopen(
         self,

@@ -364,9 +364,6 @@ class _SQLiteExamLifecycleExecution:
     def evaluate_round_decision(self, service, scope, command, decision_type, facts):
         return service.evaluate_decision_intent(self._session, scope, command, decision_type, facts)
 
-    def replay_round_decision(self, service, scope, intent, facts):
-        return service.replay_decision_intent(self._session, scope, intent, facts)
-
     def refresh_round_decision_snapshot(self, service, intent, facts):
         return service.refresh_decision_snapshot(self._session, intent, facts)
 
@@ -380,9 +377,6 @@ class _SQLiteExamLifecycleExecution:
 
     def round_reopening_impact(self, service, scope, facts, raw_scope):
         return service.reopening_impact_from_facts(self._session, scope, facts, raw_scope)
-
-    def replay_round_reopen(self, service, scope, intent, facts):
-        return service.replay_reopen_intent(self._session, scope, intent, facts)
 
     def apply_round_reopen(self, service, scope, intent, facts):
         return service.apply_reopen_intent(self._session, scope, intent, facts)
@@ -406,6 +400,3 @@ class _SQLiteExamLifecycleExecution:
         return service.complete_reopen_intent(
             self._session, scope, handle, facts, assessment_corrections
         )
-
-    def replay_day_reopen(self, service, scope, intent, facts):
-        return service.replay_reopen_intent(self._session, scope, intent, facts)

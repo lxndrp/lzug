@@ -519,18 +519,6 @@ class ExamDayClosureService:
             notification_jobs=tuple(jobs),
         )
 
-    def replay_reopen_intent(
-        self,
-        session: Session,
-        scope: AuthorizationScope,
-        intent: ExamDayReopeningIntent,
-        facts: DayClosureFacts,
-    ) -> ExamDayClosureOutcome:
-        day = self._required_day(session, intent.day_id)
-        return ExamDayClosureOutcome(
-            day_id=day.id,
-        )
-
     def publish_close_notifications(self, outcome: ExamDayClosureOutcome) -> None:
         """Publish close notifications only after the caller has committed."""
         if outcome.committee_id is None or outcome.round_id is None or outcome.day_id is None:
