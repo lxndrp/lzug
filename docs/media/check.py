@@ -8,6 +8,8 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+_IMAGE_READ_ERRORS = (OSError, subprocess.CalledProcessError)
+
 
 def _image_dimensions(path: Path) -> dict[str, int] | None:
     try:
@@ -17,7 +19,7 @@ def _image_dimensions(path: Path) -> dict[str, int] | None:
             capture_output=True,
             text=True,
         )
-    except OSError, subprocess.CalledProcessError:
+    except _IMAGE_READ_ERRORS:
         return None
     match = re.search(r"PNG image data, (\d+) x (\d+)", result.stdout)
     if match is None:

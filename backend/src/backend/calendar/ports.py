@@ -169,6 +169,18 @@ class CalendarUnitOfWork(Protocol):
 
     def events_for_source(self, source_prefix: str) -> Sequence[CalendarEventSnapshot]: ...
 
+    def reserve_execution_origin(
+        self, assignment_id: int, origin_id: str, execution_version: int
+    ) -> str:
+        """Atomically reserve this assignment's monotone execution origin.
+
+        The persistence adapter must return ``superseded`` for a lower version,
+        ``conflict`` for an equal version with another origin, and ``apply`` for
+        a higher version or an idempotent retry of the same origin/version.
+        Reservation and any ensuing projection writes share this UoW.
+        """
+        ...
+
     def events_for_round(
         self,
         round_id: int,

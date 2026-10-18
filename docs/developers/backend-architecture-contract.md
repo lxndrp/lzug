@@ -970,6 +970,13 @@ Auditzeilen ohne Folgequelle werden diagnostiziert und zur manuellen
 Abstimmung ausgewiesen; sie werden weder aus veränderlichem Zustand
 rekonstruiert noch erneut zugestellt.
 
+Für Abwesenheitsfolgen reserviert Calendar die neueste Ausführungs-Origin und
+Version im selben UoW wie die Projektion. Eine ältere Version hat keinen
+Effekt, dieselbe Version mit anderer Origin ist ein stabiler Konflikt und eine
+Wiederholung derselben Origin ist idempotent. Eine höhere Version übernimmt
+die Zuweisung; bei Absage kann Calendar ein fehlendes Ereignis aus dem
+unveränderlichen Vorherbild als Tombstone wiederherstellen.
+
 ## Prüfung
 
 Die Modulverantwortung wird durch Tests der jeweiligen Portverträge und der

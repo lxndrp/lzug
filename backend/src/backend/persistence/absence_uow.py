@@ -7,9 +7,9 @@ from collections.abc import Iterator, Sequence
 from contextlib import AbstractContextManager, contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from backend.execution.absence_ports import (
@@ -27,6 +27,10 @@ from backend.execution.absence_ports import (
     AbsenceViewSnapshot,
 )
 from backend.mutation_locks import MutationLockCommand
+from backend.persistence.application_consequences import (
+    AbsenceConsequenceCutover,
+    AbsenceConsequenceSource,
+)
 from backend.persistence.database import DEFAULT_DB_PATH, read_session_scope, session_scope
 from backend.persistence.day_mutations import (
     DayMutationGuard,
@@ -333,6 +337,93 @@ class SQLiteAbsenceUnitOfWork(AbsenceUnitOfWork):
             reason=reason,
         )
 
+    @staticmethod
+    def day_guard_snapshot(handle: AbsenceDayMutationHandle) -> dict[str, object]:
+        guard = cast(_SQLiteAbsenceDayMutation, handle).guard
+        return {
+            "day_id": guard.day.id,
+            "day_revision": guard.day.revision,
+            "day_closure_status": guard.day.closure_status,
+            "mutation_token": guard.token,
+            "touch_revision": guard.touch_revision,
+            "reopening_id": guard.reopening.id if guard.reopening is not None else None,
+            "reopening_scope_json": (
+                guard.reopening.scope_json if guard.reopening is not None else None
+            ),
+            "late_protocol_response": guard.late_protocol_response,
+        }
+
+    def record_consequence_source(
+        self,
+        *,
+        audit_event_id: int,
+        report_id: int,
+        report_version: int,
+        assignment_id: int,
+        assignment_revision: int,
+        source_json: str,
+        created_at: str,
+    ) -> dict[str, Any]:
+        row = AbsenceConsequenceSource(
+            origin_id=f"absence-audit:{audit_event_id}",
+            audit_event_id=audit_event_id,
+            absence_report_id=report_id,
+            report_version=report_version,
+            assignment_id=assignment_id,
+            assignment_revision=assignment_revision,
+            source_json=source_json,
+            created_at=created_at,
+        )
+        self._session.add(row)
+        self._session.flush()
+        return self._consequence_source_snapshot(row)
+
+    def sources_after_cutover(self) -> Sequence[dict[str, Any]]:
+        cutover = self._session.get(AbsenceConsequenceCutover, 1)
+        if cutover is None:
+            return ()
+        return tuple(
+            self._consequence_source_snapshot(row)
+            for row in self._session.scalars(
+                select(AbsenceConsequenceSource)
+                .where(AbsenceConsequenceSource.audit_event_id > cutover.audit_watermark)
+                .order_by(AbsenceConsequenceSource.id)
+            )
+        )
+
+    def legacy_unreplayable_count(self) -> int:
+        cutover = self._session.get(AbsenceConsequenceCutover, 1)
+        if cutover is None:
+            return 0
+        return int(
+            self._session.scalar(
+                select(func.count(AbsenceAuditEvent.id))
+                .outerjoin(
+                    AbsenceConsequenceSource,
+                    AbsenceConsequenceSource.audit_event_id == AbsenceAuditEvent.id,
+                )
+                .where(
+                    AbsenceAuditEvent.id <= cutover.audit_watermark,
+                    AbsenceConsequenceSource.id.is_(None),
+                )
+            )
+            or 0
+        )
+
+    @staticmethod
+    def _consequence_source_snapshot(row: AbsenceConsequenceSource) -> dict[str, Any]:
+        return {
+            "id": row.id,
+            "origin_id": row.origin_id,
+            "audit_event_id": row.audit_event_id,
+            "report_id": row.absence_report_id,
+            "report_version": row.report_version,
+            "assignment_id": row.assignment_id,
+            "assignment_revision": row.assignment_revision,
+            "source_json": row.source_json,
+            "created_at": row.created_at,
+        }
+
     def insert_report(
         self,
         *,
@@ -386,18 +477,19 @@ class SQLiteAbsenceUnitOfWork(AbsenceUnitOfWork):
         to_status: str | None,
         created_at: str,
         details: dict[str, object] | None = None,
-    ) -> None:
-        self._session.add(
-            AbsenceAuditEvent(
-                absence_report_id=report_id,
-                actor_member_id=actor_member_id,
-                event_type=event_type,
-                from_status=from_status,
-                to_status=to_status,
-                details=(json.dumps(details, ensure_ascii=False) if details else None),
-                created_at=created_at,
-            )
+    ) -> int:
+        row = AbsenceAuditEvent(
+            absence_report_id=report_id,
+            actor_member_id=actor_member_id,
+            event_type=event_type,
+            from_status=from_status,
+            to_status=to_status,
+            details=(json.dumps(details, ensure_ascii=False) if details else None),
+            created_at=created_at,
         )
+        self._session.add(row)
+        self._session.flush()
+        return row.id
 
     def update_report(
         self,
@@ -443,6 +535,7 @@ class SQLiteAbsenceUnitOfWork(AbsenceUnitOfWork):
         if row is None:
             raise ValueError("Besetzung nicht gefunden")
         row.committee_member_id = member_id
+        row.revision += 1
         if fallback_status is not None:
             row.fallback_status = fallback_status
 
@@ -550,6 +643,7 @@ class SQLiteAbsenceUnitOfWork(AbsenceUnitOfWork):
             id=row.id,
             exam_day_id=row.exam_day_id,
             committee_member_id=row.committee_member_id,
+            revision=row.revision,
             assignment_role=row.assignment_role,
             day_part=row.day_part,
             fallback_status=row.fallback_status,

@@ -474,7 +474,12 @@ class BackendPackageBoundaryTests(unittest.TestCase):
     def test_relative_import_resolution_reports_target_package(self) -> None:
         module = BACKEND_ROOT / "execution" / "absence.py"
         imports = _imported_modules(module, BACKEND_ROOT)
-        self.assertIn("backend.execution.calendar_ports", imports)
+        self.assertNotIn("backend.execution.calendar_ports", imports)
+        self.assertNotIn("backend.notifications", imports)
+        application_imports = _imported_modules(
+            BACKEND_ROOT / "application" / "absence_consequences.py", BACKEND_ROOT
+        )
+        self.assertIn("backend.application.calendar_ports", application_imports)
 
     def test_composition_root_wires_adapters_while_application_uses_ports(self) -> None:
         composition_imports = _imported_modules(

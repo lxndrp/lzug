@@ -12,6 +12,7 @@ from backend.application.exam_lifecycle_contracts import (
     RoundLifecycleFacts,
 )
 from backend.assessment.ports import AssessmentUnitOfWork
+from backend.execution.absence_ports import AbsenceUnitOfWork
 from backend.execution.day_closure_snapshot import ExamDayClosureReadSnapshot
 from backend.execution.day_lifecycle_contracts import (
     ExamDayClosureIntent,
@@ -132,6 +133,9 @@ class ExamLifecycleUnitOfWork(Protocol):
 
     @property
     def consequences(self) -> LifecycleConsequenceReadPort: ...
+
+    @property
+    def absence(self) -> AbsenceUnitOfWork: ...
 
 
 class ExamLifecycleUnitOfWorkFactory(Protocol):

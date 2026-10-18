@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from backend.application import AuthenticationRequiredError, ForbiddenRequestError
+from backend.application.absence_consequences import AbsenceConsequenceApplication
 from backend.application.calendar_ports import CalendarApplicationPort
 from backend.application.consequence_ports import ApplicationConsequenceStoreFactory
 from backend.application.exam_lifecycle import ExamLifecycleApplication
@@ -283,11 +284,7 @@ class RequestContext:
 
     @property
     def absence_service(self) -> AbsenceService:
-        return AbsenceService(
-            self.absence_unit_of_work_factory(self.db_path),
-            notification_service=self.notification_service,
-            calendar_service=self.calendar_service,
-        )
+        return AbsenceService(self.absence_unit_of_work_factory(self.db_path))
 
     @property
     def exam_protocol_service(self) -> ExamProtocolService:
@@ -321,6 +318,12 @@ class RequestContext:
             self.exam_lifecycle_unit_of_work_factory,
             lambda: self.exam_day_closure_service,
             lambda: self.exam_round_lifecycle_service,
+            AbsenceConsequenceApplication(
+                unit_of_work_factory=self.exam_lifecycle_unit_of_work_factory,
+                consequence_store=self.consequence_store_factory(self.db_path),
+                notification_service=self.notification_service,
+                calendar_service=self.calendar_service,
+            ),
         )
 
     @property

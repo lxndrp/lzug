@@ -9,6 +9,7 @@ from icalendar import Calendar
 from sqlalchemy import select, text
 
 from backend.calendar.ports import CalendarEventSnapshot, CalendarScope
+from backend.calendar.service import CalendarService
 from backend.composition import (
     authorization_service,
     planning_service,
@@ -17,6 +18,7 @@ from backend.composition import (
     calendar_service as create_calendar_service,
 )
 from backend.persistence.auth import SQLiteAuthenticationRepository
+from backend.persistence.calendar import SQLiteCalendarPersistence
 from backend.persistence.database import connect, session_scope
 from backend.persistence.models import (
     CalendarEvent,
@@ -68,6 +70,26 @@ class CalendarServiceTests(unittest.TestCase):
                 {event_id: event.version for event_id, event in before.items()},
                 {event_id: event.version for event_id, event in after.items()},
             )
+        finally:
+            database.__exit__(None, None, None)
+
+    def test_execution_origin_reservation_is_monotone_and_retryable(self) -> None:
+        database, db_path = self._confirmed_database()
+        try:
+            with session_scope(db_path) as session:
+                assignment_id = session.scalars(select(ExamDayAssignment.id)).first()
+            assert assignment_id is not None
+            unit_of_work_factory = SQLiteCalendarPersistence(db_path)
+            with unit_of_work_factory() as work:
+                self.assertEqual("apply", work.reserve_execution_origin(assignment_id, "a", 2))
+            with unit_of_work_factory() as work:
+                self.assertEqual("apply", work.reserve_execution_origin(assignment_id, "a", 2))
+            with unit_of_work_factory() as work:
+                self.assertEqual("conflict", work.reserve_execution_origin(assignment_id, "b", 2))
+            with unit_of_work_factory() as work:
+                self.assertEqual("superseded", work.reserve_execution_origin(assignment_id, "c", 1))
+            with unit_of_work_factory() as work:
+                self.assertEqual("apply", work.reserve_execution_origin(assignment_id, "c", 3))
         finally:
             database.__exit__(None, None, None)
 
@@ -391,6 +413,18 @@ class CalendarServiceTests(unittest.TestCase):
             )
         self.assertGreater(service.sync_round(1), 0)
         self.assertEqual(0, service.sync_round(1))
+
+    def test_generation_allocator_advances_past_gaps_without_reusing_origin(self) -> None:
+        from types import SimpleNamespace
+
+        events = (
+            SimpleNamespace(source_key="assignment:17:1"),
+            SimpleNamespace(source_key="assignment:17:4"),
+            SimpleNamespace(source_key="assignment:170:9"),
+            SimpleNamespace(source_key="assignment:17:legacy"),
+        )
+
+        self.assertEqual(5, CalendarService._next_generation("assignment:17", events))
 
 
 class CalendarApiTests(unittest.TestCase):

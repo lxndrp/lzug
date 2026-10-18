@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -17,10 +18,8 @@ from backend.execution.absence_ports import (
     AbsenceUnitOfWorkFactory,
     AbsenceViewSnapshot,
 )
-from backend.execution.calendar_ports import ExecutionCalendarPort
 from backend.execution.lifecycle_ports import MutationLockCommand, MutationLockKind
 from backend.identity.authorization import AuthorizationScope
-from backend.notifications.service import NotificationService
 
 ACTIVE_STATUSES = {
     "reported",
@@ -52,13 +51,8 @@ class AbsenceService:
     def __init__(
         self,
         unit_of_work_factory: AbsenceUnitOfWorkFactory,
-        *,
-        notification_service: NotificationService,
-        calendar_service: ExecutionCalendarPort,
     ) -> None:
         self.unit_of_work_factory = unit_of_work_factory
-        self.notification_service = notification_service
-        self.calendar_service = calendar_service
 
     def list(self, scope: AuthorizationScope) -> list[dict[str, Any]]:
         with self.unit_of_work_factory.read_scope() as unit_of_work:
@@ -80,7 +74,6 @@ class AbsenceService:
         now: datetime | None = None,
     ) -> dict[str, Any]:
         current = _now(now)
-        notification_data: tuple[int, int, set[int], str, bool] | None = None
         with self.unit_of_work_factory() as unit_of_work:
             unit_of_work.assert_mutation_allowed(
                 MutationLockCommand(MutationLockKind.ABSENCE_REPORT, None, payload)
@@ -150,7 +143,7 @@ class AbsenceService:
                     expires_at=expires_at if fallback and member_id == fallback.id else None,
                     urgent=urgent,
                 )
-            unit_of_work.insert_audit(
+            audit_id = unit_of_work.insert_audit(
                 report_id=report.id,
                 actor_member_id=actor_id,
                 event_type="reported",
@@ -158,6 +151,7 @@ class AbsenceService:
                 to_status=status,
                 created_at=_stamp(current),
             )
+            guard_snapshot = unit_of_work.day_guard_snapshot(day_guard)
             unit_of_work.complete_day_mutation(
                 day_guard,
                 actor_member_id=actor_id,
@@ -170,20 +164,22 @@ class AbsenceService:
                 )
             )
             notify_ids.update(selected_ids)
-            notification_data = (
-                target.round.committee_id,
-                target.round.id,
-                notify_ids,
-                "urgent_replacement_requested" if urgent else "examiner_absence_reported",
-                urgent,
+            event_type = "urgent_replacement_requested" if urgent else "examiner_absence_reported"
+            self._record_follow_up_source(
+                unit_of_work,
+                audit_id=audit_id,
+                report=report,
+                assignment=target.assignment,
+                day=target.day,
+                round_row=target.round,
+                recipients=notify_ids,
+                event_type=event_type,
+                title="Ausfallmeldung und Ersatzsuche",
+                message="Für einen bestätigten Prüfungstag wurde eine Ausfallmeldung erfasst.",
+                created_at=_stamp(current),
+                guard_snapshot=guard_snapshot,
             )
             result = self._required_view(unit_of_work, report.id)
-        self._notify(
-            notification_data,
-            title="Ausfallmeldung und Ersatzsuche",
-            message="Für einen bestätigten Prüfungstag wurde eine Ausfallmeldung erfasst.",
-            report_id=result["id"],
-        )
         return result
 
     def respond(
@@ -195,7 +191,6 @@ class AbsenceService:
         now: datetime | None = None,
     ) -> dict[str, Any]:
         current = _now(now)
-        notification_data = None
         with self.unit_of_work_factory() as unit_of_work:
             response = unit_of_work.response(response_id)
             if response is None or response.committee_member_id not in scope.member_ids:
@@ -248,7 +243,7 @@ class AbsenceService:
             updated_report = unit_of_work.update_report(
                 report.id, status=status, current=_stamp(current), increment_version=True
             )
-            unit_of_work.insert_audit(
+            audit_id = unit_of_work.insert_audit(
                 report_id=report.id,
                 actor_member_id=response.committee_member_id,
                 event_type="response",
@@ -263,131 +258,39 @@ class AbsenceService:
                 )
             )
             recipient_ids.update(unit_of_work.response_member_ids(report.id))
-            notification_data = (
-                round_row.committee_id,
-                round_row.id,
-                recipient_ids,
-                (
-                    "fallback_confirmation_expired"
-                    if expired
-                    else (
-                        "replacement_requested"
-                        if updated_report.status == "replacement_requested"
-                        else "fallback_confirmation_requested"
-                    )
-                ),
-                False,
+            event_type = (
+                "fallback_confirmation_expired"
+                if expired
+                else (
+                    "replacement_requested"
+                    if updated_report.status == "replacement_requested"
+                    else "fallback_confirmation_requested"
+                )
             )
+            guard_snapshot = unit_of_work.day_guard_snapshot(day_guard)
             unit_of_work.complete_day_mutation(
                 day_guard,
                 actor_member_id=response.committee_member_id,
             )
+            assignment = unit_of_work.assignment(report.exam_day_assignment_id)
+            if assignment is not None:
+                self._record_follow_up_source(
+                    unit_of_work,
+                    audit_id=audit_id,
+                    report=updated_report,
+                    assignment=assignment,
+                    day=day,
+                    round_row=round_row,
+                    recipients=recipient_ids,
+                    event_type=event_type,
+                    title="Antwort zur Ersatzanfrage",
+                    message=(
+                        "Eine Ersatzanfrage wurde beantwortet und der Ausfallprozess aktualisiert."
+                    ),
+                    created_at=_stamp(current),
+                    guard_snapshot=guard_snapshot,
+                )
             result = self._required_view(unit_of_work, report.id)
-        self._notify(
-            notification_data,
-            title="Antwort zur Ersatzanfrage",
-            message="Eine Ersatzanfrage wurde beantwortet und der Ausfallprozess aktualisiert.",
-            report_id=result["id"],
-        )
-        return result
-
-    def select_replacement(
-        self,
-        scope: AuthorizationScope,
-        report_id: int,
-        payload: dict[str, Any],
-        *,
-        now: datetime | None = None,
-    ) -> dict[str, Any]:
-        current = _now(now)
-        notification_data = None
-        calendar_round_id: int | None = None
-        sync_calendar = True
-        report_round_id: int | None = None
-        with self.unit_of_work_factory.read_scope() as unit_of_work:
-            context = unit_of_work.report_context(report_id)
-            if context is not None and context[1].closure_status == "open":
-                report, day, round_row = context
-                report_round_id = round_row.id
-                self._require_replacement_selection(
-                    unit_of_work, report, day, round_row, scope, payload, current
-                )
-                unit_of_work.assert_mutation_allowed(
-                    MutationLockCommand(MutationLockKind.ABSENCE_REPORT, report.id, payload)
-                )
-        if report_round_id is not None:
-            self.calendar_service.sync_round(report_round_id)
-
-        with self.unit_of_work_factory() as unit_of_work:
-            context = unit_of_work.report_context(report_id)
-            if context is None:
-                raise ValueError("Ausfallmeldung nicht gefunden")
-            report, day, round_row = context
-            unit_of_work.assert_mutation_allowed(
-                MutationLockCommand(MutationLockKind.ABSENCE_REPORT, report.id, payload)
-            )
-            actor_id = self._require_replacement_selection(
-                unit_of_work, report, day, round_row, scope, payload, current
-            )
-            day_guard = unit_of_work.guard_day_mutation(
-                day_id=day.id,
-                kind="absence",
-                entity_id=report.id,
-                payload=payload,
-                actor_member_id=actor_id,
-            )
-            member_id = self._required_int(payload, "committee_member_id")
-            assignment, replacement = self._available_replacement(
-                unit_of_work, report, day, member_id
-            )
-            old_status = report.status
-            old_member_id = assignment.committee_member_id
-            unit_of_work.update_assignment_member(
-                assignment.id,
-                replacement.id,
-                fallback_status=("confirmed" if assignment.assignment_role == "fallback" else None),
-            )
-            updated_report = unit_of_work.update_report(
-                report.id,
-                status="replacement_selected",
-                current=_stamp(current),
-                selected_replacement_member_id=replacement.id,
-                update_selected_replacement=True,
-                increment_version=True,
-            )
-            unit_of_work.insert_audit(
-                report_id=report.id,
-                actor_member_id=actor_id,
-                event_type="replacement_selected",
-                from_status=old_status,
-                to_status=updated_report.status,
-                created_at=_stamp(current),
-                details={"member_id": replacement.id},
-            )
-            unit_of_work.complete_day_mutation(day_guard, actor_member_id=actor_id)
-            notify_ids = {old_member_id, replacement.id} | set(
-                unit_of_work.notification_recipients(
-                    round_row.committee_id, exclude_member_id=replacement.id
-                )
-            )
-            notification_data = (
-                round_row.committee_id,
-                round_row.id,
-                notify_ids,
-                "replacement_selected",
-                False,
-            )
-            calendar_round_id = round_row.id
-            sync_calendar = day.closure_status == "open"
-            result = self._required_view(unit_of_work, report.id)
-        if calendar_round_id is not None and sync_calendar:
-            self.calendar_service.sync_round(calendar_round_id)
-        self._notify(
-            notification_data,
-            title="Ersatzmitglied ausgewählt",
-            message="Die Ersatzbesetzung wurde kontrolliert ausgewählt.",
-            report_id=result["id"],
-        )
         return result
 
     def _available_replacement(
@@ -495,133 +398,6 @@ class AbsenceService:
             )
             unit_of_work.complete_day_mutation(day_guard, actor_member_id=effective_actor_id)
             return self._required_view(unit_of_work, report.id)
-
-    def reopen(
-        self,
-        scope: AuthorizationScope,
-        report_id: int,
-        payload: dict[str, Any],
-        *,
-        now: datetime | None = None,
-    ) -> dict[str, Any]:
-        current = _now(now)
-        reason = self._required_reason(payload)
-        calendar_round_id: int | None = None
-        sync_calendar = True
-        with self.unit_of_work_factory() as unit_of_work:
-            report, day, round_row = self._authorized_report(unit_of_work, scope, report_id)
-            unit_of_work.assert_mutation_allowed(
-                MutationLockCommand(MutationLockKind.ABSENCE_REPORT, report.id, payload)
-            )
-            actor_id = scope.member_for_committee(round_row.committee_id)
-            if not scope.can_manage_committee(round_row.committee_id):
-                raise PermissionError("Nur Vorsitz oder Stellvertretung dürfen wieder öffnen")
-            assignment = unit_of_work.assignment(report.exam_day_assignment_id)
-            self._assert_before_start(unit_of_work, day, assignment, current)
-            if report.status not in {"replacement_selected", "resolved", "exam_day_cancelled"}:
-                raise ValueError("Die Ausfallmeldung ist nicht wieder zu öffnen")
-            effective_actor_id = actor_id or report.committee_member_id
-            day_guard = unit_of_work.guard_day_mutation(
-                day_id=day.id,
-                kind="absence",
-                entity_id=report.id,
-                payload=payload,
-                actor_member_id=effective_actor_id,
-            )
-            if assignment is None:
-                raise ValueError("Besetzung nicht gefunden")
-            if report.selected_replacement_member_id is not None:
-                unit_of_work.update_assignment_member(assignment.id, report.committee_member_id)
-            updated_report = unit_of_work.update_report(
-                report.id,
-                status="replacement_requested",
-                current=_stamp(current),
-                selected_replacement_member_id=None,
-                update_selected_replacement=True,
-                increment_version=True,
-            )
-            unit_of_work.insert_audit(
-                report_id=report.id,
-                actor_member_id=effective_actor_id,
-                event_type="reopened",
-                from_status=report.status,
-                to_status=updated_report.status,
-                created_at=_stamp(current),
-                details={"reason": reason},
-            )
-            unit_of_work.complete_day_mutation(
-                day_guard, actor_member_id=effective_actor_id, reason=reason
-            )
-            calendar_round_id = round_row.id
-            sync_calendar = day.closure_status == "open"
-            result = self._required_view(unit_of_work, report.id)
-        if calendar_round_id is not None and sync_calendar:
-            self.calendar_service.sync_round(calendar_round_id)
-        return result
-
-    def cancel(
-        self,
-        scope: AuthorizationScope,
-        report_id: int,
-        payload: dict[str, Any],
-        *,
-        now: datetime | None = None,
-    ) -> dict[str, Any]:
-        current = _now(now)
-        reason = self._required_reason(payload)
-        calendar_target: tuple[int, int] | None = None
-        sync_calendar = True
-        with self.unit_of_work_factory() as unit_of_work:
-            report, day, round_row = self._authorized_report(unit_of_work, scope, report_id)
-            unit_of_work.assert_mutation_allowed(
-                MutationLockCommand(MutationLockKind.ABSENCE_REPORT, report.id, payload)
-            )
-            actor_id = scope.member_for_committee(round_row.committee_id)
-            if not scope.can_manage_committee(round_row.committee_id):
-                raise PermissionError("Nur Vorsitz oder Stellvertretung dürfen Slots absagen")
-            if report.status in {"withdrawn", "exam_day_cancelled"}:
-                raise ValueError("Die Ausfallmeldung ist bereits abgeschlossen")
-            effective_actor_id = actor_id or report.committee_member_id
-            day_guard = unit_of_work.guard_day_mutation(
-                day_id=day.id,
-                kind="absence",
-                entity_id=report.id,
-                payload=payload,
-                actor_member_id=effective_actor_id,
-            )
-            self._assert_before_start(
-                unit_of_work,
-                day,
-                unit_of_work.assignment(report.exam_day_assignment_id),
-                current,
-            )
-            assignment = unit_of_work.assignment(report.exam_day_assignment_id)
-            if assignment is None:
-                raise ValueError("Besetzung nicht gefunden")
-            updated_report = unit_of_work.update_report(
-                report.id,
-                status="exam_day_cancelled",
-                current=_stamp(current),
-                increment_version=True,
-            )
-            unit_of_work.insert_audit(
-                report_id=report.id,
-                actor_member_id=effective_actor_id,
-                event_type="cancelled",
-                from_status=report.status,
-                to_status=updated_report.status,
-                created_at=_stamp(current),
-                details={"reason": reason},
-            )
-            unit_of_work.complete_day_mutation(
-                day_guard, actor_member_id=effective_actor_id, reason=reason
-            )
-            calendar_target = (round_row.id, assignment.id)
-            sync_calendar = day.closure_status == "open"
-            result = self._required_view(unit_of_work, report.id)
-        if calendar_target is not None and sync_calendar:
-            self.calendar_service.cancel_assignment(*calendar_target)
-        return result
 
     def _target(
         self, unit_of_work: AbsenceUnitOfWork, payload: dict[str, Any]
@@ -825,25 +601,62 @@ class AbsenceService:
             raise ValueError("Ausfallmeldung nicht gefunden")
         return AbsenceService._view(snapshot)
 
-    def _notify(self, data, *, title, message, report_id):
-        if not data:
-            return
-        committee_id, round_id, member_ids, event_type, urgent = data
-        try:
-            self.notification_service.create_direct(
-                committee_id=committee_id,
-                round_id=round_id,
-                recipient_member_ids=member_ids,
-                event_type=event_type,
-                title=title,
-                message=message,
-                action_path=f"/absence-reports/{report_id}",
-                origin_key=f"absence-report:{report_id}:{event_type}",
-                urgent=urgent,
-            )
-        except Exception:
-            # Notification delivery must not roll back the committed domain event.
-            return
+    @staticmethod
+    def _record_follow_up_source(
+        unit_of_work: AbsenceUnitOfWork,
+        *,
+        audit_id: int,
+        report: AbsenceReportSnapshot,
+        assignment: AbsenceAssignmentSnapshot,
+        day: AbsenceDaySnapshot,
+        round_row: AbsenceRoundSnapshot,
+        recipients: set[int],
+        event_type: str,
+        title: str,
+        message: str,
+        created_at: str,
+        guard_snapshot: dict[str, object] | None = None,
+        calendar_before_image: tuple[dict[str, object], ...] = (),
+        calendar_enabled: bool = False,
+        calendar_action: str = "update",
+    ) -> None:
+        """Freeze post-commit inputs beside the Execution audit event."""
+        source = {
+            "format": "lzug-absence-consequence-source-v1",
+            "origin_id": f"absence-audit:{audit_id}",
+            "report_id": report.id,
+            "report_version": report.version,
+            "assignment_id": assignment.id,
+            "assignment_revision": assignment.revision,
+            "previous_member_id": assignment.committee_member_id,
+            "day_id": day.id,
+            "day_closure_status": day.closure_status,
+            "calendar_enabled": calendar_enabled,
+            "calendar_action": calendar_action,
+            "round_id": round_row.id,
+            "committee_id": round_row.committee_id,
+            "recipient_member_ids": sorted(recipients),
+            "notice": {
+                "origin_key": f"absence-report:{report.id}:{event_type}",
+                "event_type": event_type,
+                "title": title,
+                "message": message,
+                "action_path": f"/absence-reports/{report.id}",
+            },
+            "calendar_before_image": list(calendar_before_image),
+            "guard_snapshot": guard_snapshot,
+        }
+        unit_of_work.record_consequence_source(
+            audit_event_id=audit_id,
+            report_id=report.id,
+            report_version=report.version,
+            assignment_id=assignment.id,
+            assignment_revision=assignment.revision,
+            source_json=json.dumps(
+                source, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+            ),
+            created_at=created_at,
+        )
 
     @staticmethod
     def _required_int(payload, field):

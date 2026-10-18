@@ -28,3 +28,35 @@ class SQLiteCalendarLifecycleWork:
             event.updated_at = now
             recipients.add(event.recipient_member_id)
         return recipients
+
+    def assignment_before_image(self, assignment_id: int) -> tuple[dict[str, object], ...]:
+        """Materialize every current generation before an assignment mutation."""
+        return tuple(
+            {
+                "id": event.id,
+                "external_event_id": event.external_event_id,
+                "exam_half_year_id": event.exam_half_year_id,
+                "exam_round_id": event.exam_round_id,
+                "exam_day_id": event.exam_day_id,
+                "exam_day_assignment_id": event.exam_day_assignment_id,
+                "recipient_member_id": event.recipient_member_id,
+                "date": event.date,
+                "starts_at": event.starts_at,
+                "ends_at": event.ends_at,
+                "time_zone": event.time_zone,
+                "location": event.location,
+                "role": event.role,
+                "round_name": event.round_name,
+                "secure_reference": event.secure_reference,
+                "source_key": event.source_key,
+                "version": event.version,
+                "status": event.status,
+                "content_hash": event.content_hash,
+                "sent_at": event.sent_at,
+            }
+            for event in self._session.scalars(
+                select(CalendarEvent)
+                .where(CalendarEvent.exam_day_assignment_id == assignment_id)
+                .order_by(CalendarEvent.id)
+            )
+        )

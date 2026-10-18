@@ -1,14 +1,30 @@
 from __future__ import annotations
 
+import json
 import unittest
 from datetime import UTC, datetime
 from http import HTTPStatus
 from unittest.mock import patch
 
-from backend.composition import calendar_service as compose_calendar_service
+from sqlalchemy.exc import IntegrityError
+
+from backend.application.absence_consequences import AbsenceConsequenceApplication
+from backend.application.exam_lifecycle import ExamLifecycleApplication
+from backend.composition import (
+    application_consequence_store,
+    exam_lifecycle_unit_of_work_factory,
+)
+from backend.composition import (
+    calendar_service as compose_calendar_service,
+)
 from backend.execution.absence import AbsenceService
 from backend.identity.authorization import AuthorizationScope
 from backend.persistence.absence_uow import SQLiteAbsenceUnitOfWorkFactory
+from backend.persistence.application_consequences import (
+    AbsenceConsequenceSource,
+    PlanConsequence,
+    PlanConsequenceBatch,
+)
 from backend.persistence.database import session_scope
 from backend.persistence.models import (
     CalendarEvent,
@@ -112,10 +128,19 @@ class AbsenceServiceTests(unittest.TestCase):
         self.database.__exit__(None, None, None)
 
     def absence_service(self) -> AbsenceService:
-        return AbsenceService(
-            SQLiteAbsenceUnitOfWorkFactory(self.db_path),
-            notification_service=notification_service_for_test(self.db_path),
-            calendar_service=self.calendar_service,
+        return AbsenceService(SQLiteAbsenceUnitOfWorkFactory(self.db_path))
+
+    def absence_lifecycle_application(self, service: AbsenceService):
+        factory = exam_lifecycle_unit_of_work_factory(self.db_path)
+        return ExamLifecycleApplication(
+            factory,
+            lambda: None,
+            absence_consequences=AbsenceConsequenceApplication(
+                unit_of_work_factory=factory,
+                consequence_store=application_consequence_store(self.db_path),
+                notification_service=notification_service_for_test(self.db_path),
+                calendar_service=self.calendar_service,
+            ),
         )
 
     def test_report_uses_exclusive_fallback_window_and_audit_history(self) -> None:
@@ -203,23 +228,26 @@ class AbsenceServiceTests(unittest.TestCase):
         with session_scope(self.db_path) as session:
             session.get(ExamRound, 1).lifecycle_status = "closed"
         locked_service = self.absence_service()
+        application = self.absence_lifecycle_application(locked_service)
+        processor = application._absence_consequences
         with (
             patch.object(
-                self.calendar_service,
-                "sync_round",
-                wraps=self.calendar_service.sync_round,
+                processor.calendar,
+                "apply_absence_follow_up",
+                wraps=processor.calendar.apply_absence_follow_up,
             ) as sync,
             self.assertRaisesRegex(ValueError, "fachlich beendet"),
         ):
-            locked_service.select_replacement(
+            application.select_absence_replacement(
                 scope(1, management=True),
                 report["id"],
                 {"committee_member_id": 7, "version": report["version"]},
+                locked_service,
                 now=datetime(2026, 11, 1, tzinfo=UTC),
             )
         sync.assert_not_called()
 
-    def test_selection_is_single_versioned_transition_and_emits_calendar_work(self) -> None:
+    def test_selection_is_single_versioned_transition_and_replays_calendar_work(self) -> None:
         service = self.absence_service()
         result = service.report(
             scope(1),
@@ -230,10 +258,11 @@ class AbsenceServiceTests(unittest.TestCase):
         service.respond(
             scope(7), response_id, {"response": "available"}, now=datetime(2026, 11, 1, tzinfo=UTC)
         )
-        selected = service.select_replacement(
+        selected = self.absence_lifecycle_application(service).select_absence_replacement(
             scope(1, management=True),
             result["id"],
             {"committee_member_id": 7, "version": 1},
+            service,
             now=datetime(2026, 11, 1, tzinfo=UTC),
         )
 
@@ -247,12 +276,76 @@ class AbsenceServiceTests(unittest.TestCase):
                 .all()
             )
             self.assertEqual(7, assignment.committee_member_id)
-            self.assertEqual(2, len(events))
-            self.assertEqual({"cancelled", "sent"}, {event.status for event in events})
-            self.assertEqual({1, 7}, {event.recipient_member_id for event in events})
+            self.assertEqual(1, len(events))
+            self.assertEqual({"sent"}, {event.status for event in events})
+            self.assertEqual({7}, {event.recipient_member_id for event in events})
             self.assertEqual(1, session.query(ReplacementResponse).count())
 
-    def test_cancellation_marks_only_the_affected_calendar_assignment(self) -> None:
+    def test_application_selection_commits_an_immutable_replay_source(self) -> None:
+        service = self.absence_service()
+        current = datetime(2026, 11, 1, tzinfo=UTC)
+        report = service.report(
+            scope(1),
+            {"exam_day_id": self.day_id, "exam_day_assignment_id": self.assignment_id},
+            now=current,
+        )
+        report = service.respond(
+            scope(7), report["responses"][0]["id"], {"response": "available"}, now=current
+        )
+        lifecycle_factory = exam_lifecycle_unit_of_work_factory(self.db_path)
+        processor = AbsenceConsequenceApplication(
+            unit_of_work_factory=lifecycle_factory,
+            consequence_store=application_consequence_store(self.db_path),
+            notification_service=notification_service_for_test(self.db_path),
+            calendar_service=self.calendar_service,
+        )
+        application = ExamLifecycleApplication(
+            lifecycle_factory,
+            lambda: None,
+            absence_consequences=processor,
+        )
+
+        selected = application.select_absence_replacement(
+            scope(1, management=True),
+            report["id"],
+            {"committee_member_id": 7, "version": report["version"]},
+            service,
+            now=current,
+        )
+
+        self.assertEqual("replacement_selected", selected["status"])
+        with session_scope(self.db_path) as session:
+            source = (
+                session.query(AbsenceConsequenceSource)
+                .order_by(AbsenceConsequenceSource.id.desc())
+                .first()
+            )
+            payload = json.loads(source.source_json)
+            assignment = session.get(ExamDayAssignment, self.assignment_id)
+            self.assertEqual("lzug-absence-consequence-source-v1", payload["format"])
+            self.assertEqual(list(range(1, 9)), payload["recipient_member_ids"])
+            self.assertEqual(2, source.assignment_revision)
+            self.assertEqual(2, assignment.revision)
+            self.assertIn("guard_snapshot", payload)
+            batch = (
+                session.query(PlanConsequenceBatch).filter_by(origin_key=payload["origin_id"]).one()
+            )
+            batch_id = batch.id
+            self.assertEqual("absence_audit_event", batch.origin_type)
+            self.assertEqual(9, session.query(PlanConsequence).filter_by(batch_id=batch.id).count())
+            with self.assertRaises(IntegrityError), session.begin_nested():
+                source.source_json = "{}"
+                session.flush()
+
+        with session_scope(self.db_path) as session:
+            session.query(PlanConsequence).filter_by(batch_id=batch_id).delete()
+            session.delete(session.get(PlanConsequenceBatch, batch_id))
+        replay = processor.process_due(now=current)
+        self.assertEqual(3, replay["sources"])
+        with session_scope(self.db_path) as session:
+            self.assertEqual(3, session.query(PlanConsequenceBatch).count())
+
+    def test_cancellation_freezes_calendar_follow_up_for_durable_processing(self) -> None:
         service = self.absence_service()
         result = service.report(
             scope(1),
@@ -260,21 +353,24 @@ class AbsenceServiceTests(unittest.TestCase):
             now=datetime(2026, 11, 1, tzinfo=UTC),
         )
 
-        service.cancel(
+        self.absence_lifecycle_application(service).cancel_absence(
             scope(1, management=True),
             result["id"],
             {"reason": "Kein Ersatz verfügbar"},
+            service,
             now=datetime(2026, 11, 1, tzinfo=UTC),
         )
 
         with session_scope(self.db_path) as session:
-            events = (
-                session.query(CalendarEvent)
-                .filter(CalendarEvent.source_key.like(f"assignment:{self.assignment_id}:%"))
-                .all()
+            source = (
+                session.query(AbsenceConsequenceSource)
+                .order_by(AbsenceConsequenceSource.id.desc())
+                .first()
             )
-            self.assertTrue(events)
-            self.assertTrue(all(event.status == "cancelled" for event in events))
+            payload = json.loads(source.source_json)
+            self.assertEqual("cancel", payload["calendar_action"])
+            self.assertTrue(payload["calendar_enabled"])
+            self.assertEqual(2, session.get(ExamDayAssignment, self.assignment_id).revision)
 
     def test_failed_selection_preserves_assignment_audit_version_and_follow_up_work(self) -> None:
         service = self.absence_service()
@@ -294,24 +390,26 @@ class AbsenceServiceTests(unittest.TestCase):
             (scope(1, management=True), {**command, "committee_member_id": 4}, ValueError),
         ):
             with self.subTest(payload=payload, actor=actor), self.assertRaises(error):
-                service.select_replacement(actor, report["id"], payload, now=current)
+                self.absence_lifecycle_application(service).select_absence_replacement(
+                    actor, report["id"], payload, service, now=current
+                )
             self.assertEqual(report, service.get(scope(1), report["id"]))
 
         with session_scope(self.db_path) as session:
             day_revision = session.get(ExamDay, self.day_id).revision
         with (
             patch.object(service, "_required_view", side_effect=RuntimeError("test view failure")),
-            patch.object(service, "_notify") as notify,
             patch.object(
-                service.calendar_service, "sync_round", wraps=service.calendar_service.sync_round
+                self.calendar_service,
+                "apply_absence_follow_up",
+                wraps=self.calendar_service.apply_absence_follow_up,
             ) as sync,
             self.assertRaisesRegex(RuntimeError, "test view failure"),
         ):
-            service.select_replacement(
-                scope(1, management=True), report["id"], command, now=current
+            self.absence_lifecycle_application(service).select_absence_replacement(
+                scope(1, management=True), report["id"], command, service, now=current
             )
-        notify.assert_not_called()
-        sync.assert_called_once_with(1)  # Existing preflight sync only; no post-commit work.
+        sync.assert_not_called()
         self.assertEqual(report, service.get(scope(1), report["id"]))
         with session_scope(self.db_path) as session:
             self.assertEqual(
@@ -319,16 +417,16 @@ class AbsenceServiceTests(unittest.TestCase):
             )
             self.assertEqual(day_revision, session.get(ExamDay, self.day_id).revision)
 
-        selected = service.select_replacement(
-            scope(1, management=True), report["id"], command, now=current
+        selected = self.absence_lifecycle_application(service).select_absence_replacement(
+            scope(1, management=True), report["id"], command, service, now=current
         )
         self.assertEqual(report["version"] + 1, selected["version"])
         self.assertEqual(
             1, sum(event["event_type"] == "replacement_selected" for event in selected["audit"])
         )
         with self.assertRaises(ValueError):
-            service.select_replacement(
-                scope(1, management=True), report["id"], command, now=current
+            self.absence_lifecycle_application(service).select_absence_replacement(
+                scope(1, management=True), report["id"], command, service, now=current
             )
         self.assertEqual(selected, service.get(scope(1), report["id"]))
 

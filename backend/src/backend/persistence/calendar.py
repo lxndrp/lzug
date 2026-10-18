@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from contextlib import AbstractContextManager, contextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 
 from sqlalchemy import select
@@ -22,6 +23,7 @@ from backend.persistence.database import (
     session_scope,
 )
 from backend.persistence.models import (
+    CalendarAssignmentExecutionOrigin,
     CalendarEvent,
     CalendarFeed,
     CommitteeMember,
@@ -33,6 +35,10 @@ from backend.persistence.models import (
     ExamSlot,
     ExamVenue,
 )
+
+
+def _timestamp() -> str:
+    return datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
 def _event_snapshot(event: CalendarEvent) -> CalendarEventSnapshot:
@@ -113,6 +119,32 @@ class SQLiteCalendarUnitOfWork:
             .order_by(CalendarEvent.id)
         ).all()
         return tuple(_event_snapshot(event) for event in events)
+
+    def reserve_execution_origin(
+        self, assignment_id: int, origin_id: str, execution_version: int
+    ) -> str:
+        current = self._session.get(CalendarAssignmentExecutionOrigin, assignment_id)
+        if current is not None:
+            if current.execution_version > execution_version:
+                return "superseded"
+            if current.execution_version == execution_version:
+                return "apply" if current.origin_id == origin_id else "conflict"
+            current.origin_id = origin_id
+            current.execution_version = execution_version
+            current.updated_at = _timestamp()
+            self._session.flush()
+            return "apply"
+
+        self._session.add(
+            CalendarAssignmentExecutionOrigin(
+                assignment_id=assignment_id,
+                origin_id=origin_id,
+                execution_version=execution_version,
+                updated_at=_timestamp(),
+            )
+        )
+        self._session.flush()
+        return "apply"
 
     def events_for_round(
         self,
@@ -210,7 +242,7 @@ class SQLiteCalendarPersistence:
 
     @contextmanager
     def _unit_of_work(self):
-        with session_scope(self.db_path) as session:
+        with session_scope(self.db_path, begin_immediate=True) as session:
             yield SQLiteCalendarUnitOfWork(session)
 
     def current_half_year_id(self) -> int | None:

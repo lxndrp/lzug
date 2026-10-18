@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
 from dataclasses import replace
+from datetime import UTC, datetime
 from typing import Any
 
 from backend.application.exam_lifecycle_contracts import (
@@ -46,10 +48,12 @@ class ExamLifecycleApplication:
         unit_of_work_factory: ExamLifecycleUnitOfWorkFactory,
         day_closure_service_factory: Callable[[], ExamDayClosureService],
         round_lifecycle_service_factory: Callable[[], ExamRoundLifecycleService] | None = None,
+        absence_consequences=None,
     ) -> None:
         self._unit_of_work_factory = unit_of_work_factory
         self._day_closure_service_factory = day_closure_service_factory
         self._round_lifecycle_service_factory = round_lifecycle_service_factory
+        self._absence_consequences = absence_consequences
 
     def get_exam_day_closure(self, scope: AuthorizationScope, day_id: int) -> dict[str, Any] | None:
         with self._unit_of_work_factory.read_scope() as unit_of_work:
@@ -82,6 +86,393 @@ class ExamLifecycleApplication:
         """Apply the shared lifecycle lock through the configured transaction boundary."""
         with self._unit_of_work_factory.read_scope() as unit_of_work:
             unit_of_work.execution.assert_mutation_allowed(command)
+
+    def report_absence(
+        self,
+        scope: AuthorizationScope,
+        payload: dict[str, Any],
+        absence_service: Any,
+        *,
+        now: datetime | None = None,
+    ) -> dict[str, Any]:
+        result = absence_service.report(scope, payload, now=now)
+        if self._absence_consequences is not None:
+            self._absence_consequences.process_due(now=now)
+        return result
+
+    def respond_absence(
+        self,
+        scope: AuthorizationScope,
+        response_id: int,
+        payload: dict[str, Any],
+        absence_service: Any,
+        *,
+        now: datetime | None = None,
+    ) -> dict[str, Any]:
+        result = absence_service.respond(scope, response_id, payload, now=now)
+        if self._absence_consequences is not None:
+            self._absence_consequences.process_due(now=now)
+        return result
+
+    def select_absence_replacement(
+        self,
+        scope: AuthorizationScope,
+        report_id: int,
+        payload: dict[str, Any],
+        absence_service,
+        *,
+        now: datetime | None = None,
+    ) -> dict[str, Any]:
+        """Commit Execution, Planning, and immutable Application source together."""
+        current = now or datetime.now(UTC)
+        current = current.replace(tzinfo=UTC) if current.tzinfo is None else current.astimezone(UTC)
+        stamp = current.replace(microsecond=0).isoformat()
+        calendar_enabled = False
+        with self._unit_of_work_factory() as unit_of_work:
+            absence = unit_of_work.absence
+            context = absence.report_context(report_id)
+            if context is None:
+                raise ValueError("Ausfallmeldung nicht gefunden")
+            report, day, round_row = context
+            unit_of_work.execution.assert_mutation_allowed(
+                MutationLockCommand(MutationLockKind.ABSENCE_REPORT, report.id, payload)
+            )
+            actor_id = absence_service._require_replacement_selection(
+                absence, report, day, round_row, scope, payload, current
+            )
+            day_guard = absence.guard_day_mutation(
+                day_id=day.id,
+                kind="absence",
+                entity_id=report.id,
+                payload=payload,
+                actor_member_id=actor_id,
+            )
+            member_id = absence_service._required_int(payload, "committee_member_id")
+            assignment, replacement = absence_service._available_replacement(
+                absence, report, day, member_id
+            )
+            calendar_enabled = day.closure_status == "open"
+            before_image = (
+                unit_of_work.calendar_lifecycle.assignment_before_image(assignment.id)
+                if calendar_enabled
+                else ()
+            )
+            old_status = report.status
+            if not unit_of_work.planning_lifecycle.reassign_absence_assignment(
+                assignment.id,
+                expected_revision=assignment.revision,
+                expected_member_id=assignment.committee_member_id,
+                member_id=replacement.id,
+                now=stamp,
+                fallback_status=("confirmed" if assignment.assignment_role == "fallback" else None),
+            ):
+                raise ExamRoundConflictError("Die Besetzung wurde zwischenzeitlich geändert")
+            updated_report = absence.update_report(
+                report.id,
+                status="replacement_selected",
+                current=stamp,
+                selected_replacement_member_id=replacement.id,
+                update_selected_replacement=True,
+                increment_version=True,
+            )
+            audit_id = absence.insert_audit(
+                report_id=report.id,
+                actor_member_id=actor_id,
+                event_type="replacement_selected",
+                from_status=old_status,
+                to_status=updated_report.status,
+                created_at=stamp,
+                details={"member_id": replacement.id},
+            )
+            guard_snapshot = absence.day_guard_snapshot(day_guard)
+            absence.complete_day_mutation(day_guard, actor_member_id=actor_id)
+            recipients = {assignment.committee_member_id, replacement.id} | set(
+                absence.notification_recipients(
+                    round_row.committee_id, exclude_member_id=replacement.id
+                )
+            )
+            source = {
+                "format": "lzug-absence-consequence-source-v1",
+                "origin_id": f"absence-audit:{audit_id}",
+                "report_id": report.id,
+                "report_version": updated_report.version,
+                "assignment_id": assignment.id,
+                "previous_member_id": assignment.committee_member_id,
+                "selected_member_id": replacement.id,
+                "assignment_revision": assignment.revision + 1,
+                "day_id": day.id,
+                "day_closure_status": day.closure_status,
+                "calendar_enabled": calendar_enabled,
+                "round_id": round_row.id,
+                "committee_id": round_row.committee_id,
+                "recipient_member_ids": sorted(recipients),
+                "notice": {
+                    "origin_key": f"absence-report:{report.id}:replacement_selected",
+                    "event_type": "replacement_selected",
+                    "title": "Ersatzmitglied ausgewählt",
+                    "message": "Die Ersatzbesetzung wurde kontrolliert ausgewählt.",
+                    "action_path": f"/absence-reports/{report.id}",
+                },
+                "calendar_before_image": list(before_image),
+                "guard_snapshot": guard_snapshot,
+            }
+            absence.record_consequence_source(
+                audit_event_id=audit_id,
+                report_id=report.id,
+                report_version=updated_report.version,
+                assignment_id=assignment.id,
+                assignment_revision=assignment.revision + 1,
+                source_json=json.dumps(
+                    source, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+                ),
+                created_at=stamp,
+            )
+            result = absence_service._required_view(absence, report.id)
+        if self._absence_consequences is not None:
+            self._absence_consequences.process_due(now=current)
+        return result
+
+    def reopen_absence(
+        self,
+        scope: AuthorizationScope,
+        report_id: int,
+        payload: dict[str, Any],
+        absence_service,
+        *,
+        now: datetime | None = None,
+    ) -> dict[str, Any]:
+        """Restore the Planning-owned original assignment and freeze its replay source."""
+        current = now or datetime.now(UTC)
+        current = current.replace(tzinfo=UTC) if current.tzinfo is None else current.astimezone(UTC)
+        stamp = current.replace(microsecond=0).isoformat()
+        reason = absence_service._required_reason(payload)
+        calendar_enabled = False
+        with self._unit_of_work_factory() as unit_of_work:
+            absence = unit_of_work.absence
+            report, day, round_row = absence_service._authorized_report(absence, scope, report_id)
+            unit_of_work.execution.assert_mutation_allowed(
+                MutationLockCommand(MutationLockKind.ABSENCE_REPORT, report.id, payload)
+            )
+            actor_id = scope.member_for_committee(round_row.committee_id)
+            if not scope.can_manage_committee(round_row.committee_id):
+                raise PermissionError("Nur Vorsitz oder Stellvertretung dürfen wieder öffnen")
+            assignment = absence.assignment(report.exam_day_assignment_id)
+            if assignment is None:
+                raise ValueError("Besetzung nicht gefunden")
+            absence_service._assert_before_start(absence, day, assignment, current)
+            if report.status not in {"replacement_selected", "resolved", "exam_day_cancelled"}:
+                raise ValueError("Die Ausfallmeldung ist nicht wieder zu öffnen")
+            actor_id = actor_id or report.committee_member_id
+            day_guard = absence.guard_day_mutation(
+                day_id=day.id,
+                kind="absence",
+                entity_id=report.id,
+                payload=payload,
+                actor_member_id=actor_id,
+            )
+            calendar_enabled = (
+                day.closure_status == "open" and report.selected_replacement_member_id is not None
+            )
+            before_image = (
+                unit_of_work.calendar_lifecycle.assignment_before_image(assignment.id)
+                if calendar_enabled
+                else ()
+            )
+            restored = (
+                unit_of_work.planning_lifecycle.restore_absence_assignment(
+                    assignment.id,
+                    expected_revision=assignment.revision,
+                    expected_member_id=assignment.committee_member_id,
+                    member_id=report.committee_member_id,
+                    now=stamp,
+                )
+                if report.selected_replacement_member_id is not None
+                else unit_of_work.planning_lifecycle.reassign_absence_assignment(
+                    assignment.id,
+                    expected_revision=assignment.revision,
+                    expected_member_id=assignment.committee_member_id,
+                    member_id=assignment.committee_member_id,
+                    now=stamp,
+                )
+            )
+            if not restored:
+                raise ExamRoundConflictError("Die Besetzung wurde zwischenzeitlich geändert")
+            old_status = report.status
+            updated_report = absence.update_report(
+                report.id,
+                status="replacement_requested",
+                current=stamp,
+                selected_replacement_member_id=None,
+                update_selected_replacement=True,
+                increment_version=True,
+            )
+            audit_id = absence.insert_audit(
+                report_id=report.id,
+                actor_member_id=actor_id,
+                event_type="reopened",
+                from_status=old_status,
+                to_status=updated_report.status,
+                created_at=stamp,
+                details={"reason": reason},
+            )
+            guard_snapshot = absence.day_guard_snapshot(day_guard)
+            absence.complete_day_mutation(day_guard, actor_member_id=actor_id, reason=reason)
+            recipients = {report.committee_member_id, report.reported_by_member_id} | set(
+                absence.notification_recipients(round_row.committee_id)
+            )
+            if report.selected_replacement_member_id is not None:
+                recipients.add(report.selected_replacement_member_id)
+            source = {
+                "format": "lzug-absence-consequence-source-v1",
+                "origin_id": f"absence-audit:{audit_id}",
+                "report_id": report.id,
+                "report_version": updated_report.version,
+                "assignment_id": assignment.id,
+                "previous_member_id": assignment.committee_member_id,
+                "selected_member_id": report.committee_member_id,
+                "assignment_revision": assignment.revision
+                + int(report.selected_replacement_member_id is not None),
+                "day_id": day.id,
+                "day_closure_status": day.closure_status,
+                "calendar_enabled": calendar_enabled,
+                "round_id": round_row.id,
+                "committee_id": round_row.committee_id,
+                "recipient_member_ids": sorted(recipients),
+                "notice": {
+                    "origin_key": f"absence-report:{report.id}:absence_reopened",
+                    "event_type": "absence_reopened",
+                    "title": "Ausfallmeldung wieder geöffnet",
+                    "message": "Der Ausfallprozess wurde wieder geöffnet.",
+                    "action_path": f"/absence-reports/{report.id}",
+                },
+                "calendar_before_image": list(before_image),
+                "guard_snapshot": guard_snapshot,
+            }
+            absence.record_consequence_source(
+                audit_event_id=audit_id,
+                report_id=report.id,
+                report_version=updated_report.version,
+                assignment_id=assignment.id,
+                assignment_revision=int(source["assignment_revision"]),
+                source_json=json.dumps(
+                    source, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+                ),
+                created_at=stamp,
+            )
+            result = absence_service._required_view(absence, report.id)
+        if self._absence_consequences is not None:
+            self._absence_consequences.process_due(now=current)
+        return result
+
+    def cancel_absence(
+        self,
+        scope: AuthorizationScope,
+        report_id: int,
+        payload: dict[str, Any],
+        absence_service,
+        *,
+        now: datetime | None = None,
+    ) -> dict[str, Any]:
+        """Atomically cancel the report, advance the assignment, and freeze replay."""
+        current = now or datetime.now(UTC)
+        current = current.replace(tzinfo=UTC) if current.tzinfo is None else current.astimezone(UTC)
+        stamp = current.replace(microsecond=0).isoformat()
+        reason = absence_service._required_reason(payload)
+        with self._unit_of_work_factory() as unit_of_work:
+            absence = unit_of_work.absence
+            report, day, round_row = absence_service._authorized_report(absence, scope, report_id)
+            unit_of_work.execution.assert_mutation_allowed(
+                MutationLockCommand(MutationLockKind.ABSENCE_REPORT, report.id, payload)
+            )
+            if not scope.can_manage_committee(round_row.committee_id):
+                raise PermissionError("Nur Vorsitz oder Stellvertretung dürfen Slots absagen")
+            if report.status in {"withdrawn", "exam_day_cancelled"}:
+                raise ValueError("Die Ausfallmeldung ist bereits abgeschlossen")
+            assignment = absence.assignment(report.exam_day_assignment_id)
+            if assignment is None:
+                raise ValueError("Besetzung nicht gefunden")
+            absence_service._assert_before_start(absence, day, assignment, current)
+            actor_id = (
+                scope.member_for_committee(round_row.committee_id) or report.committee_member_id
+            )
+            day_guard = absence.guard_day_mutation(
+                day_id=day.id,
+                kind="absence",
+                entity_id=report.id,
+                payload=payload,
+                actor_member_id=actor_id,
+            )
+            calendar_enabled = day.closure_status == "open"
+            before_image = (
+                unit_of_work.calendar_lifecycle.assignment_before_image(assignment.id)
+                if calendar_enabled
+                else ()
+            )
+            if not unit_of_work.planning_lifecycle.reassign_absence_assignment(
+                assignment.id,
+                expected_revision=assignment.revision,
+                expected_member_id=assignment.committee_member_id,
+                member_id=assignment.committee_member_id,
+                now=stamp,
+            ):
+                raise ExamRoundConflictError("Die Besetzung wurde zwischenzeitlich geändert")
+            updated_report = absence.update_report(
+                report.id,
+                status="exam_day_cancelled",
+                current=stamp,
+                increment_version=True,
+            )
+            audit_id = absence.insert_audit(
+                report_id=report.id,
+                actor_member_id=actor_id,
+                event_type="cancelled",
+                from_status=report.status,
+                to_status=updated_report.status,
+                created_at=stamp,
+                details={"reason": reason},
+            )
+            guard_snapshot = absence.day_guard_snapshot(day_guard)
+            absence.complete_day_mutation(day_guard, actor_member_id=actor_id, reason=reason)
+            source = {
+                "format": "lzug-absence-consequence-source-v1",
+                "origin_id": f"absence-audit:{audit_id}",
+                "report_id": report.id,
+                "report_version": updated_report.version,
+                "assignment_id": assignment.id,
+                "previous_member_id": assignment.committee_member_id,
+                "selected_member_id": assignment.committee_member_id,
+                "assignment_revision": assignment.revision + 1,
+                "day_id": day.id,
+                "day_closure_status": day.closure_status,
+                "calendar_enabled": calendar_enabled,
+                "calendar_action": "cancel",
+                "round_id": round_row.id,
+                "committee_id": round_row.committee_id,
+                "recipient_member_ids": [],
+                "notice": {
+                    "event_type": "exam_day_cancelled",
+                    "title": "Prüfungsslot abgesagt",
+                    "message": "Der Prüfungsslot wurde abgesagt.",
+                    "action_path": f"/absence-reports/{report.id}",
+                },
+                "calendar_before_image": list(before_image),
+                "guard_snapshot": guard_snapshot,
+            }
+            absence.record_consequence_source(
+                audit_event_id=audit_id,
+                report_id=report.id,
+                report_version=updated_report.version,
+                assignment_id=assignment.id,
+                assignment_revision=assignment.revision + 1,
+                source_json=json.dumps(
+                    source, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+                ),
+                created_at=stamp,
+            )
+            result = absence_service._required_view(absence, report.id)
+        if self._absence_consequences is not None:
+            self._absence_consequences.process_due(now=current)
+        return result
 
     def set_exam_round_candidate_terminal_status(
         self, scope: AuthorizationScope, round_id: int, candidate_id: int, payload: dict[str, Any]
