@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 import unittest
 from datetime import UTC, datetime
 from http import HTTPStatus
@@ -21,12 +22,14 @@ from backend.execution.absence import AbsenceService
 from backend.identity.authorization import AuthorizationScope
 from backend.persistence.absence_uow import SQLiteAbsenceUnitOfWorkFactory
 from backend.persistence.application_consequences import (
+    AbsenceConsequenceCutover,
     AbsenceConsequenceSource,
     PlanConsequence,
     PlanConsequenceBatch,
 )
-from backend.persistence.database import session_scope
+from backend.persistence.database import initialize, session_scope
 from backend.persistence.models import (
+    AbsenceAuditEvent,
     CalendarEvent,
     ExamDay,
     ExamDayAssignment,
@@ -117,6 +120,12 @@ class AbsenceServiceTests(unittest.TestCase):
                 .one()
                 .id
             )
+            self.other_assignment_id = (
+                session.query(ExamDayAssignment)
+                .filter_by(exam_day_id=day.id, committee_member_id=3)
+                .one()
+                .id
+            )
             availability = (
                 session.query(MemberAvailability)
                 .filter_by(exam_round_id=1, committee_member_id=7, candidate_exam_day_id=1)
@@ -143,6 +152,85 @@ class AbsenceServiceTests(unittest.TestCase):
                 calendar_service=self.calendar_service,
             ),
         )
+
+    def test_migration_029_cuts_over_legacy_absence_audit_without_replay(self) -> None:
+        service = self.absence_service()
+        current = datetime(2026, 11, 1, tzinfo=UTC)
+        legacy_report = service.report(
+            scope(1),
+            {"exam_day_id": self.day_id, "exam_day_assignment_id": self.assignment_id},
+            now=current,
+        )
+        with session_scope(self.db_path) as session:
+            legacy_audit_id = (
+                session.query(AbsenceAuditEvent.id)
+                .filter_by(absence_report_id=legacy_report["id"])
+                .scalar()
+            )
+
+        # Recreate the database shape immediately before migration 029 while
+        # retaining the historical absence report and audit event.
+        with sqlite3.connect(self.db_path) as connection:
+            connection.executescript("""
+                DROP TRIGGER IF EXISTS absence_consequence_source_no_update;
+                DROP TRIGGER IF EXISTS absence_consequence_source_no_delete;
+                DROP TABLE absence_consequence_source;
+                DROP TABLE absence_consequence_cutover;
+                DROP TABLE calendar_assignment_execution_origin;
+                ALTER TABLE exam_day_assignment DROP COLUMN revision;
+                DELETE FROM schema_migration_checksum
+                  WHERE name = '029_add_absence_consequence_sources.sql';
+                DELETE FROM schema_migration
+                  WHERE name = '029_add_absence_consequence_sources.sql';
+            """)
+
+        initialize(self.db_path)
+        with session_scope(self.db_path) as session:
+            cutover = session.get(AbsenceConsequenceCutover, 1)
+            self.assertIsNotNone(cutover)
+            assert cutover is not None
+            self.assertEqual(legacy_audit_id, cutover.audit_watermark)
+
+        lifecycle_factory = exam_lifecycle_unit_of_work_factory(self.db_path)
+        processor = AbsenceConsequenceApplication(
+            unit_of_work_factory=lifecycle_factory,
+            consequence_store=application_consequence_store(self.db_path),
+            notification_service=notification_service_for_test(self.db_path),
+            calendar_service=self.calendar_service,
+        )
+        legacy_only = processor.process_due(now=current)
+        self.assertEqual(0, legacy_only["sources"])
+        self.assertEqual(1, legacy_only["legacy_unreplayable"])
+        with session_scope(self.db_path) as session:
+            self.assertEqual(0, session.query(PlanConsequenceBatch).count())
+
+        post_cutover_report = service.report(
+            scope(1, management=True),
+            {"exam_day_id": self.day_id, "exam_day_assignment_id": self.other_assignment_id},
+            now=current,
+        )
+        with session_scope(self.db_path) as session:
+            post_cutover_audit_id = (
+                session.query(AbsenceAuditEvent.id)
+                .filter_by(absence_report_id=post_cutover_report["id"])
+                .scalar()
+            )
+        post_cutover = processor.process_due(now=current)
+        self.assertEqual(1, post_cutover["sources"])
+        self.assertEqual(1, post_cutover["legacy_unreplayable"])
+        with session_scope(self.db_path) as session:
+            origins = session.query(PlanConsequenceBatch.origin_key).all()
+            self.assertEqual(
+                [f"absence-audit:{post_cutover_audit_id}"],
+                [origin for (origin,) in origins],
+            )
+
+        initialize(self.db_path)
+        replay = processor.process_due(now=current)
+        self.assertEqual(1, replay["sources"])
+        self.assertEqual(1, replay["legacy_unreplayable"])
+        with session_scope(self.db_path) as session:
+            self.assertEqual(1, session.query(PlanConsequenceBatch).count())
 
     def test_report_uses_exclusive_fallback_window_and_audit_history(self) -> None:
         result = self.absence_service().report(
