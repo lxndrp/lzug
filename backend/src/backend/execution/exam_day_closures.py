@@ -241,7 +241,7 @@ class ExamDayClosureService:
                 replayed=True,
             )
         reopening = self._prepare_closure(session, day, expected_revision)
-        evaluation = self._evaluate(facts, day.id)
+        evaluation = evaluate_day_closure(facts, day.id)
         ready_key = "regular_close_ready" if closure_type == "regular" else "exception_close_ready"
         if not evaluation[ready_key]:
             raise ExamDayValidationError(
@@ -800,10 +800,6 @@ class ExamDayClosureService:
         day = export["exam_day"]
         closure = export["closure"]
         return render_day_closure_export(day, closure)
-
-    def _evaluate(self, facts: DayClosureFacts, day_id: int) -> dict[str, Any]:
-        """Compatibility wrapper for the detached closure readiness policy."""
-        return evaluate_day_closure(facts, day_id)
 
     def _impact(
         self,

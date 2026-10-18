@@ -16,7 +16,11 @@ from backend.composition import (
     identity_lifecycle_work_factory,
     planning_lifecycle_work_factory,
 )
-from backend.execution.day_closure_policy import ExamDayClosurePolicy, day_closure_view
+from backend.execution.day_closure_policy import (
+    ExamDayClosurePolicy,
+    day_closure_view,
+    evaluate_day_closure,
+)
 from backend.execution.exam_day_closures import (
     ExamDayClosureService,
 )
@@ -299,13 +303,6 @@ class ExamDayClosureTests(unittest.TestCase):
             self.assertEqual(before.revision + 1, session.get(ExamRound, 1).revision)
 
     def test_closure_evaluation_keeps_finding_order(self) -> None:
-        service = ExamDayClosureService(
-            self.db_path,
-            notification_service=notification_service_for_test(self.db_path),
-            assessment_lifecycle_factory=SQLiteAssessmentLifecycleAdapter(),
-            planning_lifecycle_work_factory=planning_lifecycle_work_factory(),
-            identity_lifecycle_work_factory=identity_lifecycle_work_factory(),
-        )
         factory = SQLiteExamLifecycleUnitOfWorkFactory(
             SQLiteExecutionUnitOfWorkFactory(
                 self.db_path,
@@ -317,7 +314,7 @@ class ExamDayClosureTests(unittest.TestCase):
         )
         with factory.read_scope() as unit_of_work:
             facts = ExamLifecycleApplication._day_closure_facts(unit_of_work, 2, 1)
-            evaluation = service._evaluate(facts, 2)
+            evaluation = evaluate_day_closure(facts, 2)
         self.assertEqual(
             [
                 "day_has_slots",
