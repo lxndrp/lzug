@@ -152,11 +152,10 @@ class _SQLiteExamLifecycleExecution:
     def assert_mutation_allowed(self, service, command) -> None:
         service.assert_mutation_allowed_in_session(self._session, command)
 
-    def read_day_closure(self, service, scope, day_id: int, facts):
-        snapshot = SQLiteExamDayClosureReadSnapshotReader(
-            self._session
-        ).load_day_closure_read_snapshot(day_id)
-        return service.get_from_read_snapshot(scope, facts, snapshot)
+    def day_closure_read_snapshot(self, day_id: int):
+        return SQLiteExamDayClosureReadSnapshotReader(self._session).load_day_closure_read_snapshot(
+            day_id
+        )
 
     def round_lifecycle_read_snapshot(self, round_id: int):
         return SQLiteExamRoundLifecycleReadSnapshotReader(

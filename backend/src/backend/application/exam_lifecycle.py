@@ -19,6 +19,7 @@ from backend.application.exam_lifecycle_ports import (
     ExamLifecycleUnitOfWork,
     ExamLifecycleUnitOfWorkFactory,
 )
+from backend.execution.day_closure_policy import day_closure_view
 from backend.execution.exam_day_closures import ExamDayClosureService
 from backend.execution.exam_round_lifecycle import ExamRoundLifecycleService
 from backend.execution.lifecycle_ports import MutationLockCommand, MutationLockKind
@@ -40,7 +41,6 @@ class ExamLifecycleApplication:
         self._round_lifecycle_service_factory = round_lifecycle_service_factory
 
     def get_exam_day_closure(self, scope: AuthorizationScope, day_id: int) -> dict[str, Any] | None:
-        service = self._day_closure_service_factory()
         with self._unit_of_work_factory.read_scope() as unit_of_work:
             round_id = unit_of_work.execution.exam_day_round_id(day_id)
             if round_id is None:
@@ -49,7 +49,9 @@ class ExamLifecycleApplication:
             if committee_id is None or not scope.can_read_committee(committee_id):
                 raise PermissionError("Forbidden.")
             facts = self._day_closure_facts(unit_of_work, day_id, round_id, committee_id)
-            return unit_of_work.execution.read_day_closure(service, scope, day_id, facts)
+            return day_closure_view(
+                scope, facts, unit_of_work.execution.day_closure_read_snapshot(day_id)
+            )
 
     def get_exam_round_lifecycle(
         self, scope: AuthorizationScope, round_id: int
@@ -185,7 +187,9 @@ class ExamLifecycleApplication:
                 service, scope, day_id, command, facts
             )
             outcome = unit_of_work.execution.apply_day_close(service, scope, intent, facts)
-            response = unit_of_work.execution.read_day_closure(service, scope, day_id, facts)
+            response = day_closure_view(
+                scope, facts, unit_of_work.execution.day_closure_read_snapshot(day_id)
+            )
             if response is None:
                 raise RuntimeError("Closed exam day disappeared before its response was read")
         service.publish_close_notifications(outcome)
@@ -243,7 +247,9 @@ class ExamLifecycleApplication:
                 outcome = unit_of_work.execution.complete_day_reopen(
                     service, scope, handle, facts, corrections
                 )
-            response = unit_of_work.execution.read_day_closure(service, scope, day_id, facts)
+            response = day_closure_view(
+                scope, facts, unit_of_work.execution.day_closure_read_snapshot(day_id)
+            )
             if response is None:
                 raise RuntimeError("Reopened exam day disappeared before its response was read")
         service.publish_reopening_notifications(outcome)

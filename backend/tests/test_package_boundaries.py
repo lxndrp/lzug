@@ -935,6 +935,19 @@ class BackendPackageBoundaryTests(unittest.TestCase):
             },
             set(ProtocolReferencesSnapshot.__annotations__),
         )
+        pure_policy = BACKEND_ROOT / "execution" / "day_closure_policy.py"
+        pure_imports = _imported_modules(pure_policy, BACKEND_ROOT)
+        self.assertFalse(
+            {
+                module
+                for module in pure_imports
+                if module == "sqlalchemy"
+                or module.startswith("sqlalchemy.")
+                or module.startswith("backend.persistence")
+                or module.startswith("backend.presentation")
+            }
+        )
+
         closure_service = BACKEND_ROOT / "execution" / "exam_day_closures.py"
         closure_tree = ast.parse(closure_service.read_text(encoding="utf-8"))
         closure_functions = {

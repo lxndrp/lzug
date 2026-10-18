@@ -16,6 +16,7 @@ from backend.application.exam_lifecycle_contracts import (
     RoundReopenCommand,
 )
 from backend.assessment.ports import AssessmentUnitOfWork
+from backend.execution.day_closure_snapshot import ExamDayClosureReadSnapshot
 from backend.execution.exam_day_closures import (
     ExamDayClosureIntent,
     ExamDayClosureOutcome,
@@ -51,13 +52,7 @@ class ExamLifecycleExecutionUnitOfWork(ExecutionUnitOfWork, Protocol):
         command: MutationLockCommand,
     ) -> None: ...
 
-    def read_day_closure(
-        self,
-        service: ExamDayClosureService,
-        scope: AuthorizationScope,
-        day_id: int,
-        facts: DayClosureFacts,
-    ) -> dict | None: ...
+    def day_closure_read_snapshot(self, day_id: int) -> ExamDayClosureReadSnapshot | None: ...
 
     def round_lifecycle_read_snapshot(
         self, round_id: int

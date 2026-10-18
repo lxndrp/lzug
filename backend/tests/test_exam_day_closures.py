@@ -16,6 +16,7 @@ from backend.composition import (
     identity_lifecycle_work_factory,
     planning_lifecycle_work_factory,
 )
+from backend.execution.day_closure_policy import day_closure_view
 from backend.execution.exam_day_closures import (
     ExamDayClosureService,
 )
@@ -176,8 +177,10 @@ class ExamDayClosureTests(unittest.TestCase):
             )
             result_by_id = unit_of_work.assessment_lifecycle.result_by_id(result_id)
             lifecycle_facts = ExamLifecycleApplication._day_closure_facts(unit_of_work, 2, 1)
-            lifecycle_day = unit_of_work.execution.read_day_closure(
-                day_closure_service, scope, 2, lifecycle_facts
+            lifecycle_day = day_closure_view(
+                scope,
+                lifecycle_facts,
+                unit_of_work.execution.day_closure_read_snapshot(2),
             )
             pending_consequence_ids = unit_of_work.consequences.pending_ids_for_round(1)
             round_facts = ExamLifecycleApplication._round_facts(unit_of_work, 1)
