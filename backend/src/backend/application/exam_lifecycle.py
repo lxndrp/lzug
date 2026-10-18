@@ -22,7 +22,9 @@ from backend.application.exam_lifecycle_ports import (
 from backend.execution.day_closure_policy import day_closure_view
 from backend.execution.exam_day_closures import ExamDayClosureService
 from backend.execution.exam_round_lifecycle import ExamRoundLifecycleService
+from backend.execution.lifecycle_errors import ExamRoundConflictError
 from backend.execution.lifecycle_ports import MutationLockCommand, MutationLockKind
+from backend.execution.round_candidate_policy import candidate_terminal_values
 from backend.execution.round_lifecycle_view import round_lifecycle_view
 from backend.identity.authorization import AuthorizationScope
 
@@ -87,9 +89,22 @@ class ExamLifecycleApplication:
                 service,
                 MutationLockCommand(MutationLockKind.ROUND_CANDIDATE, candidate_id, payload),
             )
-            unit_of_work.execution.set_round_candidate_terminal_status(
-                service, scope, round_id, candidate_id, payload
+            facts = self._round_facts(unit_of_work, round_id)
+            expected_revision, transition = candidate_terminal_values(
+                scope, facts, candidate_id, payload
             )
+            if not unit_of_work.planning_lifecycle.update_candidate_terminal(
+                transition["round_id"],
+                transition["round_candidate_id"],
+                transition["values"],
+                ended_at=transition["ended_at"],
+                change_reason=transition["change_reason"],
+            ):
+                raise ValueError("Prüfling gehört nicht zur Prüfungsrunde")
+            if not unit_of_work.planning_lifecycle.advance_round_lifecycle(
+                round_id, expected_revision, transition["values"]["updated_at"]
+            ):
+                raise ExamRoundConflictError("Die Prüfungsrunde wurde zwischenzeitlich geändert")
             response = self._read_round_lifecycle_response(unit_of_work, scope, round_id)
         return response
 
@@ -349,8 +364,6 @@ class ExamLifecycleApplication:
                 if not unit_of_work.planning_lifecycle.advance_round_lifecycle(
                     round_id, command.revision, intent.now, lifecycle_status=lifecycle_status
                 ):
-                    from backend.execution.exam_round_lifecycle import ExamRoundConflictError
-
                     raise ExamRoundConflictError(
                         "Die Prüfungsrunde wurde zwischenzeitlich geändert"
                     )
@@ -422,8 +435,6 @@ class ExamLifecycleApplication:
             if intent.replayed:
                 outcome = unit_of_work.execution.replay_round_reopen(service, scope, intent, facts)
             else:
-                from backend.execution.exam_round_lifecycle import ExamRoundConflictError
-
                 if not unit_of_work.planning_lifecycle.advance_round_lifecycle(
                     round_id, command.revision, intent.now, lifecycle_status="reopening"
                 ):

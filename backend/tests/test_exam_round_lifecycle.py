@@ -18,7 +18,8 @@ from backend.composition import (
     planning_lifecycle_work_factory,
 )
 from backend.execution.exam_day_closures import ExamDayClosureService
-from backend.execution.exam_round_lifecycle import ExamRoundConflictError, ExamRoundLifecycleService
+from backend.execution.exam_round_lifecycle import ExamRoundLifecycleService
+from backend.execution.lifecycle_errors import ExamRoundConflictError
 from backend.persistence.assessment import SQLiteAssessmentUnitOfWorkFactory
 from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.persistence.database import session_scope

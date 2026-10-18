@@ -162,13 +162,6 @@ class _SQLiteExamLifecycleExecution:
             self._session
         ).load_round_lifecycle_read_snapshot(round_id)
 
-    def set_round_candidate_terminal_status(
-        self, service, scope, round_id: int, candidate_id: int, payload
-    ):
-        return service.set_candidate_terminal_status_command_in_session(
-            self._session, scope, round_id, candidate_id, payload
-        )
-
     def delete_empty_draft_round(self, service, scope, round_id: int):
         return service.delete_empty_draft_in_session(self._session, scope, round_id)
 

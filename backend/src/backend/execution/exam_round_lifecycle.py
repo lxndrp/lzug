@@ -12,6 +12,7 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from backend.execution.lifecycle_errors import ExamRoundConflictError
 from backend.execution.lifecycle_ports import (
     AssessmentLifecycleWork,
     AssessmentLifecycleWorkFactory,
@@ -75,10 +76,6 @@ TERMINAL_ABSENCE_STATUSES = {
     "withdrawn",
     "exam_day_cancelled",
 }
-
-
-class ExamRoundConflictError(ValueError):
-    """Signal a stale, duplicate-different, or parallel lifecycle command."""
 
 
 class ExamRoundValidationError(ValueError):
@@ -662,99 +659,6 @@ class ExamRoundLifecycleService:
         ):
             export.superseded_at = now
             export.superseded_by_revision = exam_round.revision
-
-    def set_candidate_terminal_status_command_in_session(
-        self,
-        session: Session,
-        scope: AuthorizationScope,
-        round_id: int,
-        round_candidate_id: int,
-        payload: dict[str, Any],
-    ) -> None:
-        expected_revision = self._required_revision(payload)
-        status = payload.get("terminal_status")
-        if status not in TERMINAL_CANDIDATE_STATUSES | {"open"}:
-            raise ValueError("Unbekannter abschließender Kandidatenstatus")
-        planning = self.planning_lifecycle_work_factory(session)
-        exam_round = self._required_round(planning, round_id)
-        self._require_management(exam_round, scope)
-        candidate = planning.round_candidate(round_id, round_candidate_id)
-        if candidate is None:
-            raise ValueError("Prüfling gehört nicht zur Prüfungsrunde")
-        self._require_mutable_scope(
-            session, exam_round, _token("candidate_assignment", candidate["id"])
-        )
-        if exam_round.revision != expected_revision:
-            raise ExamRoundConflictError("Die Prüfungsrunde wurde zwischenzeitlich geändert")
-        reason = self._optional_text(payload.get("reason"), 3000)
-        target_round_id = payload.get("effective_new_round_id")
-        postponed_until = self._optional_text(payload.get("postponed_until"), 100)
-        ihk_reference = self._optional_text(payload.get("ihk_decision_reference"), 1000)
-        self._require_terminal_details(
-            status, reason, target_round_id, postponed_until, ihk_reference
-        )
-        if status == "result_communicated":
-            self._assert_result_communicated(session, candidate)
-        elif status == "transferred":
-            if not isinstance(target_round_id, int) or isinstance(target_round_id, bool):
-                raise ValueError("Ein Ausschusswechsel benötigt eine wirksame neue Runde")
-            self._require_effective_transfer(planning, exam_round, candidate, target_round_id)
-        now = _now()
-        values = {
-            "terminal_status": status,
-            "terminal_reason": reason,
-            "effective_new_round_id": target_round_id if status == "transferred" else None,
-            "postponed_until": postponed_until if status == "postponed" else None,
-            "ihk_decision_reference": ihk_reference if status == "ihk_terminated" else None,
-            "terminal_at": now if status != "open" else None,
-            "updated_at": now,
-        }
-        ends_assignment = status in {"transferred", "postponed", "ihk_terminated"}
-        if ends_assignment:
-            values["is_active"] = 0
-        if not planning.update_candidate_terminal(
-            round_id,
-            candidate["id"],
-            values,
-            ended_at=now if ends_assignment else None,
-            change_reason=reason,
-        ):
-            raise ValueError("Prüfling gehört nicht zur Prüfungsrunde")
-        if not planning.advance_round_lifecycle(round_id, expected_revision, now):
-            raise ExamRoundConflictError("Die Prüfungsrunde wurde zwischenzeitlich geändert")
-        session.flush()
-
-    @staticmethod
-    def _require_terminal_details(
-        status: str,
-        reason: str | None,
-        target_round_id: Any,
-        postponed_until: str | None,
-        ihk_reference: str | None,
-    ) -> None:
-        """Decide required terminal evidence without reading or mutating persistence."""
-        if status == "transferred":
-            if reason is None or not isinstance(target_round_id, int):
-                raise ValueError("Ein Ausschusswechsel benötigt Grund und wirksame neue Runde")
-        elif status == "postponed":
-            if reason is None or postponed_until is None:
-                raise ValueError("Eine Verschiebung benötigt Grund und verbindlichen Termin")
-        elif status == "ihk_terminated":
-            if reason is None or ihk_reference is None:
-                raise ValueError("Die IHK-Entscheidung benötigt Grund und Referenz")
-
-    @staticmethod
-    def _require_effective_transfer(
-        planning: PlanningLifecycleWork,
-        exam_round: PlanningRoundLifecycleSnapshot,
-        candidate: dict[str, Any],
-        target_round_id: int,
-    ) -> None:
-        """Check the effective target assignment in the terminal transition's transaction."""
-        if target_round_id == exam_round.id or not planning.effective_transfer_exists(
-            exam_round.exam_half_year_id, target_round_id, candidate["candidate_id"]
-        ):
-            raise ValueError("Die neue Zuordnung ist nicht wirksam")
 
     def delete_empty_draft_in_session(
         self, session: Session, scope: AuthorizationScope, round_id: int

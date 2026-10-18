@@ -58,15 +58,6 @@ class ExamLifecycleExecutionUnitOfWork(ExecutionUnitOfWork, Protocol):
         self, round_id: int
     ) -> ExamRoundLifecycleReadSnapshot | None: ...
 
-    def set_round_candidate_terminal_status(
-        self,
-        service: ExamRoundLifecycleService,
-        scope: AuthorizationScope,
-        round_id: int,
-        candidate_id: int,
-        payload: dict,
-    ) -> None: ...
-
     def delete_empty_draft_round(
         self, service: ExamRoundLifecycleService, scope: AuthorizationScope, round_id: int
     ) -> bool: ...
