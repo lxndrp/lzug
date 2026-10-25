@@ -189,10 +189,48 @@ function numberRecord(value: unknown, field: string): Record<string, number> {
 
 function toPlanningBoard(board: ApiPlanningBoard): PlanningBoard {
   return {
-    ...board,
-    days: board.days.map((view) => ({
-      ...view,
-      ...(view.location ? { location: toPlanningLocation(view.location) } : {}),
+    days: board.days.map(({ day, slots, assignments, location }) => ({
+      day: {
+        id: day.id,
+        exam_round_id: day.exam_round_id,
+        location_id: day.location_id,
+        date: day.date,
+        status: day.status,
+        lunch_break_enabled: day.lunch_break_enabled,
+      },
+      slots: slots.map((slot) => ({
+        id: slot.id,
+        exam_day_id: slot.exam_day_id,
+        round_candidate_id: slot.round_candidate_id,
+        slot_type: slot.slot_type,
+        starts_at: slot.starts_at,
+        ends_at: slot.ends_at,
+        sequence_number: slot.sequence_number,
+        status: slot.status,
+      })),
+      assignments: assignments.map((assignment) => ({
+        id: assignment.id,
+        exam_day_id: assignment.exam_day_id,
+        committee_member_id: assignment.committee_member_id,
+        assignment_role: assignment.assignment_role,
+        day_part: assignment.day_part,
+        fallback_status: assignment.fallback_status,
+      })),
+      ...(location ? { location: toPlanningLocation(location) } : {}),
+    })),
+    members: board.members.map((member) => ({
+      id: member.id,
+      person_id: member.person_id,
+      committee_id: member.committee_id,
+      first_name: member.first_name,
+      last_name: member.last_name,
+      member_status: member.member_status,
+      committee_role: member.committee_role,
+      representing_side: member.representing_side,
+      email: member.email,
+      email_verified_at: member.email_verified_at ?? null,
+      mobile: member.mobile,
+      is_active: member.is_active,
     })),
     candidates: board.candidates.map(({ candidate, roundCandidate }) => ({
       candidate: projectCandidate(candidate),
@@ -231,6 +269,24 @@ function toPlanningBoard(board: ApiPlanningBoard): PlanningBoard {
                 : {}),
             },
           }
+        : {}),
+    })),
+    candidateDays: board.candidateDays.map((day) => ({
+      id: day.id,
+      exam_round_id: day.exam_round_id,
+      date: day.date,
+      is_active: day.is_active,
+    })),
+    availabilities: board.availabilities.map((availability) => ({
+      id: availability.id,
+      ...(availability.exam_round_id !== undefined
+        ? { exam_round_id: availability.exam_round_id }
+        : {}),
+      committee_member_id: availability.committee_member_id,
+      candidate_exam_day_id: availability.candidate_exam_day_id,
+      availability: availability.availability,
+      ...(availability.responded_at !== undefined
+        ? { responded_at: availability.responded_at }
         : {}),
     })),
     locations: board.locations.map(toPlanningLocation),

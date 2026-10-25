@@ -175,6 +175,30 @@ assert.equal(
   'composition root binds the planning port to its HTTP adapter',
 );
 
+const dashboardPortPath = path.join(root, 'dashboard', 'dashboard-projection.port.ts');
+const dashboardComponentPath = path.join(root, 'dashboard', 'dashboard.component.ts');
+const dashboardServicePath = path.join(root, 'dashboard', 'dashboard-projection.service.ts');
+const [dashboardPort, dashboardComponent, dashboardService] = await Promise.all(
+  [dashboardPortPath, dashboardComponentPath, dashboardServicePath].map((file) =>
+    readFile(file, 'utf8'),
+  ),
+);
+assert.doesNotMatch(
+  importsOf(dashboardPort),
+  /(?:^|\/)(?:api|planning)(?:\/|\.)/,
+  'dashboard port owns its read models instead of depending on API or planning feature models',
+);
+assert.doesNotMatch(
+  importsOf(dashboardComponent),
+  /(?:^|\/)(?:api|planning)(?:\/|\.)/,
+  'dashboard presentation uses dashboard-owned read models',
+);
+assert.doesNotMatch(
+  importsOf(dashboardService),
+  /(?:master-data|planning)\.models/,
+  'dashboard projection service uses dashboard-owned read models',
+);
+
 assert.doesNotMatch(
   appFiles.filter((file) => !file.endsWith('.spec.ts')).join('\n'),
   /ApplicationWorkspaceService|WORKSPACE_PORT|HttpWorkspaceAdapter/,

@@ -13,6 +13,18 @@ describe('HttpPlanningAdapter', () => {
   it('projects nested HAL links out of planning feature data', async () => {
     const boardWithLinks = {
       ...planningBoardFixture,
+      members: planningBoardFixture.members.map((member) => ({
+        ...member,
+        _links: { self: { href: `/members/${member.id}` } },
+      })),
+      candidateDays: planningBoardFixture.candidateDays.map((day) => ({
+        ...day,
+        _links: { self: { href: `/candidate-days/${day.id}` } },
+      })),
+      availabilities: planningBoardFixture.availabilities.map((availability) => ({
+        ...availability,
+        _links: { self: { href: `/availabilities/${availability.id}` } },
+      })),
       candidates: planningBoardFixture.candidates.map((view, index) =>
         index === 0
           ? {
@@ -35,6 +47,15 @@ describe('HttpPlanningAdapter', () => {
       })),
       days: planningBoardFixture.days.map((view) => ({
         ...view,
+        day: { ...view.day, _links: { self: { href: '/day' } } },
+        slots: view.slots.map((slot) => ({
+          ...slot,
+          _links: { self: { href: `/slots/${slot.id}` } },
+        })),
+        assignments: view.assignments.map((assignment) => ({
+          ...assignment,
+          _links: { self: { href: `/assignments/${assignment.id}` } },
+        })),
         ...(view.location
           ? { location: { ...view.location, _links: { self: { href: '/day-location' } } } }
           : {}),
@@ -80,6 +101,12 @@ describe('HttpPlanningAdapter', () => {
     expect(result.summary).not.toHaveProperty('_links');
     expect(result.board).toEqual(planningBoardFixture);
     expect(result.board.candidates[0].roundCandidate).not.toHaveProperty('_links');
+    expect(result.board.members[0]).not.toHaveProperty('_links');
+    expect(result.board.candidateDays[0]).not.toHaveProperty('_links');
+    expect(result.board.availabilities[0]).not.toHaveProperty('_links');
+    expect(result.board.days[0].day).not.toHaveProperty('_links');
+    expect(result.board.days[0].slots[0]).not.toHaveProperty('_links');
+    expect(result.board.days[0].assignments[0]).not.toHaveProperty('_links');
   });
 
   it('removes transport links from all resource write results', async () => {
