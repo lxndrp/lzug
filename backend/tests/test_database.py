@@ -840,8 +840,7 @@ class DatabaseTests(unittest.TestCase):
                 )
 
             with self.assertRaises(IntegrityError):
-                connection.execute(
-                    text("""
+                connection.execute(text("""
                     INSERT INTO member_availability (
                       exam_round_id,
                       committee_member_id,
@@ -850,8 +849,7 @@ class DatabaseTests(unittest.TestCase):
                       responded_at
                     )
                     VALUES (1, 1, 1, 'full_day', NULL)
-                    """)
-                )
+                    """))
 
     def test_initialize_can_reset_existing_database(self) -> None:
         with TempDatabase(with_seed=False) as db_path:
