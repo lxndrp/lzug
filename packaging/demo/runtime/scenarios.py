@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from copy import deepcopy
+from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -10,9 +10,9 @@ from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 
+from backend.composition import planning_service
 from backend.persistence.database import session_scope
 from backend.persistence.models import AbsenceReport, ConfirmedPlanRevision, ReplacementResponse
-from backend.planning import PlanningService
 
 TIME_ZONE = ZoneInfo("Europe/Berlin")
 
@@ -172,10 +172,25 @@ def expected_plan_change(db_path: Path, runtime_profile: dict[str, Any]) -> dict
     """Return the single complete aggregate accepted by the demo allowlist."""
     round_id = runtime_profile["round_id"]
     plan = runtime_profile["plan_change"]
-    service = PlanningService(db_path)
-    payload = deepcopy(service.confirmed_plan_payload(service.get_confirmed_plan(round_id)))
-    for day in payload["exam_days"]:
-        day["location_id"] = day["room_id"]
+    service = planning_service(db_path)
+    projection = service.get_confirmed_plan(round_id)
+    payload = {
+        "round_id": projection.round_id,
+        "revision": projection.revision,
+        "exam_days": [
+            {
+                "id": day.id,
+                "candidate_exam_day_id": day.candidate_exam_day_id,
+                "date": day.date,
+                "room_id": day.room_id,
+                "location_id": day.room_id,
+                "status": day.status,
+                "slots": [asdict(slot) for slot in day.slots],
+                "assignments": [asdict(assignment) for assignment in day.assignments],
+            }
+            for day in projection.days
+        ],
+    }
     target_day = next(day for day in payload["exam_days"] if day["id"] == plan["day_id"])
     target_day["room_id"] = plan["target_location_id"]
     target_day["location_id"] = plan["target_location_id"]

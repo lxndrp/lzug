@@ -285,6 +285,9 @@ def create_app(
     app.state.exam_lifecycle_unit_of_work_factory = compose_exam_lifecycle_unit_of_work_factory(
         resolved.db_path
     )
+    app.state.exam_lifecycle_unit_of_work_factory_provider = (
+        compose_exam_lifecycle_unit_of_work_factory
+    )
     app.state.absence_unit_of_work_factory = compose_absence_unit_of_work_factory
     app.state.round_mutation_lock_checker_factory = compose_round_mutation_lock_checker
     app.state.planning_lifecycle_work_factory = compose_planning_lifecycle_work_factory()
