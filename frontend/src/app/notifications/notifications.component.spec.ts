@@ -1,22 +1,29 @@
 import { TestBed } from '@angular/core/testing';
 import { provideTaiga } from '@taiga-ui/core';
 import { provideRouter } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { AuthService } from '../auth/auth.service';
-import { PERSONAL_PORT, type PersonalPort } from '../personal/personal.port';
+import { SessionScopeService } from '../auth/session-scope.service';
+import {
+  PERSONAL_CALENDAR_PORT,
+  PERSONAL_NOTIFICATIONS_PORT,
+  type PersonalCalendarPort,
+  type PersonalNotificationsPort,
+} from '../personal/personal.port';
 import { NotificationsComponent } from './notifications.component';
 
 describe('NotificationsComponent', () => {
-  let personal: PersonalPort;
+  let personal: PersonalCalendarPort & PersonalNotificationsPort;
 
   beforeEach(async () => {
     personal = createPersonalPort();
     await TestBed.configureTestingModule({
       imports: [NotificationsComponent],
       providers: [
-        { provide: PERSONAL_PORT, useValue: personal },
+        { provide: PERSONAL_CALENDAR_PORT, useValue: personal },
+        { provide: PERSONAL_NOTIFICATIONS_PORT, useValue: personal },
         provideRouter([]),
         provideTaiga({ scrollbars: 'native' }),
       ],
@@ -61,6 +68,34 @@ describe('NotificationsComponent', () => {
     expect(content).not.toContain('Inhalt eines anderen Mitglieds');
     expect(personal.listNotifications).toHaveBeenCalledOnce();
     expect(personal.listNotificationOverview).toHaveBeenCalledOnce();
+  });
+
+  it('keeps notifications available when the independent delivery overview fails', () => {
+    personal.listNotifications = vi.fn().mockReturnValue(of([
+      { id: 9, eventType: 'test', title: 'Erreichbar', message: 'Inhalt', actionPath: '/', createdAt: '' },
+    ]));
+    personal.listNotificationOverview = vi.fn().mockReturnValue(throwError(() => new Error()));
+    const fixture = TestBed.createComponent(NotificationsComponent);
+    fixture.detectChanges();
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Erreichbar');
+    expect(text).toContain('Zustellstatus konnte nicht geladen werden.');
+    expect(text).not.toContain('Benachrichtigungen konnten nicht geladen werden.');
+  });
+
+  it('clears personal notification data and ignores a late read after logout', () => {
+    const pending = new Subject<never>();
+    personal.listNotifications = vi.fn().mockReturnValue(pending);
+    const scope = TestBed.inject(SessionScopeService);
+    scope.establish({
+      authenticated: true, account_id: 1, person_id: 2, committee_member_id: 2, is_operator: false,
+    });
+    const fixture = TestBed.createComponent(NotificationsComponent);
+    fixture.detectChanges();
+    scope.clear();
+    pending.next([{ id: 99, title: 'Alt', message: '', actionPath: '/', createdAt: '', eventType: '' }] as never);
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('Alt');
   });
 
   it('keeps push and feed management read-only without demo mutation capabilities', () => {
@@ -303,13 +338,13 @@ describe('NotificationsComponent', () => {
     fixture.detectChanges();
 
     const component = fixture.componentInstance as unknown as {
-      pushMessage(): string | null;
+      calendarError(): string | null;
     };
-    expect(component.pushMessage()).toBe('Benachrichtigungen konnten nicht geladen werden.');
+    expect(component.calendarError()).toBe('Kalenderzugang konnte nicht geladen werden.');
   });
 });
 
-function createPersonalPort(): PersonalPort {
+function createPersonalPort(): PersonalCalendarPort & PersonalNotificationsPort {
   return {
     listNotifications: vi.fn().mockReturnValue(of([])),
     listNotificationProblems: vi.fn().mockReturnValue(of([])),
@@ -351,10 +386,6 @@ function createPersonalPort(): PersonalPort {
         notice: 'revoked',
       }),
     ),
-    listAbsenceReports: vi.fn().mockReturnValue(of([])),
-    createAbsenceReport: vi.fn().mockReturnValue(of(emptyReport())),
-    answerReplacement: vi.fn().mockReturnValue(of(emptyReport())),
-    selectReplacement: vi.fn().mockReturnValue(of(emptyReport())),
     registerPushSubscription: vi.fn().mockReturnValue(of(undefined)),
   };
 }

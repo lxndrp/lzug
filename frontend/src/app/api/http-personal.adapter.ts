@@ -25,11 +25,17 @@ import type {
   PersonalNotificationChannels,
   PersonalNotificationProblem,
 } from '../personal/personal.models';
-import type { PersonalPort } from '../personal/personal.port';
+import type {
+  PersonalAbsencePort,
+  PersonalCalendarPort,
+  PersonalNotificationsPort,
+} from '../personal/personal.port';
 
 /** HTTP/OpenAPI adapter for the transport-neutral personal feature port. */
 @Injectable({ providedIn: 'root' })
-export class HttpPersonalAdapter implements PersonalPort {
+export class HttpPersonalAdapter
+  implements PersonalNotificationsPort, PersonalCalendarPort, PersonalAbsencePort
+{
   private readonly client = inject(ApiClient);
   private readonly http = inject(HttpClient);
 
