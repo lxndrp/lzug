@@ -621,10 +621,10 @@ describe('ExamDayComponent', () => {
     fixture.detectChanges();
 
     const component = fixture.componentInstance as unknown as {
-      reopeningToken: string;
+      reopeningForm: { controls: { token: { setValue(value: string): void } } };
       previewReopening(): void;
     };
-    component.reopeningToken = 'exam_protocol:41';
+    component.reopeningForm.controls.token.setValue('exam_protocol:41');
     component.previewReopening();
     fixture.componentRef.setInput('dayId', 8);
     fixture.detectChanges();
@@ -656,10 +656,10 @@ describe('ExamDayComponent', () => {
     fixture.detectChanges();
 
     const component = fixture.componentInstance as unknown as {
-      reopeningToken: string;
+      reopeningForm: { controls: { token: { setValue(value: string): void } } };
       previewReopening(): void;
     };
-    component.reopeningToken = 'exam_protocol:41';
+    component.reopeningForm.controls.token.setValue('exam_protocol:41');
     component.previewReopening();
     fixture.componentRef.setInput('dayId', 8);
     fixture.detectChanges();
@@ -676,33 +676,80 @@ describe('ExamDayComponent', () => {
   it('preserves closure and reopening drafts when refreshing the same day', () => {
     fixture.detectChanges();
     const component = fixture.componentInstance as unknown as {
-      closureType: 'regular' | 'exception';
-      closureReason: string;
-      clarificationAttempts: string;
-      reopeningToken: string;
-      reopeningOccasion: string;
-      reopeningSource: string;
-      reopeningReason: string;
+      closureForm: {
+        controls: {
+          closureType: { setValue(value: 'regular' | 'exception'): void; value: string };
+          reason: { setValue(value: string): void; value: string };
+          clarificationAttempts: { setValue(value: string): void; value: string };
+        };
+      };
+      reopeningForm: {
+        controls: {
+          token: { setValue(value: string): void; value: string };
+          occasion: { setValue(value: string): void; value: string };
+          source: { setValue(value: string): void; value: string };
+          reason: { setValue(value: string): void; value: string };
+        };
+      };
       load(): void;
     };
-    component.closureType = 'exception';
-    component.closureReason = 'Protokollsystem nicht erreichbar';
-    component.clarificationAttempts = 'Support kontaktiert';
-    component.reopeningToken = 'exam_protocol:41';
-    component.reopeningOccasion = 'Nachträglicher Widerspruch';
-    component.reopeningSource = 'IHK-Schreiben';
-    component.reopeningReason = 'Protokollangabe korrigieren';
+    component.closureForm.controls.closureType.setValue('exception');
+    component.closureForm.controls.reason.setValue('Protokollsystem nicht erreichbar');
+    component.closureForm.controls.clarificationAttempts.setValue('Support kontaktiert');
+    component.reopeningForm.controls.token.setValue('exam_protocol:41');
+    component.reopeningForm.controls.occasion.setValue('Nachträglicher Widerspruch');
+    component.reopeningForm.controls.source.setValue('IHK-Schreiben');
+    component.reopeningForm.controls.reason.setValue('Protokollangabe korrigieren');
 
     component.load();
     fixture.detectChanges();
 
-    expect(component.closureType).toBe('exception');
-    expect(component.closureReason).toBe('Protokollsystem nicht erreichbar');
-    expect(component.clarificationAttempts).toBe('Support kontaktiert');
-    expect(component.reopeningToken).toBe('exam_protocol:41');
-    expect(component.reopeningOccasion).toBe('Nachträglicher Widerspruch');
-    expect(component.reopeningSource).toBe('IHK-Schreiben');
-    expect(component.reopeningReason).toBe('Protokollangabe korrigieren');
+    expect(component.closureForm.controls.closureType.value).toBe('exception');
+    expect(component.closureForm.controls.reason.value).toBe('Protokollsystem nicht erreichbar');
+    expect(component.closureForm.controls.clarificationAttempts.value).toBe('Support kontaktiert');
+    expect(component.reopeningForm.controls.token.value).toBe('exam_protocol:41');
+    expect(component.reopeningForm.controls.occasion.value).toBe('Nachträglicher Widerspruch');
+    expect(component.reopeningForm.controls.source.value).toBe('IHK-Schreiben');
+    expect(component.reopeningForm.controls.reason.value).toBe('Protokollangabe korrigieren');
+  });
+
+  it('clears closure and reopening form drafts when the day context changes', () => {
+    fixture.detectChanges();
+    const component = fixture.componentInstance as unknown as {
+      closureForm: {
+        controls: {
+          closureType: { setValue(value: 'regular' | 'exception'): void; value: string };
+          reason: { setValue(value: string): void; value: string };
+          clarificationAttempts: { setValue(value: string): void; value: string };
+        };
+      };
+      reopeningForm: {
+        controls: {
+          token: { setValue(value: string): void; value: string };
+          occasion: { setValue(value: string): void; value: string };
+          source: { setValue(value: string): void; value: string };
+          reason: { setValue(value: string): void; value: string };
+        };
+      };
+    };
+    component.closureForm.controls.closureType.setValue('exception');
+    component.closureForm.controls.reason.setValue('Grund');
+    component.closureForm.controls.clarificationAttempts.setValue('Klärung');
+    component.reopeningForm.controls.token.setValue('exam_protocol:41');
+    component.reopeningForm.controls.occasion.setValue('Anlass');
+    component.reopeningForm.controls.source.setValue('Quelle');
+    component.reopeningForm.controls.reason.setValue('Begründung');
+
+    fixture.componentRef.setInput('dayId', 8);
+    fixture.detectChanges();
+
+    expect(component.closureForm.controls.closureType.value).toBe('regular');
+    expect(component.closureForm.controls.reason.value).toBe('');
+    expect(component.closureForm.controls.clarificationAttempts.value).toBe('');
+    expect(component.reopeningForm.controls.token.value).toBe('');
+    expect(component.reopeningForm.controls.occasion.value).toBe('');
+    expect(component.reopeningForm.controls.source.value).toBe('');
+    expect(component.reopeningForm.controls.reason.value).toBe('');
   });
 
   it('preserves dirty attendance and execution drafts across an embedded day refresh', () => {
@@ -754,6 +801,35 @@ describe('ExamDayComponent', () => {
       status: 'late',
       arrivedAt: '2026-11-16T08:51',
     });
+  });
+
+  it('validates exception closure details as a single typed form contract', () => {
+    const open = dayView();
+    open.day.closure.permissions.close = true;
+    open.day.closure.evaluation.exceptionCloseReady = true;
+    vi.mocked(examDay.getConfirmedPlanDay).mockReturnValueOnce(of(open));
+    authorizeClosure('exam-day-closure:close');
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance as unknown as {
+      closureForm: {
+        controls: {
+          closureType: { setValue(value: 'regular' | 'exception'): void };
+          reason: { setValue(value: string): void };
+          clarificationAttempts: { setValue(value: string): void };
+        };
+        invalid: boolean;
+      };
+      closeDay(): void;
+    };
+    component.closureForm.controls.closureType.setValue('exception');
+    component.closureForm.controls.reason.setValue('   ');
+    component.closureForm.controls.clarificationAttempts.setValue('Support kontaktiert');
+
+    component.closeDay();
+
+    expect(component.closureForm.invalid).toBe(true);
+    expect(examDay.closeExamDay).not.toHaveBeenCalled();
   });
 
   it('clears attendance and execution drafts when the selected day changes', () => {
@@ -836,19 +912,23 @@ describe('ExamDayComponent', () => {
     fixture.detectChanges();
 
     const component = fixture.componentInstance as unknown as {
-      reopeningToken: string;
-      reopeningOccasion: string;
-      reopeningSource: string;
-      reopeningReason: string;
+      reopeningForm: {
+        controls: {
+          token: { setValue(value: string): void };
+          occasion: { setValue(value: string): void };
+          source: { setValue(value: string): void };
+          reason: { setValue(value: string): void };
+        };
+      };
       previewReopening(): void;
       reopenDay(): void;
       load(): void;
       savingKeys(): Set<string>;
     };
-    component.reopeningToken = 'exam_protocol:41';
-    component.reopeningOccasion = 'Nachträglicher Widerspruch';
-    component.reopeningSource = 'IHK-Schreiben';
-    component.reopeningReason = 'Protokollangabe korrigieren';
+    component.reopeningForm.controls.token.setValue('exam_protocol:41');
+    component.reopeningForm.controls.occasion.setValue('Nachträglicher Widerspruch');
+    component.reopeningForm.controls.source.setValue('IHK-Schreiben');
+    component.reopeningForm.controls.reason.setValue('Protokollangabe korrigieren');
     component.previewReopening();
     component.reopenDay();
     component.load();
