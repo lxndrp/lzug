@@ -4,8 +4,12 @@ import { firstValueFrom, of } from 'rxjs';
 import type {
   ConfirmedPlan as ApiConfirmedPlan,
   ConfirmedPlanRevision as ApiConfirmedPlanRevision,
-  EditablePlanningProposal as ApiEditableConfirmedPlan,
 } from './api.models';
+import type { EditablePlanningProposal as ApiRevisionProposal } from './planning.models';
+import type {
+  PlanningProposalResponse as ApiEditableConfirmedPlan,
+  PlanningProposalWriteRequest,
+} from './generated/types.gen';
 import { ConfirmedPlanApiService } from './confirmed-plan-api.service';
 import { HttpConfirmedPlansAdapter } from './http-confirmed-plans.adapter';
 import { MasterDataApiService } from './master-data-api.service';
@@ -21,7 +25,7 @@ describe('HttpConfirmedPlansAdapter', () => {
     const api = {
       getConfirmedPlans: vi.fn(() => of([apiPlan()])),
       getEditableConfirmedPlan: vi.fn(() => of(apiEditablePlan())),
-      saveEditableConfirmedPlan: vi.fn((_roundId: number, proposal: ApiEditableConfirmedPlan) =>
+      saveEditableConfirmedPlan: vi.fn((_roundId: number, proposal: PlanningProposalWriteRequest) =>
         of({ ...proposal, _links: { self: { href: '/saved' } } }),
       ),
       getConfirmedPlanRevisions: vi.fn(() => of([apiRevision()])),
@@ -54,6 +58,36 @@ describe('HttpConfirmedPlansAdapter', () => {
     expect(api.getEditableConfirmedPlan).toHaveBeenCalledWith(1);
     expect(api.saveEditableConfirmedPlan).toHaveBeenCalledWith(1, apiEditablePayload(), ' reason ');
     expect(api.getConfirmedPlanRevisions).toHaveBeenCalledWith(1);
+  });
+
+  it('preserves nullable location and room identifiers in editable confirmed plans', async () => {
+    const source = apiEditablePlan();
+    const api = {
+      getEditableConfirmedPlan: vi.fn(() =>
+        of({
+          ...source,
+          exam_days: source.exam_days.map((day) => ({ ...day, location_id: null, room_id: null })),
+        }),
+      ),
+    };
+    TestBed.configureTestingModule({
+      providers: [
+        HttpConfirmedPlansAdapter,
+        { provide: ConfirmedPlanApiService, useValue: api },
+        {
+          provide: MasterDataApiService,
+          useValue: {
+            getCandidateViews: vi.fn(() => of([])),
+            getCommitteeMembers: vi.fn(() => of([])),
+          },
+        },
+        { provide: PlanningApiService, useValue: { getLocations: vi.fn(() => of([])) } },
+      ],
+    });
+
+    const result = await firstValueFrom(TestBed.inject(HttpConfirmedPlansAdapter).getEditable(1));
+
+    expect(result.days[0]).toMatchObject({ locationId: null, roomId: null });
   });
 
   it('loads editor references from the explicit route round', async () => {
@@ -222,10 +256,10 @@ function apiEditablePlan(): ApiEditableConfirmedPlan {
       },
     ],
     _links: { self: { href: '/api/editable' } },
-  };
+  } satisfies ApiEditableConfirmedPlan;
 }
 
-function apiEditablePayload(): ApiEditableConfirmedPlan {
+function apiEditablePayload(): PlanningProposalWriteRequest {
   const { _links, ...payload } = apiEditablePlan();
   void _links;
   return payload;
@@ -314,7 +348,6 @@ function featureEditablePlan(): EditableConfirmedPlan {
 }
 
 function apiRevision(): ApiConfirmedPlanRevision {
-  const proposal = apiEditablePlan();
   return {
     id: 11,
     previous_revision: 1,
@@ -322,8 +355,45 @@ function apiRevision(): ApiConfirmedPlanRevision {
     reason: 'Korrektur',
     actor_member_id: 10,
     created_at: '2026-11-15T12:00:00Z',
-    before: { ...proposal, revision: 1 },
-    after: proposal,
+    before: apiRevisionProposal(1),
+    after: apiRevisionProposal(2),
+  };
+}
+
+function apiRevisionProposal(revision: number): ApiRevisionProposal {
+  return {
+    round_id: 1,
+    revision,
+    exam_days: [
+      {
+        candidate_exam_day_id: 3,
+        id: 4,
+        date: '2026-11-16',
+        room_id: 6,
+        location_id: 6,
+        status: 'confirmed',
+        slots: [
+          {
+            round_candidate_id: 8,
+            id: 7,
+            slot_type: 'mep',
+            starts_at: '08:30',
+            ends_at: '09:30',
+            sequence_number: 1,
+            status: 'confirmed',
+          },
+        ],
+        assignments: [
+          {
+            committee_member_id: 10,
+            id: 9,
+            assignment_role: 'examiner',
+            day_part: 'morning',
+            fallback_status: null,
+          },
+        ],
+      },
+    ],
   };
 }
 

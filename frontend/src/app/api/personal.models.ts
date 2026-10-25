@@ -1,5 +1,3 @@
-import type { ApiLink } from './common.models';
-
 export type NotificationItem = {
   id: number;
   event_type: string;
@@ -60,20 +58,6 @@ export type NotificationProblem = {
   updated_at: string;
 };
 
-export type NotificationChannels = {
-  email_fallback_configured: boolean;
-  sink_enabled: boolean;
-  web_push: { available: boolean; public_key: string | null };
-};
-
-export type CalendarStatus = {
-  activated_at: string | null;
-  active: boolean;
-  revoked_at: string | null;
-  time_zone: string;
-  _links: Record<string, ApiLink>;
-};
-
 export type CalendarEvent = {
   id: number;
   external_event_id: string;
@@ -87,14 +71,4 @@ export type CalendarEvent = {
   status: 'sent' | 'updated' | 'cancelled' | string;
   version: number;
   download_url: string;
-};
-
-export type CalendarFeedActivation = {
-  activated_at: string | null;
-  active: boolean;
-  feed_url: string;
-  notice: string;
-  revoked_at: string | null;
-  time_zone: string;
-  _links: Record<string, ApiLink>;
 };

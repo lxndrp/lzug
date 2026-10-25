@@ -5,6 +5,7 @@ import { signal } from '@angular/core';
 import { masterDataFixture } from '../testing/fixtures';
 import { AuthService } from '../auth/auth.service';
 import type { LocationSnapshot } from '../locations/locations.models';
+import type { ExamVenueResponse } from './generated/types.gen';
 import { HttpLocationsReadAdapter } from './http-locations-read.adapter';
 
 describe('HttpLocationsReadAdapter', () => {
@@ -24,7 +25,7 @@ describe('HttpLocationsReadAdapter', () => {
     expect(request.request.method).toBe('GET');
     expect(committees.request.method).toBe('GET');
     request.flush({
-      items: masterDataFixture.examVenues,
+      items: [venueResponse()],
       _links: { create: { href: '/api/exam-venues' } },
     });
     expect(results.at(-1)).toMatchObject({
@@ -41,6 +42,11 @@ describe('HttpLocationsReadAdapter', () => {
     expect(result.venues[0]).toMatchObject({
       id: masterDataFixture.examVenues[0].id,
       name: masterDataFixture.examVenues[0].name,
+      scope: 'committee',
+      accessibilityStatus: 'confirmed',
+      coordinateStatus: 'confirmed',
+      mapProvider: { mode: 'osm' },
+      capabilities: { manage: true, requestPromotion: true },
     });
     expect(result.canCreateVenue).toBe(true);
     expect(result.committees).toEqual(
@@ -73,7 +79,7 @@ describe('HttpLocationsReadAdapter', () => {
       .expectOne('/api/committees')
       .flush({ detail: 'Forbidden.' }, { status: 403, statusText: 'Forbidden' });
     http.expectOne('/api/exam-venues').flush({
-      items: masterDataFixture.examVenues,
+      items: [venueResponse()],
       _links: { create: { href: '/api/exam-venues' } },
     });
 
@@ -90,7 +96,7 @@ describe('HttpLocationsReadAdapter', () => {
 
     http.expectNone('/api/committees');
     http.expectOne('/api/exam-venues').flush({
-      items: [{ ...masterDataFixture.examVenues[0], committee_name: 'Hamburg' }],
+      items: [{ ...venueResponse(), committee_name: 'Hamburg' }],
       _links: {},
     });
 
@@ -98,6 +104,33 @@ describe('HttpLocationsReadAdapter', () => {
     expect(result?.committeeLoadError).toBe(false);
     expect(result?.venues[0].committeeName).toBe('Hamburg');
   });
+
+  function venueResponse() {
+    const venue = masterDataFixture.examVenues[0];
+    return {
+      ...venue,
+      _links: {},
+      coordinate_source: venue.coordinate_source ?? null,
+      coordinate_status: venue.coordinate_status ?? 'missing',
+      latitude: venue.latitude ?? null,
+      longitude: venue.longitude ?? null,
+      map_provider: venue.map_provider ?? { mode: 'off' },
+      created_at: '2026-10-25T10:00:00Z',
+      updated_at: '2026-10-25T10:00:00Z',
+      rooms: venue.rooms.map((room) => ({
+        ...room,
+        created_at: '2026-10-25T10:00:00Z',
+        updated_at: '2026-10-25T10:00:00Z',
+        _links: {},
+      })),
+      contacts: venue.contacts.map((contact) => ({
+        ...contact,
+        created_at: '2026-10-25T10:00:00Z',
+        updated_at: '2026-10-25T10:00:00Z',
+        _links: {},
+      })),
+    } satisfies ExamVenueResponse;
+  }
 
   function configure(isOperator = false): void {
     TestBed.configureTestingModule({

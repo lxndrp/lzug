@@ -14,7 +14,7 @@ Die gemeinsame AIO-, Admintransport- und Lifecyclegrenze legt
 | Bereich | Verantwortung | Zulässige Außengrenze | Maßgebliche Quellen |
 | --- | --- | --- | --- |
 | Backend | ein autoritativer Prozess für HTTP, Admin-Socket, Lifecycle, Fachservices, Persistenz, Dokumente und Integrationsadapter | OpenAPI/JSON, versionierter Unix-Socket-Vertrag, SQLite und kontrollierte Provideradapter | `backend/src/backend/`, `backend/db/` |
-| Frontend | aufgabenorientierte Ausschussoberfläche, Routing, Formulare und sichtbare Zustände | same-origin API über zentrale Modelle und Services | `frontend/src/app/` |
+| Frontend | aufgabenorientierte Ausschussoberfläche, Routing, Formulare und sichtbare Zustände | same-origin API über HTTP-Adapter; Transportzugriffe verwenden generierte OpenAPI-Typen | `frontend/src/app/` |
 | Betreiber-CLI | portable Orchestrierung von Administration, Diagnose und Lifecycle | bereitgestellter lokaler Socket mit versioniertem Adminvertrag | `operator-cli/cmd/lzug-admin/`, `operator-cli/internal/admincli/`, `operator-cli/internal/tools/cli-reference/`, `operator-cli/.goreleaser.yml` |
 | OCI und Self-Hosting | Produktimage `lzug-app`, gehärtete Docker-Referenz und persistentes `/data` | `packaging/product/Dockerfile`, `deployment/self-hosted/compose.yaml` und Containerverträge | `packaging/product/`, `deployment/self-hosted/` und `tests/pester/` |
 | Öffentliche Demo | getrenntes Image `lzug-demo`, flüchtige App-/Seed-Assembly, Reset, Promotion und Azure-Deployment | digestgebundene Manifeste, OIDC und Demo-Runtime-Policy | `packaging/demo/contract.py`, `packaging/demo/runtime/`, `packaging/demo/artifacts.py`, `packaging/demo/`, `deployment/demo/infra/`, `packaging/demo/tests/`, Demo-Workflows |
@@ -955,6 +955,20 @@ Prüfungsprotokolle, Ergebnisse, persönliche Daten und Prüfungsorte besitzen
 jeweils einen fachlichen Client.
 Der schmale `api.models.ts`-Export hält bestehende Importpfade stabil, ohne
 Transportmodelle erneut zu definieren.
+Die HTTP-Adapter verwenden vollständige generierte Responseverträge am
+Transporteingang, soweit OpenAPI sie bereitstellt.
+Sie projizieren die benötigten Felder in fachliche Featuremodelle und werten
+offene Zusatzfelder gezielt und typgeprüft aus.
+Das gilt für Protokolle, Ergebnisse, Planungsvorschläge, bestätigte Pläne,
+Stammdaten, Prüfungsorte, Halbjahre, Kalender- und Benachrichtigungseinstellungen
+sowie Demo-Szenarien.
+Ein allgemeiner Camelizer und parallele vollständige Wire-Modellfamilien sind
+entfallen.
+`day_revision` wird bei `null` aus dem optionalen Protokoll-Featurefeld
+weggelassen.
+Für Operationen mit weiterhin unbekanntem OpenAPI-Antwortschema bleiben kleine
+gezielte Projektionen bestehen, etwa bei Ausführungsübersichten,
+Abwesenheitslisten und Änderungsfolgen.
 Komponenten konsumieren nur die Facade ihres Features oder ausdrücklich
 UI-nahe gemeinsame Services.
 Facades stellen die Zustände und Befehle bereit, die eine Oberfläche benötigt;
