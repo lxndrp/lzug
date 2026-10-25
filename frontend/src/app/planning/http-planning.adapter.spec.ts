@@ -206,4 +206,23 @@ describe('HttpPlanningAdapter', () => {
       calendar_warning: 'Ein Kalendereintrag konnte nicht aktualisiert werden.',
     });
   });
+
+  it('accepts the backend confirm response without a validation object', async () => {
+    const confirmPlan = vi.fn(() =>
+      of({
+        round_id: 8,
+        revision: 4,
+        status: 'plan_confirmed',
+        counts: { confirmed_slots: 1 },
+        exam_days: [],
+      }),
+    );
+    TestBed.configureTestingModule({
+      providers: [HttpPlanningAdapter, { provide: PlanningApiService, useValue: { confirmPlan } }],
+    });
+
+    const result = await firstValueFrom(TestBed.inject(HttpPlanningAdapter).confirmPlan(8));
+
+    expect(result).toEqual({ status: 'plan_confirmed', counts: { confirmed_slots: 1 } });
+  });
 });

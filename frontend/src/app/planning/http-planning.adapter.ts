@@ -93,9 +93,11 @@ export class HttpPlanningAdapter implements PlanningPort {
 }
 
 function toPlanningResult(value: PlanningProposalResultResponse): PlanningResult {
-  const validation = record(value.validation, 'validation');
+  const validationValue = value['validation'];
+  const validation =
+    validationValue === undefined ? undefined : record(validationValue, 'validation');
   const validationResult =
-    typeof validation['passed'] === 'boolean' && Array.isArray(validation['messages'])
+    validation && typeof validation['passed'] === 'boolean' && Array.isArray(validation['messages'])
       ? {
           passed: validation['passed'],
           messages: validation['messages'].map((message) =>
