@@ -77,9 +77,13 @@ class CalendarRoundSnapshot:
 @dataclass(frozen=True)
 class CalendarFeedSnapshot:
     person_id: int
-    token_hash: str
+    token_hash: str | None
     created_at: str
     revoked_at: str | None
+    generation: int = 0
+    pending_generation: int | None = None
+    revocation_generation: int = 0
+    lifecycle_revoked_at: str | None = None
 
 
 @dataclass(frozen=True)
@@ -165,7 +169,9 @@ class CalendarUnitOfWork(Protocol):
 
     def save_feed(self, feed: CalendarFeedSnapshot) -> None: ...
 
-    def revoke_feed(self, person_id: int, revoked_at: str) -> bool: ...
+    def save_feed_if_current(
+        self, feed: CalendarFeedSnapshot, *, expected_pending_generation: int | None
+    ) -> bool: ...
 
     def events_for_source(self, source_prefix: str) -> Sequence[CalendarEventSnapshot]: ...
 

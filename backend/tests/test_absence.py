@@ -179,6 +179,11 @@ class AbsenceServiceTests(unittest.TestCase):
                 DROP TABLE absence_consequence_cutover;
                 DROP TABLE calendar_assignment_execution_origin;
                 ALTER TABLE exam_day_assignment DROP COLUMN revision;
+                DROP TABLE calendar_feed_lifecycle;
+                DELETE FROM schema_migration_checksum
+                  WHERE name = '030_calendar_feed_lifecycle.sql';
+                DELETE FROM schema_migration
+                  WHERE name = '030_calendar_feed_lifecycle.sql';
                 DELETE FROM schema_migration_checksum
                   WHERE name = '029_add_absence_consequence_sources.sql';
                 DELETE FROM schema_migration

@@ -413,13 +413,26 @@ Calendar-Port an den Auftrag zurückgegeben.
 
 Auch Kalenderreads synchronisieren zunächst lokal:
 `list_events`, `feed_ics` und `event_ics` rufen `sync_person` vor dem Lesen oder
-Rendern auf.
-Bei `feed_ics` laufen Feedvalidierung, Synchronisierung und anschließendes
-Lesen in getrennten `session_scope`-Transaktionen.
-`list_events` und `event_ics` synchronisieren ebenfalls vor ihrem Read, ohne
-Feed-Credential zu validieren.
-Keiner dieser Read-Pfade hat eine gemeinsame Snapshot- oder Commit-Grenze über
-Synchronisierung und anschließendes Lesen.
+Rendern auf; der prozessweite Coordinator serialisiert diese Refreshes je
+Datenbank und Person und teilt parallele Läufe derselben Generation.
+Bei `feed_ics` laufen Feedvalidierung, Synchronisierung, Read-Snapshot und
+Rendern in getrennten UoWs.
+Credential-Generation und Membership-/Committee-Scope werden vor dem Sync,
+am Read-Snapshot und nach dem Rendern vor der Antwortfreigabe erneut geprüft.
+Ein Widerrufscommit oder eine Scopeänderung verwirft das gesamte ICS-Ergebnis.
+Die finale Scope-Revalidierung läuft unter einem Composition-Root-geteilten
+Identity-Scope-Gate. Identity- und Committee-Mutationen halten dasselbe Gate
+während ihres Schreib-UoWs; dadurch kann eine Scopeänderung nicht zwischen
+finaler Revalidierung und Antwortfreigabe committen. Sync und Rendering laufen
+außerhalb dieses Gates. Ein nicht bestätigter dauerhafter Feed-Widerruf wird
+über `DELETE /api/calendar/feed` als typisierter HTTP-503-Fehler
+`calendar_feed_revocation_pending` ausgegeben; Clients können denselben
+Widerruf sicher erneut versuchen.
+Der Calendar-Identity-Snapshot berücksichtigt nur aktive Memberships in
+aktiven, vollständig initialisierten Committees (`is_active == 1` und
+`bootstrap_state == "ready"`), wie die reguläre Identity-Autorisierung.
+`list_events` und `event_ics` validieren kein Feed-Credential und nutzen den
+Identity-Scope für ihre jeweilige Projektion und Read-Abfrage.
 
 Die Calendar-Identity-Port liefert aktive Membership-IDs; Sync und Read
 beschränken Projektion und Ausgabe darauf.
@@ -427,17 +440,16 @@ Der FastAPI-Adapter bildet die HTTP-Autorisierung auf einen
 `CalendarScope` ab und formt typisierte Ergebnisse in bestehende Wire-Verträge
 um.
 
-Im Ziel liefert Identity für die Person eine materialisierte Liste aktiver
+Identity liefert für die Person eine materialisierte Liste aktiver
 Membership-ID-/Committee-ID-Paare.
 `feed_ics` validiert zusätzlich das Credential, aber das Token allein gewährt
 keine Membership-Rechte.
-Calendar bezieht den Identity-Snapshot vor `sync_person` und beschränkt die
-Projektion auf genau diese Membership- und Committee-IDs.
-Vor dem nachfolgenden Read/Render prüft Calendar den Scope erneut und filtert
-Events ausschließlich nach denselben aktiven Membership-/Committee-IDs. Ändert
-sich der Scope zwischen diesem Snapshot und der finalen ICS-Antwortfreigabe,
-verwirft Calendar das gesamte gerenderte ICS-Ergebnis.
-Das gilt ebenso für `list_events` und `event_ics`.
+Calendar beschränkt die Sync-Projektion auf aktive Membership-IDs; die
+ICS-Lesemenge folgt dem am Snapshot geprüften Scope.
+Ändert sich der Membership-/Committee-Scope bis zur finalen Freigabe, verwirft
+Calendar das gesamte materialisierte ICS-Ergebnis.
+Die authentifizierten `list_events`- und `event_ics`-Use-Cases haben kein
+Feed-Credential und unterliegen daher nicht diesem Feed-Lifecycle-Fence.
 Ein Teilwiderruf blendet daher Kalenderdaten des widerrufenen Committees aus,
 auch wenn eine andere Mitgliedschaft aktiv bleibt; eine leere Scope-Liste
 autorisiert weder Sync noch Kalenderausgabe.
@@ -501,10 +513,13 @@ während dieses Wartens frei und erwirbt ihn für den dauerhaften Revocation-
 Commit erneut. Der Finalizer darf nach dem Fence kein Credential anlegen.
 
 Kann dieser dauerhafte `DELETE`-Commit nicht bestätigt werden, bleibt der
-prozesslokale Fence als `RevocationPending` bestehen. Calendar liefert einen
-stabilen retryfähigen Fehler `FeedRevocationPending`; Reads, Syncs und
-Finalizer bleiben gefenced. Ein erneutes `DELETE` setzt den Widerruf fort und
-meldet Erfolg erst nach bestätigtem SQLite-Commit. Nach Prozessneustart gilt
+prozesslokale Fence als `RevocationPending` bestehen. Feed-Credential-Reads,
+Feed-Syncs und Finalizer liefern den retryfähigen Fehler
+`FeedRevocationPending`. Identity-autorisierte Membership-Reads für
+`list_events` und `event_ics` dürfen ihre Projektion nach dem fehlgeschlagenen
+Versuch weiter auffrischen; während eines laufenden `DELETE`-Retries bleiben
+auch sie gefenced. Ein erneutes `DELETE` setzt den Widerruf fort und meldet
+Erfolg erst nach bestätigtem SQLite-Commit. Nach Prozessneustart gilt
 ausschließlich der persistierte Zustand: ein nicht committeter Widerruf gilt
 nicht als erfolgreich.
 
@@ -820,9 +835,11 @@ und explizites Feed-`DELETE` denselben prozessweit geteilten Lifecycle-Lock
 aus der Composition-Root-Registry für kurze Credential-Prüfungen, Fences und
 Commits.
 Parallele ICS-Refreshes werden pro Feed auf einen laufenden Sync-UoW
-zusammengeführt; derselbe Coordinator serialisiert Sync-Aufträge aus initialer
-Aktivierung, Rotation und deren Retries und führt identische
-Generationsaufträge zusammen. Das prozessweit geteilte Commit-Gate je Feed
+zusammengeführt. Initiale Aktivierung, Rotation und deren Retries nutzen
+denselben Coordinator für ihre Sync-Aufträge und führen identische
+Generationsaufträge zusammen. Gewöhnliche `sync_round`- und
+`sync_assignment`-Aufrufe verwenden eigene UoWs außerhalb dieses Coordinators.
+Das prozessweit geteilte Commit-Gate je Feed
 serialisiert nur Cancellation-Prüfung und abschließenden SQLite-Commit des
 aktiven Syncs. `DELETE` setzt darunter sofort den prozesslokalen Fence, gibt das
 Gate frei, verwirft wartende Aufträge und fenced wartende Reads. Es wartet auf
