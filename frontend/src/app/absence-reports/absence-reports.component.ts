@@ -66,8 +66,8 @@ export class AbsenceReportsComponent implements OnInit {
         this.busyResponse.set(null);
         this.message.set(
           this.auth.session()?.demo_role
-            ? 'Ersatz ausgewählt. Öffnen Sie die Demo-Szenarien, um die Folgen anzusehen.'
-            : 'Ersatz ausgewählt. Benachrichtigungs- und Kalenderfolgen wurden verarbeitet.',
+            ? 'Ersatz ausgewählt. Die Folgearbeit wurde angestoßen. Öffnen Sie die Demo-Szenarien, um den Verlauf anzusehen.'
+            : 'Ersatz ausgewählt. Die Kalender- und Benachrichtigungsfolgen wurden angestoßen.',
         );
       },
       error: (error: ApplicationError) => {
