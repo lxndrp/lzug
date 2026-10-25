@@ -1,8 +1,9 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { map } from 'rxjs';
+import { forkJoin, map } from 'rxjs';
 
 import { ExamRoundApiService } from './exam-round-api.service';
+import { MasterDataApiService } from './master-data-api.service';
 import type {
   ExamHalfYear as ApiExamHalfYear,
   ExamRound as ApiExamRound,
@@ -24,7 +25,30 @@ import type { ExamHalfYearsPort } from '../exam-half-years/exam-half-years.port'
 @Injectable({ providedIn: 'root' })
 export class HttpExamHalfYearsAdapter implements ExamHalfYearsPort {
   private readonly api = inject(ExamRoundApiService);
+  private readonly masterData = inject(MasterDataApiService);
   private readonly http = inject(HttpClient);
+
+  loadViewReferences(roundId: number) {
+    return forkJoin({
+      committees: this.masterData.getCommittees(),
+      candidates: this.masterData.getCandidateViews(roundId),
+      candidateAssignments: this.masterData.getCandidateAssignments(),
+    }).pipe(
+      map(({ committees, candidates, candidateAssignments }) => ({
+        committees: committees.map(({ id, name }) => ({ id, name })),
+        candidates: candidates.map(({ candidate }) => ({
+          id: candidate.id,
+          firstName: candidate.first_name,
+          lastName: candidate.last_name,
+        })),
+        candidateAssignments: candidateAssignments.map((assignment) => ({
+          halfYearId: assignment.exam_half_year_id,
+          candidateId: assignment.candidate_id,
+          endedAt: assignment.ended_at,
+        })),
+      })),
+    );
+  }
 
   listHalfYears() {
     return this.api.listExamHalfYears().pipe(map((items) => items.map(toHalfYear)));

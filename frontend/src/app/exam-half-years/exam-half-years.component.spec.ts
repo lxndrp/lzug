@@ -1,7 +1,10 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Observable, of, throwError } from 'rxjs';
+import { signal } from '@angular/core';
 import { provideTaiga } from '@taiga-ui/core';
 
+import { AuthService } from '../auth/auth.service';
+import { RoundContextService } from '../api/round-context.service';
 import { ExamHalfYearsComponent } from './exam-half-years.component';
 import { EXAM_HALF_YEARS_PORT, type ExamHalfYearsPort } from './exam-half-years.port';
 import type { ExamHalfYear, ExamRound, RoundLifecycle } from './exam-half-years.models';
@@ -10,9 +13,17 @@ import { athenCommitteeFixture, committeesFixture } from '../testing/fixtures';
 describe('ExamHalfYearsComponent', () => {
   let fixture: ComponentFixture<ExamHalfYearsComponent>;
   let port: ExamHalfYearsPort;
+  let authSession: ReturnType<typeof signal<{ demo_role?: string } | null>>;
 
   beforeEach(async () => {
     port = {
+      loadViewReferences: vi.fn(() =>
+        of({
+          committees: committeesFixture.map(({ id, name }) => ({ id, name })),
+          candidates: [],
+          candidateAssignments: [],
+        }),
+      ),
       listHalfYears: vi.fn((): Observable<ExamHalfYear[]> => of([])),
       listRounds: vi.fn((): Observable<ExamRound[]> => of([])),
       createRound: vi.fn((): Observable<ExamRound> => of(roundFixture())),
@@ -31,24 +42,29 @@ describe('ExamHalfYearsComponent', () => {
         }),
       ),
     };
+    authSession = signal(null);
     await TestBed.configureTestingModule({
       imports: [ExamHalfYearsComponent],
-      providers: [provideTaiga({}), { provide: EXAM_HALF_YEARS_PORT, useValue: port }],
+      providers: [
+        provideTaiga({}),
+        { provide: EXAM_HALF_YEARS_PORT, useValue: port },
+        {
+          provide: AuthService,
+          useValue: {
+            state: () => 'authenticated',
+            session: authSession,
+            hasCapability: () => authSession()?.demo_role === undefined,
+          },
+        },
+      ],
     }).compileComponents();
 
     fixture = TestBed.createComponent(ExamHalfYearsComponent);
-    fixture.componentRef.setInput(
-      'committees',
-      committeesFixture.map(({ id, name }) => ({ id, name })),
-    );
   });
 
   it('loads terms and creates a committee-specific round', () => {
     vi.mocked(port.listHalfYears).mockReturnValue(of([halfYearFixture()]));
     vi.mocked(port.listRounds).mockReturnValue(of([]));
-    const selection = vi
-      .spyOn(fixture.componentInstance.roundSelected, 'emit')
-      .mockReturnValue(undefined);
     fixture.detectChanges();
 
     const host = fixture.nativeElement as HTMLElement;
@@ -66,7 +82,7 @@ describe('ExamHalfYearsComponent', () => {
       committeeId: 1,
       name: `Winter 2026 · ${athenCommitteeFixture.name}`,
     });
-    expect(selection).toHaveBeenCalledWith(1);
+    expect(TestBed.inject(RoundContextService).roundId()).toBe(1);
   });
 
   it('creates a half-year context and its committee-specific round atomically', () => {
@@ -93,7 +109,7 @@ describe('ExamHalfYearsComponent', () => {
   it('keeps every half-year entry and detail read-only in the demo', () => {
     vi.mocked(port.listHalfYears).mockReturnValue(of([halfYearFixture()]));
     vi.mocked(port.listRounds).mockReturnValue(of([roundFixture()]));
-    fixture.componentRef.setInput('readOnly', true);
+    authSession.set({ demo_role: 'chair' });
     fixture.detectChanges();
 
     const element = fixture.nativeElement as HTMLElement;
@@ -123,10 +139,16 @@ describe('ExamHalfYearsComponent', () => {
     vi.mocked(port.listRounds).mockReturnValue(
       of([roundFixture(), { ...roundFixture(), id: 2, committeeId: 2, status: 'draft' }]),
     );
-    fixture.componentRef.setInput('candidateAssignments', [
-      { halfYearId: 1, candidateId: 1, endedAt: null },
-      { halfYearId: 1, candidateId: 2, endedAt: '2026-07-01 09:00:00' },
-    ]);
+    vi.mocked(port.loadViewReferences).mockReturnValueOnce(
+      of({
+        committees: committeesFixture.map(({ id, name }) => ({ id, name })),
+        candidates: [],
+        candidateAssignments: [
+          { halfYearId: 1, candidateId: 1, endedAt: null },
+          { halfYearId: 1, candidateId: 2, endedAt: '2026-07-01 09:00:00' },
+        ],
+      }),
+    );
     fixture.detectChanges();
 
     const element = fixture.nativeElement as HTMLElement;
@@ -164,9 +186,13 @@ describe('ExamHalfYearsComponent', () => {
         candidates: [{ roundCandidateId: 11, candidateId: 7, terminalStatus: 'open' }],
       }),
     );
-    fixture.componentRef.setInput('candidates', [
-      { id: 7, firstName: 'Ada', lastName: 'Lovelace' },
-    ]);
+    vi.mocked(port.loadViewReferences).mockReturnValueOnce(
+      of({
+        committees: committeesFixture.map(({ id, name }) => ({ id, name })),
+        candidates: [{ id: 7, firstName: 'Ada', lastName: 'Lovelace' }],
+        candidateAssignments: [],
+      }),
+    );
     fixture.detectChanges();
 
     const component = fixture.componentInstance as unknown as {

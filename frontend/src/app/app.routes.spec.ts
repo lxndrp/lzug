@@ -19,8 +19,6 @@ import { roundContextResolver, routes } from './app.routes';
 import { AuthService } from './auth/auth.service';
 import { SessionScopeService } from './auth/session-scope.service';
 import { PlanningWorkflowService } from './planning/planning-workflow.service';
-import { ApplicationWorkspaceService } from './shell/application-workspace.service';
-import { WORKSPACE_PORT } from './shell/workspace.port';
 import { UiFeedbackService } from './shell/ui-feedback.service';
 import { DASHBOARD_PROJECTION_PORT } from './dashboard/dashboard-projection.port';
 import { DashboardProjectionService } from './dashboard/dashboard-projection.service';
@@ -103,10 +101,9 @@ describe('application routes', () => {
     expect(routeFor('**').redirectTo).toBe('dashboard');
   });
 
-  it('does not load protected workspace data before authentication completes', () => {
-    const roundId = signal<number | null>(null);
+  it('preserves the selected route context while authentication is pending', () => {
+    const roundId = signal(1);
     const authState = signal<'checking' | 'authenticated'>('checking');
-    const refresh = vi.fn();
     TestBed.configureTestingModule({
       providers: [
         {
@@ -115,7 +112,6 @@ describe('application routes', () => {
         },
         { provide: AuthService, useValue: { state: authState } },
         { provide: PlanningWorkflowService, useValue: { resetForRoundChange: vi.fn() } },
-        { provide: ApplicationWorkspaceService, useValue: { refresh } },
       ],
     });
     const resolver = routeFor('scheduling-overview/:roundId').resolve?.['roundId'] as ResolveFn<
@@ -128,7 +124,6 @@ describe('application routes', () => {
     TestBed.runInInjectionContext(() => resolver(route, {} as RouterStateSnapshot));
 
     expect(roundId()).toBe(7);
-    expect(refresh).not.toHaveBeenCalled();
   });
 
   it('redirects invalid round deep links during real router navigation', async () => {
@@ -160,7 +155,6 @@ describe('application routes', () => {
 
   it('preserves a protected round deep link while the initial session is established', async () => {
     const authState = signal<'checking' | 'authenticated'>('checking');
-    let loadedRoundId: number | null = null;
     TestBed.configureTestingModule({
       providers: [
         provideRouter([
@@ -172,12 +166,6 @@ describe('application routes', () => {
         ]),
         { provide: AuthService, useValue: { state: authState } },
         { provide: PlanningWorkflowService, useValue: { resetForRoundChange: vi.fn() } },
-        {
-          provide: ApplicationWorkspaceService,
-          useValue: {
-            refresh: () => (loadedRoundId = TestBed.inject(RoundContextService).roundId()),
-          },
-        },
       ],
     });
 
@@ -199,29 +187,19 @@ describe('application routes', () => {
       is_operator: false,
     });
     authState.set('authenticated');
-    TestBed.inject(ApplicationWorkspaceService).refresh();
 
     expect(router.url).toBe('/scheduling-overview/8');
     expect(route?.snapshot.data['roundId']).toBe(8);
     expect(roundContext.roundId()).toBe(8);
-    expect(loadedRoundId).toBe(8);
   });
 
-  it('moves real workspace and dashboard projections with resolver navigation', async () => {
-    const workspaceFor = (id: number) => ({
-      applicationVersion: 'test',
-      round: { id, name: `Runde ${id}`, status: 'draft' },
-      summary: {},
-      board: { locations: [], candidates: [], members: [] },
-      masterData: { locations: [], candidates: [], candidateAssignments: [], members: [] },
-    });
+  it('moves the independent dashboard projection with resolver navigation', async () => {
     const dashboardFor = (id: number) => ({
       round: { id, name: `Runde ${id}`, status: 'draft' },
       summary: {},
       board: { locations: [], candidates: [], members: [] },
     });
     const loadDashboard = vi.fn((id: number) => of(dashboardFor(id)));
-    const loadWorkspace = vi.fn((id: number) => of(workspaceFor(id)));
 
     TestBed.configureTestingModule({
       providers: [
@@ -233,19 +211,15 @@ describe('application routes', () => {
           },
         ]),
         { provide: AuthService, useValue: { state: () => 'authenticated' } },
-        { provide: WORKSPACE_PORT, useValue: { loadDashboard: loadWorkspace } },
         { provide: DASHBOARD_PROJECTION_PORT, useValue: { load: loadDashboard } },
         { provide: UiFeedbackService, useValue: { notify: vi.fn() } },
       ],
     });
 
-    const workspace = TestBed.inject(ApplicationWorkspaceService);
     const dashboard = TestBed.inject(DashboardProjectionService);
     dashboard.activate();
     await TestBed.inject(Router).navigateByUrl('/scheduling-overview/8');
 
-    expect(loadWorkspace).toHaveBeenLastCalledWith(8);
-    expect(workspace.round()?.id).toBe(8);
     expect(loadDashboard).toHaveBeenLastCalledWith(8);
     expect(dashboard.projection()?.round.id).toBe(8);
   });

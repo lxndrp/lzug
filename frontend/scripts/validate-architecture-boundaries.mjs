@@ -30,12 +30,6 @@ const componentSpecPath = path.join(
   'scheduling-overview.component.spec.ts',
 );
 const facadePath = path.join(root, 'scheduling-overview', 'scheduling-overview.facade.ts');
-const applicationPath = path.join(
-  root,
-  'scheduling-overview',
-  'application',
-  'scheduling-overview.application.ts',
-);
 const portPath = path.join(
   root,
   'scheduling-overview',
@@ -50,22 +44,16 @@ const adapterPath = path.join(
 );
 const configPath = path.join(root, 'app.config.ts');
 
-const [component, facade, componentSpec, application, port, adapter, config] = await Promise.all(
-  [
-    componentPath,
-    facadePath,
-    componentSpecPath,
-    applicationPath,
-    portPath,
-    adapterPath,
-    configPath,
-  ].map((file) => readFile(file, 'utf8')),
+const [component, facade, componentSpec, port, adapter, config] = await Promise.all(
+  [componentPath, facadePath, componentSpecPath, portPath, adapterPath, configPath].map((file) =>
+    readFile(file, 'utf8'),
+  ),
 );
 
 assert.deepEqual(
   relativeImportsOf(component),
   ['./scheduling-overview.facade', './scheduling-overview.models'],
-  'feature component imports only its facade and feature models',
+  'feature component imports its facade and feature models',
 );
 assert.doesNotMatch(
   importsOf(component),
@@ -79,8 +67,12 @@ assert.doesNotMatch(
 );
 assert.deepEqual(
   relativeImportsOf(facade),
-  ['./application/scheduling-overview.application', './scheduling-overview.models'],
-  'feature facade imports only its application operation and feature models',
+  [
+    '../application/planning-write-events.service',
+    './application/scheduling-overview.port',
+    './scheduling-overview.models',
+  ],
+  'feature facade imports feature models and its port token',
 );
 assert.doesNotMatch(
   importsOf(facade),
@@ -88,21 +80,13 @@ assert.doesNotMatch(
   'feature facade imports a transport implementation',
 );
 assert.doesNotMatch(facade, /\bHttpClient\b|\bfetch\s*\(/, 'feature facade performs HTTP directly');
-assert.deepEqual(
-  relativeImportsOf(application),
-  ['../../application/planning-write-events.service', './scheduling-overview.port'],
-  'application depends on its port and shared planning-write invalidation events',
-);
+assert.match(facade, /SCHEDULING_OVERVIEW_PORT/);
 assert.doesNotMatch(
-  importsOf(application),
+  importsOf(facade),
   /@angular\/common\/http|(?:^|\/)(?:adapters?|api)(?:\/|$)/,
   'application imports a transport implementation',
 );
-assert.doesNotMatch(
-  application,
-  /\bHttpClient\b|\bfetch\s*\(/,
-  'application performs HTTP directly',
-);
+assert.doesNotMatch(facade, /\bHttpClient\b|\bfetch\s*\(/, 'application performs HTTP directly');
 assert.deepEqual(relativeImportsOf(port), ['../scheduling-overview.models']);
 assert.doesNotMatch(
   importsOf(port),
@@ -187,66 +171,18 @@ assert.equal(
   'composition root binds the planning port to its HTTP adapter',
 );
 
-const workspaceServicePath = path.join(root, 'shell', 'application-workspace.service.ts');
-const workspacePortPath = path.join(root, 'shell', 'workspace.port.ts');
-const workspaceSpecPath = path.join(root, 'shell', 'application-workspace.service.spec.ts');
-const workspaceAdapterPath = path.join(root, 'api', 'http-workspace.adapter.ts');
-const workspaceAdapterSpecPath = path.join(root, 'api', 'http-workspace.adapter.spec.ts');
-const [workspaceService, workspacePort, workspaceSpec, workspaceAdapter, workspaceAdapterSpec] =
-  await Promise.all(
-    [
-      workspaceServicePath,
-      workspacePortPath,
-      workspaceSpecPath,
-      workspaceAdapterPath,
-      workspaceAdapterSpecPath,
-    ].map((file) => readFile(file, 'utf8')),
-  );
-
-assert.match(workspaceService, /WORKSPACE_PORT/);
 assert.doesNotMatch(
-  importsOf(workspaceService),
-  /PlanningApiService|planning-api\.service/,
-  'workspace application state must not depend directly on the HTTP API service',
+  appFiles.filter((file) => !file.endsWith('.spec.ts')).join('\n'),
+  /ApplicationWorkspaceService|WORKSPACE_PORT|HttpWorkspaceAdapter/,
+  'application-wide workspace compatibility state has been removed',
 );
-assert.doesNotMatch(
-  workspaceService,
-  /\bHttpClient\b|\bfetch\s*\(/,
-  'workspace application state performs HTTP directly',
-);
-assert.match(workspacePort, /applicationVersion:\s*string/);
-assert.doesNotMatch(
-  workspacePort,
-  /\bhref\b|\bHttpClient\b|\bfetch\s*\(|types\.gen/,
-  'workspace port exposes a transport address or OpenAPI types',
-);
-assert.match(workspacePort, /WithoutHttpLinks/);
-assert.match(workspaceAdapter, /PlanningApiService/);
-assert.match(workspaceAdapter, /withoutHttpLinks/);
-assert.match(workspaceSpec, /WORKSPACE_PORT/);
-assert.doesNotMatch(
-  workspaceSpec,
-  /PlanningApiService|HttpTestingController|provideHttpClientTesting/,
-  'workspace behavior tests must use the application port, not the HTTP adapter',
-);
-assert.match(workspaceAdapterSpec, /HttpWorkspaceAdapter/);
-assert.match(workspaceAdapterSpec, /_links/);
-assert.equal(
-  hasProviderBinding(config, 'WORKSPACE_PORT', 'HttpWorkspaceAdapter'),
-  true,
-  'composition root binds the workspace port to its HTTP adapter',
-);
+assert.match(facade, /SCHEDULING_OVERVIEW_PORT/);
 
 const confirmedPlansPath = path.join(root, 'confirmed-plans', 'confirmed-plans.component.ts');
 const confirmedEditorPath = path.join(
   root,
   'confirmed-plans',
   'confirmed-plan-editor.component.ts',
-);
-const confirmedWorkflowPath = path.join(
-  root,
-  'confirmed-plans',
-  'confirmed-plans-workflow.service.ts',
 );
 const confirmedPortPath = path.join(root, 'confirmed-plans', 'confirmed-plans.port.ts');
 const confirmedModelsPath = path.join(root, 'confirmed-plans', 'confirmed-plans.models.ts');
@@ -265,7 +201,6 @@ const confirmedAdapterSpecPath = path.join(root, 'api', 'http-confirmed-plans.ad
 const [
   confirmedPlans,
   confirmedEditor,
-  confirmedWorkflow,
   confirmedPort,
   confirmedModels,
   confirmedPlansSpec,
@@ -274,9 +209,8 @@ const [
   confirmedAdapterSpec,
 ] = await Promise.all(
   [
-    confirmedPlansPath,
     confirmedEditorPath,
-    confirmedWorkflowPath,
+    confirmedPlansPath,
     confirmedPortPath,
     confirmedModelsPath,
     confirmedPlansSpecPath,
@@ -290,16 +224,16 @@ for (const [name, component] of [
   ['confirmed plans', confirmedPlans],
   ['confirmed-plan editor', confirmedEditor],
 ]) {
-  assert.match(importsOf(component), /confirmed-plans-workflow\.service/);
+  assert.match(component, /CONFIRMED_PLANS_PORT/);
   assert.doesNotMatch(
     importsOf(component),
     /ConfirmedPlanApiService|confirmed-plan-api\.service|ApiClient|api-client\.service/,
     `${name} must not depend directly on a transport service`,
   );
 }
-assert.match(confirmedWorkflow, /CONFIRMED_PLANS_PORT/);
+assert.match(confirmedPlans, /CONFIRMED_PLANS_PORT/);
 assert.doesNotMatch(
-  importsOf(confirmedWorkflow),
+  importsOf(confirmedPlans),
   /ConfirmedPlanApiService|confirmed-plan-api\.service|ApiClient|api-client\.service/,
   'confirmed-plan application operations must depend on their port',
 );
@@ -311,7 +245,6 @@ assert.doesNotMatch(
 for (const [name, source] of [
   ['confirmed-plan list component', confirmedPlans],
   ['confirmed-plan editor', confirmedEditor],
-  ['confirmed-plan workflow', confirmedWorkflow],
   ['confirmed-plan port', confirmedPort],
   ['confirmed-plan models', confirmedModels],
   ['confirmed-plan list tests', confirmedPlansSpec],
@@ -350,46 +283,37 @@ assert.equal(
   'composition root binds the confirmed-plans port to its HTTP adapter',
 );
 const halfYearsComponentPath = path.join(root, 'exam-half-years', 'exam-half-years.component.ts');
-const halfYearsWorkflowPath = path.join(
-  root,
-  'exam-half-years',
-  'exam-half-years-workflow.service.ts',
-);
 const halfYearsPortPath = path.join(root, 'exam-half-years', 'exam-half-years.port.ts');
 const halfYearsSpecPath = path.join(root, 'exam-half-years', 'exam-half-years.component.spec.ts');
 const halfYearsAdapterPath = path.join(root, 'api', 'http-exam-half-years.adapter.ts');
 const halfYearsAdapterSpecPath = path.join(root, 'api', 'http-exam-half-years.adapter.spec.ts');
-const [
-  halfYearsComponent,
-  halfYearsWorkflow,
-  halfYearsPort,
-  halfYearsSpec,
-  halfYearsAdapter,
-  halfYearsAdapterSpec,
-] = await Promise.all(
-  [
-    halfYearsComponentPath,
-    halfYearsWorkflowPath,
-    halfYearsPortPath,
-    halfYearsSpecPath,
-    halfYearsAdapterPath,
-    halfYearsAdapterSpecPath,
-  ].map((file) => readFile(file, 'utf8')),
-);
+const [halfYearsComponent, halfYearsPort, halfYearsSpec, halfYearsAdapter, halfYearsAdapterSpec] =
+  await Promise.all(
+    [
+      halfYearsComponentPath,
+      halfYearsPortPath,
+      halfYearsSpecPath,
+      halfYearsAdapterPath,
+      halfYearsAdapterSpecPath,
+    ].map((file) => readFile(file, 'utf8')),
+  );
 
 assert.deepEqual(
   relativeImportsOf(halfYearsComponent),
   [
+    '../api/round-context.service',
     '../app-icon.directive',
     '../app-icons',
-    './exam-half-years-workflow.service',
+    '../auth/auth.service',
+    '../auth/session-scope.service',
     './exam-half-years.models',
+    './exam-half-years.port',
   ],
   'half-year component imports only its workflow and feature models',
 );
 assert.doesNotMatch(
   importsOf(halfYearsComponent),
-  /@angular\/common\/http|(?:^|\/)(?:api|adapters?)(?:\/|$)/,
+  /@angular\/common\/http|(?:^|\/)adapters?(?:\/|$)|planning-api\.service/,
   'half-year component imports below its workflow boundary',
 );
 assert.doesNotMatch(
@@ -397,12 +321,7 @@ assert.doesNotMatch(
   /['"]\/api\//,
   'half-year component does not construct backend URLs',
 );
-assert.deepEqual(relativeImportsOf(halfYearsWorkflow), ['./exam-half-years.port']);
-assert.doesNotMatch(
-  importsOf(halfYearsWorkflow),
-  /@angular\/common\/http|(?:^|\/)(?:api|adapters?)(?:\/|$)/,
-  'half-year workflow depends only on its feature port',
-);
+assert.match(halfYearsComponent, /EXAM_HALF_YEARS_PORT/);
 assert.deepEqual(relativeImportsOf(halfYearsPort), ['./exam-half-years.models']);
 assert.doesNotMatch(
   importsOf(halfYearsPort),
@@ -415,6 +334,7 @@ assert.deepEqual(
     '../exam-half-years/exam-half-years.models',
     '../exam-half-years/exam-half-years.port',
     './exam-round-api.service',
+    './master-data-api.service',
     './planning.models',
     '@angular/common/http',
     '@angular/core',
@@ -787,8 +707,6 @@ assert.doesNotMatch(
   /first_name|last_name|committee_id|candidate_id|exam_round_id|roundCandidate\.requires_mep/,
   'master-data workflow consumes feature-owned workspace models, not API-shaped records',
 );
-assert.doesNotMatch(workspaceAdapter, /candidateWorkspace|committeeWorkspace/);
-assert.doesNotMatch(workspacePort, /CandidateWorkspace|CommitteeWorkspace/);
 assert.match(masterDataAdapter, /loadCandidateWorkspace\(/);
 assert.match(masterDataAdapter, /loadCommitteeWorkspace\(/);
 assert.deepEqual(relativeImportsOf(masterDataPort), ['./master-data.models']);
@@ -902,32 +820,13 @@ function propertyInitializer(object, name) {
 
 const demoScenariosComponentPath = path.join(root, 'demo-scenarios', 'demo-scenarios.component.ts');
 const demoScenariosSpecPath = path.join(root, 'demo-scenarios', 'demo-scenarios.component.spec.ts');
-const demoScenariosApplicationPath = path.join(
-  root,
-  'demo-scenarios',
-  'application',
-  'demo-scenarios.application.ts',
-);
-const demoScenariosApplicationSpecPath = path.join(
-  root,
-  'demo-scenarios',
-  'application',
-  'demo-scenarios.application.spec.ts',
-);
-const demoScenariosPortPath = path.join(
-  root,
-  'demo-scenarios',
-  'application',
-  'demo-scenarios.port.ts',
-);
+const demoScenariosPortPath = path.join(root, 'demo-scenarios', 'demo-scenarios.port.ts');
 const demoScenariosModelsPath = path.join(root, 'demo-scenarios', 'demo-scenarios.models.ts');
 const demoScenariosAdapterPath = path.join(root, 'api', 'http-demo-scenarios.adapter.ts');
 const demoScenariosAdapterSpecPath = path.join(root, 'api', 'http-demo-scenarios.adapter.spec.ts');
 const [
   demoScenariosComponent,
   demoScenariosSpec,
-  demoScenariosApplication,
-  demoScenariosApplicationSpec,
   demoScenariosPort,
   demoScenariosModels,
   demoScenariosAdapter,
@@ -936,8 +835,6 @@ const [
   [
     demoScenariosComponentPath,
     demoScenariosSpecPath,
-    demoScenariosApplicationPath,
-    demoScenariosApplicationSpecPath,
     demoScenariosPortPath,
     demoScenariosModelsPath,
     demoScenariosAdapterPath,
@@ -949,8 +846,8 @@ assert.deepEqual(
   relativeImportsOf(demoScenariosComponent),
   [
     '../auth/auth.service',
-    './application/demo-scenarios.application',
     './demo-scenarios.models',
+    './demo-scenarios.port',
     './demo-tour.component',
   ],
   'demo-scenarios component imports its application, feature models, tour and auth facade',
@@ -965,17 +862,7 @@ assert.doesNotMatch(
   /\bHttpClient\b|\bfetch\s*\(|['"]\/api\//,
   'demo-scenarios component does not perform or construct transport requests',
 );
-assert.deepEqual(
-  relativeImportsOf(demoScenariosApplication),
-  ['./demo-scenarios.port'],
-  'demo-scenarios application depends only on its feature port',
-);
-assert.doesNotMatch(
-  importsOf(demoScenariosApplication),
-  /@angular\/common\/http|(?:^|\/)(?:api|adapters?)(?:\/|$)/,
-  'demo-scenarios application does not depend on a transport implementation',
-);
-assert.deepEqual(relativeImportsOf(demoScenariosPort), ['../demo-scenarios.models']);
+assert.deepEqual(relativeImportsOf(demoScenariosPort), ['./demo-scenarios.models']);
 assert.doesNotMatch(
   importsOf(demoScenariosPort),
   /@angular\/common\/http|(?:^|\/)(?:api|adapters?)(?:\/|$)|types\.gen|['"]\/api\//,
@@ -983,11 +870,9 @@ assert.doesNotMatch(
 );
 for (const [name, source] of [
   ['demo-scenarios component', demoScenariosComponent],
-  ['demo-scenarios application', demoScenariosApplication],
   ['demo-scenarios port', demoScenariosPort],
   ['demo-scenarios models', demoScenariosModels],
   ['demo-scenarios behavior tests', demoScenariosSpec],
-  ['demo-scenarios application tests', demoScenariosApplicationSpec],
 ]) {
   assert.doesNotMatch(
     importsOf(source),
@@ -999,7 +884,7 @@ assert.deepEqual(
   importModulesOf(demoScenariosAdapter).sort(),
   [
     './api.models',
-    '../demo-scenarios/application/demo-scenarios.port',
+    '../demo-scenarios/demo-scenarios.port',
     '../demo-scenarios/demo-scenarios.models',
     '../runtime/runtime-experience.service',
     '@angular/core',
@@ -1012,17 +897,16 @@ assert.match(demoScenariosAdapterSpec, /HttpDemoScenariosAdapter/);
 assert.match(demoScenariosAdapterSpec, /HttpTestingController/);
 assert.deepEqual(relativeImportsOf(demoScenariosSpec), [
   '../auth/auth.service',
-  './application/demo-scenarios.application',
   './demo-scenarios.component',
   './demo-scenarios.models',
+  './demo-scenarios.port',
 ]);
-assert.match(demoScenariosSpec, /DemoScenariosApplication/);
 assert.doesNotMatch(
   demoScenariosSpec,
   /HttpTestingController|provideHttpClientTesting/,
   'demo-scenarios behavior tests use application and auth doubles',
 );
-assert.match(demoScenariosApplicationSpec, /DEMO_SCENARIOS_PORT/);
+assert.match(demoScenariosSpec, /DEMO_SCENARIOS_PORT/);
 assert.match(demoScenariosSpec, /startDemoSession/);
 assert.match(demoScenariosSpec, /reset/);
 assert.match(demoScenariosSpec, /window\.confirm/);

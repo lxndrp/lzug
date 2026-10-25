@@ -140,7 +140,7 @@ Diese Einträge laden keine eigene Route-Komponente.
 | `CandidatesRouteComponent` | `/candidates` | Stammdaten Prüflinge: `CandidatesComponent`; Mutationen über `MasterDataWorkflowService`. |
 | `CommitteeRouteComponent` | `/committee` | Stammdaten Ausschuss: `CommitteeComponent`; Mutationen über `MasterDataWorkflowService`. |
 | `LocationsRouteComponent` (gleicher Einstieg für Liste/Detail) | `/locations`, `/locations/:id` | Prüfungsorte: `LocationsComponent`; `:id` ist eine selektierte Detailansicht desselben Features. |
-| `ExamHalfYearsRouteComponent` | `/exam-half-years` | Prüfungshalbjahre/Rundenauswahl: `ExamHalfYearsComponent`. |
+| Direkter Einstieg `ExamHalfYearsComponent` | `/exam-half-years` | Prüfungshalbjahre und Rundenwahl; Ansichtsreferenzen lädt das Feature über seinen Port. |
 | Direkter Einstieg `NotificationsComponent` | `/notifications` | Persönliche Benachrichtigungen und Kalender: `NotificationsComponent` / Personal-Feature. |
 | Direkter Einstieg `AbsenceReportsComponent` | `/absence-reports` | Persönliche Abwesenheiten: `AbsenceReportsComponent` / Personal-Feature. |
 | Direkter Einstieg `DemoScenariosComponent` | `/demo-scenarios` | Demo-Szenarien: `DemoScenariosComponent`; Demo bleibt eigene Assembly/Sessionfunktion. |
@@ -177,8 +177,7 @@ flowchart TB
   CommitteeRoute --> Committee[CommitteeComponent]
   Router --> LocationsRoute[LocationsRouteComponent]
   LocationsRoute --> Locations[LocationsComponent]
-  Router --> HalfYearsRoute[ExamHalfYearsRouteComponent]
-  HalfYearsRoute --> HalfYears[ExamHalfYearsComponent]
+  Router --> HalfYears[ExamHalfYearsComponent]
   Router --> Notifications[NotificationsComponent]
   Router --> Absences[AbsenceReportsComponent]
   Router --> Demo[DemoScenariosComponent]
@@ -195,8 +194,7 @@ lokalen Provider der Prüfungstagsansicht.
 Ein gebundener Token zeigt die vorhandene Port-Adapter-Zuordnung;
 `useExisting` teilt die vorhandene Auth- oder Lifecycle-Instanz.
 Alle dort explizit gebundenen Ports/Adapter liegen im Root-EnvironmentInjector.
-Services mit `providedIn: 'root'` — darunter aktuell Workspace- und
-Workflow-Services — sind ebenfalls anwendungsweit erreichbare Singletons;
+Services mit `providedIn: 'root'` sind ebenfalls anwendungsweit erreichbare Singletons;
 das Verlassen einer Route zerstört sie nicht.
 Komponentenfelder und lokale Signals leben dagegen mit ihrer
 Komponenteninstanz.
@@ -249,12 +247,12 @@ flowchart LR
   DayPort --> DayAdapter[HttpExamDayAdapter]
   DayComponent[ExamDayComponent] --> DayFacade[ExamDayFacade: view scoped]
   DayFacade --> DayPort
-  Root --> WorkspacePort[WORKSPACE_PORT]
-  WorkspacePort --> WorkspaceAdapter[HttpWorkspaceAdapter]
   Root --> PlansPort[CONFIRMED_PLANS_PORT]
   PlansPort --> PlansAdapter[HttpConfirmedPlansAdapter]
   Root --> DemoPort[DEMO_SCENARIOS_PORT]
   DemoPort --> DemoAdapter[HttpDemoScenariosAdapter]
+  Root --> BuildInfoPort[BUILD_INFO_PORT]
+  BuildInfoPort --> BuildInfoAdapter[HttpBuildInfoAdapter]
   Root --> AuthPort[AUTHENTICATION_PORT useExisting]
   AuthPort --> Auth[AuthService]
   Root --> LifecyclePort[LIFECYCLE_AVAILABILITY_PORT useExisting]
@@ -299,9 +297,8 @@ Verfügbarkeitsantworten aktualisieren den Planning-Snapshot direkt.
 `ConfirmedPlansComponent` lädt die auswählbaren Editor-Referenzen für die
 aufgerufene Runden-ID über `ConfirmedPlansPort`; es liest sie nicht aus dem
 Planning-Workspace.
-Die globalen Workspace-Projektionen und ihre Verbraucher werden in den
-Feature-Slices rückgebaut; die Root-Provider der Ports belegen keine
-Workspace-Zuständigkeit.
+Die globalen Workspace-Projektionen wurden mit #1097 entfernt; die
+Root-Provider der Ports begründen keine globale Fachzuständigkeit.
 
 ### Datenfluss-Sicht
 
@@ -466,10 +463,10 @@ Command im Ursprungsworkflow noch abgeschlossen wird.
 
 | Bestehender Pfad | Befristeter Besitzer | Ziel und zuständiger Rückbau |
 | --- | --- | --- |
-| `ApplicationWorkspaceService` bündelt Runde, Summary, Board und einen Übergangsbestand an Stammdaten für bestehende Workspace-Konsumenten. | Planung besitzt ihren Runden-Snapshot getrennt über `PlanningPort`; der Workspace bleibt für Prüfungshalbjahre ein Übergangspfad. Die Prüfungshalbjahresroute verwendet die Auswahl aus `RoundContextService` und lädt bei abweichender Workspace-Runde nur ihre rundenabhängigen Prüflingsreferenzen. Orts-/Raumwrites aktualisieren dort gezielt nur `/api/locations`. | Die verbleibenden Prüfungshalbjahres-/Workspace-Abhängigkeiten abbauen: #1097. |
+| Globaler Anwendungsworkspace mit Runde, Summary, Board und Stammdaten. | Dashboard, Planung und Prüfungshalbjahre laden eigene Projektionen über ihre Featureports; Ortswrites invalidieren betroffene Projektionen gezielt. | In #1097 entfernt. |
 | Planung las Runde, Summary, Board und Stammdaten aus dem Workspace. | `PlanningWorkflowService` besitzt Snapshot, Vorschlag, Drafts und Commands; `PlanningPort` verwendet featureeigene Verträge. Route und Adapter reichen die beim Start erfasste Runden-ID durch; beim gespeicherten Vorschlag bleibt dessen Revision erhalten. | Abgeschlossen in #1093: unabhängiger Planning-Read, keine fremden Workspace-Board-Schreibzugriffe und gezielte Feature-Aktualisierung. |
 | Prüfungstag, Protokoll und Ergebnis verwenden eigene Featureports, aber Teile des Shell-/Workspacekontexts und bestehende mehrstufige Ketten. | Prüfungstag, Protokoll und Ergebnis bleiben getrennte Featurebesitzer; IDs/Revisionen und Kindoutputs sind explizit. Protokoll und Ergebnis verwenden je eine komponentenlokale Facade direkt über ihrem Featureport. Drafts bleiben bei der jeweiligen Ansicht und werden bei Slot-, Tag-, Runden- und Sitzungswechsel verworfen. | Prüfungstagszustand verantworten: #1094; Protokoll-/Ergebniszustand und Grenzen bereinigen: #1095. |
-| Persönliche Ansichten und Ansichten für Halbjahre, bestätigte Pläne, Produktinformation konsumieren teils geteilte Workspacewerte oder breite Einstiege. | Das jeweilige Feature bleibt fachlicher Besitzer; Workspace ist Kompatibilität. Produktinformation erhält vor dem Abbau der Workspace-Abhängigkeit einen eigenen Build-Info-Port, der `applicationVersion` aus der API-Root-Version lädt. | Personal lokal und mit gezielten Fähigkeiten: #1096; Produkt-Build-Info-Port sowie tabübergreifende Auth-Response-Fencing-, Recovery- und sensible Draft-Lebensdauer, verbleibende Einstiege und Workspace-/Session-Übergänge: #1097. |
+| Persönliche Ansichten, Halbjahre, bestätigte Pläne und Produktinformation konsumierten teils geteilte Workspacewerte oder reine Weiterleitungsschichten. | Jedes Feature besitzt seine Reads über den eigenen Port; Produktinformation lädt die Buildversion über `BuildInfoPort`. | Personal lokal und mit gezielten Fähigkeiten: #1096; direkte Featuregrenzen, Build-Info-Port und Workspace-Rückbau: #1097. |
 | Route-Einstiege und fachliche Services existieren parallel. | Route besitzt URL-Bindung/Command-Origin, Feature besitzt Fachzustand. | Beibehalten, solange beide eine dieser Aufgaben tragen; #1097 entfernt nur reine Durchreichung. |
 
 Jede Rückbauänderung erhält vorhandene Lade-, Fehler-, Berechtigungs-,

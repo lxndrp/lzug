@@ -3,7 +3,6 @@ import { of, Subject, throwError } from 'rxjs';
 
 import { RoundContextService } from '../api/round-context.service';
 import { AuthService } from '../auth/auth.service';
-import { ApplicationWorkspaceService } from '../shell/application-workspace.service';
 import { DashboardProjectionService } from '../dashboard/dashboard-projection.service';
 import { ReferenceDataWriteEventsService } from '../application/reference-data-write-events.service';
 import type {
@@ -27,10 +26,6 @@ describe('MasterDataWorkflowService', () => {
     updateCommitteeMember: ReturnType<typeof vi.fn>;
   };
   let roundContext: { roundId: ReturnType<typeof vi.fn> };
-  let workspace: {
-    refreshCandidateReferences: ReturnType<typeof vi.fn>;
-    refreshCommitteeReferences: ReturnType<typeof vi.fn>;
-  };
   let dashboard: {
     refreshCandidateReferences: ReturnType<typeof vi.fn>;
     refreshCommitteeMembers: ReturnType<typeof vi.fn>;
@@ -77,10 +72,6 @@ describe('MasterDataWorkflowService', () => {
       updateCommitteeMember: vi.fn(),
     };
     roundContext = { roundId: vi.fn(() => 12) };
-    workspace = {
-      refreshCandidateReferences: vi.fn(),
-      refreshCommitteeReferences: vi.fn(),
-    };
     dashboard = {
       refreshCandidateReferences: vi.fn(),
       refreshCommitteeMembers: vi.fn(),
@@ -89,7 +80,6 @@ describe('MasterDataWorkflowService', () => {
       providers: [
         MasterDataWorkflowService,
         { provide: MASTER_DATA_PORT, useValue: port },
-        { provide: ApplicationWorkspaceService, useValue: workspace },
         { provide: DashboardProjectionService, useValue: dashboard },
         { provide: RoundContextService, useValue: roundContext },
         {
@@ -190,7 +180,6 @@ describe('MasterDataWorkflowService', () => {
 
     expect(port.createCandidate).toHaveBeenCalledWith({ ...candidateCommand, examRoundId: 12 });
     expect(result).toMatchObject({ ok: true, value: candidate, current: true });
-    expect(workspace.refreshCandidateReferences).toHaveBeenCalledOnce();
     expect(dashboard.refreshCandidateReferences).toHaveBeenCalledOnce();
     expect(referenceWrites).toHaveBeenCalledWith('candidates');
     expect(service.actionBusy()).toBe(false);
@@ -300,7 +289,6 @@ describe('MasterDataWorkflowService', () => {
 
     expect(result).toMatchObject({ ok: true, value: member, current: false });
     expect(port.loadCommitteeWorkspace).toHaveBeenCalledOnce();
-    expect(workspace.refreshCommitteeReferences).toHaveBeenCalledOnce();
     expect(dashboard.refreshCommitteeMembers).toHaveBeenCalledOnce();
     expect(service.committeeWorkspace()?.members).toEqual([member]);
     expect(service.selectedCommitteeId()).toBe(4);

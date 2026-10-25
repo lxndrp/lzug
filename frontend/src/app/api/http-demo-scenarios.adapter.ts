@@ -3,7 +3,7 @@ import { map } from 'rxjs';
 
 import type { DemoScenarioOverview as ApiDemoScenarioOverview } from './api.models';
 import { RuntimeExperienceService } from '../runtime/runtime-experience.service';
-import type { DemoScenariosPort } from '../demo-scenarios/application/demo-scenarios.port';
+import type { DemoScenariosPort } from '../demo-scenarios/demo-scenarios.port';
 import type { DemoScenarioOverview } from '../demo-scenarios/demo-scenarios.models';
 
 /** HTTP/OpenAPI adapter for the transport-neutral demo-scenarios port. */

@@ -5,7 +5,6 @@ import type { CommitteeMember, ExamRound, PlanningBoard, RoundSummary } from '..
 import type { Location } from '../api/master-data.models';
 
 export type DashboardProjection = {
-  applicationVersion: string;
   round: ExamRound;
   summary: RoundSummary;
   board: PlanningBoard;
