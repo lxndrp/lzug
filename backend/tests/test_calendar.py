@@ -493,6 +493,8 @@ class CalendarServiceTests(unittest.TestCase):
             )
             with connect(db_path) as connection:
                 connection.execute(text("DROP TRIGGER fail_feed_revocation"))
+            with self.assertRaises(FeedRevocationPendingError):
+                service.sync_person(scope.person_id)
             listed = service.list_events(scope)
             self.assertTrue(listed)
             self.assertIsNotNone(service.event_ics(listed[0].id, scope))

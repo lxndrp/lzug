@@ -276,7 +276,7 @@ class CalendarService:
             return self._feed_coordinator.run_sync(
                 self._database_id,
                 person_id,
-                ("projection", identity_scope),
+                ("projection", identity_scope, allow_revocation_pending),
                 lambda state, event: self.sync_person(
                     person_id,
                     cancellation=event,
