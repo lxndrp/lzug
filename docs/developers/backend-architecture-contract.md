@@ -821,9 +821,11 @@ und explizites Feed-`DELETE` denselben prozessweit geteilten Lifecycle-Lock
 aus der Composition-Root-Registry für kurze Credential-Prüfungen, Fences und
 Commits.
 Parallele ICS-Refreshes werden pro Feed auf einen laufenden Sync-UoW
-zusammengeführt; derselbe Coordinator serialisiert Sync-Aufträge aus initialer
-Aktivierung, Rotation und deren Retries und führt identische
-Generationsaufträge zusammen. Das prozessweit geteilte Commit-Gate je Feed
+zusammengeführt. Initiale Aktivierung, Rotation und deren Retries nutzen
+denselben Coordinator für ihre Sync-Aufträge und führen identische
+Generationsaufträge zusammen. Gewöhnliche `sync_round`- und
+`sync_assignment`-Aufrufe verwenden eigene UoWs außerhalb dieses Coordinators.
+Das prozessweit geteilte Commit-Gate je Feed
 serialisiert nur Cancellation-Prüfung und abschließenden SQLite-Commit des
 aktiven Syncs. `DELETE` setzt darunter sofort den prozesslokalen Fence, gibt das
 Gate frei, verwirft wartende Aufträge und fenced wartende Reads. Es wartet auf
