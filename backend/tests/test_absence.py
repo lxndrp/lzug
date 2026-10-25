@@ -5,7 +5,8 @@ import sqlite3
 import unittest
 from datetime import UTC, datetime
 from http import HTTPStatus
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
 from sqlalchemy.exc import IntegrityError
 
@@ -231,6 +232,115 @@ class AbsenceServiceTests(unittest.TestCase):
         self.assertEqual(1, replay["legacy_unreplayable"])
         with session_scope(self.db_path) as session:
             self.assertEqual(1, session.query(PlanConsequenceBatch).count())
+
+    def test_absence_effects_are_skipped_after_another_worker_reclaims_the_lease(self) -> None:
+        current = datetime(2026, 11, 1, tzinfo=UTC)
+        initial_lease = "2026-11-01T00:05:00+00:00"
+        replacement_lease = "2026-11-01T00:10:00+00:00"
+        for consequence_type in ("calendar", "notification"):
+            with self.subTest(consequence_type=consequence_type):
+                task = SimpleNamespace(
+                    id=1,
+                    origin_key="absence-audit:1",
+                    recipient_member_id=7,
+                    consequence_type=consequence_type,
+                    details_json=json.dumps(
+                        {
+                            "assignment_id": 1,
+                            "round_id": 1,
+                            "assignment_revision": 2,
+                            "calendar_action": "update",
+                            "before_image": [],
+                            "committee_id": 1,
+                            "event_type": "replacement_selected",
+                            "title": "Ersatzmitglied ausgewählt",
+                            "message": "Folgearbeit",
+                            "action_path": "/absence-reports/1",
+                        }
+                    ),
+                    attempt_count=0,
+                    calendar_event_id=None,
+                    calendar_event_version=None,
+                )
+                store = Mock()
+                store.claim_task.return_value = True
+                store.task.side_effect = [
+                    task,
+                    SimpleNamespace(status="pending", next_attempt_at=replacement_lease),
+                ]
+                processor = AbsenceConsequenceApplication(
+                    unit_of_work_factory=Mock(),
+                    consequence_store=store,
+                    notification_service=Mock(),
+                    calendar_service=Mock(),
+                )
+
+                self.assertTrue(processor._process_task(1, current))
+
+                store.claim_task.assert_called_once_with(
+                    1,
+                    now="2026-11-01T00:00:00+00:00",
+                    lease_until=initial_lease,
+                )
+                store.set_task_state.assert_not_called()
+                processor.calendar.apply_absence_follow_up.assert_not_called()
+                processor.notifications.create_direct.assert_not_called()
+
+    def test_failed_absence_notification_is_retried_and_recorded_as_succeeded(self) -> None:
+        current = datetime(2026, 11, 1, tzinfo=UTC)
+        retry_at = "2026-11-01T00:02:00+00:00"
+        store = application_consequence_store(self.db_path)
+        batch_id = store.record_batch(
+            origin_type="absence_audit_event",
+            origin_key="absence-audit:retry-test",
+            confirmed_plan_revision_id=None,
+            notification_scope=(7,),
+            tasks=(
+                {
+                    "recipient_member_id": 7,
+                    "consequence_type": "notification",
+                    "action": "notify",
+                    "identity_key": "absence-audit:retry-test",
+                    "details_json": json.dumps(
+                        {
+                            "committee_id": 1,
+                            "round_id": 1,
+                            "event_type": "replacement_selected",
+                            "title": "Ersatzmitglied ausgewählt",
+                            "message": "Folgearbeit",
+                            "action_path": "/absence-reports/1",
+                        }
+                    ),
+                },
+            ),
+            error_code=None,
+            now="2026-11-01T00:00:00+00:00",
+        )
+        task_id = store.due_task_ids(
+            origin_type="absence_audit_event",
+            now="2026-11-01T00:00:00+00:00",
+            batch_id=batch_id,
+        )[0]
+        notifications = Mock()
+        notifications.create_direct.side_effect = [RuntimeError("provider unavailable"), None]
+        processor = AbsenceConsequenceApplication(
+            unit_of_work_factory=Mock(),
+            consequence_store=store,
+            notification_service=notifications,
+            calendar_service=Mock(),
+        )
+
+        self.assertTrue(processor._process_task(task_id, current))
+        failed = store.task(task_id)
+        self.assertEqual("temporarily_failed", failed.status)
+        self.assertEqual(1, failed.attempt_count)
+        self.assertEqual(retry_at, failed.next_attempt_at)
+
+        self.assertTrue(processor._process_task(task_id, datetime(2026, 11, 1, 0, 2, tzinfo=UTC)))
+        succeeded = store.task(task_id)
+        self.assertEqual("succeeded", succeeded.status)
+        self.assertEqual(2, succeeded.attempt_count)
+        self.assertEqual(2, notifications.create_direct.call_count)
 
     def test_report_uses_exclusive_fallback_window_and_audit_history(self) -> None:
         result = self.absence_service().report(

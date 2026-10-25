@@ -172,6 +172,8 @@ class AbsenceConsequenceApplication:
         try:
             details = json.loads(task.details_json)
             if task.consequence_type == "calendar":
+                if not self._owns_claim(task_id, lease_until):
+                    return True
                 result = self.calendar.apply_absence_follow_up(
                     assignment_id=int(details["assignment_id"]),
                     round_id=int(details["round_id"]),
@@ -185,6 +187,8 @@ class AbsenceConsequenceApplication:
                 event_id = None
                 event_version = None
             elif task.consequence_type == "notification":
+                if not self._owns_claim(task_id, lease_until):
+                    return True
                 self.notifications.create_direct(
                     committee_id=int(details["committee_id"]),
                     round_id=int(details["round_id"]),
@@ -225,3 +229,7 @@ class AbsenceConsequenceApplication:
             updated_at=now,
             expected_claim_until=lease_until,
         )
+
+    def _owns_claim(self, task_id: int, lease_until: str) -> bool:
+        task = self.consequence_store.task(task_id)
+        return task is not None and task.status == "pending" and task.next_attempt_at == lease_until

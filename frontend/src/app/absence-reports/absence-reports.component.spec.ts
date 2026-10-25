@@ -104,7 +104,7 @@ describe('AbsenceReportsComponent', () => {
     expect(personal.answerReplacement).toHaveBeenCalledWith(5, 'available');
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).textContent).toContain(
-      'Öffnen Sie die Demo-Szenarien für den nächsten Schritt.',
+      'Ersatzantwort gespeichert.',
     );
   });
 
@@ -135,8 +135,37 @@ describe('AbsenceReportsComponent', () => {
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('Ersatz ausgewählt.');
     expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      'Die Folgearbeit wurde angestoßen.',
+    );
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
       'Öffnen Sie die Demo-Szenarien',
     );
+  });
+
+  it('confirms replacement selection without claiming follow-up work already finished', () => {
+    TestBed.inject(AuthService).session.set({
+      authenticated: true,
+      account_id: 1,
+      person_id: 1,
+      committee_member_id: 1,
+      is_operator: false,
+      capabilities: ['absence:coordinate'],
+    });
+    personal.listAbsenceReports = vi.fn().mockReturnValue(of([report({ response: 'available' })]));
+    personal.selectReplacement = vi
+      .fn()
+      .mockReturnValue(of(report({ response: 'available', selected: true })));
+    const fixture = TestBed.createComponent(AbsenceReportsComponent);
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('button')?.click();
+    fixture.detectChanges();
+
+    const message = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(message).toContain('Ersatz ausgewählt.');
+    expect(message).toContain('Kalender- und Benachrichtigungsfolgen wurden angestoßen.');
+    expect(message).not.toContain('wurden verarbeitet');
   });
 
   it('reports answer and loading failures to the user', () => {
