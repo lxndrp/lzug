@@ -1,9 +1,10 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Observable, of, throwError } from 'rxjs';
+import { Observable, Subject, of, throwError } from 'rxjs';
 import { signal } from '@angular/core';
 import { provideTaiga } from '@taiga-ui/core';
 
 import { AuthService } from '../auth/auth.service';
+import { SessionScopeService } from '../auth/session-scope.service';
 import { RoundContextService } from '../api/round-context.service';
 import { ExamHalfYearsComponent } from './exam-half-years.component';
 import { EXAM_HALF_YEARS_PORT, type ExamHalfYearsPort } from './exam-half-years.port';
@@ -102,6 +103,41 @@ describe('ExamHalfYearsComponent', () => {
     });
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      'Prüfungsrunde und gemeinsamer Halbjahreskontext wurden angelegt.',
+    );
+  });
+
+  it('ignores a half-year creation response after its session ends', () => {
+    const sessionScope = TestBed.inject(SessionScopeService);
+    sessionScope.establish({
+      account_id: 7,
+      authenticated: true,
+      capabilities: [],
+      committee_member_id: null,
+      is_operator: false,
+      person_id: 7,
+    });
+    const pending = new Subject<ExamRound>();
+    vi.mocked(port.createRound).mockReturnValue(pending);
+    fixture.detectChanges();
+
+    const form = (fixture.nativeElement as HTMLElement).querySelector<HTMLFormElement>('form')!;
+    form.querySelector<HTMLSelectElement>('#examHalfYearSeason')!.value = 'summer';
+    form.querySelector<HTMLInputElement>('#examHalfYearYear')!.value = '2027';
+    form.querySelector<HTMLSelectElement>('#newRoundCommittee')!.value = '1';
+    (
+      fixture.componentInstance as unknown as {
+        createHalfYear(event: SubmitEvent): void;
+      }
+    ).createHalfYear({ preventDefault: vi.fn(), currentTarget: form } as unknown as SubmitEvent);
+
+    sessionScope.clear();
+    pending.next({ ...roundFixture(), id: 44 });
+    pending.complete();
+    fixture.detectChanges();
+
+    expect(TestBed.inject(RoundContextService).roundId()).toBe(1);
+    expect((fixture.nativeElement as HTMLElement).textContent).not.toContain(
       'Prüfungsrunde und gemeinsamer Halbjahreskontext wurden angelegt.',
     );
   });

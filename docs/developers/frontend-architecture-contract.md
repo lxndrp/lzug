@@ -272,7 +272,6 @@ flowchart LR
   Http --> Adapters
   PlanningAdapter --> Adapters
   LocationAdapter --> Adapters
-  WorkspaceAdapter --> Adapters
 ```
 
 `LOCATIONS_READ_PORT` ist an `HttpLocationsReadAdapter` gebunden und lädt die

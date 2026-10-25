@@ -5,6 +5,7 @@ import { TuiButton, TuiInput, TuiNotification, TuiTextfield } from '@taiga-ui/co
 import { TuiBadge } from '@taiga-ui/kit';
 import { TuiForm, TuiHeader } from '@taiga-ui/layout';
 import { Router } from '@angular/router';
+import { Observable } from 'rxjs';
 import { AuthService } from '../auth/auth.service';
 import { SessionScopeService } from '../auth/session-scope.service';
 import { RoundContextService } from '../api/round-context.service';
@@ -145,22 +146,21 @@ export class ExamHalfYearsComponent implements OnInit {
       return;
     }
     this.loading.set(true);
-    this.port
-      .createRound({
+    this.runCommand(
+      this.port.createRound({
         season,
         year,
         committeeId: committee.id,
         name: `${season === 'summer' ? 'Sommer' : 'Winter'} ${year} · ${committee.name}`,
-      })
-      .subscribe({
-        next: (round) => {
-          this.creatingHalfYear.set(false);
-          this.success.set('Prüfungsrunde und gemeinsamer Halbjahreskontext wurden angelegt.');
-          this.selectExamRound(round.id);
-          this.load();
-        },
-        error: () => this.saveError('Die Prüfungsrunde konnte nicht angelegt werden.'),
-      });
+      }),
+      (round) => {
+        this.creatingHalfYear.set(false);
+        this.success.set('Prüfungsrunde und gemeinsamer Halbjahreskontext wurden angelegt.');
+        this.selectExamRound(round.id);
+        this.load();
+      },
+      () => this.saveError('Die Prüfungsrunde konnte nicht angelegt werden.'),
+    );
   }
 
   protected selectHalfYear(halfYear: ExamHalfYear): void {
@@ -180,23 +180,22 @@ export class ExamHalfYearsComponent implements OnInit {
       return;
     }
     this.loading.set(true);
-    this.port
-      .createRound({
+    this.runCommand(
+      this.port.createRound({
         halfYearId: halfYear.id,
         committeeId,
         name: `${this.halfYearLabel(halfYear)} · ${committee.name}`,
-      })
-      .subscribe({
-        next: (round) => {
-          this.success.set('Ausschuss dem Prüfungshalbjahr zugeordnet.');
-          this.selectExamRound(round.id);
-          this.load();
-        },
-        error: () =>
-          this.saveError(
-            'Der Ausschuss konnte nicht zugeordnet werden. Jeder Ausschuss ist je Prüfungshalbjahr nur einmal zulässig.',
-          ),
-      });
+      }),
+      (round) => {
+        this.success.set('Ausschuss dem Prüfungshalbjahr zugeordnet.');
+        this.selectExamRound(round.id);
+        this.load();
+      },
+      () =>
+        this.saveError(
+          'Der Ausschuss konnte nicht zugeordnet werden. Jeder Ausschuss ist je Prüfungshalbjahr nur einmal zulässig.',
+        ),
+    );
   }
 
   protected halfYearLabel(halfYear: ExamHalfYear): string {
@@ -306,11 +305,12 @@ export class ExamHalfYearsComponent implements OnInit {
     if (terminalStatus === 'postponed') payload.postponedUntil = detail.trim();
     if (terminalStatus === 'ihk_terminated') payload.ihkDecisionReference = detail.trim();
     this.loading.set(true);
-    this.port.setCandidateTerminalStatus(round.id, roundCandidateId, payload).subscribe({
-      next: (updated) =>
+    this.runCommand(
+      this.port.setCandidateTerminalStatus(round.id, roundCandidateId, payload),
+      (updated) =>
         this.lifecycleSaved(round.id, updated, 'Abschließender Prüflingsstatus gespeichert.'),
-      error: () => this.saveError('Der Prüflingsstatus ist unvollständig oder widersprüchlich.'),
-    });
+      () => this.saveError('Der Prüflingsstatus ist unvollständig oder widersprüchlich.'),
+    );
   }
 
   protected documentIhkStatus(
@@ -328,33 +328,33 @@ export class ExamHalfYearsComponent implements OnInit {
       return;
     }
     this.loading.set(true);
-    this.port
-      .documentIhkStatus(round.id, resultId, documentStatus.trim(), reference.trim())
-      .subscribe({
-        next: (updated) =>
-          this.lifecycleSaved(round.id, updated, 'Förmlicher IHK-Status dokumentiert.'),
-        error: () => this.saveError('Der IHK-Status konnte nicht dokumentiert werden.'),
-      });
+    this.runCommand(
+      this.port.documentIhkStatus(round.id, resultId, documentStatus.trim(), reference.trim()),
+      (updated) => this.lifecycleSaved(round.id, updated, 'Förmlicher IHK-Status dokumentiert.'),
+      () => this.saveError('Der IHK-Status konnte nicht dokumentiert werden.'),
+    );
   }
 
   protected closeRound(round: ExamRound, confirmed: boolean): void {
     const lifecycle = this.lifecycleFor(round.id);
     if (this.readOnly || !lifecycle || !confirmed) return;
     this.loading.set(true);
-    this.port.closeRound(round.id, lifecycle.revision).subscribe({
-      next: (updated) => this.lifecycleSaved(round.id, updated, 'Prüfungsrunde abgeschlossen.'),
-      error: () => this.saveError('Die Prüfungsrunde konnte nicht abgeschlossen werden.'),
-    });
+    this.runCommand(
+      this.port.closeRound(round.id, lifecycle.revision),
+      (updated) => this.lifecycleSaved(round.id, updated, 'Prüfungsrunde abgeschlossen.'),
+      () => this.saveError('Die Prüfungsrunde konnte nicht abgeschlossen werden.'),
+    );
   }
 
   protected cancelRound(round: ExamRound, reason: string, confirmed: boolean): void {
     const lifecycle = this.lifecycleFor(round.id);
     if (this.readOnly || !lifecycle || !confirmed || !reason.trim()) return;
     this.loading.set(true);
-    this.port.cancelRound(round.id, lifecycle.revision, reason.trim()).subscribe({
-      next: (updated) => this.lifecycleSaved(round.id, updated, 'Prüfungsrunde abgesagt.'),
-      error: () => this.saveError('Die Prüfungsrunde konnte nicht abgesagt werden.'),
-    });
+    this.runCommand(
+      this.port.cancelRound(round.id, lifecycle.revision, reason.trim()),
+      (updated) => this.lifecycleSaved(round.id, updated, 'Prüfungsrunde abgesagt.'),
+      () => this.saveError('Die Prüfungsrunde konnte nicht abgesagt werden.'),
+    );
   }
 
   protected reopenRound(
@@ -380,38 +380,38 @@ export class ExamHalfYearsComponent implements OnInit {
       return;
     }
     this.loading.set(true);
-    this.port
-      .reopenRound(round.id, {
+    this.runCommand(
+      this.port.reopenRound(round.id, {
         revision: lifecycle.revision,
         occasion: occasion.trim(),
         source: source.trim(),
         reason: reason.trim(),
         scope: [{ kind: scopeKind, entityId: scopeId }],
-      })
-      .subscribe({
-        next: (updated) =>
-          this.lifecycleSaved(round.id, updated, 'Prüfungsrunde gezielt wieder geöffnet.'),
-        error: () => this.saveError('Die Prüfungsrunde konnte nicht wieder geöffnet werden.'),
-      });
+      }),
+      (updated) => this.lifecycleSaved(round.id, updated, 'Prüfungsrunde gezielt wieder geöffnet.'),
+      () => this.saveError('Die Prüfungsrunde konnte nicht wieder geöffnet werden.'),
+    );
   }
 
   protected deleteRound(round: ExamRound, confirmed: boolean): void {
     const lifecycle = this.lifecycleFor(round.id);
     if (this.readOnly || !lifecycle?.permissions.delete || !confirmed) return;
     this.loading.set(true);
-    this.port.deleteEmptyRound(round.id).subscribe({
-      next: () => {
+    this.runCommand(
+      this.port.deleteEmptyRound(round.id),
+      () => {
         this.success.set('Leere Entwurfsrunde gelöscht.');
         this.load();
       },
-      error: () => this.saveError('Nur eine vollständig leere Entwurfsrunde kann gelöscht werden.'),
-    });
+      () => this.saveError('Nur eine vollständig leere Entwurfsrunde kann gelöscht werden.'),
+    );
   }
 
   protected downloadLifecycleExport(round: ExamRound, format: LifecycleExportFormat): void {
     this.loading.set(true);
-    this.port.exportLifecycle(round.id, format).subscribe({
-      next: ({ content, mediaType, fileName }) => {
+    this.runCommand(
+      this.port.exportLifecycle(round.id, format),
+      ({ content, mediaType, fileName }) => {
         this.loading.set(false);
         const url = URL.createObjectURL(new Blob([content], { type: mediaType }));
         const link = document.createElement('a');
@@ -420,8 +420,8 @@ export class ExamHalfYearsComponent implements OnInit {
         link.click();
         window.setTimeout(() => URL.revokeObjectURL(url), 0);
       },
-      error: () => this.saveError('Der Prüfungsrundennachweis konnte nicht geladen werden.'),
-    });
+      () => this.saveError('Der Prüfungsrundennachweis konnte nicht geladen werden.'),
+    );
   }
 
   private ensureSelectedHalfYear(halfYears: ExamHalfYear[], rounds: ExamRound[]): void {
@@ -497,6 +497,17 @@ export class ExamHalfYearsComponent implements OnInit {
   private loadError(): void {
     this.loading.set(false);
     this.error.set('Prüfungshalbjahre konnten nicht geladen werden.');
+  }
+
+  private runCommand<T>(
+    operation: Observable<T>,
+    next: (value: T) => void,
+    error: () => void,
+  ): void {
+    this.sessionScope
+      .forCurrentSession(operation)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({ next, error });
   }
 
   private saveError(message: string): void {
