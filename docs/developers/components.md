@@ -436,23 +436,20 @@ Frontend-Produktcode.
 Die Calendar-Garantie, dass das alte Token nach dem Widerrufscommit ungültig
 ist, gilt unabhängig vom Frontend-Fehlerpfad.
 
-Heute speichert `activate` beziehungsweise `rotate` das Credential vor dem
-anschließenden Sync.
-Bei Rotation wird das alte Credential dadurch vor dem fehleranfälligen Sync
-ungültig; schlägt der Sync fehl, bleibt jedoch das neue Token-Hash aktiv,
-obwohl dessen einmalige URL nicht zurückgegeben werden konnte.
-Zielvertrag für die initiale Aktivierung bleibt Sync-first:
-erst lokale Projektion im eigenen Calendar-UoW erfolgreich aktualisieren,
-dann das Credential atomar anlegen und dessen URL einmalig zurückgeben.
-Bei Rotation wird das alte Credential zuerst in einem eigenen atomaren
-Calendar-UoW widerrufen und ein nicht-geheimer Pending-Generationsstand
-gespeichert.
-Scheitert dieser erste Commit, bleibt die bisherige Generation aktiv und
-Calendar beginnt keinen Sync.
-Der alte Token ist ab diesem Commit ungültig, auch wenn der folgende Sync
-scheitert; der Pending-Stand bleibt für einen ausdrücklichen Retry erhalten.
-Ein Retry synchronisiert erneut und darf die neue Token-Generation nur per
-CAS auf genau diesen Pending-Stand aktivieren.
+Die initiale Aktivierung persistiert zuerst eine nicht-geheime
+Pending-Generation, synchronisiert danach außerhalb des Lifecycle-Locks und
+speichert das Credential erst nach erfolgreichem Sync und CAS-Finalisierung.
+Ein Sync- oder Finalisierungsfehler gibt kein Secret aus; ein verbleibender
+Pending-Stand kann durch den nächsten expliziten `POST` erneut synchronisiert
+werden.
+Bei Rotation werden das alte Credential und seine Generation zuerst atomar
+widerrufen und der Pending-Stand persistiert.
+Ein Syncfehler lässt den alten Token ungültig und den Retry-Stand erhalten.
+Die neue Token-Generation wird nach erneutem Sync nur per CAS auf diesen
+Pending-Stand aktiviert und die URL erst nach dem Commit einmalig ausgegeben.
+Migration `030_calendar_feed_lifecycle.sql` ergänzt dafür eine
+Calendar-eigene Lifecycle-Tabelle und überführt vorhandene aktive Credentials
+mit Generation 1; Secret-Werte werden weder kopiert noch wiederhergestellt.
 Der bestehende Aktivierungs-POST prüft diesen persistierten Pending-Stand
 unabhängig vom `rotate`-Argument zuerst und setzt ihn fort, ohne ein weiteres
 Pending anzulegen oder erneut zu widerrufen.
@@ -478,8 +475,9 @@ geladene Status wird als veraltet oder unbekannt behandelt, nicht als aktuell
 aktiv bestätigt.
 Ein pro-Feed Lifecycle-Lock aus der Composition Root schützt kurze
 Credential-Prüfungen und -Commits; Sync, Snapshot und Rendering laufen
-außerhalb. Sein Registry-/Serviceobjekt wird prozessweit geteilt und nicht pro
-`RequestContext` oder `CalendarService` instanziiert.
+außerhalb. Registry und Sync-Coordinator werden pro Prozess nach aufgelöstem
+Datenbankpfad und Personen-ID geteilt und nicht pro `RequestContext` oder
+`CalendarService` instanziiert.
 ICS prüft Credential-Generation und Identity-Scope vor der Arbeit, prüft den
 Read-Snapshot unter kurzer Sperre und unmittelbar vor Rückgabe Credential-
 Generation und Identity-Scope erneut. Bei einer Scope-Änderung seit dem
@@ -504,8 +502,11 @@ Snapshot verwirft Calendar das gesamte materialisierte ICS-Ergebnis; Sync und
 Rendering liegen außerhalb.
 Rotation hält die Sperre für Widerrufscommit sowie spätere Pending-Revalidierung
 und Finalisierung; ihr Sync läuft außerhalb.
-Die Garantie gilt prozessweit im einzelnen autoritativen Backendprozess;
-mehrere Serverprozesse für dieselbe Datenbank sind nicht unterstützt.
+Die Cancellation-Fence ist prozesslokal; ein fehlgeschlagener Revocation-Commit
+bleibt bis zu einem expliziten `DELETE`-Retry gefenced.
+Nach einem Prozessneustart wird ausschließlich der persistierte Zustand
+herangezogen; ein nicht bestätigter Commit gilt nicht als Widerruf.
+Mehrere Backendprozesse für dieselbe Datenbank werden nicht unterstützt.
 Erst der erfolgreiche Finalisierungscommit gibt die neue URL einmalig aus.
 Bei Commitfehler wird kein Secret ausgegeben; bleibt der Pending-Stand
 erhalten, kann der Sync mit einer neuen Secret-Erzeugung wiederholt werden.

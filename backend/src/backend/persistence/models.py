@@ -1775,6 +1775,22 @@ class CalendarFeed(Base):
     __table_args__ = (Index("calendar_feed_person", "person_id", unique=True),)
 
 
+class CalendarFeedLifecycle(Base):
+    """Non-secret pending and monotone generation state for a feed credential."""
+
+    __tablename__ = "calendar_feed_lifecycle"
+
+    person_id: Mapped[int] = mapped_column(
+        ForeignKey("person.id", ondelete="CASCADE"), primary_key=True
+    )
+    generation: Mapped[int] = mapped_column(Integer, nullable=False, server_default=sql_text("0"))
+    pending_generation: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    revocation_generation: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=sql_text("0")
+    )
+    revoked_at: Mapped[str | None] = mapped_column(String, nullable=True)
+
+
 class CalendarEvent(Base):
     """Dataminimized, versioned snapshot exposed through ICS."""
 

@@ -2,12 +2,18 @@ from __future__ import annotations
 
 import hashlib
 import unittest
-from dataclasses import fields
+from dataclasses import fields, replace
+from threading import Event, Thread
+from time import monotonic, sleep
 from unittest.mock import patch
 
 from icalendar import Calendar
 from sqlalchemy import select, text
 
+from backend.calendar.feed_lifecycle import (
+    CalendarFeedCoordinator,
+    FeedRevocationPendingError,
+)
 from backend.calendar.ports import CalendarEventSnapshot, CalendarScope
 from backend.calendar.service import CalendarService
 from backend.composition import (
@@ -19,9 +25,11 @@ from backend.composition import (
 )
 from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.persistence.calendar import SQLiteCalendarPersistence
-from backend.persistence.database import connect, session_scope
+from backend.persistence.database import apply_migrations, connect, connection_scope, session_scope
 from backend.persistence.models import (
     CalendarEvent,
+    CalendarFeedLifecycle,
+    Committee,
     CommitteeMember,
     ExamDay,
     ExamDayAssignment,
@@ -70,6 +78,284 @@ class CalendarServiceTests(unittest.TestCase):
                 {event_id: event.version for event_id, event in before.items()},
                 {event_id: event.version for event_id, event in after.items()},
             )
+        finally:
+            database.__exit__(None, None, None)
+
+    def test_activation_pending_survives_sync_error_and_explicit_retry(self) -> None:
+        database, db_path = self._confirmed_database()
+        try:
+            service = create_calendar_service(db_path)
+            scope = self._scope(db_path)
+            with patch.object(service, "sync_person", side_effect=RuntimeError("sync failed")):
+                with self.assertRaisesRegex(RuntimeError, "sync failed"):
+                    service.activate(scope)
+            pending = service._feed_for_person(scope.person_id)
+            self.assertIsNotNone(pending)
+            self.assertIsNone(pending.token_hash)
+            self.assertIsNotNone(pending.pending_generation)
+            self.assertFalse(service.status(scope).active)
+
+            activation = service.activate(scope)
+            self.assertTrue(service.status(scope).active)
+            self.assertEqual(
+                1,
+                service._feed_for_person(scope.person_id).generation,
+            )
+            self.assertIsNotNone(service.feed_ics(activation.token))
+        finally:
+            database.__exit__(None, None, None)
+
+    def test_rotation_error_keeps_old_token_revoked_and_retryable(self) -> None:
+        database, db_path = self._confirmed_database()
+        try:
+            service = create_calendar_service(db_path)
+            scope = self._scope(db_path)
+            original = service.activate(scope)
+            original_generation = service._feed_for_person(scope.person_id).generation
+            with patch.object(service, "sync_person", side_effect=RuntimeError("sync failed")):
+                with self.assertRaisesRegex(RuntimeError, "sync failed"):
+                    service.activate(scope, rotate=True)
+            self.assertIsNone(service.feed_ics(original.token))
+            pending = service._feed_for_person(scope.person_id)
+            self.assertIsNotNone(pending.pending_generation)
+            self.assertGreater(pending.revocation_generation, 0)
+
+            rotated = service.activate(scope, rotate=False)
+            self.assertNotEqual(original.token, rotated.token)
+            self.assertEqual(
+                original_generation + 1,
+                service._feed_for_person(scope.person_id).generation,
+            )
+            self.assertIsNone(service.feed_ics(original.token))
+            self.assertIsNotNone(service.feed_ics(rotated.token))
+        finally:
+            database.__exit__(None, None, None)
+
+    def test_feed_ics_discards_entire_result_when_identity_scope_changes(self) -> None:
+        database, db_path = self._confirmed_database()
+        try:
+            with session_scope(db_path) as session:
+                original_membership = session.scalars(
+                    select(CommitteeMember).where(CommitteeMember.person_id == 1)
+                ).first()
+                assert original_membership is not None
+                second_committee = Committee(name="Calendar scope test", bootstrap_state="ready")
+                session.add(second_committee)
+                session.flush()
+                second_membership = CommitteeMember(
+                    person_id=1,
+                    committee_id=second_committee.id,
+                    member_status=original_membership.member_status,
+                    committee_role=original_membership.committee_role,
+                    representing_side=original_membership.representing_side,
+                    is_active=1,
+                )
+                session.add(second_membership)
+                session.flush()
+                second_member_id = second_membership.id
+            service = create_calendar_service(db_path)
+            scope = self._scope(db_path)
+            activation = service.activate(scope)
+            original_scope = service._identity_scope(scope.person_id)
+            original_member_id = next(
+                member for member, _ in original_scope if member != second_member_id
+            )
+            changed_scope = original_scope - frozenset(
+                pair for pair in original_scope if pair[0] == original_member_id
+            )
+            self.assertTrue(changed_scope)
+            with patch.object(
+                service,
+                "_identity_scope",
+                side_effect=(original_scope, original_scope, changed_scope),
+            ):
+                self.assertIsNone(service.feed_ics(activation.token))
+        finally:
+            database.__exit__(None, None, None)
+
+    def test_parallel_feed_reads_share_one_sync(self) -> None:
+        database, db_path = self._confirmed_database()
+        try:
+            service = create_calendar_service(db_path)
+            scope = self._scope(db_path)
+            activation = service.activate(scope)
+            started = Event()
+            release = Event()
+            original = service.sync_person
+            calls = 0
+
+            def delayed_sync(person_id, **kwargs):
+                nonlocal calls
+                calls += 1
+                started.set()
+                self.assertTrue(release.wait(5))
+                return original(person_id, **kwargs)
+
+            results: list[str | None] = []
+            with patch.object(service, "sync_person", side_effect=delayed_sync):
+                first = Thread(target=lambda: results.append(service.feed_ics(activation.token)))
+                second = Thread(target=lambda: results.append(service.feed_ics(activation.token)))
+                first.start()
+                self.assertTrue(started.wait(5))
+                second.start()
+                sleep(0.05)
+                release.set()
+                first.join(5)
+                second.join(5)
+            self.assertFalse(first.is_alive())
+            self.assertFalse(second.is_alive())
+            self.assertEqual(1, calls)
+            self.assertEqual(2, len(results))
+            self.assertTrue(all(result is not None for result in results))
+        finally:
+            database.__exit__(None, None, None)
+
+    def test_delete_fences_and_rolls_back_an_active_feed_refresh(self) -> None:
+        database, db_path = self._confirmed_database()
+        try:
+            service = create_calendar_service(db_path)
+            scope = self._scope(db_path)
+            activation = service.activate(scope)
+            with session_scope(db_path) as session:
+                event = session.scalars(select(CalendarEvent).order_by(CalendarEvent.id)).first()
+                assert event is not None
+                event_id = event.id
+                original_version = event.version
+
+            started = Event()
+            release = Event()
+            original_sync_round = service._sync_round
+
+            def mutate_then_pause(work, snapshot, **kwargs):
+                result = original_sync_round(work, snapshot, **kwargs)
+                events = work.events_for_round(snapshot.id, person_id=scope.person_id)
+                if events:
+                    work.save_event(replace(events[0], version=events[0].version + 10))
+                started.set()
+                self.assertTrue(release.wait(5))
+                return result
+
+            read_results: list[str | None] = []
+            errors: list[BaseException] = []
+
+            def read_feed():
+                try:
+                    read_results.append(service.feed_ics(activation.token))
+                except BaseException as error:
+                    errors.append(error)
+
+            with patch.object(service, "_sync_round", side_effect=mutate_then_pause):
+                reader = Thread(target=read_feed)
+                reader.start()
+                self.assertTrue(started.wait(5))
+                revoke_result: list[bool] = []
+                revoker = Thread(target=lambda: revoke_result.append(service.revoke(scope)))
+                revoker.start()
+                deadline = monotonic() + 5
+                while (
+                    not service._feed_coordinator.is_fenced(service._database_id, scope.person_id)
+                    and monotonic() < deadline
+                ):
+                    sleep(0.01)
+                self.assertTrue(
+                    service._feed_coordinator.is_fenced(service._database_id, scope.person_id)
+                )
+                release.set()
+                reader.join(5)
+                revoker.join(5)
+
+            self.assertFalse(reader.is_alive())
+            self.assertFalse(revoker.is_alive())
+            self.assertEqual([], errors)
+            self.assertEqual([True], revoke_result)
+            self.assertEqual([None], read_results)
+            with session_scope(db_path) as session:
+                self.assertEqual(original_version, session.get(CalendarEvent, event_id).version)
+        finally:
+            database.__exit__(None, None, None)
+
+    def test_failed_delete_commit_stays_fenced_until_retry(self) -> None:
+        database, db_path = self._confirmed_database()
+        try:
+            service = create_calendar_service(db_path)
+            scope = self._scope(db_path)
+            activation = service.activate(scope)
+            with connect(db_path) as connection:
+                connection.execute(
+                    text("""CREATE TRIGGER fail_feed_revocation
+                    BEFORE UPDATE ON calendar_feed_lifecycle
+                    BEGIN SELECT RAISE(ABORT, 'injected revocation failure'); END""")
+                )
+            with self.assertRaises(FeedRevocationPendingError):
+                service.revoke(scope)
+            self.assertTrue(
+                service._feed_coordinator.is_fenced(service._database_id, scope.person_id)
+            )
+            with connect(db_path) as connection:
+                connection.execute(text("DROP TRIGGER fail_feed_revocation"))
+            self.assertTrue(service.revoke(scope))
+            self.assertFalse(
+                service._feed_coordinator.is_fenced(service._database_id, scope.person_id)
+            )
+            self.assertIsNone(service.feed_ics(activation.token))
+        finally:
+            database.__exit__(None, None, None)
+
+    def test_pending_rotation_can_resume_with_a_fresh_process_coordinator(self) -> None:
+        database, db_path = self._confirmed_database()
+        try:
+            service = create_calendar_service(db_path)
+            scope = self._scope(db_path)
+            original = service.activate(scope)
+            with patch.object(service, "sync_person", side_effect=RuntimeError("sync failed")):
+                with self.assertRaisesRegex(RuntimeError, "sync failed"):
+                    service.activate(scope, rotate=True)
+
+            restarted = create_calendar_service(db_path)
+            restarted._feed_coordinator = CalendarFeedCoordinator()
+            self.assertIsNone(restarted.feed_ics(original.token))
+            resumed = restarted.activate(scope, rotate=False)
+            self.assertNotEqual(original.token, resumed.token)
+            self.assertIsNotNone(restarted.feed_ics(resumed.token))
+        finally:
+            database.__exit__(None, None, None)
+
+    def test_lifecycle_migration_backfills_existing_credentials_and_is_repeatable(self) -> None:
+        database, db_path = self._confirmed_database()
+        try:
+            with connection_scope(db_path) as connection, connection.begin():
+                connection.execute(
+                    text("""INSERT INTO calendar_feed(person_id, token_hash, created_at)
+                    VALUES (1, :token_hash, '2026-10-01T00:00:00Z')"""),
+                    {"token_hash": "a" * 64},
+                )
+                connection.execute(text("DROP TABLE calendar_feed_lifecycle"))
+                connection.execute(
+                    text("DELETE FROM schema_migration_checksum WHERE name = :name"),
+                    {"name": "030_calendar_feed_lifecycle.sql"},
+                )
+                connection.execute(
+                    text("DELETE FROM schema_migration WHERE name = :name"),
+                    {"name": "030_calendar_feed_lifecycle.sql"},
+                )
+
+            apply_migrations(db_path)
+            with session_scope(db_path) as session:
+                migrated = session.get(CalendarFeedLifecycle, 1)
+                self.assertIsNotNone(migrated)
+                self.assertEqual(1, migrated.generation)
+                self.assertEqual(0, migrated.revocation_generation)
+                self.assertIsNone(migrated.pending_generation)
+
+            apply_migrations(db_path)
+            with connection_scope(db_path) as connection:
+                self.assertEqual(
+                    1,
+                    connection.execute(
+                        text("""SELECT COUNT(*) FROM calendar_feed_lifecycle WHERE person_id = 1
+                        AND generation = 1""")
+                    ).scalar_one(),
+                )
         finally:
             database.__exit__(None, None, None)
 

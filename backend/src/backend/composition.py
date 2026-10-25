@@ -5,10 +5,12 @@ from __future__ import annotations
 from collections.abc import Callable, Collection
 from datetime import timedelta
 from pathlib import Path
+from threading import Lock
 
 from backend.application.exam_venue_api import ExamVenueApi
 from backend.application.venue_consequences import VenueConsequenceService
 from backend.assessment.service import ExamResultService
+from backend.calendar.feed_lifecycle import CalendarFeedCoordinator
 from backend.calendar.service import CalendarService
 from backend.documents.commands import DocumentUseCases
 from backend.execution.exam_protocols import ExamProtocolService
@@ -68,6 +70,9 @@ from backend.planning.venue_consequences import PlanningVenueConsequencePlanner
 from backend.planning_ports import Geocoder, VenueChange, VenueChangeFollowUp
 from backend.settings import RuntimeSettings
 
+_calendar_feed_coordinators: dict[str, CalendarFeedCoordinator] = {}
+_calendar_feed_coordinators_lock = Lock()
+
 
 def calendar_service(
     db_path: Path = DEFAULT_DB_PATH,
@@ -77,12 +82,17 @@ def calendar_service(
 ) -> CalendarService:
     """Wire Calendar's consumer-owned ports to the SQLite persistence adapter."""
     persistence = SQLiteCalendarPersistence(db_path)
+    database_id = str(Path(db_path).expanduser().resolve())
+    with _calendar_feed_coordinators_lock:
+        coordinator = _calendar_feed_coordinators.setdefault(database_id, CalendarFeedCoordinator())
     return CalendarService(
         persistence,
         persistence,
         persistence,
         settings=settings,
         time_zone=time_zone,
+        feed_coordinator=coordinator,
+        database_id=database_id,
     )
 
 

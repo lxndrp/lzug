@@ -65,11 +65,13 @@ class _FakeCalendarStore:
     def save_feed(self, feed: CalendarFeedSnapshot) -> None:
         self.feeds[feed.person_id] = feed
 
-    def revoke_feed(self, person_id: int, revoked_at: str) -> bool:
-        feed = self.feeds.get(person_id)
-        if feed is None or feed.revoked_at is not None:
+    def save_feed_if_current(
+        self, feed: CalendarFeedSnapshot, *, expected_pending_generation: int | None
+    ) -> bool:
+        current = self.feeds.get(feed.person_id)
+        if current is None or current.pending_generation != expected_pending_generation:
             return False
-        self.feeds[person_id] = replace(feed, revoked_at=revoked_at)
+        self.feeds[feed.person_id] = feed
         return True
 
     def events_for_source(self, source_prefix: str):

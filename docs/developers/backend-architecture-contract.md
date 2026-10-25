@@ -413,13 +413,15 @@ Calendar-Port an den Auftrag zurückgegeben.
 
 Auch Kalenderreads synchronisieren zunächst lokal:
 `list_events`, `feed_ics` und `event_ics` rufen `sync_person` vor dem Lesen oder
-Rendern auf.
-Bei `feed_ics` laufen Feedvalidierung, Synchronisierung und anschließendes
-Lesen in getrennten `session_scope`-Transaktionen.
-`list_events` und `event_ics` synchronisieren ebenfalls vor ihrem Read, ohne
-Feed-Credential zu validieren.
-Keiner dieser Read-Pfade hat eine gemeinsame Snapshot- oder Commit-Grenze über
-Synchronisierung und anschließendes Lesen.
+Rendern auf; der prozessweite Coordinator serialisiert diese Refreshes je
+Datenbank und Person und teilt parallele Läufe derselben Generation.
+Bei `feed_ics` laufen Feedvalidierung, Synchronisierung, Read-Snapshot und
+Rendern in getrennten UoWs.
+Credential-Generation und Membership-/Committee-Scope werden vor dem Sync,
+am Read-Snapshot und nach dem Rendern vor der Antwortfreigabe erneut geprüft.
+Ein Widerrufscommit oder eine Scopeänderung verwirft das gesamte ICS-Ergebnis.
+`list_events` und `event_ics` validieren kein Feed-Credential und nutzen den
+Identity-Scope für ihre jeweilige Projektion und Read-Abfrage.
 
 Die Calendar-Identity-Port liefert aktive Membership-IDs; Sync und Read
 beschränken Projektion und Ausgabe darauf.
@@ -427,17 +429,16 @@ Der FastAPI-Adapter bildet die HTTP-Autorisierung auf einen
 `CalendarScope` ab und formt typisierte Ergebnisse in bestehende Wire-Verträge
 um.
 
-Im Ziel liefert Identity für die Person eine materialisierte Liste aktiver
+Identity liefert für die Person eine materialisierte Liste aktiver
 Membership-ID-/Committee-ID-Paare.
 `feed_ics` validiert zusätzlich das Credential, aber das Token allein gewährt
 keine Membership-Rechte.
-Calendar bezieht den Identity-Snapshot vor `sync_person` und beschränkt die
-Projektion auf genau diese Membership- und Committee-IDs.
-Vor dem nachfolgenden Read/Render prüft Calendar den Scope erneut und filtert
-Events ausschließlich nach denselben aktiven Membership-/Committee-IDs. Ändert
-sich der Scope zwischen diesem Snapshot und der finalen ICS-Antwortfreigabe,
-verwirft Calendar das gesamte gerenderte ICS-Ergebnis.
-Das gilt ebenso für `list_events` und `event_ics`.
+Calendar beschränkt die Sync-Projektion auf aktive Membership-IDs; die
+ICS-Lesemenge folgt dem am Snapshot geprüften Scope.
+Ändert sich der Membership-/Committee-Scope bis zur finalen Freigabe, verwirft
+Calendar das gesamte materialisierte ICS-Ergebnis.
+Die authentifizierten `list_events`- und `event_ics`-Use-Cases haben kein
+Feed-Credential und unterliegen daher nicht diesem Feed-Lifecycle-Fence.
 Ein Teilwiderruf blendet daher Kalenderdaten des widerrufenen Committees aus,
 auch wenn eine andere Mitgliedschaft aktiv bleibt; eine leere Scope-Liste
 autorisiert weder Sync noch Kalenderausgabe.
