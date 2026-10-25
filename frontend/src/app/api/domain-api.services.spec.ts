@@ -7,8 +7,9 @@ import { ConfirmedPlanApiService } from './confirmed-plan-api.service';
 import { ExamRoundApiService } from './exam-round-api.service';
 import { MasterDataApiService } from './master-data-api.service';
 import { HttpPersonalAdapter } from './http-personal.adapter';
+import type { NotificationChannelsResponse } from './generated/types.gen';
 import { VenueApiService } from './venue-api.service';
-import { RuntimeExperienceService } from '../runtime/runtime-experience.service';
+import { RuntimeExperienceApiService } from './runtime-experience-api.service';
 import {
   absenceCandidateFixture,
   athenChairMembershipFixture,
@@ -36,7 +37,7 @@ describe('domain API services', () => {
   let masterData: MasterDataApiService;
   let personal: HttpPersonalAdapter;
   let venues: VenueApiService;
-  let runtimeExperience: RuntimeExperienceService;
+  let runtimeExperience: RuntimeExperienceApiService;
   let http: HttpTestingController;
 
   beforeEach(() => {
@@ -50,7 +51,7 @@ describe('domain API services', () => {
     masterData = TestBed.inject(MasterDataApiService);
     personal = TestBed.inject(HttpPersonalAdapter);
     venues = TestBed.inject(VenueApiService);
-    runtimeExperience = TestBed.inject(RuntimeExperienceService);
+    runtimeExperience = TestBed.inject(RuntimeExperienceApiService);
     http = TestBed.inject(HttpTestingController);
   });
 
@@ -125,7 +126,11 @@ describe('domain API services', () => {
       .subscribe((result) => expect(result.revision).toBe(4));
     const saveEditable = http.expectOne('/api/exam-rounds/1/planning-proposal');
     expect(saveEditable.request.method).toBe('PUT');
-    expect(saveEditable.request.body).toEqual(editable);
+    expect(saveEditable.request.body).toEqual({
+      round_id: 1,
+      revision: 3,
+      exam_days: [],
+    });
     saveEditable.flush({ ...editable, revision: 4 });
 
     planning.confirmPlan(1).subscribe((result) => {
@@ -319,11 +324,12 @@ describe('domain API services', () => {
         sinkEnabled: true,
       }),
     );
-    http.expectOne('/api/notification-channels').flush({
+    const channelsResponse = {
       web_push: { available: true, public_key: 'test-key' },
       email_fallback_configured: false,
       sink_enabled: true,
-    });
+    } satisfies NotificationChannelsResponse;
+    http.expectOne('/api/notification-channels').flush(channelsResponse);
 
     personal.listNotificationProblems().subscribe((items) => expect(items).toEqual([]));
     http.expectOne('/api/notification-problems').flush({ items: [], _links: {} });

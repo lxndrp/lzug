@@ -2,7 +2,6 @@ import { Injectable, inject } from '@angular/core';
 import { map } from 'rxjs';
 
 import type { ApplicationShellContextPort } from '../shell/application-shell-context.port';
-import { withoutHttpLinks } from '../application/without-http-links';
 import { PlanningApiService } from './planning-api.service';
 
 /** HTTP adapter for the shell's small, independent context summary. */
@@ -13,16 +12,13 @@ export class HttpApplicationShellContextAdapter implements ApplicationShellConte
   load(roundId: number) {
     return this.api.loadShellContext(roundId).pipe(
       map(({ root, round, summary, halfYear }) => {
-        const examRound = withoutHttpLinks(round);
-        const selectedHalfYear = withoutHttpLinks(halfYear);
-        const roundSummary = withoutHttpLinks(summary);
         return {
           applicationVersion: root.version,
           roundId,
-          halfYear: `${selectedHalfYear.season === 'summer' ? 'Sommer' : 'Winter'} ${selectedHalfYear.year}`,
-          round: examRound.name,
-          committee: roundSummary.round.committee_name,
-          status: examRound.status,
+          halfYear: `${halfYear.season === 'summer' ? 'Sommer' : 'Winter'} ${halfYear.year}`,
+          round: round.name,
+          committee: summary.round.committee_name,
+          status: round.status,
         };
       }),
     );

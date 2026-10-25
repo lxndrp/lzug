@@ -7,19 +7,22 @@ import type {
   EditablePlanningProposal,
   ExamDay,
   ExamDayAssignment,
-  ExamRound,
   ExamSlot,
-  AvailabilityRequest,
   MemberAvailability,
   PlanningBoard,
-  PlanningResult,
   PlanningSettings,
   RoundSummary,
 } from './planning.models';
 import type { CommitteeMember, Location } from './master-data.models';
 import type { SchedulingOverviewItem } from './execution.models';
-import type { PlanningProposalWriteRequest, PlanningRoundRequest } from './generated/types.gen';
-import type { ExamRoundUpdate } from './generated/types.gen';
+import type {
+  PlanningProposalResponse,
+  PlanningProposalResultResponse,
+  PlanningProposalWriteRequest,
+  PlanningRoundRequest,
+  ExamRoundResponse,
+  ExamRoundUpdate,
+} from './generated/types.gen';
 import { Injectable, inject } from '@angular/core';
 
 import { ApiClient } from './api-client.service';
@@ -48,21 +51,24 @@ export class PlanningApiService {
   }
 
   getExamRound(roundId: number) {
-    return this.client.get<ExamRound>(`/api/exam-rounds/${roundId}`);
+    return this.client.get<ExamRoundResponse>(`/api/exam-rounds/${roundId}`);
   }
 
   updateExamRound(payload: ExamRoundUpdate, roundId: number) {
-    return this.client.patch<ExamRound>(`/api/exam-rounds/${roundId}`, payload);
+    return this.client.patch<ExamRoundResponse>(`/api/exam-rounds/${roundId}`, payload);
   }
 
-  requestAvailabilities(payload: AvailabilityRequest, roundId: number) {
+  requestAvailabilities(payload: ExamRoundUpdate, roundId: number) {
     return this.updateExamRound(payload, roundId).pipe(
       switchMap(() => this.sendAvailabilityRequests(roundId)),
     );
   }
 
   sendAvailabilityRequests(roundId: number) {
-    return this.client.post<ExamRound>(`/api/exam-rounds/${roundId}/request-availabilities`, {});
+    return this.client.post<ExamRoundResponse>(
+      `/api/exam-rounds/${roundId}/request-availabilities`,
+      {},
+    );
   }
 
   getSchedulingOverview() {
@@ -202,26 +208,33 @@ export class PlanningApiService {
   }
 
   generateProposal(roundId: number) {
-    return this.client.post<PlanningResult>('/api/planning-proposals', {
+    return this.client.post<PlanningProposalResultResponse>('/api/planning-proposals', {
       round_id: roundId,
     } satisfies PlanningRoundRequest);
   }
 
   getPlanningProposal(roundId: number) {
-    return this.client.get<EditablePlanningProposal>(
+    return this.client.get<PlanningProposalResponse>(
       `/api/exam-rounds/${roundId}/planning-proposal`,
     );
   }
 
   savePlanningProposal(roundId: number, proposal: EditablePlanningProposal) {
-    const request: PlanningProposalWriteRequest = proposal;
-    return this.client.put<EditablePlanningProposal>(
+    const request = {
+      round_id: proposal.round_id,
+      revision: proposal.revision,
+      exam_days: proposal.exam_days,
+    } satisfies PlanningProposalWriteRequest;
+    return this.client.put<PlanningProposalResponse>(
       `/api/exam-rounds/${roundId}/planning-proposal`,
       request,
     );
   }
 
   confirmPlan(roundId: number) {
-    return this.client.post<PlanningResult>(`/api/exam-rounds/${roundId}/confirm-plan`, {});
+    return this.client.post<PlanningProposalResultResponse>(
+      `/api/exam-rounds/${roundId}/confirm-plan`,
+      {},
+    );
   }
 }

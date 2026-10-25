@@ -9,7 +9,6 @@ import {
   CommitteeMember,
   ExamDay,
   ExamDayAssignment,
-  ExamRound,
   ExamSlot,
   ExamVenue,
   Location,
@@ -20,6 +19,7 @@ import {
   RoundCandidate,
   RoundSummary,
 } from '../api/api.models';
+import type { PlanningRound as ExamRound } from '../planning/planning.models';
 
 // The JSON catalog is deliberately validated by the owning Python component;
 // this adapter only maps its stable, component-facing fields.
@@ -354,9 +354,8 @@ export const examRoundFixture: ExamRound = {
 export const examRoundsFixture: ExamRound[] = [
   examRoundFixture,
   {
+    ...examRoundFixture,
     id: 2,
-    exam_half_year_id: 1,
-    name: 'Winter 2026/27',
     committee_id: 2,
     status: 'draft',
     availability_deadline: null,
@@ -496,11 +495,23 @@ export const summaryFixture: RoundSummary = {
 
 export const masterDataFixture: MasterData = {
   committees: committeesFixture,
-  examHalfYears: [{ id: 1, season: 'winter', year: 2026, status: 'active' }],
+  examHalfYears: [
+    {
+      id: 1,
+      season: 'winter',
+      year: 2026,
+      status: 'active',
+    },
+  ],
   persons: personsFixture,
   members: membersFixture,
   candidates: candidateViewsFixture,
-  examRounds: examRoundsFixture,
+  examRounds: examRoundsFixture.map(({ id, exam_half_year_id, name, committee_id }) => ({
+    id,
+    exam_half_year_id,
+    name,
+    committee_id,
+  })),
   candidateAssignments: candidateAssignmentsFixture,
   locations: locationsFixture,
   examVenues: [

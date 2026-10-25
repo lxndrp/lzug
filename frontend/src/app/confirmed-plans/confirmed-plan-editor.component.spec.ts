@@ -6,7 +6,7 @@ import { Subject, of, throwError } from 'rxjs';
 import { ApplicationError } from '../application/application-error';
 import { AuthService } from '../auth/auth.service';
 import type { AuthSession } from '../auth/auth.service';
-import { RuntimeExperienceService } from '../runtime/runtime-experience.service';
+import { DEMO_SCENARIOS_PORT } from '../demo-scenarios/demo-scenarios.port';
 import { CONFIRMED_PLANS_PORT } from './confirmed-plans.port';
 import { ConfirmedPlanEditorComponent } from './confirmed-plan-editor.component';
 import type {
@@ -29,7 +29,7 @@ describe('ConfirmedPlanEditorComponent', () => {
     saveEditable: ReturnType<typeof vi.fn>;
     listRevisions: ReturnType<typeof vi.fn>;
   };
-  let runtime: { getDemoScenarios: ReturnType<typeof vi.fn> };
+  let demoScenarios: { getOverview: ReturnType<typeof vi.fn> };
   let nextSaveError: Error | null;
 
   beforeEach(async () => {
@@ -54,7 +54,7 @@ describe('ConfirmedPlanEditorComponent', () => {
       }),
       listRevisions: vi.fn(() => of([] as ConfirmedPlanRevision[])),
     };
-    runtime = { getDemoScenarios: vi.fn(() => of({ prepared_plan_change: null })) };
+    demoScenarios = { getOverview: vi.fn(() => of({ preparedPlanChange: null })) };
 
     await TestBed.configureTestingModule({
       imports: [ConfirmedPlanEditorComponent],
@@ -65,7 +65,7 @@ describe('ConfirmedPlanEditorComponent', () => {
           useValue: { session: signal<AuthSession | null>(null) },
         },
         { provide: CONFIRMED_PLANS_PORT, useValue: workflow },
-        { provide: RuntimeExperienceService, useValue: runtime },
+        { provide: DEMO_SCENARIOS_PORT, useValue: demoScenarios },
       ],
     }).compileComponents();
     fixture = TestBed.createComponent(ConfirmedPlanEditorComponent);
@@ -233,15 +233,15 @@ describe('ConfirmedPlanEditorComponent', () => {
       demo_role: 'chair',
       capabilities: ['confirmed-plan:revise'],
     });
-    runtime.getDemoScenarios.mockReturnValueOnce(
+    demoScenarios.getOverview.mockReturnValueOnce(
       of({
-        prepared_plan_change: {
-          round_id: 1,
-          day_id: 1,
-          source_location_id: 1,
-          target_location_id: 2,
-          assignment_id: 1,
-          replacement_member_id: 2,
+        preparedPlanChange: {
+          roundId: 1,
+          dayId: 1,
+          sourceLocationId: 1,
+          targetLocationId: 2,
+          assignmentId: 1,
+          replacementMemberId: 2,
           reason: 'Synthetischer Ortswechsel mit gleichseitiger Ersatzbesetzung',
         },
       }),

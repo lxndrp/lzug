@@ -5,11 +5,11 @@ import { forkJoin, map } from 'rxjs';
 import { ExamRoundApiService } from './exam-round-api.service';
 import { MasterDataApiService } from './master-data-api.service';
 import type {
-  ExamHalfYear as ApiExamHalfYear,
-  ExamRound as ApiExamRound,
-  ExamRoundLifecycle as ApiRoundLifecycle,
+  ExamHalfYearResponse as ApiExamHalfYear,
   ExamRoundCreate,
-} from './planning.models';
+  ExamRoundResponse as ApiExamRound,
+} from './generated/types.gen';
+import type { ExamRoundLifecycle as ApiRoundLifecycle } from './planning.models';
 import type {
   CreateExamRound,
   ExamHalfYear,
@@ -59,13 +59,13 @@ export class HttpExamHalfYearsAdapter implements ExamHalfYearsPort {
   }
 
   createRound(payload: CreateExamRound) {
-    const apiPayload: ExamRoundCreate = {
+    const apiPayload = {
       ...('halfYearId' in payload && payload.halfYearId !== undefined
         ? { exam_half_year_id: payload.halfYearId }
         : { season: payload.season, year: payload.year }),
       committee_id: payload.committeeId,
       name: payload.name,
-    };
+    } satisfies ExamRoundCreate;
     return this.api.createExamRound(apiPayload).pipe(map(toRound));
   }
 
@@ -149,6 +149,9 @@ export class HttpExamHalfYearsAdapter implements ExamHalfYearsPort {
 }
 
 function toHalfYear(value: ApiExamHalfYear): ExamHalfYear {
+  if (value.season !== 'summer' && value.season !== 'winter') {
+    throw new Error(`Unsupported exam half-year season: ${value.season}`);
+  }
   return { id: value.id, season: value.season, year: value.year, status: value.status };
 }
 

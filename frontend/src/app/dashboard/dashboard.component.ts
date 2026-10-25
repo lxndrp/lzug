@@ -6,13 +6,13 @@ import { TuiHeader } from '@taiga-ui/layout';
 import {
   AvailabilityValue,
   ExamDayAssignment,
-  ExamRound,
   ExamSlot,
   PlanningBoard,
   PlanningDayView,
   PlanningResult,
   RoundSummary,
 } from '../api/api.models';
+import { PlanningRound } from '../planning/planning.models';
 import { AppView } from '../app-view';
 import { appIcons } from '../app-icons';
 import { AppIconDirective } from '../app-icon.directive';
@@ -49,7 +49,7 @@ export class DashboardComponent {
   };
 
   @Input() summary: RoundSummary | null = null;
-  @Input() round: ExamRound | null = null;
+  @Input() round: PlanningRound | null = null;
   @Input() board: PlanningBoard | null = null;
   @Input() planningResult: PlanningResult | null = null;
   @Input() loading = false;

@@ -1,11 +1,12 @@
 import { InjectionToken } from '@angular/core';
 import { Observable } from 'rxjs';
 
-import type { CommitteeMember, ExamRound, PlanningBoard, RoundSummary } from '../api/api.models';
+import type { CommitteeMember, PlanningBoard, RoundSummary } from '../api/api.models';
 import type { Location } from '../api/master-data.models';
+import type { PlanningRound } from '../planning/planning.models';
 
 export type DashboardProjection = {
-  round: ExamRound;
+  round: PlanningRound;
   summary: RoundSummary;
   board: PlanningBoard;
 };

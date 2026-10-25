@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { of } from 'rxjs';
 
-import { withoutHttpLinks } from '../application/without-http-links';
+import type { ExamRoundResponse } from './generated/types.gen';
 import { planningBoardFixture, summaryFixture } from '../testing/fixtures';
 import { MasterDataApiService } from './master-data-api.service';
 import { HttpDashboardProjectionAdapter } from './http-dashboard-projection.adapter';
@@ -40,7 +40,12 @@ describe('HttpDashboardProjectionAdapter', () => {
     expect(planning.loadDashboardProjection).not.toHaveBeenCalled();
     expect(result).toEqual({
       candidates: planningBoardFixture.candidates,
-      summary: withoutHttpLinks(summaryFixture),
+      summary: {
+        round: summaryFixture.round,
+        counts: summaryFixture.counts,
+        settings: summaryFixture.settings,
+        availability: summaryFixture.availability,
+      },
     });
   });
 
@@ -53,5 +58,54 @@ describe('HttpDashboardProjectionAdapter', () => {
     expect(masterData.getCommitteeMembers).toHaveBeenCalledOnce();
     expect(planning.loadDashboardProjection).not.toHaveBeenCalled();
     expect(result).toEqual(planningBoardFixture.members);
+  });
+
+  it('projects generated round responses into the dashboard feature contract', () => {
+    const adapter = TestBed.inject(HttpDashboardProjectionAdapter);
+    const response = {
+      _links: { self: { href: '/api/exam-rounds/1' } },
+      availability_deadline: null,
+      availability_reminder_at: null,
+      committee_id: 2,
+      created_at: '2026-10-01T00:00:00Z',
+      created_by_member_id: 3,
+      exam_half_year_id: 4,
+      id: 1,
+      legacy_status: null,
+      lifecycle_status: 'open',
+      name: 'Winter 2026/27',
+      revision: 5,
+      status: 'availability_requested',
+      updated_at: '2026-10-02T00:00:00Z',
+    } satisfies ExamRoundResponse;
+    planning.loadDashboardProjection.mockReturnValue(
+      of({ round: response, summary: summaryFixture, board: planningBoardFixture }),
+    );
+    let result: unknown;
+
+    adapter.load(1).subscribe((value) => (result = value));
+
+    expect(result).toEqual({
+      round: {
+        id: 1,
+        exam_half_year_id: 4,
+        name: 'Winter 2026/27',
+        committee_id: 2,
+        status: 'availability_requested',
+        revision: 5,
+        lifecycle_status: 'open',
+        legacy_status: null,
+        availability_deadline: null,
+        availability_reminder_at: null,
+        updated_at: '2026-10-02T00:00:00Z',
+      },
+      summary: {
+        round: summaryFixture.round,
+        counts: summaryFixture.counts,
+        settings: summaryFixture.settings,
+        availability: summaryFixture.availability,
+      },
+      board: planningBoardFixture,
+    });
   });
 });

@@ -2,6 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 
+import type { DemoScenarioOverviewResponse } from './generated/types.gen';
 import { HttpDemoScenariosAdapter } from './http-demo-scenarios.adapter';
 
 describe('HttpDemoScenariosAdapter', () => {
@@ -73,7 +74,7 @@ describe('HttpDemoScenariosAdapter', () => {
   });
 });
 
-function apiOverview() {
+function apiOverview(): DemoScenarioOverviewResponse {
   return {
     mode: 'demo' as const,
     demo_matrix_version: 'demo-paths-v8',
@@ -107,5 +108,5 @@ function apiOverview() {
     },
     notices: ['Keine realen personenbezogenen Daten eingeben.'],
     location_contract: 'Reale Athener Anschriften sind synthetisch.',
-  };
+  } satisfies DemoScenarioOverviewResponse;
 }

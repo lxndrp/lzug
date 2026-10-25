@@ -9,11 +9,15 @@ for (const file of appFiles) {
   const relative = path.relative(root, file).split(path.sep).join('/');
   if (relative.startsWith('api/')) continue;
   const source = await readFile(file, 'utf8');
-  assert.doesNotMatch(
-    importsOf(source),
-    /(?:^|\/)generated\/types\.gen(?:$|\n)/,
-    `${relative} imports OpenAPI transport types outside the HTTP adapter`,
-  );
+  const isAdapter =
+    relative.includes('/adapters/') || /(?:^|\/)http-.+\.adapter\.ts$/.test(relative);
+  if (!relative.endsWith('.spec.ts') && !isAdapter) {
+    assert.doesNotMatch(
+      importsOf(source),
+      /(?:^|\/)generated\/types\.gen(?:$|\n)/,
+      `${relative} imports OpenAPI transport types outside the HTTP adapter`,
+    );
+  }
   if (!relative.endsWith('.spec.ts') && relative !== 'app.config.ts') {
     assert.doesNotMatch(
       importsOf(source),
@@ -334,6 +338,7 @@ assert.deepEqual(
     '../exam-half-years/exam-half-years.models',
     '../exam-half-years/exam-half-years.port',
     './exam-round-api.service',
+    './generated/types.gen',
     './master-data-api.service',
     './planning.models',
     '@angular/common/http',
@@ -502,7 +507,7 @@ assert.doesNotMatch(
   /HttpTestingController|provideHttpClientTesting/,
   'protocol behavior tests use application-boundary doubles',
 );
-assert.match(protocolAdapter, /execution\.models/);
+assert.doesNotMatch(protocolAdapter, /execution\.models/);
 assert.match(protocolAdapter, /generated\/types\.gen/);
 assert.match(protocolAdapter, /fromApiProtocol\(/);
 assert.match(protocolAdapter, /fromApiRevision\(/);
@@ -884,10 +889,10 @@ for (const [name, source] of [
 assert.deepEqual(
   importModulesOf(demoScenariosAdapter).sort(),
   [
-    './api.models',
     '../demo-scenarios/demo-scenarios.port',
     '../demo-scenarios/demo-scenarios.models',
-    '../runtime/runtime-experience.service',
+    './generated/types.gen',
+    './runtime-experience-api.service',
     '@angular/core',
     'rxjs',
   ].sort(),
