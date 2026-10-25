@@ -1,4 +1,14 @@
-import { Component, Input, OnChanges, SimpleChanges, inject, output, signal } from '@angular/core';
+import {
+  Component,
+  DestroyRef,
+  Input,
+  OnChanges,
+  SimpleChanges,
+  inject,
+  output,
+  signal,
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { TuiButton } from '@taiga-ui/core';
 import { TuiBadge } from '@taiga-ui/kit';
@@ -8,6 +18,7 @@ import type {
   AssessmentComponent,
   AssessmentCriterion,
   ExamResult,
+  ExamResultDayRevisionUpdate,
   VoteChoice,
 } from './exam-result.models';
 import { collectCommitteeVote } from './exam-result.voting';
@@ -26,6 +37,7 @@ export type CriterionDraft = {
 
 @Component({
   selector: 'app-exam-result',
+  providers: [ExamResultFacade],
   imports: [FormsModule, TuiBadge, TuiButton],
   templateUrl: './exam-result.component.html',
   styleUrl: './exam-result.component.css',
@@ -34,6 +46,7 @@ export class ExamResultComponent implements OnChanges {
   private readonly facade = inject(ExamResultFacade);
   private readonly auth = inject(AuthService);
   private readonly sessionScope = inject(SessionScopeService);
+  private readonly destroyRef = inject(DestroyRef);
 
   @Input({ required: true }) roundId!: number;
   @Input({ required: true }) dayId!: number;
@@ -41,7 +54,7 @@ export class ExamResultComponent implements OnChanges {
   @Input() dayRefreshing = false;
   @Input({ required: true }) slotId!: number;
   @Input() ownMemberId: number | null = null;
-  readonly dayRevisionsChanged = output<Record<string, number>>();
+  readonly dayRevisionsChanged = output<ExamResultDayRevisionUpdate>();
   readonly actionErrorOccurred = output<string>();
 
   protected readonly state = signal<ResultViewState>('loading');
@@ -79,6 +92,18 @@ export class ExamResultComponent implements OnChanges {
   private contextSequence = 0;
   private loadedContextSequence: number | null = null;
 
+  constructor() {
+    this.sessionScope.changes$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((change) => {
+      this.contextSequence += 1;
+      this.requestSequence += 1;
+      this.result.set(null);
+      this.state.set('loading');
+      this.busy.set(false);
+      this.clearContextDrafts();
+      if (change.established) this.load();
+    });
+  }
+
   ngOnChanges(changes: SimpleChanges): void {
     const identityChanged = changes['roundId'] || changes['dayId'] || changes['slotId'];
     if (identityChanged) {
@@ -89,8 +114,41 @@ export class ExamResultComponent implements OnChanges {
       this.componentVoters.clear();
       this.examResultVotes.clear();
       this.examResultVoters.clear();
+      this.loadedContextSequence = null;
+      this.clearContextDrafts();
     }
     if (identityChanged || changes['dayRevision']) this.load(!identityChanged);
+  }
+
+  private clearContextDrafts(): void {
+    this.drafts.clear();
+    this.componentPoints.clear();
+    this.componentReasons.clear();
+    this.componentVotes.clear();
+    this.componentVoters.clear();
+    this.examResultVotes.clear();
+    this.examResultVoters.clear();
+    this.externalAreaKey = '';
+    this.externalPoints = '';
+    this.externalGrade = '';
+    this.externalStatus = 'verbindlich festgestellt';
+    this.externalAuthority = '';
+    this.externalSource = '';
+    this.externalCorrectionReason = '';
+    this.dissentMemberId = null;
+    this.dissentStatement = '';
+    this.correctionReason = '';
+    this.reopeningReference = '';
+    this.communicationMethod = 'persönlich';
+    this.communicationAt = '';
+    this.externalDocumentReference = '';
+    this.retentionPeriodStart = '';
+    this.retentionUntil = '';
+    this.retentionLegalHold = false;
+    this.retentionHoldReason = '';
+    this.retentionReleaseReason = '';
+    this.message.set(null);
+    this.error.set(null);
   }
 
   protected load(preserveDrafts = false, preserveFeedback = preserveDrafts): void {

@@ -20,6 +20,7 @@ import { SessionScopeService } from '../auth/session-scope.service';
 import { ExamProtocolFacade } from './exam-protocol.facade';
 import type {
   ExamProtocol,
+  ExamProtocolDayRevisionUpdate,
   ProtocolDeclaration,
   ProtocolEntryCategory,
   ProtocolExportFormat,
@@ -36,6 +37,7 @@ export type EntryDraft = {
 
 @Component({
   selector: 'app-exam-protocol',
+  providers: [ExamProtocolFacade],
   imports: [FormsModule, TuiBadge, TuiButton],
   templateUrl: './exam-protocol.component.html',
   styleUrl: './exam-protocol.component.css',
@@ -52,7 +54,7 @@ export class ExamProtocolComponent implements OnChanges {
   @Input() dayRefreshing = false;
   @Input({ required: true }) slotId!: number;
   @Input() ownMemberId: number | null = null;
-  readonly dayRevisionChanged = output<{ roundId: number; dayId: number; revision: number }>();
+  readonly dayRevisionChanged = output<ExamProtocolDayRevisionUpdate>();
   readonly actionErrorOccurred = output<string>();
 
   protected readonly state = signal<ProtocolState>('loading');
@@ -81,6 +83,21 @@ export class ExamProtocolComponent implements OnChanges {
     { value: 'other', label: 'Sonstiges' },
   ];
 
+  constructor() {
+    this.sessionScope.changes$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((change) => {
+      this.contextSequence += 1;
+      this.requestSequence += 1;
+      this.exportSequence += 1;
+      this.protocol.set(null);
+      this.state.set('loading');
+      this.busy.set(false);
+      this.exportBusy.set(false);
+      this.loadedContextSequence = null;
+      this.resetContextDrafts();
+      if (change.established) this.load();
+    });
+  }
+
   ngOnChanges(changes: SimpleChanges): void {
     const identityChanged = changes['roundId'] || changes['dayId'] || changes['slotId'];
     if (identityChanged) {
@@ -89,8 +106,20 @@ export class ExamProtocolComponent implements OnChanges {
       this.protocol.set(null);
       this.busy.set(false);
       this.exportBusy.set(false);
+      this.loadedContextSequence = null;
+      this.resetContextDrafts();
     }
     if (identityChanged || changes['dayRevision']) this.load(!identityChanged);
+  }
+
+  private resetContextDrafts(): void {
+    this.declaration = '';
+    this.entries = [];
+    this.reservationText = '';
+    this.correctionReason = '';
+    this.reopeningReference = '';
+    this.message.set(null);
+    this.error.set(null);
   }
 
   protected load(preserveDrafts = false, preserveFeedback = preserveDrafts): void {
