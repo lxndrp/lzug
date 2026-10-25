@@ -1055,6 +1055,11 @@ Die Komponente behält ihre Formularentwürfe und Darstellung. Ein Refresh im
 gleichen Runden-/Tageskontext übernimmt neue Serverwerte in unveränderte Drafts,
 bewahrt davon abweichende lokale Drafts und löscht Drafts entfernter Einträge.
 Ein Wechsel von Runde oder Tag verwirft alle Tages-Drafts.
+Die Formulare für formalen Abschluss und zielgerichtete Wiederöffnung sind
+typisierte `FormGroup`s. Gruppenvalidatoren bündeln die bedingte
+Pflichtfeldprüfung für den Ausnahmeabschluss und die erforderlichen
+Wiederöffnungsangaben; Submit bildet ihre Werte explizit auf die bestehenden
+Commands ab.
 Protokoll und Ergebnis erhalten Runde, Tag, Slot und Tagesrevision explizit;
 ihre erfolgreichen Änderungen melden Tagesrevisionen über Outputs zurück,
 damit Prüfungstag den bestätigten Tagesread und beide Kindreads gezielt
