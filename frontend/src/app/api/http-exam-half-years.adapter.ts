@@ -1,9 +1,10 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { forkJoin, map } from 'rxjs';
+import { catchError, forkJoin, map, throwError } from 'rxjs';
 
 import { ExamRoundApiService } from './exam-round-api.service';
 import { MasterDataApiService } from './master-data-api.service';
+import { toApplicationError } from './application-error';
 import type {
   ExamHalfYearResponse as ApiExamHalfYear,
   ExamRoundCreate,
@@ -144,6 +145,7 @@ export class HttpExamHalfYearsAdapter implements ExamHalfYearsPort {
             response.headers.get('content-disposition')?.match(/filename="?([^";]+)"?/i)?.[1] ??
             `pruefungsrunde-${roundId}-nachweis.${format === 'text' ? 'txt' : 'json'}`,
         })),
+        catchError((error: unknown) => throwError(() => toApplicationError(error))),
       );
   }
 }

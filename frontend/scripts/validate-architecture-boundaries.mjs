@@ -332,6 +332,7 @@ assert.deepEqual(
     '../api/round-context.service',
     '../app-icon.directive',
     '../app-icons',
+    '../application/file-download',
     '../auth/auth.service',
     '../auth/session-scope.service',
     './exam-half-years.models',
@@ -361,6 +362,7 @@ assert.deepEqual(
   [
     '../exam-half-years/exam-half-years.models',
     '../exam-half-years/exam-half-years.port',
+    './application-error',
     './exam-round-api.service',
     './generated/types.gen',
     './master-data-api.service',
@@ -578,6 +580,7 @@ assert.deepEqual(
   relativeImportsOf(examResultComponent),
   [
     '../application/application-error',
+    '../application/file-download',
     '../application/load-state',
     '../auth/auth.service',
     '../auth/session-scope.service',
@@ -609,8 +612,8 @@ assert.doesNotMatch(
 );
 assert.deepEqual(
   relativeImportsOf(examResultPort),
-  ['./exam-result.models'],
-  'exam-result port exposes only feature-owned models',
+  ['../application/file-download', './exam-result.models'],
+  'exam-result port exposes feature models and a transport-neutral download value',
 );
 assert.deepEqual(
   relativeImportsOf(examResultVoting),

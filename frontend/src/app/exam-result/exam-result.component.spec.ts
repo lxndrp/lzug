@@ -16,6 +16,9 @@ describe('ExamResultComponent', () => {
   beforeEach(async () => {
     port = {
       get: vi.fn((): Observable<ExamResult> => of(resultFixture())),
+      export: vi.fn(() =>
+        of({ content: 'result', mediaType: 'text/plain', fileName: 'result.txt' }),
+      ),
       saveIndividualAssessment: vi.fn(() => of(resultFixture())),
       withdrawIndividualAssessment: vi.fn(() => of(resultFixture())),
       discloseAssessments: vi.fn(() => of(resultFixture())),
@@ -100,6 +103,36 @@ describe('ExamResultComponent', () => {
       changeReason: '',
       dayRevisions: { '7': 4 },
     });
+  });
+
+  it('requests an available export through the feature port without exposing a URL', () => {
+    fixture.detectChanges();
+    fixture.detectChanges();
+    const element = fixture.nativeElement as HTMLElement;
+    const exportButton = [...element.querySelectorAll('button')].find((button) =>
+      button.textContent?.includes('Maschinenlesbarer Ergebnisexport'),
+    );
+    expect(exportButton).toBeDefined();
+    expect(element.querySelector('a[href*="/api/exam-results"]')).toBeNull();
+    exportButton?.click();
+    expect(port.export).toHaveBeenCalledWith(41, 'machine-readable');
+  });
+
+  it('shows export failures and does not replay the audited export operation', () => {
+    vi.mocked(port.export).mockReturnValueOnce(
+      throwError(() => new ApplicationError('forbidden', 'Export nicht erlaubt.')),
+    );
+    fixture.detectChanges();
+    fixture.detectChanges();
+    const element = fixture.nativeElement as HTMLElement;
+
+    [...element.querySelectorAll<HTMLButtonElement>('button')]
+      .find((button) => button.textContent?.includes('Maschinenlesbarer Ergebnisexport'))
+      ?.click();
+    fixture.detectChanges();
+
+    expect(port.export).toHaveBeenCalledTimes(1);
+    expect(element.querySelector('[role="alert"]')?.textContent).toContain('Export nicht erlaubt.');
   });
 
   it('returns accepted day revisions to the examination-day owner', () => {
@@ -1038,10 +1071,7 @@ function resultFixture(overrides: Partial<ExamResult> = {}): ExamResult {
       communicate: true,
       manageRetention: true,
     },
-    exportsLinks: {
-      machine: '/api/exam-results/41/export.json',
-      human: '/api/exam-results/41/export.txt',
-    },
+    exportAvailability: { machine: true, human: true },
     ...overrides,
   };
 }

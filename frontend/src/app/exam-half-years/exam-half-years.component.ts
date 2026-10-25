@@ -23,6 +23,7 @@ import {
 import { EXAM_HALF_YEARS_PORT } from './exam-half-years.port';
 import { appIcons } from '../app-icons';
 import { AppIconDirective } from '../app-icon.directive';
+import { downloadFile } from '../application/file-download';
 
 export type HalfYearDraft = Pick<ExamHalfYear, 'season' | 'year'>;
 
@@ -413,12 +414,7 @@ export class ExamHalfYearsComponent implements OnInit {
       this.port.exportLifecycle(round.id, format),
       ({ content, mediaType, fileName }) => {
         this.loading.set(false);
-        const url = URL.createObjectURL(new Blob([content], { type: mediaType }));
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = fileName;
-        link.click();
-        window.setTimeout(() => URL.revokeObjectURL(url), 0);
+        downloadFile({ content, mediaType, fileName });
       },
       () => this.saveError('Der Prüfungsrundennachweis konnte nicht geladen werden.'),
     );

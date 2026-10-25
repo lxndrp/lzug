@@ -16,6 +16,7 @@ import { TuiBadge } from '@taiga-ui/kit';
 import { Observable } from 'rxjs';
 
 import { ApplicationError } from '../application/application-error';
+import { downloadFile } from '../application/file-download';
 import { loadStateValue, type LoadState } from '../application/load-state';
 import { AuthService } from '../auth/auth.service';
 import { SessionScopeService } from '../auth/session-scope.service';
@@ -285,12 +286,7 @@ export class ExamProtocolComponent implements OnChanges {
           ) {
             return;
           }
-          const url = URL.createObjectURL(new Blob([content], { type: mediaType }));
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = fileName;
-          link.click();
-          window.setTimeout(() => URL.revokeObjectURL(url), 0);
+          downloadFile({ content, mediaType, fileName });
           this.exportBusy.set(false);
         },
         error: () => {

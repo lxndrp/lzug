@@ -169,8 +169,10 @@ export type ExamResult = {
     communicate: boolean;
     manageRetention: boolean;
   };
-  exportsLinks: { machine: string | null; human: string | null };
+  exportAvailability: { machine: boolean; human: boolean };
 };
+
+export type ExamResultExportFormat = 'machine-readable' | 'human-readable';
 
 export type SaveIndividualAssessment = {
   resultId: number;

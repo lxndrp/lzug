@@ -1,6 +1,7 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
+import { ApplicationError } from '../application/application-error';
 
 import type { ExamResultResponse as ApiExamResult } from './generated/types.gen';
 import { HttpExamResultAdapter } from './http-exam-result.adapter';
@@ -53,10 +54,41 @@ describe('HttpExamResultAdapter', () => {
         path: { unroundedTotal: '82', roundedTotal: '82' },
       },
       permissions: { assessOwn: true, determineResult: true },
-      exportsLinks: {
-        machine: '/api/exam-results/41/export.json',
-        human: '/api/exam-results/41/export.txt',
+      exportAvailability: { machine: true, human: true },
+    });
+  });
+
+  it('downloads result exports with response metadata and translates 403 errors', () => {
+    let file: unknown;
+    adapter.export(41, 'machine-readable').subscribe((value) => (file = value));
+    const json = http.expectOne('/api/exam-results/41/export.json');
+    expect(json.request.responseType).toBe('text');
+    json.flush('{"result":41}', {
+      headers: {
+        'content-type': 'application/json',
+        'content-disposition': 'attachment; filename="result-41.json"',
       },
+    });
+    expect(file).toEqual({
+      content: '{"result":41}',
+      mediaType: 'application/json',
+      fileName: 'result-41.json',
+    });
+
+    let failure: unknown;
+    adapter.export(41, 'human-readable').subscribe({ error: (error) => (failure = error) });
+    http
+      .expectOne('/api/exam-results/41/export.txt')
+      .flush(
+        { error: { code: 'forbidden', message: 'Not allowed', details: { reason: 'scope' } } },
+        { status: 403, statusText: 'Forbidden' },
+      );
+    expect(failure).toBeInstanceOf(ApplicationError);
+    expect(failure).toMatchObject({
+      kind: 'forbidden',
+      code: 'forbidden',
+      message: 'Not allowed',
+      details: { reason: 'scope' },
     });
   });
 

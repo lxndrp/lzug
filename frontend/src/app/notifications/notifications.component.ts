@@ -5,6 +5,7 @@ import { TuiButton } from '@taiga-ui/core';
 
 import { AuthService } from '../auth/auth.service';
 import { SessionScopeService } from '../auth/session-scope.service';
+import { downloadFile } from '../application/file-download';
 import type {
   PersonalCalendarEvent,
   PersonalCalendarFeedActivation,
@@ -221,12 +222,7 @@ export class NotificationsComponent implements OnInit {
       .forCurrentSession(this.calendarPort.downloadCalendarEvent(eventId))
       .subscribe({
         next: ({ content, mediaType, fileName }) => {
-          const url = URL.createObjectURL(new Blob([content], { type: mediaType }));
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = fileName;
-          link.click();
-          window.setTimeout(() => URL.revokeObjectURL(url), 0);
+          downloadFile({ content, mediaType, fileName });
           this.calendarEventBusy.set(null);
         },
         error: () => {
