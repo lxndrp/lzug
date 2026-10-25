@@ -11,7 +11,7 @@ import { ExamProtocolComponent } from '../exam-protocol/exam-protocol.component'
 import { EXAM_PROTOCOL_PORT, type ExamProtocolPort } from '../exam-protocol/exam-protocol.port';
 import type { ExamProtocol } from '../exam-protocol/exam-protocol.models';
 import { EXAM_RESULT_PORT } from '../exam-result/exam-result.port';
-import { PERSONAL_PORT, type PersonalPort } from '../personal/personal.port';
+import { PERSONAL_ABSENCE_PORT, type PersonalAbsencePort } from '../personal/personal.port';
 import type { PersonalAbsenceReport } from '../personal/personal.models';
 import { EXAM_DAY_PORT, type ExamDayPort } from './exam-day.port';
 import type {
@@ -26,7 +26,7 @@ describe('ExamDayComponent', () => {
   let fixture: ComponentFixture<ExamDayComponent>;
   let examDay: ExamDayPort;
   let protocolPort: ExamProtocolPort;
-  let personal: Pick<PersonalPort, 'createAbsenceReport'>;
+  let personal: Pick<PersonalAbsencePort, 'createAbsenceReport'>;
 
   beforeEach(async () => {
     examDay = createExamDayPort();
@@ -38,7 +38,7 @@ describe('ExamDayComponent', () => {
         provideRouter([]),
         provideTaiga({ scrollbars: 'native' }),
         { provide: EXAM_DAY_PORT, useValue: examDay },
-        { provide: PERSONAL_PORT, useValue: personal },
+        { provide: PERSONAL_ABSENCE_PORT, useValue: personal },
         { provide: EXAM_PROTOCOL_PORT, useValue: protocolPort },
         {
           provide: EXAM_RESULT_PORT,

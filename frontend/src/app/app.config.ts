@@ -34,7 +34,11 @@ import { CONFIRMED_PLANS_PORT } from './confirmed-plans/confirmed-plans.port';
 import { HttpConfirmedPlansAdapter } from './api/http-confirmed-plans.adapter';
 import { EXAM_HALF_YEARS_PORT } from './exam-half-years/exam-half-years.port';
 import { HttpExamHalfYearsAdapter } from './api/http-exam-half-years.adapter';
-import { PERSONAL_PORT } from './personal/personal.port';
+import {
+  PERSONAL_ABSENCE_PORT,
+  PERSONAL_CALENDAR_PORT,
+  PERSONAL_NOTIFICATIONS_PORT,
+} from './personal/personal.port';
 import { HttpPersonalAdapter } from './api/http-personal.adapter';
 import { HttpExamProtocolAdapter } from './api/http-exam-protocol.adapter';
 import { EXAM_PROTOCOL_PORT } from './exam-protocol/exam-protocol.port';
@@ -56,7 +60,10 @@ export const appConfig: ApplicationConfig = {
     { provide: SCHEDULING_OVERVIEW_PORT, useClass: HttpSchedulingOverviewAdapter },
     { provide: PLANNING_PORT, useClass: HttpPlanningAdapter },
     { provide: EXAM_HALF_YEARS_PORT, useClass: HttpExamHalfYearsAdapter },
-    { provide: PERSONAL_PORT, useClass: HttpPersonalAdapter },
+    HttpPersonalAdapter,
+    { provide: PERSONAL_ABSENCE_PORT, useExisting: HttpPersonalAdapter },
+    { provide: PERSONAL_CALENDAR_PORT, useExisting: HttpPersonalAdapter },
+    { provide: PERSONAL_NOTIFICATIONS_PORT, useExisting: HttpPersonalAdapter },
     { provide: EXAM_PROTOCOL_PORT, useClass: HttpExamProtocolAdapter },
     { provide: EXAM_RESULT_PORT, useClass: HttpExamResultAdapter },
     { provide: LOCATIONS_PORT, useClass: HttpLocationsAdapter },

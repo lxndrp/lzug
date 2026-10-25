@@ -491,7 +491,7 @@ assert.doesNotMatch(
 assert.match(examDayAdapter, /ExamDayApiService/);
 assert.match(examDayAdapter, /exam-day\.port/);
 assert.match(examDaySpec, /EXAM_DAY_PORT/);
-assert.match(examDaySpec, /PERSONAL_PORT/);
+assert.match(examDaySpec, /PERSONAL_ABSENCE_PORT/);
 assert.doesNotMatch(
   examDaySpec,
   /HttpTestingController|provideHttpClientTesting/,
