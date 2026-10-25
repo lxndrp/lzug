@@ -132,6 +132,7 @@ describe('ExamHalfYearsComponent', () => {
     ).createHalfYear({ preventDefault: vi.fn(), currentTarget: form } as unknown as SubmitEvent);
 
     sessionScope.clear();
+    expect(pending.observed).toBe(true);
     pending.next({ ...roundFixture(), id: 44 });
     pending.complete();
     fixture.detectChanges();

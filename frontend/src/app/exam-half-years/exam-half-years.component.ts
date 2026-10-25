@@ -504,10 +504,16 @@ export class ExamHalfYearsComponent implements OnInit {
     next: (value: T) => void,
     error: () => void,
   ): void {
-    this.sessionScope
-      .forCurrentSession(operation)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({ next, error });
+    const generation = this.sessionScope.generation();
+    operation.subscribe({
+      next: (value) => {
+        if (!this.destroyRef.destroyed && this.sessionScope.generation() === generation)
+          next(value);
+      },
+      error: () => {
+        if (!this.destroyRef.destroyed && this.sessionScope.generation() === generation) error();
+      },
+    });
   }
 
   private saveError(message: string): void {
