@@ -549,6 +549,7 @@ assert.deepEqual(
   relativeImportsOf(examResultComponent),
   [
     '../application/application-error',
+    '../application/load-state',
     '../auth/auth.service',
     '../auth/session-scope.service',
     './exam-result.facade',

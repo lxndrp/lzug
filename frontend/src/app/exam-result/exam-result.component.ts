@@ -4,6 +4,7 @@ import {
   Input,
   OnChanges,
   SimpleChanges,
+  computed,
   inject,
   output,
   signal,
@@ -23,6 +24,7 @@ import type {
 } from './exam-result.models';
 import { collectCommitteeVote } from './exam-result.voting';
 import { ApplicationError } from '../application/application-error';
+import { loadStateValue, type LoadState } from '../application/load-state';
 import { AuthService } from '../auth/auth.service';
 import { SessionScopeService } from '../auth/session-scope.service';
 import { ExamResultFacade } from './exam-result.facade';
@@ -57,8 +59,12 @@ export class ExamResultComponent implements OnChanges {
   readonly dayRevisionsChanged = output<ExamResultDayRevisionUpdate>();
   readonly actionErrorOccurred = output<string>();
 
-  protected readonly state = signal<ResultViewState>('loading');
-  protected readonly result = signal<ExamResult | null>(null);
+  private readonly loadState = signal<LoadState<ExamResult>>({
+    status: 'loading',
+    previous: null,
+  });
+  protected readonly state = computed(() => this.loadState().status);
+  protected readonly result = computed(() => loadStateValue(this.loadState()));
   protected readonly busy = signal(false);
   protected readonly message = signal<string | null>(null);
   protected readonly error = signal<string | null>(null);
@@ -96,8 +102,7 @@ export class ExamResultComponent implements OnChanges {
     this.sessionScope.changes$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((change) => {
       this.contextSequence += 1;
       this.requestSequence += 1;
-      this.result.set(null);
-      this.state.set('loading');
+      this.loadState.set({ status: 'loading', previous: null });
       this.busy.set(false);
       this.clearContextDrafts();
       if (change.established) this.load();
@@ -108,7 +113,7 @@ export class ExamResultComponent implements OnChanges {
     const identityChanged = changes['roundId'] || changes['dayId'] || changes['slotId'];
     if (identityChanged) {
       this.contextSequence += 1;
-      this.result.set(null);
+      this.loadState.set({ status: 'loading', previous: null });
       this.busy.set(false);
       this.componentVotes.clear();
       this.componentVoters.clear();
@@ -159,7 +164,7 @@ export class ExamResultComponent implements OnChanges {
     const roundId = this.roundId;
     const dayId = this.dayId;
     const slotId = this.slotId;
-    this.state.set('loading');
+    this.loadState.set({ status: 'loading', previous: this.result() });
     if (!preserveFeedback) {
       this.message.set(null);
       this.error.set(null);
@@ -171,13 +176,16 @@ export class ExamResultComponent implements OnChanges {
         }
         this.accept(result, keepDrafts);
         this.loadedContextSequence = contextSequence;
-        this.state.set('ready');
       },
       error: (error: ApplicationError) => {
         if (!this.isCurrent(sequence, contextSequence, sessionGeneration, roundId, dayId, slotId)) {
           return;
         }
-        this.state.set(error.kind === 'not-found' ? 'not-found' : 'error');
+        this.loadState.set(
+          error.kind === 'not-found'
+            ? { status: 'not-found', previous: this.result() }
+            : { status: 'error', previous: this.result() },
+        );
       },
     });
   }
@@ -656,7 +664,7 @@ export class ExamResultComponent implements OnChanges {
 
   private accept(result: ExamResult, preserveDrafts = false): void {
     const previous = this.result();
-    this.result.set(result);
+    this.loadState.set({ status: 'ready', data: result });
     for (const component of result.modelVersion.rules.components) {
       const current = this.currentCommittee(result, component.key);
       const previousCurrent = previous ? this.currentCommittee(previous, component.key) : undefined;
