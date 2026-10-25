@@ -1,15 +1,15 @@
 import { Injectable, inject } from '@angular/core';
 import { map } from 'rxjs';
 
-import type { DemoScenarioOverview as ApiDemoScenarioOverview } from './api.models';
-import { RuntimeExperienceService } from '../runtime/runtime-experience.service';
+import type { DemoScenarioOverviewResponse } from './generated/types.gen';
+import { RuntimeExperienceApiService } from './runtime-experience-api.service';
 import type { DemoScenariosPort } from '../demo-scenarios/demo-scenarios.port';
 import type { DemoScenarioOverview } from '../demo-scenarios/demo-scenarios.models';
 
 /** HTTP/OpenAPI adapter for the transport-neutral demo-scenarios port. */
 @Injectable({ providedIn: 'root' })
 export class HttpDemoScenariosAdapter implements DemoScenariosPort {
-  private readonly runtime = inject(RuntimeExperienceService);
+  private readonly runtime = inject(RuntimeExperienceApiService);
 
   getOverview() {
     return this.runtime.getDemoScenarios().pipe(map(fromApiOverview));
@@ -20,7 +20,7 @@ export class HttpDemoScenariosAdapter implements DemoScenariosPort {
   }
 }
 
-function fromApiOverview(value: ApiDemoScenarioOverview): DemoScenarioOverview {
+function fromApiOverview(value: DemoScenarioOverviewResponse): DemoScenarioOverview {
   return {
     createdAt: value.created_at,
     currentRole: value.current_role,
@@ -46,7 +46,7 @@ function fromApiOverview(value: ApiDemoScenarioOverview): DemoScenarioOverview {
     })),
     scenarios: value.scenarios.map((scenario) => ({
       completedSteps: scenario.completed_steps,
-      id: scenario.id,
+      id: scenarioId(scenario.id),
       nextAction: scenario.next_action,
       nextRole: scenario.next_role,
       path: scenario.path,
@@ -55,4 +55,9 @@ function fromApiOverview(value: ApiDemoScenarioOverview): DemoScenarioOverview {
       totalSteps: scenario.total_steps,
     })),
   };
+}
+
+function scenarioId(value: string): 'absence' | 'plan-change' {
+  if (value === 'absence' || value === 'plan-change') return value;
+  throw new Error(`Unsupported demo scenario: ${value}`);
 }

@@ -5,13 +5,17 @@ import { catchError, map, throwError } from 'rxjs';
 import type {
   AbsenceReport as ApiAbsenceReport,
   CalendarEvent as ApiCalendarEvent,
-  CalendarFeedActivation as ApiCalendarFeedActivation,
-  CalendarStatus as ApiCalendarStatus,
-  NotificationChannels as ApiNotificationChannels,
   NotificationItem as ApiNotification,
   NotificationProblem as ApiNotificationProblem,
 } from './personal.models';
-import type { CalendarFeedActivationRequest, PushSubscriptionRequest } from './generated/types.gen';
+import type {
+  CalendarFeedActivationRequest,
+  CalendarFeedActivationResponse,
+  CalendarFeedRevocationResponse,
+  CalendarStatusResponse,
+  NotificationChannelsResponse,
+  PushSubscriptionRequest,
+} from './generated/types.gen';
 import { ApiClient } from './api-client.service';
 import { toApplicationError } from './application-error';
 import type {
@@ -59,12 +63,12 @@ export class HttpPersonalAdapter
 
   getNotificationChannels() {
     return this.client
-      .get<ApiNotificationChannels>('/api/notification-channels')
+      .get<NotificationChannelsResponse>('/api/notification-channels')
       .pipe(map(toNotificationChannels));
   }
 
   getCalendarStatus() {
-    return this.client.get<ApiCalendarStatus>('/api/calendar').pipe(map(toCalendarStatus));
+    return this.client.get<CalendarStatusResponse>('/api/calendar').pipe(map(toCalendarStatus));
   }
 
   listCalendarEvents() {
@@ -90,7 +94,7 @@ export class HttpPersonalAdapter
 
   activateCalendarFeed(rotate: boolean) {
     return this.client
-      .post<ApiCalendarFeedActivation>('/api/calendar/feed', {
+      .post<CalendarFeedActivationResponse>('/api/calendar/feed', {
         rotate,
       } satisfies CalendarFeedActivationRequest)
       .pipe(map(toCalendarActivation));
@@ -98,7 +102,7 @@ export class HttpPersonalAdapter
 
   revokeCalendarFeed() {
     return this.client
-      .delete<ApiCalendarStatus & { notice: string }>('/api/calendar/feed')
+      .delete<CalendarFeedRevocationResponse>('/api/calendar/feed')
       .pipe(map((value) => ({ ...toCalendarStatus(value), notice: value.notice })));
   }
 
@@ -165,15 +169,21 @@ function toNotificationProblem(value: ApiNotificationProblem): PersonalNotificat
   };
 }
 
-function toNotificationChannels(value: ApiNotificationChannels): PersonalNotificationChannels {
+function toNotificationChannels(value: NotificationChannelsResponse): PersonalNotificationChannels {
+  const available = value.web_push['available'];
+  const publicKey = value.web_push['public_key'];
+  if (typeof available !== 'boolean' || (typeof publicKey !== 'string' && publicKey !== null)) {
+    throw new Error('Notification channel response has an invalid web_push projection.');
+  }
+
   return {
     emailFallbackConfigured: value.email_fallback_configured,
     sinkEnabled: value.sink_enabled,
-    webPush: { available: value.web_push.available, publicKey: value.web_push.public_key },
+    webPush: { available, publicKey },
   };
 }
 
-function toCalendarStatus(value: ApiCalendarStatus): PersonalCalendarStatus {
+function toCalendarStatus(value: CalendarStatusResponse): PersonalCalendarStatus {
   return {
     activatedAt: value.activated_at,
     active: value.active,
@@ -182,7 +192,9 @@ function toCalendarStatus(value: ApiCalendarStatus): PersonalCalendarStatus {
   };
 }
 
-function toCalendarActivation(value: ApiCalendarFeedActivation): PersonalCalendarFeedActivation {
+function toCalendarActivation(
+  value: CalendarFeedActivationResponse,
+): PersonalCalendarFeedActivation {
   return { ...toCalendarStatus(value), feedUrl: value.feed_url, notice: value.notice };
 }
 

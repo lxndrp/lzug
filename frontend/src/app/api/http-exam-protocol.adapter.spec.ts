@@ -2,7 +2,7 @@ import { HttpHeaders, provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 
-import type { ExamProtocol as ApiExamProtocol } from './execution.models';
+import type { ExamProtocolResponse as ApiExamProtocol } from './generated/types.gen';
 import { HttpExamProtocolAdapter } from './http-exam-protocol.adapter';
 
 describe('HttpExamProtocolAdapter', () => {
@@ -56,6 +56,9 @@ describe('HttpExamProtocolAdapter', () => {
           {
             id: 9,
             version: 1,
+            opened_at: null,
+            opened_by_member_id: null,
+            requested_at: '2026-11-16T09:30:00+01:00',
             requested_by_member_id: 3,
             reason: 'Zeitangabe prüfen',
             status: 'pending',
@@ -123,6 +126,17 @@ describe('HttpExamProtocolAdapter', () => {
       },
       exports: { machineReadable: true, humanReadable: true },
     });
+  });
+
+  it('omits a nullable day revision from the feature contract', () => {
+    let result: unknown;
+    adapter.get(7, 11).subscribe((protocol) => (result = protocol));
+    http
+      .expectOne('/api/confirmed-plan-days/7/slots/11/protocol')
+      .flush(apiProtocol({ day_revision: null }));
+
+    expect(result).toMatchObject({ id: 41, examSlotId: 11 });
+    expect(result).not.toHaveProperty('dayRevision');
   });
 
   it('maps every protocol write operation to its existing API path and payload', () => {
@@ -234,18 +248,23 @@ describe('HttpExamProtocolAdapter', () => {
 
 function apiRevision(overrides: Partial<ApiExamProtocol['current_revision']> = {}) {
   return {
+    change_reason: null,
+    changed_by_member_id: null,
+    correction_request_id: null,
+    created_at: '2026-11-16T09:00:00+01:00',
     id: 71,
     version: 1,
     declaration: null,
     workflow_state: 'draft',
-    change_reason: null,
+    previous_revision_id: null,
+    submitted_by_member_id: null,
     submitted_at: null,
     obsolete: false,
     missing_response_member_ids: [1, 3],
     entries: [],
     responses: [],
     ...overrides,
-  } as ApiExamProtocol['current_revision'];
+  } satisfies ApiExamProtocol['current_revision'];
 }
 
 function apiProtocol(overrides: Partial<ApiExamProtocol> = {}): ApiExamProtocol {
@@ -253,9 +272,16 @@ function apiProtocol(overrides: Partial<ApiExamProtocol> = {}): ApiExamProtocol 
   return {
     id: 41,
     exam_slot_id: 11,
+    day_revision: null,
     current_version: 1,
     state: 'in_progress',
+    created_at: '2026-11-16T09:00:00+01:00',
     closing_ready: false,
+    open_correction: false,
+    participants: [1, 3],
+    retention: null,
+    source: 'confirmed_plan',
+    updated_at: '2026-11-16T09:00:00+01:00',
     current_revision: currentRevision,
     history: overrides.history ?? [currentRevision],
     correction_requests: [],
@@ -273,5 +299,5 @@ function apiProtocol(overrides: Partial<ApiExamProtocol> = {}): ApiExamProtocol 
       human_export: { href: '/api/exam-protocols/41/export.txt' },
     },
     ...overrides,
-  };
+  } satisfies ApiExamProtocol;
 }

@@ -33,8 +33,8 @@ export type ExamResult = {
     id: number;
     firstName: string;
     lastName: string;
-    ihkExamNumber: string;
-    specialization: string;
+    ihkExamNumber: string | null;
+    specialization: string | null;
   };
   modelVersion: {
     id: number;

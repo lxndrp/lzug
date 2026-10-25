@@ -2,7 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 
-import type { ExamResult as ApiExamResult } from './execution.models';
+import type { ExamResultResponse as ApiExamResult } from './generated/types.gen';
 import { HttpExamResultAdapter } from './http-exam-result.adapter';
 
 describe('HttpExamResultAdapter', () => {
@@ -29,6 +29,7 @@ describe('HttpExamResultAdapter', () => {
     expect(result).toMatchObject({
       roundCandidateId: 5,
       correctionOpen: false,
+      candidate: { ihkExamNumber: null, specialization: null },
       modelVersion: {
         modelKey: 'standard',
         rules: {
@@ -252,6 +253,10 @@ function apiResult(): ApiExamResult {
     round_candidate_id: 5,
     day_revisions: { '7': 4 },
     version: 3,
+    created_at: '2026-09-30T12:00:00Z',
+    updated_at: '2026-09-30T12:00:00Z',
+    binding: {},
+    calculations: [],
     state: 'calculation_ready',
     correction_open: false,
     legacy_status: null,
@@ -259,8 +264,8 @@ function apiResult(): ApiExamResult {
       id: 5,
       first_name: 'Ada',
       last_name: 'Beispiel',
-      ihk_exam_number: '123',
-      specialization: 'Anwendung',
+      ihk_exam_number: null,
+      specialization: null,
     },
     model_version: {
       id: 2,
@@ -313,7 +318,7 @@ function apiResult(): ApiExamResult {
         criterion_key: 'clarity',
         assessor_member_id: 1,
         revision: 1,
-        raw_points: '82',
+        raw_points: 82,
         normalized_points: '82',
         rationale: 'Beobachtung',
         status: 'submitted',
@@ -358,5 +363,5 @@ function apiResult(): ApiExamResult {
       machine_export: { href: '/api/exam-results/41/export.json' },
       human_export: { href: '/api/exam-results/41/export.txt' },
     },
-  } as ApiExamResult;
+  } satisfies ApiExamResult;
 }

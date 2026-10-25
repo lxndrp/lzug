@@ -19,7 +19,7 @@ export type ProtocolEntryDraft = {
 
 export type ProtocolEntry = ProtocolEntryDraft & {
   id: number;
-  recordedByMemberId: number;
+  recordedByMemberId: number | null;
   createdAt: string;
 };
 

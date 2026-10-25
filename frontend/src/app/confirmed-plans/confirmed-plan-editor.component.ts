@@ -13,7 +13,7 @@ import { TuiBadge } from '@taiga-ui/kit';
 
 import { ApplicationError } from '../application/application-error';
 import { AuthService } from '../auth/auth.service';
-import { RuntimeExperienceService } from '../runtime/runtime-experience.service';
+import { DEMO_SCENARIOS_PORT } from '../demo-scenarios/demo-scenarios.port';
 import { CONFIRMED_PLANS_PORT } from './confirmed-plans.port';
 import type {
   ConfirmedPlan,
@@ -43,7 +43,7 @@ export type EditorState = 'loading' | 'ready' | 'saving' | 'error';
 export class ConfirmedPlanEditorComponent implements OnChanges {
   private readonly confirmedPlans = inject(CONFIRMED_PLANS_PORT);
   private readonly auth = inject(AuthService);
-  private readonly runtimeExperience = inject(RuntimeExperienceService);
+  private readonly demoScenarios = inject(DEMO_SCENARIOS_PORT);
 
   @Input({ required: true }) roundId!: number;
   @Input({ required: true }) plan!: ConfirmedPlan;
@@ -292,19 +292,19 @@ export class ConfirmedPlanEditorComponent implements OnChanges {
       this.demoPreparedChange.set(null);
       return;
     }
-    this.runtimeExperience.getDemoScenarios().subscribe({
+    this.demoScenarios.getOverview().subscribe({
       next: (overview) => {
         if (this.isCurrentRequest(generation, roundId)) {
-          const change = overview.prepared_plan_change;
+          const change = overview.preparedPlanChange;
           this.demoPreparedChange.set(
             change
               ? {
-                  roundId: change.round_id,
-                  dayId: change.day_id,
-                  sourceLocationId: change.source_location_id,
-                  targetLocationId: change.target_location_id,
-                  assignmentId: change.assignment_id,
-                  replacementMemberId: change.replacement_member_id,
+                  roundId: change.roundId,
+                  dayId: change.dayId,
+                  sourceLocationId: change.sourceLocationId,
+                  targetLocationId: change.targetLocationId,
+                  assignmentId: change.assignmentId,
+                  replacementMemberId: change.replacementMemberId,
                   reason: change.reason,
                 }
               : null,

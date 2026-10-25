@@ -6,7 +6,7 @@ import { Observable, Subject, of, throwError } from 'rxjs';
 
 import { AuthService } from '../auth/auth.service';
 import { SessionScopeService } from '../auth/session-scope.service';
-import { RuntimeExperienceService } from '../runtime/runtime-experience.service';
+import { DEMO_SCENARIOS_PORT } from '../demo-scenarios/demo-scenarios.port';
 import { CONFIRMED_PLANS_PORT } from './confirmed-plans.port';
 import type { ConfirmedPlansBoard } from './confirmed-plans.models';
 import type { EditableConfirmedPlan } from './confirmed-plans.models';
@@ -39,8 +39,8 @@ describe('ConfirmedPlansComponent', () => {
         { provide: CONFIRMED_PLANS_PORT, useValue: workflow },
         { provide: AuthService, useValue: { state: authState, session: signal(null) } },
         {
-          provide: RuntimeExperienceService,
-          useValue: { getDemoScenarios: vi.fn(() => of({ prepared_plan_change: null })) },
+          provide: DEMO_SCENARIOS_PORT,
+          useValue: { getOverview: vi.fn(() => of({ preparedPlanChange: null })) },
         },
         provideTaiga({ scrollbars: 'native' }),
       ],
