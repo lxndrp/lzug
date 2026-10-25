@@ -381,6 +381,7 @@ class SocketMigrationTests(unittest.TestCase):
             db.execute("DROP TABLE calendar_assignment_execution_origin")
             db.execute("DROP TABLE absence_consequence_source")
             db.execute("DROP TABLE absence_consequence_cutover")
+            db.execute("DROP TABLE calendar_feed_lifecycle")
             db.execute("ALTER TABLE exam_day_assignment DROP COLUMN revision")
             for migration_prefix in ("028_%", "029_%", "030_%"):
                 db.execute(
