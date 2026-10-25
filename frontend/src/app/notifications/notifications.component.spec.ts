@@ -71,9 +71,18 @@ describe('NotificationsComponent', () => {
   });
 
   it('keeps notifications available when the independent delivery overview fails', () => {
-    personal.listNotifications = vi.fn().mockReturnValue(of([
-      { id: 9, eventType: 'test', title: 'Erreichbar', message: 'Inhalt', actionPath: '/', createdAt: '' },
-    ]));
+    personal.listNotifications = vi.fn().mockReturnValue(
+      of([
+        {
+          id: 9,
+          eventType: 'test',
+          title: 'Erreichbar',
+          message: 'Inhalt',
+          actionPath: '/',
+          createdAt: '',
+        },
+      ]),
+    );
     personal.listNotificationOverview = vi.fn().mockReturnValue(throwError(() => new Error()));
     const fixture = TestBed.createComponent(NotificationsComponent);
     fixture.detectChanges();
@@ -88,12 +97,18 @@ describe('NotificationsComponent', () => {
     personal.listNotifications = vi.fn().mockReturnValue(pending);
     const scope = TestBed.inject(SessionScopeService);
     scope.establish({
-      authenticated: true, account_id: 1, person_id: 2, committee_member_id: 2, is_operator: false,
+      authenticated: true,
+      account_id: 1,
+      person_id: 2,
+      committee_member_id: 2,
+      is_operator: false,
     });
     const fixture = TestBed.createComponent(NotificationsComponent);
     fixture.detectChanges();
     scope.clear();
-    pending.next([{ id: 99, title: 'Alt', message: '', actionPath: '/', createdAt: '', eventType: '' }] as never);
+    pending.next([
+      { id: 99, title: 'Alt', message: '', actionPath: '/', createdAt: '', eventType: '' },
+    ] as never);
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('Alt');
   });
@@ -387,24 +402,5 @@ function createPersonalPort(): PersonalCalendarPort & PersonalNotificationsPort 
       }),
     ),
     registerPushSubscription: vi.fn().mockReturnValue(of(undefined)),
-  };
-}
-
-function emptyReport() {
-  return {
-    id: 1,
-    examDayId: 1,
-    examDayAssignmentId: 1,
-    committeeMemberId: 1,
-    reportedByMemberId: 1,
-    reportedAt: '',
-    reason: null,
-    status: '',
-    selectedReplacementMemberId: null,
-    version: 1,
-    createdAt: '',
-    updatedAt: '',
-    responses: [],
-    audit: [],
   };
 }

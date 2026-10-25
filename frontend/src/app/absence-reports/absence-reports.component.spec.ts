@@ -196,7 +196,11 @@ describe('AbsenceReportsComponent', () => {
     personal.listAbsenceReports = vi.fn().mockReturnValue(pending);
     const scope = TestBed.inject(SessionScopeService);
     scope.establish({
-      authenticated: true, account_id: 1, person_id: 7, committee_member_id: 7, is_operator: false,
+      authenticated: true,
+      account_id: 1,
+      person_id: 7,
+      committee_member_id: 7,
+      is_operator: false,
     });
     const fixture = TestBed.createComponent(AbsenceReportsComponent);
     fixture.detectChanges();

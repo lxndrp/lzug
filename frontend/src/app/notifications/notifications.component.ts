@@ -79,36 +79,88 @@ export class NotificationsComponent implements OnInit {
       if (this.sessionScope.generation() === generation) loading.set(false);
     };
     this.sessionScope.forCurrentSession(this.notificationsPort.listNotifications()).subscribe({
-      next: (value) => { if (generation === this.sessionScope.generation()) this.notifications.set(value); settle(this.notificationsLoading); },
-      error: () => { if (generation === this.sessionScope.generation()) this.notificationError.set('Benachrichtigungen konnten nicht geladen werden.'); settle(this.notificationsLoading); },
+      next: (value) => {
+        if (generation === this.sessionScope.generation()) this.notifications.set(value);
+        settle(this.notificationsLoading);
+      },
+      error: () => {
+        if (generation === this.sessionScope.generation())
+          this.notificationError.set('Benachrichtigungen konnten nicht geladen werden.');
+        settle(this.notificationsLoading);
+      },
     });
-    this.sessionScope.forCurrentSession(this.notificationsPort.listNotificationOverview()).subscribe({
-      next: (value) => { if (generation === this.sessionScope.generation()) this.problems.set(value); settle(this.problemsLoading); },
-      error: () => { if (generation === this.sessionScope.generation()) this.problemError.set('Zustellstatus konnte nicht geladen werden.'); settle(this.problemsLoading); },
-    });
-    this.sessionScope.forCurrentSession(this.notificationsPort.getNotificationChannels()).subscribe({
-      next: (value) => { if (generation === this.sessionScope.generation()) this.channels.set(value); settle(this.channelsLoading); },
-      error: () => { if (generation === this.sessionScope.generation()) this.channelError.set('Benachrichtigungseinstellungen konnten nicht geladen werden.'); settle(this.channelsLoading); },
-    });
+    this.sessionScope
+      .forCurrentSession(this.notificationsPort.listNotificationOverview())
+      .subscribe({
+        next: (value) => {
+          if (generation === this.sessionScope.generation()) this.problems.set(value);
+          settle(this.problemsLoading);
+        },
+        error: () => {
+          if (generation === this.sessionScope.generation())
+            this.problemError.set('Zustellstatus konnte nicht geladen werden.');
+          settle(this.problemsLoading);
+        },
+      });
+    this.sessionScope
+      .forCurrentSession(this.notificationsPort.getNotificationChannels())
+      .subscribe({
+        next: (value) => {
+          if (generation === this.sessionScope.generation()) this.channels.set(value);
+          settle(this.channelsLoading);
+        },
+        error: () => {
+          if (generation === this.sessionScope.generation())
+            this.channelError.set('Benachrichtigungseinstellungen konnten nicht geladen werden.');
+          settle(this.channelsLoading);
+        },
+      });
     this.sessionScope.forCurrentSession(this.calendarPort.getCalendarStatus()).subscribe({
-      next: (value) => { if (generation === this.sessionScope.generation()) this.calendar.set(value); settle(this.calendarLoading); },
-      error: () => { if (generation === this.sessionScope.generation()) this.calendarError.set('Kalenderzugang konnte nicht geladen werden.'); settle(this.calendarLoading); },
+      next: (value) => {
+        if (generation === this.sessionScope.generation()) this.calendar.set(value);
+        settle(this.calendarLoading);
+      },
+      error: () => {
+        if (generation === this.sessionScope.generation())
+          this.calendarError.set('Kalenderzugang konnte nicht geladen werden.');
+        settle(this.calendarLoading);
+      },
     });
     this.sessionScope.forCurrentSession(this.calendarPort.listCalendarEvents()).subscribe({
-      next: (value) => { if (generation === this.sessionScope.generation()) this.calendarEvents.set(value); settle(this.calendarEventsLoading); },
-      error: () => { if (generation === this.sessionScope.generation()) this.calendarEventsError.set('Kalendereinträge konnten nicht geladen werden.'); settle(this.calendarEventsLoading); },
+      next: (value) => {
+        if (generation === this.sessionScope.generation()) this.calendarEvents.set(value);
+        settle(this.calendarEventsLoading);
+      },
+      error: () => {
+        if (generation === this.sessionScope.generation())
+          this.calendarEventsError.set('Kalendereinträge konnten nicht geladen werden.');
+        settle(this.calendarEventsLoading);
+      },
     });
   }
 
   private clearPersonalData(): void {
-    this.notifications.set([]); this.problems.set([]); this.channels.set(null);
-    this.calendar.set(null); this.calendarEvents.set([]); this.feedUrl.set(null);
-    this.notificationsLoading.set(true); this.problemsLoading.set(true); this.channelsLoading.set(true);
-    this.calendarLoading.set(true); this.calendarEventsLoading.set(true);
-    this.pushBusy.set(false); this.pushMessage.set(null);
-    this.calendarBusy.set(false); this.calendarEventBusy.set(null); this.calendarMessage.set(null);
-    this.notificationError.set(null); this.problemError.set(null); this.channelError.set(null);
-    this.calendarError.set(null); this.calendarEventsError.set(null);
+    this.notifications.set([]);
+    this.problems.set([]);
+    this.channels.set(null);
+    this.calendar.set(null);
+    this.calendarEvents.set([]);
+    this.feedUrl.set(null);
+    this.notificationsLoading.set(true);
+    this.problemsLoading.set(true);
+    this.channelsLoading.set(true);
+    this.calendarLoading.set(true);
+    this.calendarEventsLoading.set(true);
+    this.pushBusy.set(false);
+    this.pushMessage.set(null);
+    this.calendarBusy.set(false);
+    this.calendarEventBusy.set(null);
+    this.calendarMessage.set(null);
+    this.notificationError.set(null);
+    this.problemError.set(null);
+    this.channelError.set(null);
+    this.calendarError.set(null);
+    this.calendarEventsError.set(null);
   }
 
   protected activateCalendar(rotate = false): void {
@@ -165,21 +217,23 @@ export class NotificationsComponent implements OnInit {
   protected downloadCalendarEvent(eventId: number): void {
     if (this.calendarEventBusy() !== null) return;
     this.calendarEventBusy.set(eventId);
-    this.sessionScope.forCurrentSession(this.calendarPort.downloadCalendarEvent(eventId)).subscribe({
-      next: ({ content, mediaType, fileName }) => {
-        const url = URL.createObjectURL(new Blob([content], { type: mediaType }));
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = fileName;
-        link.click();
-        window.setTimeout(() => URL.revokeObjectURL(url), 0);
-        this.calendarEventBusy.set(null);
-      },
-      error: () => {
-        this.calendarMessage.set('Der Kalendereintrag konnte nicht heruntergeladen werden.');
-        this.calendarEventBusy.set(null);
-      },
-    });
+    this.sessionScope
+      .forCurrentSession(this.calendarPort.downloadCalendarEvent(eventId))
+      .subscribe({
+        next: ({ content, mediaType, fileName }) => {
+          const url = URL.createObjectURL(new Blob([content], { type: mediaType }));
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = fileName;
+          link.click();
+          window.setTimeout(() => URL.revokeObjectURL(url), 0);
+          this.calendarEventBusy.set(null);
+        },
+        error: () => {
+          this.calendarMessage.set('Der Kalendereintrag konnte nicht heruntergeladen werden.');
+          this.calendarEventBusy.set(null);
+        },
+      });
   }
 
   protected canEnablePush(): boolean {
@@ -213,11 +267,13 @@ export class NotificationsComponent implements OnInit {
       });
       if (generation !== this.sessionScope.generation()) return;
       await new Promise<void>((resolve, reject) => {
-        this.sessionScope.forCurrentSession(this.notificationsPort.registerPushSubscription(subscription.endpoint)).subscribe({
-          next: () => resolve(),
-          error: reject,
-          complete: resolve,
-        });
+        this.sessionScope
+          .forCurrentSession(this.notificationsPort.registerPushSubscription(subscription.endpoint))
+          .subscribe({
+            next: () => resolve(),
+            error: reject,
+            complete: resolve,
+          });
       });
       if (generation === this.sessionScope.generation()) {
         this.pushMessage.set('Browser-Benachrichtigungen sind aktiviert.');

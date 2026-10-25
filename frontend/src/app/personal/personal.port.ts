@@ -52,4 +52,6 @@ export const PERSONAL_NOTIFICATIONS_PORT = new InjectionToken<PersonalNotificati
 export const PERSONAL_CALENDAR_PORT = new InjectionToken<PersonalCalendarPort>(
   'PERSONAL_CALENDAR_PORT',
 );
-export const PERSONAL_ABSENCE_PORT = new InjectionToken<PersonalAbsencePort>('PERSONAL_ABSENCE_PORT');
+export const PERSONAL_ABSENCE_PORT = new InjectionToken<PersonalAbsencePort>(
+  'PERSONAL_ABSENCE_PORT',
+);

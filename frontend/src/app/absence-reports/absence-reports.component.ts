@@ -28,7 +28,9 @@ export class AbsenceReportsComponent implements OnInit {
 
   ngOnInit(): void {
     this.sessionScope.changes$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((change) => {
-      this.reports.set([]); this.busyResponse.set(null); this.message.set(null);
+      this.reports.set([]);
+      this.busyResponse.set(null);
+      this.message.set(null);
       queueMicrotask(() => {
         if (change.generation !== this.sessionScope.generation()) return;
         if (this.auth.session()?.authenticated) this.load();
@@ -48,25 +50,27 @@ export class AbsenceReportsComponent implements OnInit {
     const generation = this.sessionScope.generation();
     this.busyResponse.set(responseId);
     this.message.set(null);
-    this.sessionScope.forCurrentSession(this.personal.answerReplacement(responseId, answer)).subscribe({
-      next: (report) => {
-        if (generation !== this.sessionScope.generation()) return;
-        this.reports.update((reports) =>
-          reports.map((item) => (item.id === report.id ? report : item)),
-        );
-        this.busyResponse.set(null);
-        this.message.set(
-          this.auth.session()?.demo_role
-            ? 'Ersatzantwort gespeichert. Öffnen Sie die Demo-Szenarien für den nächsten Schritt.'
-            : 'Ersatzantwort gespeichert.',
-        );
-      },
-      error: () => {
-        if (generation !== this.sessionScope.generation()) return;
-        this.busyResponse.set(null);
-        this.message.set('Ersatzantwort konnte nicht gespeichert werden.');
-      },
-    });
+    this.sessionScope
+      .forCurrentSession(this.personal.answerReplacement(responseId, answer))
+      .subscribe({
+        next: (report) => {
+          if (generation !== this.sessionScope.generation()) return;
+          this.reports.update((reports) =>
+            reports.map((item) => (item.id === report.id ? report : item)),
+          );
+          this.busyResponse.set(null);
+          this.message.set(
+            this.auth.session()?.demo_role
+              ? 'Ersatzantwort gespeichert. Öffnen Sie die Demo-Szenarien für den nächsten Schritt.'
+              : 'Ersatzantwort gespeichert.',
+          );
+        },
+        error: () => {
+          if (generation !== this.sessionScope.generation()) return;
+          this.busyResponse.set(null);
+          this.message.set('Ersatzantwort konnte nicht gespeichert werden.');
+        },
+      });
   }
 
   protected selectReplacement(report: PersonalAbsenceReport, memberId: number): void {
@@ -74,29 +78,31 @@ export class AbsenceReportsComponent implements OnInit {
     const generation = this.sessionScope.generation();
     this.busyResponse.set(report.id);
     this.message.set(null);
-    this.sessionScope.forCurrentSession(this.personal.selectReplacement(report.id, memberId, report.version)).subscribe({
-      next: (updated) => {
-        if (generation !== this.sessionScope.generation()) return;
-        this.reports.update((reports) =>
-          reports.map((item) => (item.id === updated.id ? updated : item)),
-        );
-        this.busyResponse.set(null);
-        this.message.set(
-          this.auth.session()?.demo_role
-            ? 'Ersatz ausgewählt. Die Folgearbeit wurde angestoßen. Öffnen Sie die Demo-Szenarien, um den Verlauf anzusehen.'
-            : 'Ersatz ausgewählt. Die Kalender- und Benachrichtigungsfolgen wurden angestoßen.',
-        );
-      },
-      error: (error: ApplicationError) => {
-        if (generation !== this.sessionScope.generation()) return;
-        this.busyResponse.set(null);
-        this.message.set(
-          error.kind === 'conflict'
-            ? 'Der Ausfallprozess wurde inzwischen geändert. Laden Sie den aktuellen Stand.'
-            : 'Der Ersatz konnte nicht ausgewählt werden.',
-        );
-      },
-    });
+    this.sessionScope
+      .forCurrentSession(this.personal.selectReplacement(report.id, memberId, report.version))
+      .subscribe({
+        next: (updated) => {
+          if (generation !== this.sessionScope.generation()) return;
+          this.reports.update((reports) =>
+            reports.map((item) => (item.id === updated.id ? updated : item)),
+          );
+          this.busyResponse.set(null);
+          this.message.set(
+            this.auth.session()?.demo_role
+              ? 'Ersatz ausgewählt. Die Folgearbeit wurde angestoßen. Öffnen Sie die Demo-Szenarien, um den Verlauf anzusehen.'
+              : 'Ersatz ausgewählt. Die Kalender- und Benachrichtigungsfolgen wurden angestoßen.',
+          );
+        },
+        error: (error: ApplicationError) => {
+          if (generation !== this.sessionScope.generation()) return;
+          this.busyResponse.set(null);
+          this.message.set(
+            error.kind === 'conflict'
+              ? 'Der Ausfallprozess wurde inzwischen geändert. Laden Sie den aktuellen Stand.'
+              : 'Der Ersatz konnte nicht ausgewählt werden.',
+          );
+        },
+      });
   }
 
   protected canRespondToOwnAbsence(): boolean {
