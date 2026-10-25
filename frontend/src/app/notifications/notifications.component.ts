@@ -227,7 +227,7 @@ export class NotificationsComponent implements OnInit {
         this.pushMessage.set('Browser-Benachrichtigungen konnten nicht aktiviert werden.');
       }
     } finally {
-      this.pushBusy.set(false);
+      if (generation === this.sessionScope.generation()) this.pushBusy.set(false);
     }
   }
 
