@@ -31,7 +31,7 @@ from backend.runtime import RuntimeConflictError, RuntimeCoordinator
 from backend.tests.test_backup_recipients import RECIPIENT
 from backend.version import BuildMetadata
 
-LAST = "028_add_exam_venue_change_notifications.sql"
+LAST = "029_add_absence_consequence_sources.sql"
 
 
 class LifecycleTests(unittest.TestCase):
@@ -50,6 +50,14 @@ class LifecycleTests(unittest.TestCase):
         with closing(sqlite3.connect(self.paths.database)) as db, db:
             db.execute("DELETE FROM schema_migration_checksum WHERE name = ?", (LAST,))
             db.execute("DELETE FROM schema_migration WHERE name = ?", (LAST,))
+            db.executescript("""
+                DROP TRIGGER absence_consequence_source_no_update;
+                DROP TRIGGER absence_consequence_source_no_delete;
+                DROP TABLE calendar_assignment_execution_origin;
+                DROP TABLE absence_consequence_source;
+                DROP TABLE absence_consequence_cutover;
+                ALTER TABLE exam_day_assignment DROP COLUMN revision;
+            """)
         self.runtime = RuntimeCoordinator(
             self.paths.database, lambda: database_readiness(self.paths.database)
         )

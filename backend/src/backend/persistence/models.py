@@ -994,6 +994,7 @@ class ExamDayAssignment(Base):
     committee_member_id: Mapped[int] = mapped_column(ForeignKey("committee_member.id"))
     assignment_role: Mapped[str] = mapped_column(String)
     day_part: Mapped[str] = mapped_column(String)
+    revision: Mapped[int] = mapped_column(Integer, server_default=sql_text("1"))
     fallback_status: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[str] = mapped_column(
         String,
@@ -1813,6 +1814,20 @@ class CalendarEvent(Base):
         Index("calendar_event_recipient_period", "recipient_member_id", "exam_half_year_id"),
         Index("calendar_event_status", "status"),
     )
+
+
+class CalendarAssignmentExecutionOrigin(Base):
+    """Latest immutable Execution origin accepted for a Calendar assignment."""
+
+    __tablename__ = "calendar_assignment_execution_origin"
+
+    assignment_id: Mapped[int] = mapped_column(
+        ForeignKey("exam_day_assignment.id", ondelete="CASCADE"), primary_key=True
+    )
+    origin_id: Mapped[str] = mapped_column(String, nullable=False)
+    execution_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    action: Mapped[str] = mapped_column(String, nullable=False)
+    updated_at: Mapped[str] = mapped_column(String, nullable=False)
 
 
 @dataclass(frozen=True)

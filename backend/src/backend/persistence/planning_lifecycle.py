@@ -42,6 +42,7 @@ class PlanAssignmentLifecycleSnapshot:
     id: int
     exam_day_id: int
     committee_member_id: int
+    revision: int
     assignment_role: str
     day_part: str
     fallback_status: str | None
@@ -113,6 +114,60 @@ class SQLitePlanningLifecycleWork:
                 ExamRound.revision == expected_revision,
                 ExamRound.status == "draft",
                 ExamRound.lifecycle_status == "open",
+            )
+        )
+        return result.rowcount == 1
+
+    def reassign_absence_assignment(
+        self,
+        assignment_id: int,
+        *,
+        expected_revision: int,
+        expected_member_id: int,
+        member_id: int,
+        now: str,
+        fallback_status: str | None = None,
+    ) -> bool:
+        """Planning-owned CAS for a replacement chosen by an absence command."""
+        values = {
+            "committee_member_id": member_id,
+            "revision": ExamDayAssignment.revision + 1,
+            "updated_at": now,
+        }
+        if fallback_status is not None:
+            values["fallback_status"] = fallback_status
+        result = self._session.execute(
+            update(ExamDayAssignment)
+            .where(
+                ExamDayAssignment.id == assignment_id,
+                ExamDayAssignment.revision == expected_revision,
+                ExamDayAssignment.committee_member_id == expected_member_id,
+            )
+            .values(**values)
+        )
+        return result.rowcount == 1
+
+    def restore_absence_assignment(
+        self,
+        assignment_id: int,
+        *,
+        expected_revision: int,
+        expected_member_id: int,
+        member_id: int,
+        now: str,
+    ) -> bool:
+        """Restore the original member with CAS; inactivity does not block restoration."""
+        result = self._session.execute(
+            update(ExamDayAssignment)
+            .where(
+                ExamDayAssignment.id == assignment_id,
+                ExamDayAssignment.revision == expected_revision,
+                ExamDayAssignment.committee_member_id == expected_member_id,
+            )
+            .values(
+                committee_member_id=member_id,
+                revision=ExamDayAssignment.revision + 1,
+                updated_at=now,
             )
         )
         return result.rowcount == 1
@@ -326,6 +381,7 @@ class SQLitePlanningLifecycleWork:
                 id=row.id,
                 exam_day_id=row.exam_day_id,
                 committee_member_id=row.committee_member_id,
+                revision=row.revision,
                 assignment_role=row.assignment_role,
                 day_part=row.day_part,
                 fallback_status=row.fallback_status,
@@ -346,6 +402,7 @@ class SQLitePlanningLifecycleWork:
                 id=row.id,
                 exam_day_id=row.exam_day_id,
                 committee_member_id=row.committee_member_id,
+                revision=row.revision,
                 assignment_role=row.assignment_role,
                 day_part=row.day_part,
                 fallback_status=row.fallback_status,
@@ -395,6 +452,11 @@ class SQLitePlanningLifecycleWork:
 
     def round_committee_id(self, round_id):
         return self._session.scalar(select(ExamRound.committee_id).where(ExamRound.id == round_id))
+
+    def assignment_revision(self, assignment_id: int) -> int | None:
+        return self._session.scalar(
+            select(ExamDayAssignment.revision).where(ExamDayAssignment.id == assignment_id)
+        )
 
     def cancel_exam_day_slots(self, day_ids, now):
         if not day_ids:

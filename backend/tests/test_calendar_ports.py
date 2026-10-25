@@ -23,14 +23,30 @@ class _FakeCalendarStore:
         self.events: dict[int, CalendarEventSnapshot] = {}
         self.member_ids_by_person: dict[int, frozenset[int]] = {8: frozenset({12})}
         self._next_event_id = 1
+        self.execution_origins: dict[int, tuple[int, str, str]] = {}
+        self.replay_applications = 0
 
     @contextmanager
     def __call__(self):
-        before = deepcopy((self.feeds, self.events, self._next_event_id))
+        before = deepcopy(
+            (
+                self.feeds,
+                self.events,
+                self._next_event_id,
+                self.execution_origins,
+                self.replay_applications,
+            )
+        )
         try:
             yield self
         except Exception:
-            self.feeds, self.events, self._next_event_id = before
+            (
+                self.feeds,
+                self.events,
+                self._next_event_id,
+                self.execution_origins,
+                self.replay_applications,
+            ) = before
             raise
 
     def feed_for_person(self, person_id: int):
@@ -62,6 +78,24 @@ class _FakeCalendarStore:
             for event in self.events.values()
             if event.source_key == source_prefix or event.source_key.startswith(f"{source_prefix}:")
         )
+
+    def reserve_execution_origin(
+        self, assignment_id: int, origin_id: str, execution_version: int, action: str
+    ):
+        current = self.execution_origins.get(assignment_id)
+        if current is not None:
+            version, origin, current_action = current
+            if execution_version < version:
+                return "superseded"
+            if execution_version == version:
+                return "apply" if (origin, current_action) == (origin_id, action) else "conflict"
+        if current is None or execution_version > current[0]:
+            self.execution_origins[assignment_id] = (execution_version, origin_id, action)
+        return "apply"
+
+    def execution_action(self, assignment_id: int):
+        origin = self.execution_origins.get(assignment_id)
+        return origin[2] if origin is not None else None
 
     def events_for_round(self, round_id: int, *, person_id: int | None = None):
         member_ids = (
@@ -178,6 +212,72 @@ def _round_snapshot() -> CalendarRoundSnapshot:
 
 
 class CalendarPortTests(unittest.TestCase):
+    def test_execution_replay_fences_old_sources_and_allows_same_origin_recovery(self) -> None:
+        planning = _FakePlanning(_round_snapshot())
+        store = _FakeCalendarStore()
+        service = CalendarService(store, planning, _FakeIdentity())
+
+        self.assertEqual(
+            "applied", service.apply_absence_follow_up(41, 4, "absence:10", 2, "update", ())
+        )
+        self.assertEqual(1, len(store.events))
+        current = next(iter(store.events.values()))
+        self.assertEqual(
+            "superseded", service.apply_absence_follow_up(41, 4, "absence:9", 1, "cancel", ())
+        )
+        self.assertEqual(
+            "conflict",
+            service.apply_absence_follow_up(41, 4, "absence:11", 2, "cancel", ()),
+        )
+        self.assertEqual("sent", store.events[current.id].status)
+
+        planning.snapshot = replace(
+            planning.snapshot,
+            assignments=(replace(planning.snapshot.assignments[0], member_id=13),),
+        )
+        self.assertEqual(
+            "applied", service.apply_absence_follow_up(41, 4, "absence:10", 2, "update", ())
+        )
+        self.assertEqual("cancelled", store.events[current.id].status)
+        self.assertEqual(2, len(store.events))
+
+    def test_execution_cancel_reconstructs_tombstone_from_before_image(self) -> None:
+        planning = _FakePlanning(_round_snapshot())
+        store = _FakeCalendarStore()
+        service = CalendarService(store, planning, _FakeIdentity())
+        service.sync_round(4)
+        event = next(iter(store.events.values()))
+        before_image = (
+            {
+                "source_key": event.source_key,
+                "external_event_id": event.external_event_id,
+                "exam_half_year_id": event.exam_half_year_id,
+                "exam_round_id": event.exam_round_id,
+                "exam_day_id": event.exam_day_id,
+                "recipient_member_id": event.recipient_member_id,
+                "date": event.date,
+                "starts_at": event.starts_at,
+                "ends_at": event.ends_at,
+                "time_zone": event.time_zone,
+                "location": event.location,
+                "role": event.role,
+                "round_name": event.round_name,
+                "version": event.version,
+                "status": event.status,
+                "content_hash": event.content_hash,
+            },
+        )
+        del store.events[event.id]
+
+        self.assertEqual(
+            "applied",
+            service.apply_absence_follow_up(41, 4, "absence:12", 1, "cancel", before_image),
+        )
+        tombstone = next(iter(store.events.values()))
+        self.assertEqual(event.external_event_id, tombstone.external_event_id)
+        self.assertEqual("cancelled", tombstone.status)
+        self.assertEqual(event.version + 1, tombstone.version)
+
     def test_calendar_use_case_uses_detached_ports_and_preserves_event_identity(self) -> None:
         planning = _FakePlanning(_round_snapshot())
         store = _FakeCalendarStore()

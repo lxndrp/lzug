@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import date
 from typing import TYPE_CHECKING, Protocol
 
@@ -40,6 +40,16 @@ class CalendarApplicationPort(Protocol):
     ) -> CalendarEventSnapshot | None: ...
 
     def cancel_assignment(self, round_id: int, assignment_id: int) -> int: ...
+
+    def apply_absence_follow_up(
+        self,
+        assignment_id: int,
+        round_id: int,
+        origin_id: str,
+        execution_version: int,
+        action: str,
+        before_image: Sequence[Mapping[str, object]],
+    ) -> str: ...
 
     def feed_ics(self, token: str) -> str | None: ...
 
