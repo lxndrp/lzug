@@ -8,12 +8,10 @@ import unittest
 from contextlib import closing
 from pathlib import Path
 
-from backend.application.exam_venue_api import ExamVenueApi
-from backend.composition import notification_service as compose_notification_service
+from backend.composition import exam_venue_api, planning_resource_unit_of_work_factory
 from backend.identity.authorization import AuthorizationScope
 from backend.persistence.auth import SQLiteAuthenticationRepository
-from backend.persistence.models import CANDIDATE
-from backend.tests.support.resource_fixture_store import ResourceFixtureStore
+from backend.planning.resources import PlanningResourceService
 from demo.artifacts import (
     RUNTIME_CONTRACT,
     DemoArtifactError,
@@ -44,6 +42,13 @@ class DemoArtifactTests(unittest.TestCase):
             member_by_committee={committee_id: committee_id},
         )
 
+    @staticmethod
+    def _update_candidate(database: Path, candidate_id: int, values: dict[str, str]) -> None:
+        service = PlanningResourceService(
+            planning_resource_unit_of_work_factory(database, require_confirmed_coordinates=False)
+        )
+        service.update_candidate(candidate_id, values)
+
     def test_seeded_athens_venues_follow_global_and_committee_scope(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             database = Path(directory) / "seed.sqlite"
@@ -55,12 +60,7 @@ class DemoArtifactTests(unittest.TestCase):
                 product_tag=self.product_tag,
                 product_commit=self.product_commit,
             )
-            api = ExamVenueApi(
-                database,
-                notification_service_factory=lambda db_path: compose_notification_service(
-                    db_path, external_delivery_enabled=False
-                ),
-            )
+            api = exam_venue_api(database)
             athens = api.list_venues(self._scope(1))
             feenwald = api.list_venues(self._scope(2))
 
@@ -172,9 +172,7 @@ class DemoArtifactTests(unittest.TestCase):
             self.assertEqual(first["seed_revision"], loaded_app["seed_revision"])
             self.assertEqual(RUNTIME_CONTRACT, loaded_app["runtime_contract"])
 
-            ResourceFixtureStore(data_dir / "lzug.sqlite").update(
-                CANDIDATE, 1, {"last_name": "Laufende Änderung"}
-            )
+            self._update_candidate(data_dir / "lzug.sqlite", 1, {"last_name": "Laufende Änderung"})
             restarted_app, restarted_seed = validate_runtime_binding(app_manifest, data_dir)
             self.assertEqual(loaded_app, restarted_app)
             self.assertEqual(loaded_seed, restarted_seed)
@@ -251,9 +249,7 @@ class DemoArtifactTests(unittest.TestCase):
             initialize_workdir(seed_db, seed_manifest, data_dir)
             database = data_dir / "lzug.sqlite"
             credentials = SQLiteAuthenticationRepository(database).create_session(1)
-            ResourceFixtureStore(database).update(
-                CANDIDATE, candidate["id"], {"last_name": "Geändert"}
-            )
+            self._update_candidate(database, candidate["id"], {"last_name": "Geändert"})
             with closing(sqlite3.connect(database)) as connection, connection:
                 connection.execute("UPDATE exam_venue SET name = 'Geänderter Ort' WHERE id = 1")
             (data_dir / "documents" / "temporary.txt").write_text("demo", encoding="utf-8")
