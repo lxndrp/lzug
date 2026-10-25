@@ -60,6 +60,36 @@ describe('HttpConfirmedPlansAdapter', () => {
     expect(api.getConfirmedPlanRevisions).toHaveBeenCalledWith(1);
   });
 
+  it('preserves nullable location and room identifiers in editable confirmed plans', async () => {
+    const source = apiEditablePlan();
+    const api = {
+      getEditableConfirmedPlan: vi.fn(() =>
+        of({
+          ...source,
+          exam_days: source.exam_days.map((day) => ({ ...day, location_id: null, room_id: null })),
+        }),
+      ),
+    };
+    TestBed.configureTestingModule({
+      providers: [
+        HttpConfirmedPlansAdapter,
+        { provide: ConfirmedPlanApiService, useValue: api },
+        {
+          provide: MasterDataApiService,
+          useValue: {
+            getCandidateViews: vi.fn(() => of([])),
+            getCommitteeMembers: vi.fn(() => of([])),
+          },
+        },
+        { provide: PlanningApiService, useValue: { getLocations: vi.fn(() => of([])) } },
+      ],
+    });
+
+    const result = await firstValueFrom(TestBed.inject(HttpConfirmedPlansAdapter).getEditable(1));
+
+    expect(result.days[0]).toMatchObject({ locationId: null, roomId: null });
+  });
+
   it('loads editor references from the explicit route round', async () => {
     const candidateViews = [
       {

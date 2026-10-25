@@ -4,7 +4,6 @@ import type { ApiRoot } from './common.models';
 import type {
   CandidateDayGenerationResult,
   CandidateExamDay,
-  EditablePlanningProposal,
   ExamDay,
   ExamDayAssignment,
   ExamSlot,
@@ -16,6 +15,7 @@ import type {
 import type { CommitteeMember, Location } from './master-data.models';
 import type { SchedulingOverviewItem } from './execution.models';
 import type {
+  ConfirmPlanApiExamRoundsIdConfirmPlanPostResponses,
   PlanningProposalResponse,
   PlanningProposalResultResponse,
   PlanningProposalWriteRequest,
@@ -219,12 +219,7 @@ export class PlanningApiService {
     );
   }
 
-  savePlanningProposal(roundId: number, proposal: EditablePlanningProposal) {
-    const request = {
-      round_id: proposal.round_id,
-      revision: proposal.revision,
-      exam_days: proposal.exam_days,
-    } satisfies PlanningProposalWriteRequest;
+  savePlanningProposal(roundId: number, request: PlanningProposalWriteRequest) {
     return this.client.put<PlanningProposalResponse>(
       `/api/exam-rounds/${roundId}/planning-proposal`,
       request,
@@ -232,7 +227,7 @@ export class PlanningApiService {
   }
 
   confirmPlan(roundId: number) {
-    return this.client.post<PlanningProposalResultResponse>(
+    return this.client.post<ConfirmPlanApiExamRoundsIdConfirmPlanPostResponses['200']>(
       `/api/exam-rounds/${roundId}/confirm-plan`,
       {},
     );

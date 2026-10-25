@@ -122,7 +122,11 @@ describe('domain API services', () => {
     getEditable.flush(editable);
 
     planning
-      .savePlanningProposal(1, editable)
+      .savePlanningProposal(1, {
+        round_id: editable.round_id,
+        revision: editable.revision,
+        exam_days: editable.exam_days,
+      })
       .subscribe((result) => expect(result.revision).toBe(4));
     const saveEditable = http.expectOne('/api/exam-rounds/1/planning-proposal');
     expect(saveEditable.request.method).toBe('PUT');
@@ -133,17 +137,16 @@ describe('domain API services', () => {
     });
     saveEditable.flush({ ...editable, revision: 4 });
 
-    planning.confirmPlan(1).subscribe((result) => {
-      expect(result.status).toBe('plan_confirmed');
-      expect(result.counts['confirmed_slots']).toBe(16);
-    });
+    const confirmation = {
+      status: 'plan_confirmed',
+      counts: { confirmed_exam_days: 4, confirmed_slots: 16 },
+      exam_days: [],
+    };
+    planning.confirmPlan(1).subscribe((result) => expect(result).toEqual(confirmation));
 
     const confirm = http.expectOne('/api/exam-rounds/1/confirm-plan');
     expect(confirm.request.method).toBe('POST');
-    confirm.flush({
-      status: 'plan_confirmed',
-      counts: { confirmed_slots: 16 },
-    });
+    confirm.flush(confirmation);
   });
 
   it('should expose exam-half-year and committee-round operations', () => {

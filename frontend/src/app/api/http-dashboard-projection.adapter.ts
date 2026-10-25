@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { forkJoin, map } from 'rxjs';
 
 import type { DashboardProjectionPort } from '../dashboard/dashboard-projection.port';
-import type { CommitteeMember } from './master-data.models';
+import type { CandidateView, CommitteeMember, Location } from './master-data.models';
 import { MasterDataApiService } from './master-data-api.service';
 import { PlanningApiService } from './planning-api.service';
 
@@ -32,14 +32,22 @@ export class HttpDashboardProjectionAdapter implements DashboardProjectionPort {
             updated_at: round.updated_at,
           },
           summary: summaryProjection,
-          board,
+          board: {
+            ...board,
+            candidates: board.candidates.map(projectCandidateView),
+            locations: board.locations.map(projectLocation),
+            days: board.days.map((view) => ({
+              ...view,
+              ...(view.location ? { location: projectLocation(view.location) } : {}),
+            })),
+          },
         };
       }),
     );
   }
 
   loadLocations() {
-    return this.api.getLocations();
+    return this.api.getLocations().pipe(map((items) => items.map(projectLocation)));
   }
 
   loadCandidateReferences(roundId: number) {
@@ -50,7 +58,7 @@ export class HttpDashboardProjectionAdapter implements DashboardProjectionPort {
       map(({ candidates, summary }) => {
         const { _links, ...summaryProjection } = summary;
         void _links;
-        return { candidates, summary: summaryProjection };
+        return { candidates: candidates.map(projectCandidateView), summary: summaryProjection };
       }),
     );
   }
@@ -75,4 +83,39 @@ export class HttpDashboardProjectionAdapter implements DashboardProjectionPort {
       ),
     );
   }
+}
+
+function projectCandidateView(view: CandidateView): CandidateView {
+  return {
+    ...view,
+    candidate: projectCandidate(view.candidate),
+  };
+}
+
+function projectCandidate(candidate: CandidateView['candidate']) {
+  return {
+    id: candidate.id,
+    first_name: candidate.first_name,
+    last_name: candidate.last_name,
+    ihk_exam_number: candidate.ihk_exam_number,
+    specialization: candidate.specialization,
+    training_company: candidate.training_company,
+    ...(candidate.created_at !== undefined ? { created_at: candidate.created_at } : {}),
+    ...(candidate.updated_at !== undefined ? { updated_at: candidate.updated_at } : {}),
+  };
+}
+
+function projectLocation(location: Location): Location {
+  return {
+    id: location.id,
+    ...(location.committee_id !== undefined ? { committee_id: location.committee_id } : {}),
+    name: location.name,
+    ...(location.street !== undefined ? { street: location.street } : {}),
+    ...(location.postal_code !== undefined ? { postal_code: location.postal_code } : {}),
+    room: location.room,
+    city: location.city,
+    ...(location.is_active !== undefined ? { is_active: location.is_active } : {}),
+    ...(location.created_at !== undefined ? { created_at: location.created_at } : {}),
+    ...(location.updated_at !== undefined ? { updated_at: location.updated_at } : {}),
+  };
 }

@@ -154,8 +154,8 @@ function fromApiEditableConfirmedPlan(proposal: ApiEditableConfirmedPlan): Edita
       candidateDayId: day.candidate_exam_day_id,
       id: day.id ?? null,
       date: requiredString(day.date, 'confirmed plan day date'),
-      ...(day.room_id === undefined || day.room_id === null ? {} : { roomId: day.room_id }),
-      locationId: requiredNumber(day.location_id, 'confirmed plan day location_id'),
+      ...(day.room_id !== undefined ? { roomId: day.room_id } : {}),
+      locationId: day.location_id ?? null,
       status: requiredString(day.status, 'confirmed plan day status'),
       slots: day.slots.map((slot) => ({
         roundCandidateId: slot.round_candidate_id,

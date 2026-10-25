@@ -6,9 +6,70 @@ import type {
   PlanningProposalResultResponse,
 } from '../api/generated/types.gen';
 import { PlanningApiService } from '../api/planning-api.service';
+import { planningBoardFixture } from '../testing/fixtures';
 import { HttpPlanningAdapter } from './http-planning.adapter';
 
 describe('HttpPlanningAdapter', () => {
+  it('projects nested HAL links out of planning feature data', async () => {
+    const boardWithLinks = {
+      ...planningBoardFixture,
+      candidates: planningBoardFixture.candidates.map((view, index) =>
+        index === 0
+          ? { ...view, candidate: { ...view.candidate, _links: { self: { href: '/candidate' } } } }
+          : view,
+      ),
+      locations: planningBoardFixture.locations.map((location) => ({
+        ...location,
+        _links: { self: { href: `/locations/${location.id}` } },
+      })),
+      days: planningBoardFixture.days.map((view) => ({
+        ...view,
+        ...(view.location
+          ? { location: { ...view.location, _links: { self: { href: '/day-location' } } } }
+          : {}),
+      })),
+    };
+    const loadPlanningFeature = vi.fn(() =>
+      of({
+        round: {
+          id: 8,
+          exam_half_year_id: 7,
+          name: 'Sommer 2027',
+          committee_id: 3,
+          status: 'availability_requested',
+          availability_deadline: null,
+          availability_reminder_at: null,
+          _links: { self: { href: '/rounds/8' } },
+        },
+        summary: {
+          round: {
+            id: 8,
+            name: 'Sommer 2027',
+            status: 'availability_requested',
+            committee_name: 'IHK',
+          },
+          counts: { candidates: 2, mep_count: 1, required_exam_slots: 3 },
+          settings: null,
+          availability: [],
+          _links: { self: { href: '/summary' } },
+        },
+        board: boardWithLinks,
+      }),
+    );
+    TestBed.configureTestingModule({
+      providers: [
+        HttpPlanningAdapter,
+        { provide: PlanningApiService, useValue: { loadPlanningFeature } },
+      ],
+    });
+
+    const result = await firstValueFrom(TestBed.inject(HttpPlanningAdapter).loadPlanning(8));
+
+    expect(result.round).not.toHaveProperty('_links');
+    expect(result.summary).not.toHaveProperty('_links');
+    expect(result.board).toEqual(planningBoardFixture);
+  });
+
   it('removes transport links from all resource write results', async () => {
     const linked = { id: 3, _links: { self: { href: '/api/resource/3' } } };
     const planningApi = {
@@ -213,7 +274,7 @@ describe('HttpPlanningAdapter', () => {
         round_id: 8,
         revision: 4,
         status: 'plan_confirmed',
-        counts: { confirmed_slots: 1 },
+        counts: { confirmed_exam_days: 1, confirmed_slots: 1 },
         exam_days: [],
       }),
     );
@@ -223,7 +284,10 @@ describe('HttpPlanningAdapter', () => {
 
     const result = await firstValueFrom(TestBed.inject(HttpPlanningAdapter).confirmPlan(8));
 
-    expect(result).toEqual({ status: 'plan_confirmed', counts: { confirmed_slots: 1 } });
+    expect(result).toEqual({
+      status: 'plan_confirmed',
+      counts: { confirmed_exam_days: 1, confirmed_slots: 1 },
+    });
   });
 
   it('rejects a generated proposal response without validation', async () => {
@@ -277,7 +341,7 @@ describe('HttpPlanningAdapter', () => {
         round_id: 8,
         revision: 4,
         status: 'plan_confirmed',
-        counts: { confirmed_slots: 1 },
+        counts: { confirmed_exam_days: 1, confirmed_slots: 1 },
         exam_days: [],
         validation: { passed: true },
       }),
@@ -289,5 +353,61 @@ describe('HttpPlanningAdapter', () => {
     await expect(
       firstValueFrom(TestBed.inject(HttpPlanningAdapter).confirmPlan(8)),
     ).rejects.toThrow('Expected validation.messages to be an array');
+  });
+
+  it('rejects confirm responses with an unsupported status', async () => {
+    const confirmPlan = vi.fn(() =>
+      of({ status: 'plan_proposed', counts: { confirmed_exam_days: 1, confirmed_slots: 1 } }),
+    );
+    TestBed.configureTestingModule({
+      providers: [HttpPlanningAdapter, { provide: PlanningApiService, useValue: { confirmPlan } }],
+    });
+
+    await expect(
+      firstValueFrom(TestBed.inject(HttpPlanningAdapter).confirmPlan(8)),
+    ).rejects.toThrow('Unsupported confirm plan status: plan_proposed');
+  });
+
+  it('rejects confirm responses with malformed counts', async () => {
+    const confirmPlan = vi.fn(() =>
+      of({ status: 'plan_confirmed', counts: { confirmed_exam_days: '1', confirmed_slots: 1 } }),
+    );
+    TestBed.configureTestingModule({
+      providers: [HttpPlanningAdapter, { provide: PlanningApiService, useValue: { confirmPlan } }],
+    });
+
+    await expect(
+      firstValueFrom(TestBed.inject(HttpPlanningAdapter).confirmPlan(8)),
+    ).rejects.toThrow('Expected confirm plan counts.confirmed_exam_days to be a number');
+  });
+
+  it('preserves nullable location and room identifiers from proposal responses', async () => {
+    const proposal = {
+      round_id: 8,
+      revision: 3,
+      exam_days: [
+        {
+          candidate_exam_day_id: 11,
+          id: 12,
+          date: '2027-05-03',
+          room_id: null,
+          location_id: null,
+          status: 'proposed',
+          slots: [],
+          assignments: [],
+        },
+      ],
+    } satisfies PlanningProposalResponse;
+    const getPlanningProposal = vi.fn(() => of(proposal));
+    TestBed.configureTestingModule({
+      providers: [
+        HttpPlanningAdapter,
+        { provide: PlanningApiService, useValue: { getPlanningProposal } },
+      ],
+    });
+
+    const result = await firstValueFrom(TestBed.inject(HttpPlanningAdapter).getPlanningProposal(8));
+
+    expect(result.exam_days[0]).toMatchObject({ location_id: null, room_id: null });
   });
 });

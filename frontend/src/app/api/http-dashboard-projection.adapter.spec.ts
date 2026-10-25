@@ -78,8 +78,26 @@ describe('HttpDashboardProjectionAdapter', () => {
       status: 'availability_requested',
       updated_at: '2026-10-02T00:00:00Z',
     } satisfies ExamRoundResponse;
+    const boardWithLinks = {
+      ...planningBoardFixture,
+      candidates: planningBoardFixture.candidates.map((view, index) =>
+        index === 0
+          ? { ...view, candidate: { ...view.candidate, _links: { self: { href: '/candidate' } } } }
+          : view,
+      ),
+      locations: planningBoardFixture.locations.map((location) => ({
+        ...location,
+        _links: { self: { href: `/locations/${location.id}` } },
+      })),
+      days: planningBoardFixture.days.map((view) => ({
+        ...view,
+        ...(view.location
+          ? { location: { ...view.location, _links: { self: { href: '/day-location' } } } }
+          : {}),
+      })),
+    };
     planning.loadDashboardProjection.mockReturnValue(
-      of({ round: response, summary: summaryFixture, board: planningBoardFixture }),
+      of({ round: response, summary: summaryFixture, board: boardWithLinks }),
     );
     let result: unknown;
 
@@ -106,6 +124,32 @@ describe('HttpDashboardProjectionAdapter', () => {
         availability: summaryFixture.availability,
       },
       board: planningBoardFixture,
+    });
+    expect(result).not.toHaveProperty('board.candidates[0].candidate._links');
+    expect(result).not.toHaveProperty('board.locations[0]._links');
+    expect(result).not.toHaveProperty('board.days[0].location._links');
+  });
+
+  it('projects generated candidate links out of targeted candidate references', () => {
+    const linkedCandidates = planningBoardFixture.candidates.map((view, index) =>
+      index === 0
+        ? { ...view, candidate: { ...view.candidate, _links: { self: { href: '/candidate' } } } }
+        : view,
+    );
+    masterData.getCandidateViews.mockReturnValueOnce(of(linkedCandidates));
+    const adapter = TestBed.inject(HttpDashboardProjectionAdapter);
+    let result: unknown;
+
+    adapter.loadCandidateReferences(8).subscribe((value) => (result = value));
+
+    expect(result).toEqual({
+      candidates: planningBoardFixture.candidates,
+      summary: {
+        round: summaryFixture.round,
+        counts: summaryFixture.counts,
+        settings: summaryFixture.settings,
+        availability: summaryFixture.availability,
+      },
     });
   });
 });

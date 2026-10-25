@@ -4,9 +4,17 @@ import { map } from 'rxjs';
 import type {
   PlanningProposalResponse,
   PlanningProposalResultResponse,
+  PlanningProposalWriteRequest,
 } from '../api/generated/types.gen';
+import type { PlanningBoard as ApiPlanningBoard } from '../api/planning.models';
 import { PlanningApiService } from '../api/planning-api.service';
-import type { EditablePlanningProposal, PlanningResult } from './planning.models';
+import type {
+  EditablePlanningProposal,
+  PlanningBoard,
+  PlanningLocation,
+  PlanningResult,
+  PlanningSnapshot,
+} from './planning.models';
 import type { PlanningPort } from './planning.port';
 
 /** HTTP adapter for the planning workflow application boundary. */
@@ -21,7 +29,11 @@ export class HttpPlanningAdapter implements PlanningPort {
         const { _links: summaryLinks, ...summaryProjection } = summary;
         void roundLinks;
         void summaryLinks;
-        return { round: roundProjection, summary: summaryProjection, board };
+        return {
+          round: roundProjection,
+          summary: summaryProjection,
+          board: toPlanningBoard(board),
+        } satisfies PlanningSnapshot;
       }),
     );
   }
@@ -77,7 +89,7 @@ export class HttpPlanningAdapter implements PlanningPort {
   }
 
   confirmPlan(roundId: number) {
-    return this.api.confirmPlan(roundId).pipe(map((value) => toPlanningResult(value, true)));
+    return this.api.confirmPlan(roundId).pipe(map(toConfirmedPlanningResult));
   }
 
   getPlanningProposal(roundId: number) {
@@ -88,34 +100,17 @@ export class HttpPlanningAdapter implements PlanningPort {
     roundId: number,
     proposal: Parameters<PlanningPort['savePlanningProposal']>[1],
   ) {
-    return this.api.savePlanningProposal(roundId, proposal).pipe(map(toEditableProposal));
+    const request = {
+      round_id: proposal.round_id,
+      revision: proposal.revision,
+      exam_days: proposal.exam_days,
+    } satisfies PlanningProposalWriteRequest;
+    return this.api.savePlanningProposal(roundId, request).pipe(map(toEditableProposal));
   }
 }
 
-function toPlanningResult(
-  value: PlanningProposalResultResponse,
-  allowMissingValidation = false,
-): PlanningResult {
-  const validationValue = value['validation'];
-  const validation =
-    allowMissingValidation && validationValue === undefined
-      ? undefined
-      : record(validationValue, 'validation');
-  let validationResult: PlanningResult['validation'];
-  if (validation) {
-    if (typeof validation['passed'] !== 'boolean') {
-      throw new Error('Expected validation.passed to be a boolean');
-    }
-    if (!Array.isArray(validation['messages'])) {
-      throw new Error('Expected validation.messages to be an array');
-    }
-    validationResult = {
-      passed: validation['passed'],
-      messages: validation['messages'].map((message) =>
-        requiredString(message, 'validation message'),
-      ),
-    };
-  }
+function toPlanningResult(value: PlanningProposalResultResponse): PlanningResult {
+  const validationResult = toValidationResult(value['validation'], false);
   const conflicts = Array.isArray(value['conflicts'])
     ? value['conflicts'].map((item) => {
         const conflict = record(item, 'conflict');
@@ -141,6 +136,88 @@ function toPlanningResult(
   };
 }
 
+function toConfirmedPlanningResult(value: unknown): PlanningResult {
+  const response = record(value, 'confirm plan response');
+  const status = requiredString(response['status'], 'confirm plan status');
+  if (status !== 'plan_confirmed') {
+    throw new Error(`Unsupported confirm plan status: ${status}`);
+  }
+  const counts = numberRecord(response['counts'], 'confirm plan counts');
+  requiredNumber(counts['confirmed_exam_days'], 'confirm plan counts.confirmed_exam_days');
+  requiredNumber(counts['confirmed_slots'], 'confirm plan counts.confirmed_slots');
+  const validation = toValidationResult(response['validation'], true);
+  return {
+    status,
+    counts,
+    ...(validation ? { validation } : {}),
+  };
+}
+
+function toValidationResult(value: unknown, allowMissing: boolean): PlanningResult['validation'] {
+  if (value === undefined && allowMissing) return undefined;
+  const validation = record(value, 'validation');
+  if (typeof validation['passed'] !== 'boolean') {
+    throw new Error('Expected validation.passed to be a boolean');
+  }
+  if (!Array.isArray(validation['messages'])) {
+    throw new Error('Expected validation.messages to be an array');
+  }
+  return {
+    passed: validation['passed'],
+    messages: validation['messages'].map((message) =>
+      requiredString(message, 'validation message'),
+    ),
+  };
+}
+
+function numberRecord(value: unknown, field: string): Record<string, number> {
+  const source = record(value, field);
+  return Object.fromEntries(
+    Object.entries(source).map(([key, item]) => [key, requiredNumber(item, `${field}.${key}`)]),
+  );
+}
+
+function toPlanningBoard(board: ApiPlanningBoard): PlanningBoard {
+  return {
+    ...board,
+    days: board.days.map((view) => ({
+      ...view,
+      ...(view.location ? { location: toPlanningLocation(view.location) } : {}),
+    })),
+    candidates: board.candidates.map(({ candidate, roundCandidate }) => ({
+      candidate: projectCandidate(candidate),
+      ...(roundCandidate ? { roundCandidate } : {}),
+    })),
+    locations: board.locations.map(toPlanningLocation),
+  };
+}
+
+function projectCandidate(candidate: ApiPlanningBoard['candidates'][number]['candidate']) {
+  return {
+    id: candidate.id,
+    first_name: candidate.first_name,
+    last_name: candidate.last_name,
+    ihk_exam_number: candidate.ihk_exam_number,
+    specialization: candidate.specialization,
+    training_company: candidate.training_company,
+    ...(candidate.created_at !== undefined ? { created_at: candidate.created_at } : {}),
+    ...(candidate.updated_at !== undefined ? { updated_at: candidate.updated_at } : {}),
+  };
+}
+
+function toPlanningLocation(location: ApiPlanningBoard['locations'][number]): PlanningLocation {
+  return {
+    id: location.id,
+    ...(location.committee_id !== undefined ? { committee_id: location.committee_id } : {}),
+    name: location.name,
+    ...(location.street !== undefined ? { street: location.street } : {}),
+    ...(location.postal_code !== undefined ? { postal_code: location.postal_code } : {}),
+    room: location.room,
+    city: location.city,
+    ...(location.is_active !== undefined ? { is_active: location.is_active } : {}),
+  };
+}
+
 function toEditableProposal(value: PlanningProposalResponse): EditablePlanningProposal {
   return {
     round_id: value.round_id,
@@ -149,8 +226,8 @@ function toEditableProposal(value: PlanningProposalResponse): EditablePlanningPr
       candidate_exam_day_id: day.candidate_exam_day_id,
       id: day.id ?? null,
       date: requiredString(day.date, 'proposal day date'),
-      room_id: day.room_id ?? undefined,
-      location_id: requiredNumber(day.location_id, 'proposal day location_id'),
+      ...(day.room_id !== undefined ? { room_id: day.room_id } : {}),
+      location_id: day.location_id ?? null,
       status: requiredString(day.status, 'proposal day status'),
       slots: day.slots.map((slot) => ({
         round_candidate_id: slot.round_candidate_id,
