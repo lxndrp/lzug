@@ -6,7 +6,7 @@ import { Observable } from 'rxjs';
 import { ApplicationError } from '../application/application-error';
 import { AuthService } from '../auth/auth.service';
 import { SessionScopeService } from '../auth/session-scope.service';
-import { PersonalFacade } from '../personal/personal.facade';
+import { PERSONAL_ABSENCE_PORT } from '../personal/personal.port';
 import { EXAM_DAY_PORT } from './exam-day.port';
 import type {
   CloseExamDayCommand,
@@ -31,7 +31,7 @@ type ExamDayContext = {
 @Injectable()
 export class ExamDayFacade {
   private readonly port = inject(EXAM_DAY_PORT);
-  private readonly personal = inject(PersonalFacade);
+  private readonly personal = inject(PERSONAL_ABSENCE_PORT);
   private readonly auth = inject(AuthService);
   private readonly sessionScope = inject(SessionScopeService);
   private readonly router = inject(Router);

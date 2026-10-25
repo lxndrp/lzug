@@ -8,7 +8,7 @@ import { ApplicationError } from '../application/application-error';
 import { AuthService } from '../auth/auth.service';
 import type { AuthSession } from '../auth/auth.models';
 import { SessionScopeService } from '../auth/session-scope.service';
-import { PersonalFacade } from '../personal/personal.facade';
+import { PERSONAL_ABSENCE_PORT, type PersonalAbsencePort } from '../personal/personal.port';
 import { EXAM_DAY_PORT, type ExamDayPort } from './exam-day.port';
 import { ExamDayFacade } from './exam-day.facade';
 import type {
@@ -28,7 +28,10 @@ describe('ExamDayFacade', () => {
         provideRouter([]),
         ExamDayFacade,
         { provide: EXAM_DAY_PORT, useValue: port },
-        { provide: PersonalFacade, useValue: { createAbsenceReport: vi.fn(() => of({})) } },
+        {
+          provide: PERSONAL_ABSENCE_PORT,
+          useValue: { createAbsenceReport: vi.fn(() => of({})) } as unknown as PersonalAbsencePort,
+        },
         {
           provide: AuthService,
           useValue: { session: signal(null), hasCapability: () => true },
