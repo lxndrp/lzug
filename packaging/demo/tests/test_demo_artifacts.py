@@ -45,9 +45,7 @@ class DemoArtifactTests(unittest.TestCase):
     @staticmethod
     def _update_candidate(database: Path, candidate_id: int, values: dict[str, str]) -> None:
         service = PlanningResourceService(
-            planning_resource_unit_of_work_factory(
-                database, require_confirmed_coordinates=False
-            )
+            planning_resource_unit_of_work_factory(database, require_confirmed_coordinates=False)
         )
         service.update_candidate(candidate_id, values)
 

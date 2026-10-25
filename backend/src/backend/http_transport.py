@@ -104,9 +104,7 @@ class RequestContext:
     calendar_lifecycle_work_factory: CalendarLifecycleWorkFactory
     assessment_lifecycle: AssessmentLifecycleWorkFactory
     assessment_round_queries: AssessmentLifecycleWorkFactory
-    exam_lifecycle_unit_of_work_factory_provider: Callable[
-        [Path], ExamLifecycleUnitOfWorkFactory
-    ]
+    exam_lifecycle_unit_of_work_factory_provider: Callable[[Path], ExamLifecycleUnitOfWorkFactory]
     absence_unit_of_work_factory: Callable[[Path], AbsenceUnitOfWorkFactory]
     round_mutation_lock_checker_factory: Callable[[Path], Callable]
     candidate_day_service_factory: Callable[[Path], CandidateDayService]
