@@ -102,16 +102,14 @@ ALLOWED_PACKAGE_DEPENDENCIES = {
     "assessment": frozenset(),
     "calendar": frozenset(),
     "documents": frozenset(),
-    "execution": frozenset(
-        {"calendar", "identity", "integrations", "notifications", "presentation"}
-    ),
+    "execution": frozenset({"calendar", "identity", "notifications", "presentation"}),
     "identity": frozenset(),
     "integrations": frozenset({"documents", "identity", "notifications", "persistence"}),
     "notifications": frozenset(),
     "operations": frozenset({"documents", "identity", "integrations", "persistence"}),
     "persistence": frozenset({"calendar", "documents", "execution", "identity", "notifications"}),
     "presentation": frozenset(),
-    "planning": frozenset({"calendar", "integrations", "notifications", "persistence"}),
+    "planning": frozenset({"calendar", "notifications"}),
 }
 
 TRANSITIONAL_DEPENDENCY_IMPORTS = {}
@@ -470,6 +468,35 @@ class BackendPackageBoundaryTests(unittest.TestCase):
         self.assertEqual(
             _unexpected_dependencies("identity", imports), {"assessment", "persistence"}
         )
+
+    def test_recursive_boundary_scanner_rejects_concrete_adapter_imports(self) -> None:
+        fixtures = {
+            "planning": (
+                "from backend.persistence.models import ExamDayAssignment\n"
+                "from ...integrations.notification_delivery import send\n"
+            ),
+            "execution": (
+                "from backend.integrations.notification_delivery import send\n"
+                "from ...integrations.calendar_sync import sync\n"
+            ),
+        }
+        forbidden_dependencies = {
+            "planning": {"integrations", "persistence"},
+            "execution": {"integrations"},
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for package, source in fixtures.items():
+                with self.subTest(package=package):
+                    nested = root / package / "submodule"
+                    nested.mkdir(parents=True, exist_ok=True)
+                    path = nested / "example.py"
+                    path.write_text(source, encoding="utf-8")
+                    imports = _imported_modules(path, root)
+                    self.assertEqual(
+                        forbidden_dependencies[package],
+                        _unexpected_dependencies(package, imports),
+                    )
 
     def test_relative_import_resolution_reports_target_package(self) -> None:
         module = BACKEND_ROOT / "execution" / "absence.py"
