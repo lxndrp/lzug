@@ -332,6 +332,13 @@ Heute beschränkt die Feedprüfung die Person nur darauf, mindestens eine aktive
 Mitgliedschaft zu haben; die Synchronisierung und Ausgabe filtern anschließend
 nach `person_id`.
 Sync und Ausgabe sind auf die aktiven Membership-IDs der Person begrenzt.
+Die finale Scope-Revalidierung eines Feed-ICS-Reads verwendet ein mit den
+Identity- und Committee-Schreib-UoWs geteiltes Scope-Gate. Damit kann eine
+Mitgliedschaftsänderung zwischen letzter Prüfung und Antwortfreigabe nicht
+committen; Sync und Rendering laufen außerhalb des Gates. Ein nicht bestätigter
+dauerhafter Widerruf liefert über `DELETE /api/calendar/feed` den typisierten
+HTTP-503-Fehler `calendar_feed_revocation_pending`, der einen erneuten
+Widerrufsversuch erlaubt.
 `list_events`, `feed_ics` und `event_ics` synchronisieren über `sync_person`
 weiterhin vor dem Lesen oder Rendern; Refresh und Read verwenden getrennte
 UoWs.

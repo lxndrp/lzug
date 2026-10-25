@@ -15,6 +15,7 @@ from .api_contracts import (
     CalendarFeedRevocationResponse,
     CalendarStatusResponse,
     DomainResourceWrite,
+    ErrorResponse,
     NotificationChannelsResponse,
     NotificationCollectionResponse,
     PushConfirmationResponse,
@@ -175,6 +176,12 @@ def create_calendar_management_router() -> APIRouter:
     @router.delete(
         "/api/calendar/feed",
         response_model=CalendarFeedRevocationResponse,
+        responses={
+            HTTPStatus.SERVICE_UNAVAILABLE: {
+                "model": ErrorResponse,
+                "description": "Feed revocation is pending and may be retried.",
+            }
+        },
     )
     def revoke_feed(context: MutationContext):
         context.calendar_service.revoke(_calendar_scope(context))

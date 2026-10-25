@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import unittest
+from contextlib import contextmanager
 from dataclasses import fields, replace
 from threading import Event, Thread
 from time import monotonic, sleep
@@ -18,6 +19,7 @@ from backend.calendar.ports import CalendarEventSnapshot, CalendarScope
 from backend.calendar.service import CalendarService
 from backend.composition import (
     authorization_service,
+    identity_service,
     planning_service,
 )
 from backend.composition import (
@@ -26,6 +28,7 @@ from backend.composition import (
 from backend.persistence.auth import SQLiteAuthenticationRepository
 from backend.persistence.calendar import SQLiteCalendarPersistence
 from backend.persistence.database import apply_migrations, connect, connection_scope, session_scope
+from backend.persistence.identity import SQLiteIdentityUnitOfWork
 from backend.persistence.models import (
     CalendarEvent,
     CalendarFeedLifecycle,
@@ -172,6 +175,92 @@ class CalendarServiceTests(unittest.TestCase):
                 self.assertIsNone(service.feed_ics(activation.token))
         finally:
             database.__exit__(None, None, None)
+
+    def test_membership_revocation_serializes_with_final_feed_validation(self) -> None:
+        database, db_path = self._confirmed_database()
+        self.addCleanup(database.__exit__, None, None, None)
+        service = create_calendar_service(db_path)
+        scope = self._scope(db_path)
+        activation = service.activate(scope)
+        member_id = next(iter(scope.member_ids))
+        identities = identity_service(db_path)
+        coordinator = service._identity_scope_coordinator
+        original_guard = coordinator.guard
+        guard_attempts = 0
+        final_guard_attempted = Event()
+        render_entered = Event()
+        allow_render = Event()
+        delete_entered = Event()
+        allow_delete = Event()
+        feed_finished = Event()
+        delete_finished = Event()
+        feed_result = []
+        errors = []
+
+        @contextmanager
+        def observed_guard():
+            nonlocal guard_attempts
+            guard_attempts += 1
+            if guard_attempts == 2:
+                final_guard_attempted.set()
+            with original_guard():
+                yield
+
+        from backend.calendar.ics import render_calendar as render
+
+        def paused_render(events, title):
+            render_entered.set()
+            if not allow_render.wait(timeout=5):
+                raise TimeoutError("Feed render was not released")
+            return render(events, title)
+
+        update = SQLiteIdentityUnitOfWork.update_membership
+
+        def paused_update(work, current_member_id, values):
+            delete_entered.set()
+            if not allow_delete.wait(timeout=5):
+                raise TimeoutError("Membership update was not released")
+            return update(work, current_member_id, values)
+
+        def download():
+            try:
+                feed_result.append(service.feed_ics(activation.token))
+            except BaseException as error:
+                errors.append(error)
+            finally:
+                feed_finished.set()
+
+        def revoke_membership():
+            try:
+                identities.update_membership(member_id, {"is_active": False})
+            except BaseException as error:
+                errors.append(error)
+            finally:
+                delete_finished.set()
+
+        with (
+            patch.object(coordinator, "guard", observed_guard),
+            patch("backend.calendar.service.render_calendar", side_effect=paused_render),
+            patch.object(SQLiteIdentityUnitOfWork, "update_membership", paused_update),
+        ):
+            feed_thread = Thread(target=download)
+            delete_thread = Thread(target=revoke_membership)
+            feed_thread.start()
+            self.assertTrue(render_entered.wait(timeout=3))
+            delete_thread.start()
+            self.assertTrue(delete_entered.wait(timeout=3))
+            allow_render.set()
+            self.assertTrue(final_guard_attempted.wait(timeout=3))
+            self.assertFalse(feed_finished.is_set())
+            allow_delete.set()
+            feed_thread.join(timeout=5)
+            delete_thread.join(timeout=5)
+
+        self.assertFalse(feed_thread.is_alive())
+        self.assertFalse(delete_thread.is_alive())
+        self.assertTrue(delete_finished.is_set())
+        self.assertEqual([], errors)
+        self.assertEqual([None], feed_result)
 
     def test_parallel_feed_reads_share_one_sync(self) -> None:
         database, db_path = self._confirmed_database()
@@ -755,6 +844,27 @@ class CalendarApiTests(unittest.TestCase):
             assert_status(status, 200)
             status, _headers, _body = api.request_raw("GET", feed_path, authenticated=False)
             assert_status(status, 404)
+
+    def test_revocation_storage_failure_has_stable_retryable_http_contract(self) -> None:
+        with TempDatabase() as db_path:
+            with patch.object(
+                CalendarService,
+                "revoke",
+                side_effect=FeedRevocationPendingError("internal database detail"),
+            ):
+                with ApiServer(db_path) as api:
+                    status, payload = api.request("DELETE", "/api/calendar/feed")
+
+        self.assertEqual(503, status)
+        self.assertEqual(
+            {
+                "error": {
+                    "code": "calendar_feed_revocation_pending",
+                    "message": "Calendar feed revocation is pending; retry the request.",
+                }
+            },
+            payload,
+        )
 
     def test_other_member_cannot_download_an_event(self) -> None:
         with TempDatabase() as db_path, ApiServer(db_path) as api:

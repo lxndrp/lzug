@@ -83,6 +83,7 @@ ROOT_MODULE_OWNERS = {
     "runtime_policy.py": "runtime-foundation",
     "runtime.py": "runtime-foundation",
     "security.py": "runtime-foundation",
+    "identity_scope.py": "shared-contracts",
     "server.py": "api-bootstrap",
     "settings.py": "runtime-foundation",
     "synthetic_fixtures.py": "fixture-runtime",

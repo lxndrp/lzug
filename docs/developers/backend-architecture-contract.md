@@ -420,6 +420,14 @@ Rendern in getrennten UoWs.
 Credential-Generation und Membership-/Committee-Scope werden vor dem Sync,
 am Read-Snapshot und nach dem Rendern vor der Antwortfreigabe erneut geprüft.
 Ein Widerrufscommit oder eine Scopeänderung verwirft das gesamte ICS-Ergebnis.
+Die finale Scope-Revalidierung läuft unter einem Composition-Root-geteilten
+Identity-Scope-Gate. Identity- und Committee-Mutationen halten dasselbe Gate
+während ihres Schreib-UoWs; dadurch kann eine Scopeänderung nicht zwischen
+finaler Revalidierung und Antwortfreigabe committen. Sync und Rendering laufen
+außerhalb dieses Gates. Ein nicht bestätigter dauerhafter Feed-Widerruf wird
+über `DELETE /api/calendar/feed` als typisierter HTTP-503-Fehler
+`calendar_feed_revocation_pending` ausgegeben; Clients können denselben
+Widerruf sicher erneut versuchen.
 `list_events` und `event_ics` validieren kein Feed-Credential und nutzen den
 Identity-Scope für ihre jeweilige Projektion und Read-Abfrage.
 

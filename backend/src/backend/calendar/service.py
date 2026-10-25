@@ -35,6 +35,7 @@ from backend.calendar.ports import (
     CalendarSlotSnapshot,
     CalendarUnitOfWorkFactory,
 )
+from backend.identity_scope import IdentityScopeCoordinator
 from backend.settings import RuntimeSettings
 
 DEFAULT_TIME_ZONE = "Europe/Berlin"
@@ -71,6 +72,7 @@ class CalendarService:
         time_zone: str | None = None,
         settings: RuntimeSettings | None = None,
         feed_coordinator: CalendarFeedCoordinator | None = None,
+        identity_scope_coordinator: IdentityScopeCoordinator | None = None,
         database_id: str = "calendar",
     ) -> None:
         configured = settings or RuntimeSettings.from_environment()
@@ -85,6 +87,7 @@ class CalendarService:
         self._planning = planning
         self._identity = identity
         self._feed_coordinator = feed_coordinator or CalendarFeedCoordinator()
+        self._identity_scope_coordinator = identity_scope_coordinator or IdentityScopeCoordinator()
         self._database_id = database_id
 
     def status(self, scope: CalendarScope) -> CalendarFeedStatus:
@@ -519,10 +522,7 @@ class CalendarService:
         if events is None:
             return None
         rendered = render_calendar(events, "Persönlicher Prüfungskalender")
-        final_scope = self._identity_scope(person_id)
-        if not self._feed_read_is_current(
-            person_id, token_hash, feed.generation, initial_scope, final_scope
-        ):
+        if not self._feed_read_is_current(person_id, token_hash, feed.generation, initial_scope):
             return None
         return rendered
 
@@ -558,15 +558,18 @@ class CalendarService:
         token_hash: str,
         generation: int,
         initial_scope: frozenset[tuple[int, int]],
-        final_scope: frozenset[tuple[int, int]],
     ) -> bool:
-        if not final_scope or final_scope != initial_scope:
+        if not initial_scope:
             return False
-        with self._feed_coordinator.lifecycle(self._database_id, person_id):
-            if self._feed_coordinator.is_fenced(self._database_id, person_id):
+        with self._identity_scope_coordinator.guard():
+            final_scope = self._identity_scope(person_id)
+            if not final_scope or final_scope != initial_scope:
                 return False
-            current = self._active_feed(token_hash)
-            return current is not None and current.generation == generation
+            with self._feed_coordinator.lifecycle(self._database_id, person_id):
+                if self._feed_coordinator.is_fenced(self._database_id, person_id):
+                    return False
+                current = self._active_feed(token_hash)
+                return current is not None and current.generation == generation
 
     def event_ics(self, event_id: int, scope: CalendarScope) -> str | None:
         if scope.person_id is None or not scope.member_ids:
