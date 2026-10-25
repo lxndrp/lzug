@@ -176,6 +176,33 @@ class CalendarServiceTests(unittest.TestCase):
         finally:
             database.__exit__(None, None, None)
 
+    def test_feed_ics_discards_result_when_committee_is_deactivated_during_render(self) -> None:
+        database, db_path = self._confirmed_database()
+        try:
+            service = create_calendar_service(db_path)
+            scope = self._scope(db_path)
+            activation = service.activate(scope)
+            with session_scope(db_path) as session:
+                member = session.get(CommitteeMember, next(iter(scope.member_ids)))
+                assert member is not None
+                committee_id = member.committee_id
+
+            from backend.calendar.ics import render_calendar as render
+
+            def deactivate_committee(events, title):
+                with session_scope(db_path) as session:
+                    committee = session.get(Committee, committee_id)
+                    assert committee is not None
+                    committee.is_active = 0
+                return render(events, title)
+
+            with patch(
+                "backend.calendar.service.render_calendar", side_effect=deactivate_committee
+            ):
+                self.assertIsNone(service.feed_ics(activation.token))
+        finally:
+            database.__exit__(None, None, None)
+
     def test_membership_revocation_serializes_with_final_feed_validation(self) -> None:
         database, db_path = self._confirmed_database()
         self.addCleanup(database.__exit__, None, None, None)

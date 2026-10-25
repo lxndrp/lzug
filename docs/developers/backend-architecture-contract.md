@@ -428,6 +428,9 @@ außerhalb dieses Gates. Ein nicht bestätigter dauerhafter Feed-Widerruf wird
 über `DELETE /api/calendar/feed` als typisierter HTTP-503-Fehler
 `calendar_feed_revocation_pending` ausgegeben; Clients können denselben
 Widerruf sicher erneut versuchen.
+Der Calendar-Identity-Snapshot berücksichtigt nur aktive Memberships in
+aktiven, vollständig initialisierten Committees (`is_active == 1` und
+`bootstrap_state == "ready"`), wie die reguläre Identity-Autorisierung.
 `list_events` und `event_ics` validieren kein Feed-Credential und nutzen den
 Identity-Scope für ihre jeweilige Projektion und Read-Abfrage.
 

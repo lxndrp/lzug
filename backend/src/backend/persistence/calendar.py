@@ -27,6 +27,7 @@ from backend.persistence.models import (
     CalendarEvent,
     CalendarFeed,
     CalendarFeedLifecycle,
+    Committee,
     CommitteeMember,
     ExamDay,
     ExamDayAssignment,
@@ -381,9 +382,12 @@ class SQLiteCalendarPersistence:
         with read_session_scope(self.db_path) as session:
             rows = session.execute(
                 select(CommitteeMember.id, CommitteeMember.committee_id)
+                .join(Committee, Committee.id == CommitteeMember.committee_id)
                 .where(
                     CommitteeMember.person_id == person_id,
                     CommitteeMember.is_active == 1,
+                    Committee.is_active == 1,
+                    Committee.bootstrap_state == "ready",
                 )
                 .order_by(CommitteeMember.id)
             ).all()

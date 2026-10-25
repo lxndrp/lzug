@@ -338,7 +338,8 @@ Mitgliedschaftsänderung zwischen letzter Prüfung und Antwortfreigabe nicht
 committen; Sync und Rendering laufen außerhalb des Gates. Ein nicht bestätigter
 dauerhafter Widerruf liefert über `DELETE /api/calendar/feed` den typisierten
 HTTP-503-Fehler `calendar_feed_revocation_pending`, der einen erneuten
-Widerrufsversuch erlaubt.
+Widerrufsversuch erlaubt. Calendar zählt nur aktive Mitgliedschaften in
+aktiven und vollständig initialisierten Committees zum Scope.
 `list_events`, `feed_ics` und `event_ics` synchronisieren über `sync_person`
 weiterhin vor dem Lesen oder Rendern; Refresh und Read verwenden getrennte
 UoWs.
