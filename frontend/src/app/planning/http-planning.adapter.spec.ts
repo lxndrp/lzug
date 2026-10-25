@@ -247,4 +247,47 @@ describe('HttpPlanningAdapter', () => {
       firstValueFrom(TestBed.inject(HttpPlanningAdapter).generateProposal(8)),
     ).rejects.toThrow('Expected validation to be an object');
   });
+
+  it('rejects a generated proposal response with malformed validation', async () => {
+    const generateProposal = vi.fn(() =>
+      of({
+        round_id: 8,
+        revision: 4,
+        status: 'plan_proposed',
+        counts: { proposals: 1 },
+        exam_days: [],
+        validation: { passed: true },
+      }),
+    );
+    TestBed.configureTestingModule({
+      providers: [
+        HttpPlanningAdapter,
+        { provide: PlanningApiService, useValue: { generateProposal } },
+      ],
+    });
+
+    await expect(
+      firstValueFrom(TestBed.inject(HttpPlanningAdapter).generateProposal(8)),
+    ).rejects.toThrow('Expected validation.messages to be an array');
+  });
+
+  it('rejects malformed validation in a confirm response', async () => {
+    const confirmPlan = vi.fn(() =>
+      of({
+        round_id: 8,
+        revision: 4,
+        status: 'plan_confirmed',
+        counts: { confirmed_slots: 1 },
+        exam_days: [],
+        validation: { passed: true },
+      }),
+    );
+    TestBed.configureTestingModule({
+      providers: [HttpPlanningAdapter, { provide: PlanningApiService, useValue: { confirmPlan } }],
+    });
+
+    await expect(
+      firstValueFrom(TestBed.inject(HttpPlanningAdapter).confirmPlan(8)),
+    ).rejects.toThrow('Expected validation.messages to be an array');
+  });
 });

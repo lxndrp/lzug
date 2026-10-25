@@ -101,15 +101,21 @@ function toPlanningResult(
     allowMissingValidation && validationValue === undefined
       ? undefined
       : record(validationValue, 'validation');
-  const validationResult =
-    validation && typeof validation['passed'] === 'boolean' && Array.isArray(validation['messages'])
-      ? {
-          passed: validation['passed'],
-          messages: validation['messages'].map((message) =>
-            requiredString(message, 'validation message'),
-          ),
-        }
-      : undefined;
+  let validationResult: PlanningResult['validation'];
+  if (validation) {
+    if (typeof validation['passed'] !== 'boolean') {
+      throw new Error('Expected validation.passed to be a boolean');
+    }
+    if (!Array.isArray(validation['messages'])) {
+      throw new Error('Expected validation.messages to be an array');
+    }
+    validationResult = {
+      passed: validation['passed'],
+      messages: validation['messages'].map((message) =>
+        requiredString(message, 'validation message'),
+      ),
+    };
+  }
   const conflicts = Array.isArray(value['conflicts'])
     ? value['conflicts'].map((item) => {
         const conflict = record(item, 'conflict');
