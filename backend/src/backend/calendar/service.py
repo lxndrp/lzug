@@ -108,7 +108,7 @@ class CalendarService:
         """Refresh before reading and return current-period events in active scope."""
         if scope.person_id is None or not scope.member_ids:
             return ()
-        self.sync_person(scope.person_id)
+        self.sync_person(scope.person_id, allow_revocation_pending=True)
         half_year_id = self._planning.current_half_year_id()
         if half_year_id is None:
             return ()
@@ -128,14 +128,13 @@ class CalendarService:
         pending_generation, revocation_generation = self._reserve_feed_activation(person_id, rotate)
 
         def refresh(state, cancellation):
-            with self._feed_coordinator.lifecycle(self._database_id, person_id):
-                latest = self._feed_for_person(person_id)
-                if (
-                    latest is None
-                    or latest.pending_generation != pending_generation
-                    or latest.revocation_generation != revocation_generation
-                ):
-                    raise FeedRotationPendingError("Calendar feed activation is no longer pending")
+            latest = self._feed_for_person(person_id)
+            if (
+                latest is None
+                or latest.pending_generation != pending_generation
+                or latest.revocation_generation != revocation_generation
+            ):
+                raise FeedRotationPendingError("Calendar feed activation is no longer pending")
             self.sync_person(person_id, cancellation=cancellation, commit_gate=state.commit_gate)
 
         self._feed_coordinator.run_sync(
@@ -229,36 +228,38 @@ class CalendarService:
         if scope.person_id is None:
             return False
         person_id = scope.person_id
-        state = self._feed_coordinator.fence(self._database_id, person_id)
-        self._feed_coordinator.wait_for_sync(state)
-        try:
-            with self._feed_coordinator.lifecycle(self._database_id, person_id):
-                with self._unit_of_work_factory() as work:
-                    current = work.feed_for_person(person_id)
-                    if current is None or (
-                        current.pending_generation is None
-                        and (current.token_hash is None or current.revoked_at is not None)
-                    ):
-                        changed = False
-                    else:
-                        work.save_feed(
-                            CalendarFeedSnapshot(
-                                person_id,
-                                current.token_hash,
-                                current.created_at,
-                                _timestamp(),
-                                current.generation,
-                                None,
-                                current.revocation_generation + 1,
-                                _timestamp(),
+        with self._feed_coordinator.revocation(self._database_id, person_id):
+            state = self._feed_coordinator.fence(self._database_id, person_id)
+            self._feed_coordinator.wait_for_sync(state)
+            try:
+                with self._feed_coordinator.lifecycle(self._database_id, person_id):
+                    with self._unit_of_work_factory() as work:
+                        current = work.feed_for_person(person_id)
+                        if current is None or (
+                            current.pending_generation is None
+                            and (current.token_hash is None or current.revoked_at is not None)
+                        ):
+                            changed = False
+                        else:
+                            work.save_feed(
+                                CalendarFeedSnapshot(
+                                    person_id,
+                                    current.token_hash,
+                                    current.created_at,
+                                    _timestamp(),
+                                    current.generation,
+                                    None,
+                                    current.revocation_generation + 1,
+                                    _timestamp(),
+                                )
                             )
-                        )
-                        changed = True
-        except Exception as error:
-            raise FeedRevocationPendingError(
-                "Calendar feed revocation could not be committed"
-            ) from error
-        self._feed_coordinator.clear_fence(state)
+                            changed = True
+            except Exception as error:
+                self._feed_coordinator.mark_revocation_pending(state)
+                raise FeedRevocationPendingError(
+                    "Calendar feed revocation could not be committed"
+                ) from error
+            self._feed_coordinator.clear_fence(state)
         return changed
 
     def sync_person(
@@ -267,6 +268,7 @@ class CalendarService:
         *,
         cancellation: Event | None = None,
         commit_gate=None,
+        allow_revocation_pending: bool = False,
     ) -> int:
         """Refresh current-period events; this write side effect is used by reads."""
         if cancellation is None and commit_gate is None:
@@ -280,6 +282,7 @@ class CalendarService:
                     cancellation=event,
                     commit_gate=state.commit_gate,
                 ),
+                allow_revocation_pending=allow_revocation_pending,
             )
         if cancellation is None or commit_gate is None:
             raise ValueError("Feed sync cancellation and commit gate must be supplied together")
@@ -574,7 +577,7 @@ class CalendarService:
     def event_ics(self, event_id: int, scope: CalendarScope) -> str | None:
         if scope.person_id is None or not scope.member_ids:
             return None
-        self.sync_person(scope.person_id)
+        self.sync_person(scope.person_id, allow_revocation_pending=True)
         current_members = self._active_member_ids(scope.person_id)
         if not current_members:
             return None

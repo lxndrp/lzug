@@ -513,10 +513,13 @@ während dieses Wartens frei und erwirbt ihn für den dauerhaften Revocation-
 Commit erneut. Der Finalizer darf nach dem Fence kein Credential anlegen.
 
 Kann dieser dauerhafte `DELETE`-Commit nicht bestätigt werden, bleibt der
-prozesslokale Fence als `RevocationPending` bestehen. Calendar liefert einen
-stabilen retryfähigen Fehler `FeedRevocationPending`; Reads, Syncs und
-Finalizer bleiben gefenced. Ein erneutes `DELETE` setzt den Widerruf fort und
-meldet Erfolg erst nach bestätigtem SQLite-Commit. Nach Prozessneustart gilt
+prozesslokale Fence als `RevocationPending` bestehen. Feed-Credential-Reads,
+Feed-Syncs und Finalizer liefern den retryfähigen Fehler
+`FeedRevocationPending`. Identity-autorisierte Membership-Reads für
+`list_events` und `event_ics` dürfen ihre Projektion nach dem fehlgeschlagenen
+Versuch weiter auffrischen; während eines laufenden `DELETE`-Retries bleiben
+auch sie gefenced. Ein erneutes `DELETE` setzt den Widerruf fort und meldet
+Erfolg erst nach bestätigtem SQLite-Commit. Nach Prozessneustart gilt
 ausschließlich der persistierte Zustand: ein nicht committeter Widerruf gilt
 nicht als erfolgreich.
 

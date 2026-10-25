@@ -33,7 +33,10 @@ class _FeedState:
     lifecycle_lock: RLock = field(default_factory=RLock)
     sync_lock: Lock = field(default_factory=Lock)
     commit_gate: Lock = field(default_factory=Lock)
+    revocation_lock: Lock = field(default_factory=Lock)
     fenced: bool = False
+    revocation_pending: bool = False
+    revocation_in_progress: bool = False
     cancellation: Event | None = None
     inflight_lock: Lock = field(default_factory=Lock)
     inflight: dict[object, _Flight] = field(default_factory=dict)
@@ -64,10 +67,25 @@ class CalendarFeedCoordinator:
         with state.lifecycle_lock:
             yield state
 
+    @contextmanager
+    def revocation(self, database: str, person_id: int) -> Iterator[_FeedState]:
+        """Serialize explicit DELETE attempts for one person's feed."""
+        state = self._state(database, person_id)
+        with state.revocation_lock:
+            yield state
+
     def is_fenced(self, database: str, person_id: int) -> bool:
         return self._state(database, person_id).fenced
 
-    def run_sync(self, database: str, person_id: int, flight_key: object, operation):
+    def run_sync(
+        self,
+        database: str,
+        person_id: int,
+        flight_key: object,
+        operation,
+        *,
+        allow_revocation_pending: bool = False,
+    ):
         state = self._state(database, person_id)
         with state.inflight_lock:
             flight = state.inflight.get(flight_key)
@@ -83,15 +101,22 @@ class CalendarFeedCoordinator:
             return flight.result
         try:
             with state.sync_lock:
-                if state.fenced:
-                    raise FeedRevocationPendingError("Calendar feed revocation is pending")
                 cancellation = Event()
-                state.cancellation = cancellation
+                with state.commit_gate:
+                    if state.fenced and not (
+                        allow_revocation_pending
+                        and state.revocation_pending
+                        and not state.revocation_in_progress
+                    ):
+                        raise FeedRevocationPendingError("Calendar feed revocation is pending")
+                    state.cancellation = cancellation
                 try:
                     flight.result = operation(state, cancellation)
                     return flight.result
                 finally:
-                    state.cancellation = None
+                    with state.commit_gate:
+                        if state.cancellation is cancellation:
+                            state.cancellation = None
         except BaseException as error:
             flight.error = error
             raise
@@ -115,9 +140,16 @@ class CalendarFeedCoordinator:
         with state.lifecycle_lock:
             with state.commit_gate:
                 state.fenced = True
+                state.revocation_in_progress = True
                 if state.cancellation is not None:
                     state.cancellation.set()
         return state
+
+    def mark_revocation_pending(self, state: _FeedState) -> None:
+        """Allow only explicitly authorized reads after a failed DELETE attempt."""
+        with state.commit_gate:
+            state.revocation_pending = True
+            state.revocation_in_progress = False
 
     def wait_for_sync(self, state: _FeedState) -> None:
         with state.sync_lock:
@@ -126,3 +158,5 @@ class CalendarFeedCoordinator:
     def clear_fence(self, state: _FeedState) -> None:
         with state.commit_gate:
             state.fenced = False
+            state.revocation_pending = False
+            state.revocation_in_progress = False

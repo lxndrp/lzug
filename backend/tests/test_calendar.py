@@ -4,7 +4,7 @@ import hashlib
 import unittest
 from contextlib import contextmanager
 from dataclasses import fields, replace
-from threading import Event, Thread
+from threading import Event, Thread, current_thread
 from time import monotonic, sleep
 from unittest.mock import patch
 
@@ -13,6 +13,7 @@ from sqlalchemy import select, text
 
 from backend.calendar.feed_lifecycle import (
     CalendarFeedCoordinator,
+    FeedConflictError,
     FeedRevocationPendingError,
 )
 from backend.calendar.ports import CalendarEventSnapshot, CalendarScope
@@ -105,6 +106,91 @@ class CalendarServiceTests(unittest.TestCase):
                 service._feed_for_person(scope.person_id).generation,
             )
             self.assertIsNotNone(service.feed_ics(activation.token))
+        finally:
+            database.__exit__(None, None, None)
+
+    def test_parallel_activation_refresh_and_finalization_do_not_deadlock(self) -> None:
+        database, db_path = self._confirmed_database()
+        try:
+            service = create_calendar_service(db_path)
+            scope = self._scope(db_path)
+            coordinator = service._feed_coordinator
+            original_lifecycle = coordinator.lifecycle
+            original_run_sync = coordinator.run_sync
+            original_serialized_commit = coordinator.serialized_commit
+            second_sync_entered = Event()
+            allow_second_sync = Event()
+            first_sync_finished = Event()
+            allow_first_finalize = Event()
+            first_finalizer_waiting = Event()
+            second_refresh_lifecycle_entered = Event()
+            second_inside_refresh = Event()
+            results = []
+            errors = []
+
+            @contextmanager
+            def observed_lifecycle(database_id, person_id):
+                if current_thread().name == "second-activation" and second_inside_refresh.is_set():
+                    second_refresh_lifecycle_entered.set()
+                with original_lifecycle(database_id, person_id) as state:
+                    yield state
+
+            def observed_run_sync(database_id, person_id, key, operation, **kwargs):
+                if current_thread().name == "second-activation":
+                    original_operation = operation
+
+                    def paused_operation(state, cancellation):
+                        second_sync_entered.set()
+                        if not allow_second_sync.wait(timeout=5):
+                            raise TimeoutError("Second activation sync was not released")
+                        second_inside_refresh.set()
+                        try:
+                            return original_operation(state, cancellation)
+                        finally:
+                            second_inside_refresh.clear()
+
+                    operation = paused_operation
+                result = original_run_sync(database_id, person_id, key, operation, **kwargs)
+                if current_thread().name == "first-activation":
+                    first_sync_finished.set()
+                    if not allow_first_finalize.wait(timeout=5):
+                        raise TimeoutError("First activation finalizer was not released")
+                return result
+
+            def observed_serialized_commit(database_id, person_id):
+                if current_thread().name == "first-activation":
+                    first_finalizer_waiting.set()
+                return original_serialized_commit(database_id, person_id)
+
+            def activate():
+                try:
+                    results.append(service.activate(scope))
+                except BaseException as error:
+                    errors.append(error)
+
+            with (
+                patch.object(coordinator, "lifecycle", observed_lifecycle),
+                patch.object(coordinator, "run_sync", observed_run_sync),
+                patch.object(coordinator, "serialized_commit", observed_serialized_commit),
+            ):
+                first = Thread(target=activate, name="first-activation", daemon=True)
+                second = Thread(target=activate, name="second-activation", daemon=True)
+                first.start()
+                self.assertTrue(first_sync_finished.wait(timeout=5), repr(errors))
+                second.start()
+                self.assertTrue(second_sync_entered.wait(timeout=5), repr(errors))
+                allow_first_finalize.set()
+                self.assertTrue(first_finalizer_waiting.wait(timeout=5), repr(errors))
+                allow_second_sync.set()
+                first.join(timeout=5)
+                second.join(timeout=5)
+
+            self.assertFalse(first.is_alive())
+            self.assertFalse(second.is_alive())
+            self.assertEqual(1, len(results))
+            self.assertEqual(1, len(errors))
+            self.assertIsInstance(errors[0], FeedConflictError)
+            self.assertFalse(second_refresh_lifecycle_entered.is_set())
         finally:
             database.__exit__(None, None, None)
 
@@ -407,6 +493,9 @@ class CalendarServiceTests(unittest.TestCase):
             )
             with connect(db_path) as connection:
                 connection.execute(text("DROP TRIGGER fail_feed_revocation"))
+            listed = service.list_events(scope)
+            self.assertTrue(listed)
+            self.assertIsNotNone(service.event_ics(listed[0].id, scope))
             self.assertTrue(service.revoke(scope))
             self.assertFalse(
                 service._feed_coordinator.is_fenced(service._database_id, scope.person_id)

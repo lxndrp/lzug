@@ -513,8 +513,12 @@ Snapshot verwirft Calendar das gesamte materialisierte ICS-Ergebnis; Sync und
 Rendering liegen außerhalb.
 Rotation hält die Sperre für Widerrufscommit sowie spätere Pending-Revalidierung
 und Finalisierung; ihr Sync läuft außerhalb.
-Die Cancellation-Fence ist prozesslokal; ein fehlgeschlagener Revocation-Commit
-bleibt bis zu einem expliziten `DELETE`-Retry gefenced.
+Die Cancellation-Fence ist prozesslokal; nach einem fehlgeschlagenen
+Revocation-Commit bleiben Feed-Credential-Reads, Feed-Syncs und Finalizer bis
+zum expliziten `DELETE`-Retry gefenced. Identity-autorisierte
+Membership-Reads über `list_events` und `event_ics` dürfen nach dem Fehler
+weiter auffrischen, werden aber während eines laufenden Retries ebenfalls
+gefenced.
 Nach einem Prozessneustart wird ausschließlich der persistierte Zustand
 herangezogen; ein nicht bestätigter Commit gilt nicht als Widerruf.
 Mehrere Backendprozesse für dieselbe Datenbank werden nicht unterstützt.
