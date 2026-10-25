@@ -969,10 +969,9 @@ Feature gehört.
 
 Diese Grenze wird schrittweise featureweise eingeführt.
 Die Terminübersicht unter `frontend/src/app/scheduling-overview/` zeigt das
-Muster: Ihre Komponente verwendet `SchedulingOverviewFacade`, der
-Anwendungsfall hängt am `SchedulingOverviewPort`, und
-`HttpSchedulingOverviewAdapter` übersetzt das vorhandene API-Modell in ein
-transportneutrales Featuremodell.
+Muster: `SchedulingOverviewFacade` besitzt Lade- und Fehlerzustand und
+verwendet `SchedulingOverviewPort` direkt; `HttpSchedulingOverviewAdapter`
+übersetzt das API-Modell in ein transportneutrales Featuremodell.
 Die bestehende Anzeige und ihre Lade-, Leer- und Fehlerzustände bleiben dabei
 unverändert; ihre Komponententests benötigen keinen HTTP-Testcontroller.
 Der Architekturtest prüft die Abhängigkeiten dieses Beispiels.
@@ -989,18 +988,17 @@ HTTP-Fehlergrenzen ist in #908 nachgewiesen.
 `DashboardProjectionService` besitzt den Dashboard-Read einschließlich seines
 Lade- und Fehlerzustands; `HttpDashboardProjectionAdapter` lädt nur Runde,
 Summary und Board.
-`ApplicationShellContextService` lädt Version sowie kompakte Halbjahr-,
-Runden- und Ausschusslabels separat.
+`ApplicationShellContextService` lädt kompakte Halbjahr-, Runden- und
+Ausschusslabels; `AboutRouteComponent` liest die Buildversion über
+`BuildInfoPort`.
 Kandidaten- und Ausschussansichten laden über eigene Methoden des
 `MasterDataPort`; deren Fehler und Invalidierung bleiben voneinander getrennt.
-`ApplicationWorkspaceService` hält befristet den Planungs-/Halbjahres-
-Kompatibilitätszustand hinter `WorkspacePort`.
-Die Prüfungshalbjahresroute bezieht die aktive Runde aus `RoundContextService`.
-Weicht sie von der Workspace-Runde ab, aktualisiert sie gezielt die
-rundenabhängigen Prüflingsreferenzen statt den vollständigen Workspace zu laden.
-Nach Venue-/Raumänderungen werden die Dashboard- und Legacy-Board-Ortsreferenzen
-mit gezielten `/api/locations`-Reads aktualisiert; die übrigen Workspace- und
-Dashboarddaten bleiben erhalten.
+Es gibt keinen globalen Workspace mehr.
+Die Prüfungshalbjahresansicht bezieht die aktive Runde aus
+`RoundContextService` und lädt ihre rundenabhängigen Referenzen über
+`ExamHalfYearsPort`.
+Nach Venue-/Raumänderungen werden betroffene Dashboardprojektionen gezielt
+aktualisiert; unabhängige Dashboarddaten bleiben erhalten.
 Bestätigte Pläne und Prüfungstage lesen ihre Ortsangaben über eigene
 API-Projektionen, sobald ihre Route geöffnet wird; sie halten keine globale
 Ortskopie über einen Routenwechsel hinweg.
@@ -1071,23 +1069,20 @@ Protokollentwürfe, Vorbehaltstexte und Ergebnis-Punkteentwürfe überstehen
 denselben Reload.
 Session- und Ansichtswechsel verhindern, dass verspätete Antworten geschützten
 Zustand einer neuen Ansicht verändern.
-Bestätigte Pläne verwenden denselben Schnitt: `ConfirmedPlansWorkflowService`
-ruft `ConfirmedPlansPort` auf, dessen HTTP-Adapter Plan- und Revisionsantworten
-von HAL-Links bereinigt.
+Bestätigte Pläne verwenden `ConfirmedPlansPort` direkt; dessen HTTP-Adapter
+bereinigt Plan- und Revisionsantworten von HAL-Links.
 Planungs-, Stammdaten- und Ortsbefehle liegen in den zuständigen
 Workflow-Services.
 Die Verwaltung der Prüfungshalbjahre verwendet eigene Featuremodelle und den
-`ExamHalfYearsWorkflowService`; `HttpExamHalfYearsAdapter` übersetzt
+`ExamHalfYearsPort`; `HttpExamHalfYearsAdapter` übersetzt
 Runden- und Lebenszyklusverträge einschließlich der Nachweisexporte an der
 HTTP-Grenze.
 `App` besitzt nur Rahmen, Authentisierung, globale Runtimezustände,
 Navigationsdarstellung und die gemeinsame Zugriffsansicht.
-Die Hauptpfade in `app.routes.ts` aktivieren über `loadComponent` jeweils einen
-eigenen Feature-Einstieg unter `frontend/src/app/routes/` oder eine bereits
-eigenständige Fachkomponente.
-Diese Einstiege binden Routeparameter und Feature-Ereignisse an den zuständigen
-Kontext beziehungsweise Workflow; die Shell interpretiert keine URL-Segmente
-und rendert Fachbereiche ausschließlich im `router-outlet`.
+Die Hauptpfade in `app.routes.ts` laden Features direkt oder über einen
+Route-Einstieg, wenn dieser URLparameter an den zuständigen Kontext bindet.
+Die Shell interpretiert keine URL-Segmente und rendert Fachbereiche
+ausschließlich im `router-outlet`.
 
 `RoundContextService` hält den aktuellen Prüfungsrundenkontext.
 Dashboard, Stammdaten, Planung, Durchführung und Nachweise bleiben fachlich

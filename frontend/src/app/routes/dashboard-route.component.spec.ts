@@ -1,9 +1,8 @@
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
 import { signal } from '@angular/core';
+import { provideRouter } from '@angular/router';
 
 import { RoundContextService } from '../api/round-context.service';
-import { ApplicationWorkspaceService } from '../shell/application-workspace.service';
 import { DashboardProjectionService } from '../dashboard/dashboard-projection.service';
 import { PlanningWorkflowService } from '../planning/planning-workflow.service';
 import { DashboardRouteComponent } from './dashboard-route.component';
@@ -16,7 +15,6 @@ describe('DashboardRouteComponent', () => {
       providers: [
         provideRouter([]),
         { provide: DashboardProjectionService, useValue: dashboard },
-        { provide: ApplicationWorkspaceService, useValue: { actionBusy: signal(false) } },
         { provide: PlanningWorkflowService, useValue: { lastResult: signal(null) } },
         { provide: RoundContextService, useValue: { roundId: () => 1 } },
       ],

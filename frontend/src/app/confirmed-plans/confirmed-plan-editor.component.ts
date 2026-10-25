@@ -14,7 +14,7 @@ import { TuiBadge } from '@taiga-ui/kit';
 import { ApplicationError } from '../application/application-error';
 import { AuthService } from '../auth/auth.service';
 import { RuntimeExperienceService } from '../runtime/runtime-experience.service';
-import { ConfirmedPlansWorkflowService } from './confirmed-plans-workflow.service';
+import { CONFIRMED_PLANS_PORT } from './confirmed-plans.port';
 import type {
   ConfirmedPlan,
   ConfirmedPlanRevision,
@@ -41,7 +41,7 @@ export type EditorState = 'loading' | 'ready' | 'saving' | 'error';
   styleUrl: './confirmed-plan-editor.component.css',
 })
 export class ConfirmedPlanEditorComponent implements OnChanges {
-  private readonly confirmedPlans = inject(ConfirmedPlansWorkflowService);
+  private readonly confirmedPlans = inject(CONFIRMED_PLANS_PORT);
   private readonly auth = inject(AuthService);
   private readonly runtimeExperience = inject(RuntimeExperienceService);
 
@@ -96,7 +96,7 @@ export class ConfirmedPlanEditorComponent implements OnChanges {
     const roundId = this.roundId;
     this.state.set('loading');
     this.errorMessage.set(null);
-    this.confirmedPlans.getEditableConfirmedPlan(roundId).subscribe({
+    this.confirmedPlans.getEditable(roundId).subscribe({
       next: (proposal) => {
         if (!this.isCurrentRequest(generation, roundId)) return;
         this.draft.set(this.clone(proposal));
@@ -121,7 +121,7 @@ export class ConfirmedPlanEditorComponent implements OnChanges {
     const roundId = this.roundId;
     this.state.set('saving');
     this.errorMessage.set(null);
-    this.confirmedPlans.saveEditableConfirmedPlan(roundId, proposal, this.reason()).subscribe({
+    this.confirmedPlans.saveEditable(roundId, proposal, this.reason()).subscribe({
       next: (saved) => {
         if (!this.isCurrentRequest(generation, roundId)) return;
         this.draft.set(this.clone(saved));
@@ -256,7 +256,7 @@ export class ConfirmedPlanEditorComponent implements OnChanges {
 
   private loadAfterConflict(generation: number, roundId: number): void {
     this.state.set('loading');
-    this.confirmedPlans.getEditableConfirmedPlan(roundId).subscribe({
+    this.confirmedPlans.getEditable(roundId).subscribe({
       next: (proposal) => {
         if (!this.isCurrentRequest(generation, roundId)) return;
         this.draft.set(this.clone(proposal));
@@ -277,7 +277,7 @@ export class ConfirmedPlanEditorComponent implements OnChanges {
   }
 
   private loadRevisions(generation: number, roundId: number): void {
-    this.confirmedPlans.getConfirmedPlanRevisions(roundId).subscribe({
+    this.confirmedPlans.listRevisions(roundId).subscribe({
       next: (revisions) => {
         if (this.isCurrentRequest(generation, roundId)) this.revisions.set(revisions);
       },

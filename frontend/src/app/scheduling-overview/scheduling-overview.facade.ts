@@ -2,7 +2,8 @@ import { DestroyRef, Injectable, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subscription } from 'rxjs';
 
-import { SchedulingOverviewApplication } from './application/scheduling-overview.application';
+import { PlanningWriteEventsService } from '../application/planning-write-events.service';
+import { SCHEDULING_OVERVIEW_PORT } from './application/scheduling-overview.port';
 import { SchedulingOverviewItem } from './scheduling-overview.models';
 
 export type OverviewState = 'loading' | 'ready' | 'error';
@@ -10,7 +11,8 @@ export type OverviewState = 'loading' | 'ready' | 'error';
 /** UI-facing state and commands for the scheduling-overview feature. */
 @Injectable()
 export class SchedulingOverviewFacade {
-  private readonly application = inject(SchedulingOverviewApplication);
+  private readonly port = inject(SCHEDULING_OVERVIEW_PORT);
+  private readonly writeEvents = inject(PlanningWriteEventsService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly stateValue = signal<OverviewState>('loading');
   private readonly itemsValue = signal<readonly SchedulingOverviewItem[]>([]);
@@ -21,7 +23,7 @@ export class SchedulingOverviewFacade {
   readonly items = this.itemsValue.asReadonly();
 
   constructor() {
-    this.application.planningWritesCommitted$
+    this.writeEvents.committed$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.load());
   }
@@ -30,7 +32,7 @@ export class SchedulingOverviewFacade {
     const generation = ++this.loadGeneration;
     this.activeLoad?.unsubscribe();
     this.stateValue.set('loading');
-    this.activeLoad = this.application
+    this.activeLoad = this.port
       .getOverview()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({

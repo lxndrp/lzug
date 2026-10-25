@@ -26,7 +26,6 @@ import { SessionScopeService } from './auth/session-scope.service';
 import { LifecycleNoticeComponent } from './runtime/lifecycle-notice.component';
 import { LifecycleService } from './runtime/lifecycle.service';
 import { RuntimeNoticeComponent } from './runtime/runtime-notice.component';
-import { ApplicationWorkspaceService } from './shell/application-workspace.service';
 import { ApplicationShellContextService } from './shell/application-shell-context.service';
 import { DashboardProjectionService } from './dashboard/dashboard-projection.service';
 import { MasterDataWorkflowService } from './master-data/master-data-workflow.service';
@@ -54,7 +53,6 @@ export class App {
   private readonly element = inject<ElementRef<HTMLElement>>(ElementRef);
   protected readonly auth = inject(AuthService);
   private readonly sessionScope = inject(SessionScopeService);
-  private readonly workspace = inject(ApplicationWorkspaceService);
   protected readonly shellContext = inject(ApplicationShellContextService);
   private readonly dashboard = inject(DashboardProjectionService);
   private readonly masterData = inject(MasterDataWorkflowService);
@@ -67,11 +65,11 @@ export class App {
   @ViewChild('sidebarToggle') private sidebarToggle?: ElementRef<HTMLButtonElement>;
 
   protected readonly icons = appIcons;
-  protected readonly message = this.workspace.message;
-  protected readonly loading = this.workspace.loading;
+  protected readonly message = computed(() =>
+    this.shellContext.error() ? 'Prüfungskontext nicht verfügbar' : 'Bereit',
+  );
   protected readonly refreshBusy = computed(
     () =>
-      this.workspace.loading() ||
       this.shellContext.loading() ||
       this.planning.loading() ||
       this.dashboard.loading() ||
@@ -150,7 +148,6 @@ export class App {
   }
 
   protected refresh(includePlanning = true): void {
-    this.workspace.refresh();
     this.shellContext.refresh();
     this.dashboard.refresh();
     if (includePlanning) this.planning.refreshActiveView();

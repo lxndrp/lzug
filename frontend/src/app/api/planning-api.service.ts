@@ -1,4 +1,4 @@
-import { forkJoin, map, of, switchMap } from 'rxjs';
+import { forkJoin, map, switchMap } from 'rxjs';
 
 import type { ApiRoot } from './common.models';
 import type {
@@ -123,15 +123,11 @@ export class PlanningApiService {
 
   /** Load only the dashboard projection, independently from master-data administration. */
   loadDashboardProjection(roundId: number) {
-    return this.getRoot().pipe(
-      switchMap((root) =>
-        forkJoin({
-          round: this.getExamRound(roundId),
-          summary: this.getRoundSummary(roundId),
-          board: this.getPlanningBoard(roundId),
-        }).pipe(map((projection) => ({ root, ...projection }))),
-      ),
-    );
+    return forkJoin({
+      round: this.getExamRound(roundId),
+      summary: this.getRoundSummary(roundId),
+      board: this.getPlanningBoard(roundId),
+    });
   }
 
   /** Load only the small context labels and application version required by the shell. */
@@ -151,28 +147,6 @@ export class PlanningApiService {
           })),
         ),
       ),
-    );
-  }
-
-  /** Transitional aggregate retained for planning consumers not yet migrated. */
-  refreshDashboard(roundId: number) {
-    return this.getRoot().pipe(
-      switchMap((root) =>
-        forkJoin({
-          root: of(root),
-          round: this.getExamRound(roundId),
-          summary: this.getRoundSummary(roundId),
-          board: this.getPlanningBoard(roundId),
-          masterData: this.masterData.getMasterData(),
-        }),
-      ),
-      map(({ root, round, summary, board, masterData }) => ({
-        root,
-        round,
-        summary,
-        board,
-        masterData,
-      })),
     );
   }
 

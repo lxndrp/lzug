@@ -6,7 +6,7 @@ import type { DashboardProjectionPort } from '../dashboard/dashboard-projection.
 import { MasterDataApiService } from './master-data-api.service';
 import { PlanningApiService } from './planning-api.service';
 
-/** HTTP adapter for dashboard-owned data; the legacy venue alias is read separately. */
+/** HTTP adapter for dashboard-owned data; targeted references are read separately. */
 @Injectable({ providedIn: 'root' })
 export class HttpDashboardProjectionAdapter implements DashboardProjectionPort {
   private readonly api = inject(PlanningApiService);
@@ -14,8 +14,7 @@ export class HttpDashboardProjectionAdapter implements DashboardProjectionPort {
 
   load(roundId: number) {
     return this.api.loadDashboardProjection(roundId).pipe(
-      map(({ root, round, summary, board }) => ({
-        applicationVersion: root.version,
+      map(({ round, summary, board }) => ({
         round: withoutHttpLinks(round),
         summary: withoutHttpLinks(summary),
         board: withoutHttpLinks(board),
