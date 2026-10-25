@@ -1,4 +1,6 @@
 /** Assessment and result data used by the feature, independent of its API representation. */
+export type ExamResultDayRevisionUpdate = Record<string, number>;
+
 export type AssessmentCriterion = {
   key: string;
   label: string;

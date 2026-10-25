@@ -4,6 +4,7 @@ import { provideTaiga } from '@taiga-ui/core';
 
 import { ApplicationError } from '../application/application-error';
 import { AuthService } from '../auth/auth.service';
+import { SessionScopeService } from '../auth/session-scope.service';
 import { EXAM_RESULT_PORT, type ExamResultPort } from './exam-result.port';
 import type { ExamResult } from './exam-result.models';
 import { ExamResultComponent } from './exam-result.component';
@@ -130,6 +131,66 @@ describe('ExamResultComponent', () => {
     );
 
     expect(changes).toEqual([{ '7': 5 }]);
+  });
+
+  it('clears assessment, correction, disclosure, and retention drafts when the slot changes', () => {
+    fixture.detectChanges();
+    fixture.detectChanges();
+    const component = fixture.componentInstance as unknown as {
+      drafts: Map<string, { rawPoints: string; rationale: string; changeReason: string }>;
+      componentPoints: Map<string, string>;
+      componentReasons: Map<string, string>;
+      correctionReason: string;
+      reopeningReference: string;
+      retentionHoldReason: string;
+    };
+    component.drafts.set('documentation:clarity', {
+      rawPoints: 'stale slot value',
+      rationale: 'stale slot value',
+      changeReason: 'stale slot value',
+    });
+    component.componentPoints.set('documentation', 'stale slot value');
+    component.componentReasons.set('documentation', 'Korrektur');
+    component.correctionReason = 'alter Prüfungstag';
+    component.reopeningReference = 'alte Referenz';
+    component.retentionHoldReason = 'alter Grund';
+
+    fixture.componentRef.setInput('slotId', 12);
+    fixture.detectChanges();
+
+    expect(component.drafts.get('documentation:clarity')?.rawPoints).not.toBe('stale slot value');
+    expect(component.componentPoints.get('documentation')).not.toBe('stale slot value');
+    expect(component.componentReasons.size).toBe(0);
+    expect(component.correctionReason).toBe('');
+    expect(component.reopeningReference).toBe('');
+    expect(component.retentionHoldReason).toBe('');
+    expect(port.get).toHaveBeenLastCalledWith(7, 12);
+  });
+
+  it('clears protected result data when the authenticated session changes', () => {
+    fixture.detectChanges();
+    fixture.detectChanges();
+    const component = fixture.componentInstance as unknown as {
+      result: { (): ExamResult | null };
+      drafts: Map<string, unknown>;
+      correctionReason: string;
+    };
+    component.drafts.set('documentation:clarity', {});
+    component.correctionReason = 'geschützte Eingabe';
+
+    const scope = TestBed.inject(SessionScopeService);
+    scope.establish({
+      authenticated: true,
+      account_id: 2,
+      person_id: 3,
+      committee_member_id: 1,
+      is_operator: false,
+    });
+    scope.clear();
+
+    expect(component.result()).toBeNull();
+    expect(component.drafts.size).toBe(0);
+    expect(component.correctionReason).toBe('');
   });
 
   it('keeps a pending command and vote drafts across a day-only revision refresh', () => {

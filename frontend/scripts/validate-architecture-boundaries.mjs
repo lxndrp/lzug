@@ -507,7 +507,6 @@ assert.equal(
 );
 
 const protocolFeaturePath = path.join(root, 'exam-protocol', 'exam-protocol.component.ts');
-const protocolApplicationPath = path.join(root, 'exam-protocol', 'exam-protocol.application.ts');
 const protocolFacadePath = path.join(root, 'exam-protocol', 'exam-protocol.facade.ts');
 const protocolPortPath = path.join(root, 'exam-protocol', 'exam-protocol.port.ts');
 const protocolModelsPath = path.join(root, 'exam-protocol', 'exam-protocol.models.ts');
@@ -516,7 +515,6 @@ const protocolAdapterPath = path.join(root, 'api', 'http-exam-protocol.adapter.t
 const protocolAdapterSpecPath = path.join(root, 'api', 'http-exam-protocol.adapter.spec.ts');
 const [
   protocolFeature,
-  protocolApplication,
   protocolFacade,
   protocolPort,
   protocolModels,
@@ -526,7 +524,6 @@ const [
 ] = await Promise.all(
   [
     protocolFeaturePath,
-    protocolApplicationPath,
     protocolFacadePath,
     protocolPortPath,
     protocolModelsPath,
@@ -551,11 +548,11 @@ assert.doesNotMatch(
   /ExamProtocolApiService|exam-protocol-api\.service|ApiClient|api-client\.service/,
   'protocol component uses its feature facade instead of an API service',
 );
-assert.deepEqual(relativeImportsOf(protocolApplication), ['./exam-protocol.port']);
+assert.deepEqual(relativeImportsOf(protocolFacade), ['./exam-protocol.port']);
 assert.doesNotMatch(
-  importsOf(protocolApplication),
+  importsOf(protocolFacade),
   /@angular\/common\/http|(?:^|\/)(?:api|adapters?)(?:\/|$)/,
-  'protocol application depends only on its port',
+  'protocol facade depends only on its feature port',
 );
 assert.deepEqual(relativeImportsOf(protocolPort), ['./exam-protocol.models']);
 assert.doesNotMatch(
@@ -565,7 +562,6 @@ assert.doesNotMatch(
 );
 for (const [name, source] of [
   ['protocol component', protocolFeature],
-  ['protocol application', protocolApplication],
   ['protocol facade', protocolFacade],
   ['protocol port', protocolPort],
   ['protocol models', protocolModels],
@@ -577,7 +573,9 @@ for (const [name, source] of [
     `${name} must not import backend/API models`,
   );
 }
-assert.match(protocolFacade, /ExamProtocolApplication/);
+assert.match(protocolFacade, /EXAM_PROTOCOL_PORT/);
+assert.match(protocolFeature, /providers:\s*\[ExamProtocolFacade\]/);
+assert.doesNotMatch(protocolFacade, /providedIn:\s*['"]root['"]/);
 assert.match(protocolSpec, /EXAM_PROTOCOL_PORT/);
 assert.doesNotMatch(
   protocolSpec,
@@ -599,7 +597,6 @@ assert.equal(
 
 const examResultComponentPath = path.join(root, 'exam-result', 'exam-result.component.ts');
 const examResultFacadePath = path.join(root, 'exam-result', 'exam-result.facade.ts');
-const examResultApplicationPath = path.join(root, 'exam-result', 'exam-result.application.ts');
 const examResultPortPath = path.join(root, 'exam-result', 'exam-result.port.ts');
 const examResultModelsPath = path.join(root, 'exam-result', 'exam-result.models.ts');
 const examResultVotingPath = path.join(root, 'exam-result', 'exam-result.voting.ts');
@@ -609,7 +606,6 @@ const examResultAdapterSpecPath = path.join(root, 'api', 'http-exam-result.adapt
 const [
   examResultComponent,
   examResultFacade,
-  examResultApplication,
   examResultPort,
   examResultModels,
   examResultVoting,
@@ -620,7 +616,6 @@ const [
   [
     examResultComponentPath,
     examResultFacadePath,
-    examResultApplicationPath,
     examResultPortPath,
     examResultModelsPath,
     examResultVotingPath,
@@ -654,23 +649,13 @@ assert.doesNotMatch(
 );
 assert.deepEqual(
   relativeImportsOf(examResultFacade),
-  ['./exam-result.application'],
-  'exam-result facade delegates only to its application operations',
+  ['./exam-result.port'],
+  'exam-result facade owns the feature port boundary',
 );
 assert.doesNotMatch(
   importsOf(examResultFacade),
   /@angular\/common\/http|(?:^|\/)(?:adapters?|api)(?:\/|$)/,
   'exam-result facade does not depend on transport implementations',
-);
-assert.deepEqual(
-  relativeImportsOf(examResultApplication),
-  ['./exam-result.port'],
-  'exam-result application depends only on its feature port',
-);
-assert.doesNotMatch(
-  importsOf(examResultApplication),
-  /@angular\/common\/http|(?:^|\/)(?:adapters?|api)(?:\/|$)/,
-  'exam-result application does not depend on transport implementations',
 );
 assert.deepEqual(
   relativeImportsOf(examResultPort),
@@ -685,7 +670,6 @@ assert.deepEqual(
 for (const [name, source] of [
   ['exam-result component', examResultComponent],
   ['exam-result facade', examResultFacade],
-  ['exam-result application', examResultApplication],
   ['exam-result port', examResultPort],
   ['exam-result models', examResultModels],
   ['exam-result voting rule', examResultVoting],
@@ -702,8 +686,9 @@ assert.doesNotMatch(
   /@angular|rxjs|HttpClient|\bfetch\s*\(/,
   'exam-result voting rule stays independent of framework and transport primitives',
 );
-assert.match(examResultFacade, /ExamResultApplication/);
-assert.match(examResultApplication, /EXAM_RESULT_PORT/);
+assert.match(examResultFacade, /EXAM_RESULT_PORT/);
+assert.match(examResultComponent, /providers:\s*\[ExamResultFacade\]/);
+assert.doesNotMatch(examResultFacade, /providedIn:\s*['"]root['"]/);
 assert.match(examResultSpec, /EXAM_RESULT_PORT/);
 assert.doesNotMatch(
   examResultSpec,

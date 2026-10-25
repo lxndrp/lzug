@@ -1047,6 +1047,14 @@ Protokoll und Ergebnis erhalten Runde, Tag, Slot und Tagesrevision explizit;
 ihre erfolgreichen Änderungen melden Tagesrevisionen über Outputs zurück,
 damit Prüfungstag den bestätigten Tagesread und beide Kindreads gezielt
 aktualisiert.
+Protokoll und Ergebnis behalten getrennte Feature-Facades direkt über ihren
+jeweiligen Ports; reine Application-Weiterleitungen entfallen.
+Jede Facade wird von ihrer Featurekomponente bereitgestellt und teilt daher
+weder Operationszustand noch Drafts zwischen Slots oder Prüfungstagen.
+Die Komponenten besitzen ihre Formulardrafts und fencen Reads, Commands und
+private Antworten gegen Runde, Tag, Slot und Sitzung.
+Ein Kontext- oder Sitzungswechsel verwirft die zugehörigen Bewertungs-,
+Korrektur-, Vorbehalts- und Offenlegungsentwürfe.
 Während dieser Tagesrefresh läuft, bleibt der bestätigte Snapshot verborgen
 gemountet, damit bereits angenommene Kindcommands ihre verzögerten Antworten
 weiter an Protokoll oder Ergebnis zurückmelden können. Fehler dieser Commands
