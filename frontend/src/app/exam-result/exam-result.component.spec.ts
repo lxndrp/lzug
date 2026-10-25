@@ -321,6 +321,27 @@ describe('ExamResultComponent', () => {
     expect(component.state()).toBe('ready');
   });
 
+  it('models the previous result explicitly while a same-context refresh is pending or fails', () => {
+    const pending = new Subject<ExamResult>();
+    vi.mocked(port.get).mockReturnValueOnce(of(resultFixture())).mockReturnValueOnce(pending);
+    fixture.detectChanges();
+    fixture.detectChanges();
+    const component = fixture.componentInstance as unknown as {
+      state: () => string;
+      result: () => ExamResult | null;
+    };
+    const previous = component.result();
+
+    fixture.componentRef.setInput('dayRevision', 5);
+    fixture.detectChanges();
+    expect(component.state()).toBe('loading');
+    expect(component.result()).toBe(previous);
+
+    pending.error(new ApplicationError('unavailable', 'Reload fehlgeschlagen.'));
+    expect(component.state()).toBe('error');
+    expect(component.result()).toBe(previous);
+  });
+
   it('hides mutation and export controls without the matching capability', () => {
     TestBed.inject(AuthService).session.update((session) => ({
       ...session!,

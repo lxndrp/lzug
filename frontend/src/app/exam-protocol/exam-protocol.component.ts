@@ -4,6 +4,7 @@ import {
   Input,
   OnChanges,
   SimpleChanges,
+  computed,
   inject,
   output,
   signal,
@@ -15,6 +16,7 @@ import { TuiBadge } from '@taiga-ui/kit';
 import { Observable } from 'rxjs';
 
 import { ApplicationError } from '../application/application-error';
+import { loadStateValue, type LoadState } from '../application/load-state';
 import { AuthService } from '../auth/auth.service';
 import { SessionScopeService } from '../auth/session-scope.service';
 import { ExamProtocolFacade } from './exam-protocol.facade';
@@ -57,8 +59,12 @@ export class ExamProtocolComponent implements OnChanges {
   readonly dayRevisionChanged = output<ExamProtocolDayRevisionUpdate>();
   readonly actionErrorOccurred = output<string>();
 
-  protected readonly state = signal<ProtocolState>('loading');
-  protected readonly protocol = signal<ExamProtocol | null>(null);
+  private readonly loadState = signal<LoadState<ExamProtocol>>({
+    status: 'loading',
+    previous: null,
+  });
+  protected readonly state = computed(() => this.loadState().status);
+  protected readonly protocol = computed(() => loadStateValue(this.loadState()));
   protected readonly busy = signal(false);
   protected readonly exportBusy = signal(false);
   protected readonly message = signal<string | null>(null);
@@ -88,8 +94,7 @@ export class ExamProtocolComponent implements OnChanges {
       this.contextSequence += 1;
       this.requestSequence += 1;
       this.exportSequence += 1;
-      this.protocol.set(null);
-      this.state.set('loading');
+      this.loadState.set({ status: 'loading', previous: null });
       this.busy.set(false);
       this.exportBusy.set(false);
       this.loadedContextSequence = null;
@@ -103,7 +108,7 @@ export class ExamProtocolComponent implements OnChanges {
     if (identityChanged) {
       this.contextSequence += 1;
       this.exportSequence += 1;
-      this.protocol.set(null);
+      this.loadState.set({ status: 'loading', previous: null });
       this.busy.set(false);
       this.exportBusy.set(false);
       this.loadedContextSequence = null;
@@ -130,7 +135,7 @@ export class ExamProtocolComponent implements OnChanges {
     const roundId = this.roundId;
     const dayId = this.dayId;
     const slotId = this.slotId;
-    this.state.set('loading');
+    this.loadState.set({ status: 'loading', previous: this.protocol() });
     if (!preserveFeedback) {
       this.message.set(null);
       this.error.set(null);
@@ -142,13 +147,16 @@ export class ExamProtocolComponent implements OnChanges {
         }
         this.accept(protocol, keepDrafts);
         this.loadedContextSequence = contextSequence;
-        this.state.set('ready');
       },
       error: (error: ApplicationError) => {
         if (!this.isCurrent(sequence, contextSequence, sessionGeneration, roundId, dayId, slotId)) {
           return;
         }
-        this.state.set(error.kind === 'not-found' ? 'not-found' : 'error');
+        this.loadState.set(
+          error.kind === 'not-found'
+            ? { status: 'not-found', previous: this.protocol() }
+            : { status: 'error', previous: this.protocol() },
+        );
       },
     });
   }
@@ -410,6 +418,7 @@ export class ExamProtocolComponent implements OnChanges {
 
   private accept(protocol: ExamProtocol, preserveDrafts = false): void {
     const previous = this.protocol();
+    this.loadState.set({ status: 'ready', data: protocol });
     const incomingDeclaration = protocol.currentRevision.declaration ?? '';
     const incomingEntries = this.entryDrafts(protocol);
     const preserveDeclaration =
@@ -422,7 +431,6 @@ export class ExamProtocolComponent implements OnChanges {
       previous !== null &&
       !this.sameEntries(this.entries, this.entryDrafts(previous)) &&
       !this.sameEntries(this.entries, incomingEntries);
-    this.protocol.set(protocol);
     if (!preserveDeclaration) this.declaration = incomingDeclaration;
     if (!preserveEntries) this.entries = incomingEntries;
     if (!preserveDrafts) this.reservationText = '';

@@ -304,6 +304,27 @@ describe('ExamProtocolComponent', () => {
     expect(component.state()).toBe('ready');
   });
 
+  it('models the previous protocol explicitly while a same-context refresh is pending or fails', () => {
+    const pending = new Subject<ExamProtocol>();
+    vi.mocked(port.get).mockReturnValueOnce(of(protocolFixture())).mockReturnValueOnce(pending);
+    fixture.detectChanges();
+    fixture.detectChanges();
+    const component = fixture.componentInstance as unknown as {
+      state: () => string;
+      protocol: () => ExamProtocol | null;
+    };
+    const previous = component.protocol();
+
+    fixture.componentRef.setInput('dayRevision', 5);
+    fixture.detectChanges();
+    expect(component.state()).toBe('loading');
+    expect(component.protocol()).toBe(previous);
+
+    pending.error(new ApplicationError('unavailable', 'Reload fehlgeschlagen.'));
+    expect(component.state()).toBe('error');
+    expect(component.protocol()).toBe(previous);
+  });
+
   it('offers participant confirmation only for the active version', () => {
     vi.mocked(port.get).mockReturnValue(
       of(

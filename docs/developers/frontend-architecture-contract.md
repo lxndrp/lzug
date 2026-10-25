@@ -40,6 +40,33 @@ Jedes Fachmodul besitzt seine Reads, Drafts und Commands.
 Andere Module greifen ausschließlich über begrenzte Query-/Referenzverträge
 und explizite IDs/Revisionen darauf zu.
 
+Prüfungsprotokoll und Prüfungsergebnis verwenden den gemeinsamen generischen
+`LoadState<T>`-Vertrag aus `application/load-state.ts`.
+`loading` und `error` tragen einen vorhandenen vorherigen Wert ausdrücklich;
+`ready` trägt den geladenen Wert.
+`not-found` kann nur einen zuvor geladenen Wert einer gleichkontextigen
+Aktualisierung behalten.
+Eine getrennte Status- und Datensignal-Kombination kann damit keinen
+geladenen Wert unter `ready` verlieren oder einen fehlenden Wert als `ready`
+ausgeben.
+Die Features behalten eigene private schreibbare Signals und readonly
+abgeleitete Ansichten.
+Ihre Ansichts-, Runden-, Tages-, Slot- und Session-Fences bleiben lokal, weil
+sie unterschiedliche Kontext- und Draftregeln schützen.
+
+Eine gemeinsame Requestengine wird nicht verwendet.
+Dashboard-Reads können unabhängig parallel laufen und neuere gezielte
+Referenzantworten in eine verspätete Gesamtprojektion übernehmen.
+Planungs-Reads werden bei Kontextwechsel verworfen, während angenommene
+Commands mit festgehaltenem Ursprung fortleben.
+Prüfungstag, Protokoll und Ergebnis besitzen jeweils eigene Revisions- und
+Sessionregeln.
+`switchMap`, Abbruch, Deduplizierung und Serialisierung sind daher keine
+austauschbaren Standardregeln.
+`takeUntilDestroyed` begrenzt ansichtsgebundene Beobachtungen; es beendet
+keine bereits angenommenen Commands, deren Vertrag über den Ansichtswechsel
+fortlebt.
+
 ```mermaid
 flowchart TB
   Platform[Plattform: Shell / Navigation / Lifecycle]
