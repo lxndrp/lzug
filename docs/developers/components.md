@@ -482,10 +482,13 @@ ICS prüft Credential-Generation und Identity-Scope vor der Arbeit, prüft den
 Read-Snapshot unter kurzer Sperre und unmittelbar vor Rückgabe Credential-
 Generation und Identity-Scope erneut. Bei einer Scope-Änderung seit dem
 Snapshot verwirft Calendar das gesamte materialisierte ICS-Ergebnis; es muss
-keine gerenderte Antwort nachträglich parsen oder filtern. Alle Sync-Auslöser
-gehen durch den je Feed serialisierten Coordinator; Rotation committet Widerruf und
-Pending-Generation unter dem Lifecycle-Lock, synchronisiert außerhalb und
-finalisiert nach erneuter Pending-Prüfung unter dem Lock. `DELETE` setzt unter
+keine gerenderte Antwort nachträglich parsen oder filtern. Feed-Refreshes aus
+`sync_person` sowie Aktivierungs- und Rotations-Syncs nutzen den je Feed
+serialisierten Coordinator. Allgemeine `sync_round`- und `sync_assignment`-
+Aufrufe verwenden eigene UoWs außerhalb dieses Coordinators. Rotation committet
+Widerruf und Pending-Generation unter dem Lifecycle-Lock, synchronisiert
+außerhalb und finalisiert nach erneuter Pending-Prüfung unter dem Lock.
+`DELETE` setzt unter
 dem Commit-Gate zuerst ein prozesslokales Abbruchsignal, wartet ohne beide Locks
 auf Rollback oder Abschluss des aktiven UoW und committet danach die dauerhafte
 Revocation-Generation. Wartende Aufträge starten nach dem Fence nicht; ein
