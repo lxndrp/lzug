@@ -1,13 +1,13 @@
 import { InjectionToken } from '@angular/core';
 import { Observable } from 'rxjs';
 
-import type { CommitteeMember, PlanningBoard, RoundSummary } from '../api/api.models';
+import type { CommitteeMember } from '../api/master-data.models';
 import type { Location } from '../api/master-data.models';
-import type { PlanningRound } from '../planning/planning.models';
+import type { PlanningBoard, PlanningRound, PlanningSummary } from '../planning/planning.models';
 
 export type DashboardProjection = {
   round: PlanningRound;
-  summary: RoundSummary;
+  summary: PlanningSummary;
   board: PlanningBoard;
 };
 
@@ -17,7 +17,7 @@ export interface DashboardProjectionPort {
   loadLocations(): Observable<Location[]>;
   loadCandidateReferences(roundId: number): Observable<{
     candidates: PlanningBoard['candidates'];
-    summary: RoundSummary;
+    summary: PlanningSummary;
   }>;
   loadCommitteeMembers(): Observable<CommitteeMember[]>;
 }

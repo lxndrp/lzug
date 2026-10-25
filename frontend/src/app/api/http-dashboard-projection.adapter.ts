@@ -3,8 +3,17 @@ import { forkJoin, map } from 'rxjs';
 
 import type { DashboardProjectionPort } from '../dashboard/dashboard-projection.port';
 import type { CandidateView, CommitteeMember, Location } from './master-data.models';
+import type {
+  PlanningBoard as ApiPlanningBoard,
+  RoundSummary as ApiRoundSummary,
+} from './planning.models';
 import { MasterDataApiService } from './master-data-api.service';
 import { PlanningApiService } from './planning-api.service';
+import type {
+  PlanningBoard,
+  PlanningCandidateView,
+  PlanningSummary,
+} from '../planning/planning.models';
 
 /** HTTP adapter for dashboard-owned data; targeted references are read separately. */
 @Injectable({ providedIn: 'root' })
@@ -15,8 +24,6 @@ export class HttpDashboardProjectionAdapter implements DashboardProjectionPort {
   load(roundId: number) {
     return this.api.loadDashboardProjection(roundId).pipe(
       map(({ round, summary, board }) => {
-        const { _links: summaryLinks, ...summaryProjection } = summary;
-        void summaryLinks;
         return {
           round: {
             id: round.id,
@@ -31,16 +38,8 @@ export class HttpDashboardProjectionAdapter implements DashboardProjectionPort {
             availability_reminder_at: round.availability_reminder_at,
             updated_at: round.updated_at,
           },
-          summary: summaryProjection,
-          board: {
-            ...board,
-            candidates: board.candidates.map(projectCandidateView),
-            locations: board.locations.map(projectLocation),
-            days: board.days.map((view) => ({
-              ...view,
-              ...(view.location ? { location: projectLocation(view.location) } : {}),
-            })),
-          },
+          summary: projectSummary(summary),
+          board: projectBoard(board),
         };
       }),
     );
@@ -56,9 +55,10 @@ export class HttpDashboardProjectionAdapter implements DashboardProjectionPort {
       summary: this.api.getRoundSummary(roundId),
     }).pipe(
       map(({ candidates, summary }) => {
-        const { _links, ...summaryProjection } = summary;
-        void _links;
-        return { candidates: candidates.map(projectCandidateView), summary: summaryProjection };
+        return {
+          candidates: candidates.map(projectCandidateView),
+          summary: projectSummary(summary),
+        };
       }),
     );
   }
@@ -85,10 +85,63 @@ export class HttpDashboardProjectionAdapter implements DashboardProjectionPort {
   }
 }
 
-function projectCandidateView(view: CandidateView): CandidateView {
+function projectSummary(summary: ApiRoundSummary): PlanningSummary {
+  const { _links, ...projection } = summary;
+  void _links;
+  return projection;
+}
+
+function projectBoard(board: ApiPlanningBoard): PlanningBoard {
   return {
-    ...view,
+    ...board,
+    candidates: board.candidates.map(projectCandidateView),
+    locations: board.locations.map(projectLocation),
+    days: board.days.map((view) => ({
+      ...view,
+      ...(view.location ? { location: projectLocation(view.location) } : {}),
+    })),
+  };
+}
+
+function projectCandidateView(view: CandidateView): PlanningCandidateView {
+  return {
     candidate: projectCandidate(view.candidate),
+    ...(view.roundCandidate
+      ? {
+          roundCandidate: {
+            id: view.roundCandidate.id,
+            candidate_id: view.roundCandidate.candidate_id,
+            exam_round_id: view.roundCandidate.exam_round_id,
+            attempt_number: view.roundCandidate.attempt_number,
+            requires_mep: view.roundCandidate.requires_mep,
+            is_active: view.roundCandidate.is_active,
+            ...(view.roundCandidate.terminal_status !== undefined
+              ? { terminal_status: view.roundCandidate.terminal_status }
+              : {}),
+            ...(view.roundCandidate.terminal_reason !== undefined
+              ? { terminal_reason: view.roundCandidate.terminal_reason }
+              : {}),
+            ...(view.roundCandidate.effective_new_round_id !== undefined
+              ? { effective_new_round_id: view.roundCandidate.effective_new_round_id }
+              : {}),
+            ...(view.roundCandidate.postponed_until !== undefined
+              ? { postponed_until: view.roundCandidate.postponed_until }
+              : {}),
+            ...(view.roundCandidate.ihk_decision_reference !== undefined
+              ? { ihk_decision_reference: view.roundCandidate.ihk_decision_reference }
+              : {}),
+            ...(view.roundCandidate.terminal_at !== undefined
+              ? { terminal_at: view.roundCandidate.terminal_at }
+              : {}),
+            ...(view.roundCandidate.created_at !== undefined
+              ? { created_at: view.roundCandidate.created_at }
+              : {}),
+            ...(view.roundCandidate.updated_at !== undefined
+              ? { updated_at: view.roundCandidate.updated_at }
+              : {}),
+          },
+        }
+      : {}),
   };
 }
 

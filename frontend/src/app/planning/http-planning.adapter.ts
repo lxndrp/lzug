@@ -146,10 +146,20 @@ function toConfirmedPlanningResult(value: unknown): PlanningResult {
   requiredNumber(counts['confirmed_exam_days'], 'confirm plan counts.confirmed_exam_days');
   requiredNumber(counts['confirmed_slots'], 'confirm plan counts.confirmed_slots');
   const validation = toValidationResult(response['validation'], true);
+  const calendarWarning = optionalString(
+    response['calendar_warning'],
+    'confirm plan calendar_warning',
+  );
+  const notificationWarning = optionalString(
+    response['notification_warning'],
+    'confirm plan notification_warning',
+  );
   return {
     status,
     counts,
     ...(validation ? { validation } : {}),
+    ...(calendarWarning ? { calendar_warning: calendarWarning } : {}),
+    ...(notificationWarning ? { notification_warning: notificationWarning } : {}),
   };
 }
 
@@ -186,7 +196,42 @@ function toPlanningBoard(board: ApiPlanningBoard): PlanningBoard {
     })),
     candidates: board.candidates.map(({ candidate, roundCandidate }) => ({
       candidate: projectCandidate(candidate),
-      ...(roundCandidate ? { roundCandidate } : {}),
+      ...(roundCandidate
+        ? {
+            roundCandidate: {
+              id: roundCandidate.id,
+              candidate_id: roundCandidate.candidate_id,
+              exam_round_id: roundCandidate.exam_round_id,
+              attempt_number: roundCandidate.attempt_number,
+              requires_mep: roundCandidate.requires_mep,
+              is_active: roundCandidate.is_active,
+              ...(roundCandidate.terminal_status !== undefined
+                ? { terminal_status: roundCandidate.terminal_status }
+                : {}),
+              ...(roundCandidate.terminal_reason !== undefined
+                ? { terminal_reason: roundCandidate.terminal_reason }
+                : {}),
+              ...(roundCandidate.effective_new_round_id !== undefined
+                ? { effective_new_round_id: roundCandidate.effective_new_round_id }
+                : {}),
+              ...(roundCandidate.postponed_until !== undefined
+                ? { postponed_until: roundCandidate.postponed_until }
+                : {}),
+              ...(roundCandidate.ihk_decision_reference !== undefined
+                ? { ihk_decision_reference: roundCandidate.ihk_decision_reference }
+                : {}),
+              ...(roundCandidate.terminal_at !== undefined
+                ? { terminal_at: roundCandidate.terminal_at }
+                : {}),
+              ...(roundCandidate.created_at !== undefined
+                ? { created_at: roundCandidate.created_at }
+                : {}),
+              ...(roundCandidate.updated_at !== undefined
+                ? { updated_at: roundCandidate.updated_at }
+                : {}),
+            },
+          }
+        : {}),
     })),
     locations: board.locations.map(toPlanningLocation),
   };
@@ -279,6 +324,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function requiredString(value: unknown, field: string): string {
   if (typeof value === 'string') return value;
   throw new Error(`Expected ${field} to be a string`);
+}
+
+function optionalString(value: unknown, field: string): string | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string') throw new Error(`Expected ${field} to be a string`);
+  return value;
 }
 
 function requiredNumber(value: unknown, field: string): number {

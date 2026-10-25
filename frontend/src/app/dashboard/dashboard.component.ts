@@ -3,16 +3,16 @@ import { TuiButton, TuiNotification } from '@taiga-ui/core';
 import { TuiBadge } from '@taiga-ui/kit';
 import { TuiHeader } from '@taiga-ui/layout';
 
-import {
+import type {
   AvailabilityValue,
-  ExamDayAssignment,
-  ExamSlot,
+  PlanningAssignment,
   PlanningBoard,
   PlanningDayView,
   PlanningResult,
-  RoundSummary,
-} from '../api/api.models';
-import { PlanningRound } from '../planning/planning.models';
+  PlanningSlot,
+  PlanningSummary,
+} from '../planning/planning.models';
+import type { PlanningRound } from '../planning/planning.models';
 import { AppView } from '../app-view';
 import { appIcons } from '../app-icons';
 import { AppIconDirective } from '../app-icon.directive';
@@ -48,7 +48,7 @@ export class DashboardComponent {
     confirmedPlans: 'confirmed-plans',
   };
 
-  @Input() summary: RoundSummary | null = null;
+  @Input() summary: PlanningSummary | null = null;
   @Input() round: PlanningRound | null = null;
   @Input() board: PlanningBoard | null = null;
   @Input() planningResult: PlanningResult | null = null;
@@ -251,7 +251,7 @@ export class DashboardComponent {
     return match?.[1] ?? value;
   }
 
-  protected slotTitle(slot: ExamSlot): string {
+  protected slotTitle(slot: PlanningSlot): string {
     return `${this.timeLabel(slot.starts_at)}-${this.timeLabel(slot.ends_at)} · ${this.candidateName(
       slot.round_candidate_id,
     )}`;
@@ -291,11 +291,11 @@ export class DashboardComponent {
       .sort((a, b) => a.assignment_role.localeCompare(b.assignment_role));
   }
 
-  protected assignmentColor(assignment: ExamDayAssignment): string {
+  protected assignmentColor(assignment: PlanningAssignment): string {
     return assignment.assignment_role === 'fallback' ? 'warning' : 'info';
   }
 
-  protected assignmentRoleLabel(assignment: ExamDayAssignment): string {
+  protected assignmentRoleLabel(assignment: PlanningAssignment): string {
     if (assignment.assignment_role === 'fallback') {
       return 'Fallback';
     }

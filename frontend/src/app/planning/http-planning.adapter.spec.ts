@@ -15,7 +15,18 @@ describe('HttpPlanningAdapter', () => {
       ...planningBoardFixture,
       candidates: planningBoardFixture.candidates.map((view, index) =>
         index === 0
-          ? { ...view, candidate: { ...view.candidate, _links: { self: { href: '/candidate' } } } }
+          ? {
+              ...view,
+              candidate: { ...view.candidate, _links: { self: { href: '/candidate' } } },
+              ...(view.roundCandidate
+                ? {
+                    roundCandidate: {
+                      ...view.roundCandidate,
+                      _links: { self: { href: '/round-candidate' } },
+                    },
+                  }
+                : {}),
+            }
           : view,
       ),
       locations: planningBoardFixture.locations.map((location) => ({
@@ -68,6 +79,7 @@ describe('HttpPlanningAdapter', () => {
     expect(result.round).not.toHaveProperty('_links');
     expect(result.summary).not.toHaveProperty('_links');
     expect(result.board).toEqual(planningBoardFixture);
+    expect(result.board.candidates[0].roundCandidate).not.toHaveProperty('_links');
   });
 
   it('removes transport links from all resource write results', async () => {
@@ -287,6 +299,29 @@ describe('HttpPlanningAdapter', () => {
     expect(result).toEqual({
       status: 'plan_confirmed',
       counts: { confirmed_exam_days: 1, confirmed_slots: 1 },
+    });
+  });
+
+  it('preserves backend calendar and notification warnings after confirmation', async () => {
+    const confirmPlan = vi.fn(() =>
+      of({
+        status: 'plan_confirmed',
+        counts: { confirmed_exam_days: 1, confirmed_slots: 1 },
+        calendar_warning: 'Kalender konnten nicht vollständig vorbereitet werden.',
+        notification_warning: 'Eine Benachrichtigung steht noch aus.',
+      }),
+    );
+    TestBed.configureTestingModule({
+      providers: [HttpPlanningAdapter, { provide: PlanningApiService, useValue: { confirmPlan } }],
+    });
+
+    const result = await firstValueFrom(TestBed.inject(HttpPlanningAdapter).confirmPlan(8));
+
+    expect(result).toEqual({
+      status: 'plan_confirmed',
+      counts: { confirmed_exam_days: 1, confirmed_slots: 1 },
+      calendar_warning: 'Kalender konnten nicht vollständig vorbereitet werden.',
+      notification_warning: 'Eine Benachrichtigung steht noch aus.',
     });
   });
 

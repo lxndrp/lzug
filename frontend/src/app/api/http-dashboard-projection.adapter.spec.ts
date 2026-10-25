@@ -82,7 +82,18 @@ describe('HttpDashboardProjectionAdapter', () => {
       ...planningBoardFixture,
       candidates: planningBoardFixture.candidates.map((view, index) =>
         index === 0
-          ? { ...view, candidate: { ...view.candidate, _links: { self: { href: '/candidate' } } } }
+          ? {
+              ...view,
+              candidate: { ...view.candidate, _links: { self: { href: '/candidate' } } },
+              ...(view.roundCandidate
+                ? {
+                    roundCandidate: {
+                      ...view.roundCandidate,
+                      _links: { self: { href: '/round-candidate' } },
+                    },
+                  }
+                : {}),
+            }
           : view,
       ),
       locations: planningBoardFixture.locations.map((location) => ({
@@ -126,6 +137,7 @@ describe('HttpDashboardProjectionAdapter', () => {
       board: planningBoardFixture,
     });
     expect(result).not.toHaveProperty('board.candidates[0].candidate._links');
+    expect(result).not.toHaveProperty('board.candidates[0].roundCandidate._links');
     expect(result).not.toHaveProperty('board.locations[0]._links');
     expect(result).not.toHaveProperty('board.days[0].location._links');
   });
@@ -133,7 +145,18 @@ describe('HttpDashboardProjectionAdapter', () => {
   it('projects generated candidate links out of targeted candidate references', () => {
     const linkedCandidates = planningBoardFixture.candidates.map((view, index) =>
       index === 0
-        ? { ...view, candidate: { ...view.candidate, _links: { self: { href: '/candidate' } } } }
+        ? {
+            ...view,
+            candidate: { ...view.candidate, _links: { self: { href: '/candidate' } } },
+            ...(view.roundCandidate
+              ? {
+                  roundCandidate: {
+                    ...view.roundCandidate,
+                    _links: { self: { href: '/round-candidate' } },
+                  },
+                }
+              : {}),
+          }
         : view,
     );
     masterData.getCandidateViews.mockReturnValueOnce(of(linkedCandidates));
@@ -151,5 +174,6 @@ describe('HttpDashboardProjectionAdapter', () => {
         availability: summaryFixture.availability,
       },
     });
+    expect(result).not.toHaveProperty('candidates[0].roundCandidate._links');
   });
 });
