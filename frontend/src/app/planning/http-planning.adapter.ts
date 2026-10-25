@@ -73,11 +73,11 @@ export class HttpPlanningAdapter implements PlanningPort {
   }
 
   generateProposal(roundId: number) {
-    return this.api.generateProposal(roundId).pipe(map(toPlanningResult));
+    return this.api.generateProposal(roundId).pipe(map((value) => toPlanningResult(value)));
   }
 
   confirmPlan(roundId: number) {
-    return this.api.confirmPlan(roundId).pipe(map(toPlanningResult));
+    return this.api.confirmPlan(roundId).pipe(map((value) => toPlanningResult(value, true)));
   }
 
   getPlanningProposal(roundId: number) {
@@ -92,10 +92,15 @@ export class HttpPlanningAdapter implements PlanningPort {
   }
 }
 
-function toPlanningResult(value: PlanningProposalResultResponse): PlanningResult {
+function toPlanningResult(
+  value: PlanningProposalResultResponse,
+  allowMissingValidation = false,
+): PlanningResult {
   const validationValue = value['validation'];
   const validation =
-    validationValue === undefined ? undefined : record(validationValue, 'validation');
+    allowMissingValidation && validationValue === undefined
+      ? undefined
+      : record(validationValue, 'validation');
   const validationResult =
     validation && typeof validation['passed'] === 'boolean' && Array.isArray(validation['messages'])
       ? {

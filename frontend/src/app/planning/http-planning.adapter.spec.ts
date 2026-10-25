@@ -225,4 +225,26 @@ describe('HttpPlanningAdapter', () => {
 
     expect(result).toEqual({ status: 'plan_confirmed', counts: { confirmed_slots: 1 } });
   });
+
+  it('rejects a generated proposal response without validation', async () => {
+    const generateProposal = vi.fn(() =>
+      of({
+        round_id: 8,
+        revision: 4,
+        status: 'plan_proposed',
+        counts: { proposals: 1 },
+        exam_days: [],
+      }),
+    );
+    TestBed.configureTestingModule({
+      providers: [
+        HttpPlanningAdapter,
+        { provide: PlanningApiService, useValue: { generateProposal } },
+      ],
+    });
+
+    await expect(
+      firstValueFrom(TestBed.inject(HttpPlanningAdapter).generateProposal(8)),
+    ).rejects.toThrow('Expected validation to be an object');
+  });
 });
