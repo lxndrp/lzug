@@ -43,12 +43,31 @@ Push-Location $repositoryRoot
 
 $containerName = $null
 $image = $null
+$mutex = $null
+$mutexAcquired = $false
 $createdVolumes = [System.Collections.Generic.List[string]]::new()
 $resourceScope = $env:LZUG_DEVELOPMENT_RESOURCE_SCOPE
 $persistentResources = -not [string]::IsNullOrWhiteSpace($resourceScope)
 $imageBuilt = $false
 
 try {
+    $worktreeRoot = Get-NativeOutput -Command git -Arguments @('rev-parse', '--show-toplevel')
+    $mutexIdentity = if ($persistentResources) { $resourceScope } else { $worktreeRoot }
+    $mutexHash = [Convert]::ToHexString(
+        [Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($mutexIdentity))
+    ).ToLowerInvariant().Substring(0, 24)
+    $mutex = [Threading.Mutex]::new($false, "lzug-ubuntu-quality-$mutexHash")
+    try {
+        $mutexAcquired = $mutex.WaitOne(0)
+        if (-not $mutexAcquired) {
+            Write-Host 'Another Ubuntu quality run is active for this worktree; waiting for it to finish.'
+            $mutexAcquired = $mutex.WaitOne()
+        }
+    }
+    catch [Threading.AbandonedMutexException] {
+        $mutexAcquired = $true
+    }
+
     if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
         throw 'Docker is required for task quality:ubuntu.'
     }
@@ -58,7 +77,6 @@ try {
         throw 'The local Docker socket is unavailable at /var/run/docker.sock.'
     }
 
-    $worktreeRoot = Get-NativeOutput -Command git -Arguments @('rev-parse', '--show-toplevel')
     $gitCommonDirectory = Get-NativeOutput -Command git -Arguments @(
         'rev-parse', '--path-format=absolute', '--git-common-dir'
     )
@@ -108,7 +126,7 @@ try {
     ).ToLowerInvariant().Substring(0, 40)
 
     $image = "${resourcePrefix}:$fingerprint"
-    $containerName = "$resourcePrefix-run"
+    $containerName = "$resourcePrefix-run-$PID"
     $cacheNames = @(
         'mise-data',
         'mise-cache',
@@ -234,6 +252,13 @@ finally {
                 # Preserve the original task failure if Docker cannot remove the runner image.
             }
         }
+    }
+
+    if ($mutex -and $mutexAcquired) {
+        $mutex.ReleaseMutex()
+    }
+    if ($mutex) {
+        $mutex.Dispose()
     }
 
     Pop-Location

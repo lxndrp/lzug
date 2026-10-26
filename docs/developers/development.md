@@ -48,8 +48,10 @@ mise exec -- task setup
 mise exec -- task doctor
 ```
 
-Auf einem Host mit lokalem Docker Engine kann die vollständige Task-Quality
-zusätzlich in Ubuntu 24.04 ausgeführt werden:
+Auf einem macOS- oder Linux-Host mit laufendem Docker Engine und Unix-Socket
+unter `/var/run/docker.sock` kann die vollständige Task-Quality zusätzlich in
+Ubuntu 24.04 ausgeführt werden. Native Windows-PowerShell wird von diesem Pilot
+derzeit nicht unterstützt:
 
 ```sh
 mise exec -- task quality:ubuntu
@@ -57,7 +59,8 @@ mise exec -- task quality:ubuntu
 
 Der Root-Task bleibt der öffentliche Einstieg; der nahe am Runner abgelegte
 PowerShell-Adapter verwaltet Docker-Ressourcen und ruft die bestehende Task-
-Quality im Container auf.
+Quality im Container auf. Gleichzeitige Läufe desselben Worktrees warten
+aufeinander; der Cleanup entfernt nur den Container des jeweiligen Laufs.
 Der Pilot verwendet native Linux-Architektur, dieselbe projektweite Task-Quality
 und die Playwright-Version aus `frontend/package-lock.json`.
 Der Worktree wird im Runner unter demselben absoluten Pfad eingebunden, damit
