@@ -11,6 +11,7 @@ test.describe('exam execution workflows', () => {
   }) => {
     const plan = confirmedPlan(1, 'Prüfungsausschuss Status', 'Prüfling', 'Status', 'regular');
     const day = plan.days[0];
+    day.closure.permissions.export = true;
     const firstSlot = day.slots[0];
     day.slots.push(
       {
@@ -53,6 +54,13 @@ test.describe('exam execution workflows', () => {
           day,
           _links: {},
         }),
+      }),
+    );
+    await page.route('**/api/confirmed-plan-days/1/closure/export.json', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        headers: { 'Content-Disposition': 'attachment; filename="closure-1.json"' },
+        body: JSON.stringify({ exam_day_id: 1 }),
       }),
     );
     await page.route('**/api/confirmed-plan-days/1/slots/*/start', async (route) => {
@@ -112,6 +120,11 @@ test.describe('exam execution workflows', () => {
 
     await page.goto('/confirmed-plans/1/days/1');
     await expect(page.getByText('Zusammenfassung der Durchführung')).toBeVisible();
+
+    const downloadPromise = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Maschinenlesbaren Nachweis exportieren' }).click();
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toBe('closure-1.json');
 
     const rows = page.locator('.app-exam-day-slots tbody tr');
     await rows.nth(0).getByRole('button', { name: 'Prüfung starten' }).click();

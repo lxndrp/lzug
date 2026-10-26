@@ -1,5 +1,6 @@
+import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { map } from 'rxjs';
+import { catchError, map, throwError } from 'rxjs';
 
 import type {
   Attendance as ApiAttendance,
@@ -8,11 +9,14 @@ import type {
   ExamDayReopeningImpact as ApiExamDayReopeningImpact,
 } from './execution.models';
 import { ExamDayApiService } from './exam-day-api.service';
+import { toApplicationError } from './application-error';
 import type { ExamDayPort } from '../exam-day/exam-day.port';
 import type {
   Attendance,
   CloseExamDayCommand,
   ConfirmedPlanDayView,
+  ExamDayExportFormat,
+  ExamDayExportFile,
   ExamDayClosure,
   ExamDayReopeningImpact,
   ExamDayReopeningScope,
@@ -25,6 +29,30 @@ import type {
 @Injectable({ providedIn: 'root' })
 export class HttpExamDayAdapter implements ExamDayPort {
   private readonly api = inject(ExamDayApiService);
+  private readonly http = inject(HttpClient);
+
+  exportClosure(dayId: number, format: ExamDayExportFormat) {
+    const extension = format === 'machine-readable' ? 'json' : 'txt';
+    return this.http
+      .get(`/api/confirmed-plan-days/${dayId}/closure/export.${extension}`, {
+        observe: 'response',
+        responseType: 'text',
+      })
+      .pipe(
+        map((response): ExamDayExportFile => ({
+          content: response.body ?? '',
+          mediaType:
+            response.headers.get('content-type') ??
+            (format === 'machine-readable'
+              ? 'application/json; charset=utf-8'
+              : 'text/plain; charset=utf-8'),
+          fileName:
+            response.headers.get('content-disposition')?.match(/filename="?([^";]+)"?/i)?.[1] ??
+            `pruefungstag-${dayId}-abschlussnachweis.${extension}`,
+        })),
+        catchError((error: unknown) => throwError(() => toApplicationError(error))),
+      );
+  }
 
   getConfirmedPlanDay(dayId: number) {
     return this.api.getConfirmedPlanDay(dayId).pipe(map(fromApiView));
@@ -220,9 +248,9 @@ function fromApiClosure(closure: ApiExamDayClosure): ExamDayClosure {
     history: closure.history,
     tasks: closure.tasks,
     permissions: { ...closure.permissions },
-    exportLinks: {
-      machine: closure._links['machine_export'].href,
-      human: closure._links['human_export'].href,
+    exportAvailability: {
+      machine: typeof closure._links['machine_export']?.href === 'string',
+      human: typeof closure._links['human_export']?.href === 'string',
     },
   };
 }

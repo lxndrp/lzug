@@ -81,7 +81,15 @@ export type ExamDayClosure = {
   history: unknown[];
   tasks: unknown[];
   permissions: { close: boolean; reopen: boolean; export: boolean };
-  exportLinks: { machine: string; human: string };
+  exportAvailability: { machine: boolean; human: boolean };
+};
+
+export type ExamDayExportFormat = 'machine-readable' | 'human-readable';
+
+export type ExamDayExportFile = {
+  content: string;
+  mediaType: string;
+  fileName: string;
 };
 
 export type ExamDayReopeningImpact = {

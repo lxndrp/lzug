@@ -1,4 +1,14 @@
-import { Component, Input, OnChanges, SimpleChanges, effect, inject } from '@angular/core';
+import {
+  Component,
+  DestroyRef,
+  Input,
+  OnChanges,
+  SimpleChanges,
+  effect,
+  inject,
+  signal,
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
   AbstractControl,
   FormControl,
@@ -27,6 +37,8 @@ import type {
   ExamDayReopeningScope,
 } from './exam-day.models';
 import { ExamDayFacade } from './exam-day.facade';
+import { ApplicationError } from '../application/application-error';
+import { downloadFile } from '../application/file-download';
 import { AuthService } from '../auth/auth.service';
 import { ExamProtocolComponent } from '../exam-protocol/exam-protocol.component';
 import { ExamResultComponent } from '../exam-result/exam-result.component';
@@ -89,6 +101,7 @@ export class ExamDayComponent implements OnChanges {
   private readonly examDay = inject(ExamDayFacade);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly destroyRef = inject(DestroyRef);
 
   @Input() roundId: number | null = null;
   @Input() dayId: number | null = null;
@@ -103,6 +116,7 @@ export class ExamDayComponent implements OnChanges {
   protected readonly actionError = this.examDay.actionError;
   protected readonly embeddedActionError = this.examDay.embeddedActionError;
   protected readonly savingKeys = this.examDay.savingKeys;
+  protected readonly exportBusy = signal(false);
   protected readonly drafts = new Map<string, AttendanceDraft>();
   protected readonly executionDrafts = new Map<number, ExecutionStatusDraft>();
   protected readonly reopeningImpact = this.examDay.reopeningImpact;
@@ -116,6 +130,8 @@ export class ExamDayComponent implements OnChanges {
     },
     { validators: requiredWhenException },
   );
+  private exportSequence = 0;
+  private exportContextGeneration: number | null = null;
   protected readonly reopeningForm = new FormGroup(
     {
       token: new FormControl('', { nonNullable: true }),
@@ -140,6 +156,11 @@ export class ExamDayComponent implements OnChanges {
     effect(() => {
       const contextGeneration = this.examDay.contextGeneration();
       const view = this.view();
+      if (this.exportContextGeneration !== contextGeneration) {
+        this.exportContextGeneration = contextGeneration;
+        this.exportSequence += 1;
+        this.exportBusy.set(false);
+      }
       if (this.draftContextGeneration !== contextGeneration) {
         this.drafts.clear();
         this.executionDrafts.clear();
@@ -167,6 +188,57 @@ export class ExamDayComponent implements OnChanges {
 
   protected load(): void {
     this.examDay.load();
+  }
+
+  protected downloadClosureExport(format: 'machine-readable' | 'human-readable'): void {
+    const current = this.view();
+    if (
+      !current ||
+      this.exportBusy() ||
+      this.examDay.hasSavingAction() ||
+      !current.day.closure.permissions.export ||
+      !this.auth.hasCapability('exam-day-closure:export') ||
+      (format === 'machine-readable' && !current.day.closure.exportAvailability.machine) ||
+      (format === 'human-readable' && !current.day.closure.exportAvailability.human)
+    ) {
+      return;
+    }
+
+    const exportSequence = ++this.exportSequence;
+    const contextGeneration = this.examDay.contextGeneration();
+    const dayId = current.day.id;
+    this.exportBusy.set(true);
+    this.examDay
+      .exportClosure(dayId, format)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (file) => {
+          if (
+            exportSequence !== this.exportSequence ||
+            contextGeneration !== this.examDay.contextGeneration() ||
+            this.view()?.day.id !== dayId
+          ) {
+            return;
+          }
+          downloadFile(file);
+          this.examDay.load();
+        },
+        error: (error: ApplicationError) => {
+          if (
+            exportSequence !== this.exportSequence ||
+            contextGeneration !== this.examDay.contextGeneration()
+          ) {
+            return;
+          }
+          this.examDay.showActionError(
+            error.message || 'Der Tagesabschlussnachweis konnte nicht geladen werden.',
+          );
+          this.exportBusy.set(false);
+        },
+        complete: () => {
+          if (exportSequence === this.exportSequence) this.exportBusy.set(false);
+        },
+      });
   }
 
   protected attendanceDraft(key: string, attendance: Attendance | undefined): AttendanceDraft {
@@ -505,7 +577,7 @@ export class ExamDayComponent implements OnChanges {
   }
 
   protected hasSavingAction(): boolean {
-    return this.savingKeys().size > 0;
+    return this.savingKeys().size > 0 || this.exportBusy();
   }
 
   protected canEditMemberAttendance(assignment: ConfirmedPlanDay['assignments'][number]): boolean {

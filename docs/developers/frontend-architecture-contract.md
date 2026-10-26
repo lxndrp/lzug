@@ -244,6 +244,9 @@ werden über ihre Featureports angefordert; nur verfügbare Exportfähigkeiten
 gelangen aus HAL-Projektionen in die Featuremodelle.
 Ein gemeinsamer UI-naher Browseradapter startet den Download aus Inhalt,
 Medientyp und Dateiname, ohne Backend-Operations-URLs offenzulegen.
+ExamDay-Exporte bleiben an die aktuelle Tagesansicht und Session gebunden.
+Ein fehlgeschlagener Auditexport zeigt einen Aktionsfehler; er wird nicht
+automatisch erneut angefordert.
 
 ```mermaid
 flowchart LR
