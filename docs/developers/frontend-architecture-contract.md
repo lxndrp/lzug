@@ -515,9 +515,9 @@ Command im Ursprungsworkflow noch abgeschlossen wird.
 
 ### Architekturprüfungen
 
-`frontend/scripts/validate-architecture-boundaries.mjs` prüft die
-TypeScript-Import- und Reexportbeziehungen an den tatsächlich geltenden
-Grenzen.
+`frontend/scripts/validate-architecture-boundaries.mjs` prüft statische
+TypeScript-Imports, dynamische `import()`-Aufrufe und Reexports an den
+tatsächlich geltenden Grenzen.
 Die Prüfung löst relative, verschachtelte und Barrel-Imports auf und verbietet
 Transportmodelle, HTTP-Clients und konkrete HTTP-Adapter außerhalb ihrer
 Adapter- beziehungsweise Composition-Root-Verantwortung.
@@ -529,8 +529,8 @@ konkrete Dateinamen, Importsammlungen oder eine Orts-/Dashboard-Kopplung vor.
 
 Positive und negative Importbeispiele liegen in
 `frontend/scripts/validate-architecture-boundaries.spec.mjs`.
-Sie prüfen auch verschachtelte Reexports, die verbotene Abhängigkeiten
-vermitteln.
+Sie prüfen auch verschachtelte Reexports und dynamische Imports, die verbotene
+Abhängigkeiten vermitteln.
 `npm run architecture:check` führt diese Fixtures und danach die Prüfung des
 aktuellen Frontendbaums aus.
 

@@ -157,18 +157,25 @@ export function inspectCompositionRoot(file, source, resolveModule) {
 export function moduleReferences(source, fileName = 'fixture.ts') {
   const ast = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true);
   const references = [];
-  for (const statement of ast.statements) {
+  walk(ast, (node) => {
     if (
-      (ts.isImportDeclaration(statement) || ts.isExportDeclaration(statement)) &&
-      statement.moduleSpecifier &&
-      ts.isStringLiteral(statement.moduleSpecifier)
+      (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
+      node.moduleSpecifier &&
+      ts.isStringLiteral(node.moduleSpecifier)
     ) {
       references.push({
-        specifier: statement.moduleSpecifier.text,
-        kind: ts.isExportDeclaration(statement) ? 'export' : 'import',
+        specifier: node.moduleSpecifier.text,
+        kind: ts.isExportDeclaration(node) ? 'export' : 'import',
       });
+    } else if (
+      ts.isCallExpression(node) &&
+      node.expression.kind === ts.SyntaxKind.ImportKeyword &&
+      node.arguments.length === 1 &&
+      ts.isStringLiteral(node.arguments[0])
+    ) {
+      references.push({ specifier: node.arguments[0].text, kind: 'dynamic-import' });
     }
-  }
+  });
   return references;
 }
 

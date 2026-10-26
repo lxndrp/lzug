@@ -98,6 +98,23 @@ test('rejects concrete adapter imports outside the composition root', () => {
   );
 });
 
+test('rejects dynamically imported adapters and API clients outside transport boundaries', () => {
+  const { sources, resolve } = fixture({
+    'planning/planning.component.ts': [
+      "void import('./http-planning.adapter');",
+      "void import('../api/planning-api.service');",
+    ].join('\n'),
+    'planning/http-planning.adapter.ts': 'export class HttpPlanningAdapter {}',
+    'api/planning-api.service.ts': 'export class PlanningApiService {}',
+  });
+
+  const messages = inspectArchitecture(sources, resolve)
+    .map((item) => item.message)
+    .join('\n');
+  assert.match(messages, /imports concrete HTTP adapter/);
+  assert.match(messages, /imports API client/);
+});
+
 test('rejects a concrete adapter re-exported through a feature barrel', () => {
   const { sources, resolve } = fixture({
     'planning/planning.component.ts': "import { HttpPlanningAdapter } from './contracts';",
