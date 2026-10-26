@@ -185,6 +185,122 @@ tasks:
       - docs
       - quality:workflows
 
+  quality:ubuntu:
+    desc: Run the full task quality suite in an isolated Ubuntu 24.04 container
+    vars:
+      PLAYWRIGHT_VERSION:
+        sh: node -e "console.log(require('./frontend/package-lock.json').packages['node_modules/@playwright/test'].version)"
+      MISE_VERSION:
+        sh: mise --version | cut -d ' ' -f 1
+      DOCKER_CLI_VERSION:
+        sh: docker --version | cut -d ' ' -f 3 | tr -d ','
+    cmds:
+      - |
+        set -eu
+        command -v docker >/dev/null 2>&1 || { echo "Docker is required for task quality:ubuntu." >&2; exit 1; }
+        docker info >/dev/null 2>&1 || { echo "Docker Engine is unavailable; start the configured Docker host and retry." >&2; exit 1; }
+        test -S /var/run/docker.sock || { echo "The local Docker socket is unavailable at /var/run/docker.sock." >&2; exit 1; }
+
+        worktree_root=$(pwd -P)
+        git_common_dir=$(git rev-parse --path-format=absolute --git-common-dir)
+        runner_fingerprint=$(
+          {
+            cat Taskfile.yml \
+              development/ubuntu-quality/Dockerfile \
+              development/ubuntu-quality/seccomp-profile.json
+            printf '%s\n' "{{.PLAYWRIGHT_VERSION}}" "{{.MISE_VERSION}}" "{{.DOCKER_CLI_VERSION}}"
+          } | git hash-object --stdin
+        )
+        resource_scope=${LZUG_DEVELOPMENT_RESOURCE_SCOPE:-}
+        resource_label=
+        if [ -n "$resource_scope" ]; then
+          case "$resource_scope" in
+            *[!a-z0-9-]*) echo "Invalid LZUG_DEVELOPMENT_RESOURCE_SCOPE: $resource_scope" >&2; exit 1 ;;
+          esac
+          resource_label="lzug-codex-$resource_scope"
+          resource_prefix="lzug-codex-$resource_scope-ubuntu-quality"
+          persistent_resources=true
+        else
+          resource_prefix="lzug-ubuntu-quality-$$"
+          persistent_resources=false
+        fi
+
+        image="$resource_prefix:$runner_fingerprint"
+        container="$resource_prefix-run"
+        cache_names="mise-data mise-cache uv-cache npm-cache go-mod go-build venv frontend-node-modules"
+        created_volumes=
+        cleanup() {
+          docker rm -f "$container" >/dev/null 2>&1 || true
+          if [ "$persistent_resources" = false ]; then
+            for cache_name in $created_volumes; do
+              docker volume rm "$resource_prefix-$cache_name" >/dev/null 2>&1 || true
+            done
+            docker image rm "$image" >/dev/null 2>&1 || true
+          fi
+        }
+        trap cleanup EXIT
+
+        set --
+        if [ -n "$resource_label" ]; then
+          set -- "$@" --label "$resource_label"
+        fi
+        docker build \
+          --pull \
+          --build-arg "PLAYWRIGHT_VERSION={{.PLAYWRIGHT_VERSION}}" \
+          --build-arg "MISE_VERSION={{.MISE_VERSION}}" \
+          --build-arg "DOCKER_CLI_VERSION={{.DOCKER_CLI_VERSION}}" \
+          "$@" \
+          --tag "$image" \
+          --file development/ubuntu-quality/Dockerfile \
+          .
+
+        for cache_name in $cache_names; do
+          volume="$resource_prefix-$cache_name"
+          if [ -n "$resource_label" ]; then
+            docker volume create --name "$volume" --label "$resource_label" >/dev/null
+          else
+            docker volume create --name "$volume" >/dev/null
+          fi
+          created_volumes="$created_volumes $cache_name"
+          docker run --rm --user 0:0 --mount "type=volume,source=$volume,target=/cache" --entrypoint /bin/chown "$image" 1001:1001 /cache
+        done
+
+        socket_gid=$(docker run --rm --mount type=bind,source=/var/run/docker.sock,target=/var/run/docker.sock --entrypoint stat "$image" -c %g /var/run/docker.sock)
+        docker run --rm --user 1001:1001 --group-add "$socket_gid" --mount type=bind,source=/var/run/docker.sock,target=/var/run/docker.sock --entrypoint docker "$image" info >/dev/null
+
+        set -- --rm --name "$container" --init --shm-size=1g --user 1001:1001 --group-add "$socket_gid" \
+          --security-opt "seccomp=$worktree_root/development/ubuntu-quality/seccomp-profile.json"
+        if [ -n "$resource_label" ]; then
+          set -- "$@" --label "$resource_label"
+        fi
+        set -- "$@" \
+          --mount "type=bind,source=$worktree_root,target=$worktree_root" \
+          --mount "type=bind,source=$git_common_dir,target=$git_common_dir,readonly" \
+          --mount type=bind,source=/var/run/docker.sock,target=/var/run/docker.sock \
+          --mount "type=volume,source=$resource_prefix-mise-data,target=/home/pwuser/.local/share/mise,volume-nocopy" \
+          --mount "type=volume,source=$resource_prefix-mise-cache,target=/home/pwuser/.cache/mise,volume-nocopy" \
+          --mount "type=volume,source=$resource_prefix-uv-cache,target=/home/pwuser/.cache/uv,volume-nocopy" \
+          --mount "type=volume,source=$resource_prefix-npm-cache,target=/home/pwuser/.cache/npm,volume-nocopy" \
+          --mount "type=volume,source=$resource_prefix-go-mod,target=/home/pwuser/go/pkg/mod,volume-nocopy" \
+          --mount "type=volume,source=$resource_prefix-go-build,target=/home/pwuser/.cache/go-build,volume-nocopy" \
+          --mount "type=volume,source=$resource_prefix-venv,target=$worktree_root/.venv,volume-nocopy" \
+          --mount "type=volume,source=$resource_prefix-frontend-node-modules,target=$worktree_root/frontend/node_modules,volume-nocopy" \
+          --workdir "$worktree_root" \
+          --env LZUG_DEVELOPMENT_RESOURCE_SCOPE \
+          --env CI=true \
+          --env DOCKER_BUILDKIT=1 \
+          --env DOCKER_HOST=unix:///var/run/docker.sock \
+          --env GIT_OPTIONAL_LOCKS=0 \
+          "$image" /bin/sh -eu -c '
+            git config --global --add safe.directory "$PWD"
+            mise install
+            mise exec -- task setup
+            mise exec -- task doctor
+            mise exec -- task doctor:playwright
+            mise exec -- task --concurrency=4 quality
+          '
+        docker run "$@"
+
   brand:check:
     desc: Verify canonical brand sources, consumer derivatives, fonts, and icons
     cmds:

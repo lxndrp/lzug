@@ -48,6 +48,40 @@ mise exec -- task setup
 mise exec -- task doctor
 ```
 
+Auf einem Host mit lokalem Docker Engine kann die vollständige Task-Quality
+zusätzlich in Ubuntu 24.04 ausgeführt werden:
+
+```sh
+mise exec -- task quality:ubuntu
+```
+
+Der Pilot verwendet native Linux-Architektur, dieselbe projektweite Task-Quality
+und die Playwright-Version aus `frontend/package-lock.json`.
+Der Worktree wird im Runner unter demselben absoluten Pfad eingebunden, damit
+Compose- und Pester-Tests ihre Quellen über den Docker-Host erreichen.
+Die Linux-`.venv`, `node_modules` und Paket-/Build-Caches liegen in getrennten
+Docker-Volumes; macOS-Abhängigkeiten werden nicht wiederverwendet.
+Browser laufen als `pwuser` mit aktivierter Chromium-Sandbox.
+Das gepinnte Playwright-Seccomp-Profil erlaubt dafür User-Namespaces und behält
+die übrigen Docker-Standardbeschränkungen bei; der Runner erhält 1 GiB Shared
+Memory für Chromium.
+Der Docker-Socket wird für die bestehenden Runtime-Prüfungen eingebunden; es
+gibt kein Docker-in-Docker.
+Task begrenzt die parallelen Teilaufgaben auf vier, um den lokalen
+Containerressourcenbedarf zu begrenzen; der vorhandene Quality-Task bleibt die
+einzige Prüfdefinition.
+In einem verwalteten Codex-Worktree tragen Runnerimage und Volumes das Label
+`lzug-codex-<Worktree-ID>` und werden vom Environment-Cleanup bereinigt.
+Außerhalb eines verwalteten Worktrees räumt der Task seine flüchtigen Ressourcen
+nach dem Lauf auf.
+Der Pilot belegt Linux-ARM64 auf Apple Silicon und ist kein Ersatz für CI auf
+Linux-AMD64 oder deren finale Abnahme.
+Das User-Namespace-Profil stammt aus der zur Playwright-Version passenden
+[offiziellen Docker-Anleitung](https://playwright.dev/docs/docker).
+Der Runner übernimmt Docker CLI, Buildx und Compose aus dem zur lokalen CLI-Version
+passenden offiziellen Docker-CLI-Image; die Engine bleibt der laufende Host-Dienst.
+Die Compose-Pluginversion ist derzeit nicht separat im Projekt festgelegt.
+
 `task setup` synchronisiert die gelockten Python-Abhängigkeiten mit `uv` und
 installiert die Frontend-Abhängigkeiten mit `npm ci`.
 Ein wiederholter Aufruf behält die vorhandene Python-Umgebung; für einen
