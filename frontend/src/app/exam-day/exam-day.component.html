@@ -130,14 +130,18 @@
             @if (closureForm.controls.closureType.value === 'exception') {
               <label>
                 Ausnahmegrund
-                <textarea [formControl]="closureForm.controls.reason" rows="3" required></textarea>
+                <textarea
+                  [formControl]="closureForm.controls.reason"
+                  rows="3"
+                  aria-required="true"
+                ></textarea>
               </label>
               <label>
                 Bisherige Klärungsversuche
                 <textarea
                   [formControl]="closureForm.controls.clarificationAttempts"
                   rows="3"
-                  required
+                  aria-required="true"
                 ></textarea>
               </label>
             }
