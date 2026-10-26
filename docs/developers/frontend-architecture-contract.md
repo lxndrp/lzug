@@ -513,6 +513,35 @@ Command im Ursprungsworkflow noch abgeschlossen wird.
 | Persönliche Ansichten, Halbjahre, bestätigte Pläne und Produktinformation konsumierten teils geteilte Workspacewerte oder reine Weiterleitungsschichten. | Jedes Feature besitzt seine Reads über den eigenen Port; Produktinformation lädt die Buildversion über `BuildInfoPort`. | Personal lokal und mit gezielten Fähigkeiten: #1096; direkte Featuregrenzen, Build-Info-Port und Workspace-Rückbau: #1097. |
 | Route-Einstiege und fachliche Services existieren parallel. | Route besitzt URL-Bindung/Command-Origin, Feature besitzt Fachzustand. | Beibehalten, solange beide eine dieser Aufgaben tragen; #1097 entfernt nur reine Durchreichung. |
 
+### Architekturprüfungen
+
+`frontend/scripts/validate-architecture-boundaries.mjs` prüft die
+TypeScript-Import- und Reexportbeziehungen an den tatsächlich geltenden
+Grenzen.
+Die Prüfung löst relative, verschachtelte und Barrel-Imports auf und verbietet
+Transportmodelle, HTTP-Clients und konkrete HTTP-Adapter außerhalb ihrer
+Adapter- beziehungsweise Composition-Root-Verantwortung.
+Portverträge bleiben frei von Transportimplementierungen; der Composition
+Root muss importierte Porttokens und Adapter in seiner Providerkonfiguration
+verwenden.
+Die Prüfung schreibt weder eine bestimmte Facade-/Application-Kette noch
+konkrete Dateinamen, Importsammlungen oder eine Orts-/Dashboard-Kopplung vor.
+
+Positive und negative Importbeispiele liegen in
+`frontend/scripts/validate-architecture-boundaries.spec.mjs`.
+Sie prüfen auch verschachtelte Reexports, die verbotene Abhängigkeiten
+vermitteln.
+`npm run architecture:check` führt diese Fixtures und danach die Prüfung des
+aktuellen Frontendbaums aus.
+
+Laufzeitverträge bleiben in den featureeigenen Tests belegt:
+unabhängige Orts-Reads in `locations-workspace.facade.spec.ts`,
+Runden-/Sessionbindung in `planning-workflow.service.spec.ts`,
+`session-scope.service.spec.ts` und den Prüfungstagstests sowie Export- und
+Fehlerübersetzung in den HTTP-Adaptertests für Halbjahre, Protokoll und
+Ergebnis.
+Ein grüner Strukturcheck ersetzt diese Verhaltensprüfungen nicht.
+
 Jede Rückbauänderung erhält vorhandene Lade-, Fehler-, Berechtigungs-,
 Revisions-, Session- und Accessibility-Semantik.
 Es wird weder ein Universal-Workspace noch eine Pflichtschicht je Request

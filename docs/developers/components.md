@@ -981,16 +981,17 @@ Schnittstellen.
 Eine lokale Feature-Registrierung ist passend, wenn ein Adapter nur zu einem
 Feature gehört.
 
-Diese Grenze wird schrittweise featureweise eingeführt.
+Die Featuregrenzen werden dort eingeführt, wo sie eine tatsächliche
+Austausch-, Lebensdauer- oder Testgrenze bilden.
 Die Terminübersicht unter `frontend/src/app/scheduling-overview/` zeigt das
 Muster: `SchedulingOverviewFacade` besitzt Lade- und Fehlerzustand und
 verwendet `SchedulingOverviewPort` direkt; `HttpSchedulingOverviewAdapter`
 übersetzt das API-Modell in ein transportneutrales Featuremodell.
 Die bestehende Anzeige und ihre Lade-, Leer- und Fehlerzustände bleiben dabei
 unverändert; ihre Komponententests benötigen keinen HTTP-Testcontroller.
-Der Architekturtest prüft die Abhängigkeiten dieses Beispiels.
-Weitere direkte API-Abhängigkeiten werden mit der Migrationsplanung #907
-umgestellt.
+`npm run architecture:check` prüft die verbotenen Transport-, HTTP- und
+Adapterabhängigkeiten an den Grenzen, ohne diese Beispielklassen oder eine
+Weiterleitungskette vorzuschreiben.
 
 Abstraktionen entstehen nur an einer tatsächlichen Austausch- oder
 Testgrenze.
