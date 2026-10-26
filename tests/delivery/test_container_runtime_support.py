@@ -20,12 +20,20 @@ class ContainerRuntimeSupportTests(unittest.TestCase):
         self.assertIn("Microsoft `wslc`", decision)
         self.assertIn("vorliegen", decision)
         self.assertIn("`CONTAINER_ENGINE` steuert die Runtimeauswahl", decision)
-        for value in ("auto", "podman", "apple", "wslc", "docker"):
-            self.assertIn(f"| `{value}` |", decision)
-        self.assertIn("| `apple` | Apple `container` |", decision)
-        self.assertIn("| `wslc` | Microsoft `wslc` |", decision)
+        for row in (
+            "| `auto` | Plattformpräferenz aus der obigen Ausführungskontext-Tabelle |",
+            "| `podman` | Podman |",
+            "| `apple` | Apple `container` |",
+            "| `wslc` | Microsoft `wslc` |",
+            "| `docker` | Docker |",
+        ):
+            self.assertIn(row, decision)
         self.assertIn("Eine installierte, aber nicht erreichbare Runtime", decision)
         self.assertIn("Image-Archiv", decision)
+        for image in ("lzug-app", "lzug-demo-app", "lzug-demo-seed"):
+            self.assertIn(f"| `{image}` |", decision)
+        self.assertIn("Der extrahierte Seed wird für den Demo-Runtime-Nachweis", decision)
+        self.assertIn("den Seed nicht als eigenständigen Server starten", decision)
         self.assertIn("lzug-codex-<scope>", decision)
         self.assertIn("bricht die Anlage beziehungsweise das", decision)
         self.assertIn("Persistente Anwendungsdatenvolumes bleiben unlabeled", decision)

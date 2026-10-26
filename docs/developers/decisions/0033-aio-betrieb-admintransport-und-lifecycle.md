@@ -193,17 +193,25 @@ Die gemeinsamen lokalen Builds verwenden unveränderte Dockerfiles und den
 nativen `linux/<arch>`-Zielpfad des Hosts.
 Build-Identität und vollständige Git-Revision bleiben über die vorhandenen
 Build-Argumente und OCI-Labels gebunden.
-Jeder Buildkandidat wird einmal erzeugt; SBOM und Laufzeittest verwenden
-anschließend dasselbe Artefakt.
+Jeder Buildkandidat wird einmal erzeugt. SBOM und zugehöriger Laufzeit- oder
+Integrationsnachweis beziehen sich auf genau dieses Artefakt:
+
+| Image | SBOM-Nachweis | Laufzeit- und Integrationsnachweis |
+| --- | --- | --- |
+| `lzug-app` | Aus dem Archiv des gebauten Images | Gemeinsamer App-Runtimevertrag mit genau diesem Image |
+| `lzug-demo-app` | Aus dem Archiv des gebauten Images | Demo-Runtimevertrag mit genau diesem Image und dem zugehörigen Seed |
+| `lzug-demo-seed` | Aus dem Archiv des gebauten Images | SQLite-Datei und Manifest aus genau diesem Image extrahieren und Identität, Produktrevision, Runtimevertrag sowie Schemafingerabdruck prüfen; den Seed nicht als eigenständigen Server starten |
+
+Der Laufzeit- beziehungsweise Integrationsnachweis verwendet dasselbe
+gebaute Image; ein impliziter Zugriff auf einen Docker-Imagespeicher oder ein
+zweiter Build ist kein zulässiger Übergabevertrag.
+Der extrahierte Seed wird für den Demo-Runtime-Nachweis mit dem zugehörigen
+`lzug-demo-app`-Image verwendet.
+Die plattformbezogene Extraktionsmethode weist der Runtime-Pilot nach, statt
+`docker create`/`docker cp` als universellen Vertrag vorauszusetzen.
 Für eine SBOM wird das tatsächlich gebaute Image explizit als Image-Archiv
 exportiert und aus diesem Archiv mit der versionierten Syft-Konfiguration
 gescannt.
-Der Laufzeittest verwendet dasselbe gebaute Image; ein impliziter Zugriff auf
-einen Docker-Imagespeicher oder ein zweiter Build ist kein zulässiger
-Übergabevertrag.
-Das Demo-Seed wird ausdrücklich aus dem Seed-Artefakt entnommen; die
-plattformbezogene Methode dafür wird im Runtime-Pilot nachgewiesen, statt
-`docker create`/`docker cp` als universellen Vertrag vorauszusetzen.
 
 Die gemeinsamen Laufzeitnachweise umfassen Image- und Buildidentität,
 Readiness, Daten-Roundtrip und Persistenz bei Restart/Stop-Start, UID/GID,
@@ -211,9 +219,10 @@ read-only Root-Dateisystem, Admin-Socket-Eigentum und -Modus sowie die
 ausgelieferte CLI.
 Ein fehlender oder abweichender Plattformmechanismus darf diese Prüfungen
 nicht abschwächen.
+Die Matrix beschreibt die gemeinsamen Artefakt- und Nachweisverträge.
 Docker Compose, seine Konfigurationsprüfung sowie Docker-basierte
 Veröffentlichungs- und CI-Schritte bleiben ausdrücklich Docker-spezifische
-Referenzprüfungen.
+Referenzprüfungen und ersetzen keinen plattformneutralen Runtime-Nachweis.
 
 Temporäre Ressourcen eines Worktree-Tests werden nach dem Scope benannt:
 `lzug-codex-<scope>-<rolle>`.
