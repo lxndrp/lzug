@@ -134,18 +134,81 @@ Sie ist kein Self-Hosting-Muster und teilt keine produktive Persistenz mit
 `lzug-app`.
 
 Das OCI-Image ist die portable Liefergrenze.
-Docker Engine auf Linux ist die qualifizierte Referenz für Build, Release, CI
-und Self-Hosting.
-Andere OCI-Laufzeiten können das Image ausführen, gehören daraus aber nicht
-automatisch zum unterstützten oder geprüften Umfang.
-Weitere konkrete Runtimes werden nicht unterstützt oder geprüft.
+Docker Engine auf Linux bleibt die qualifizierte Referenz für zentrale CI,
+Release und Self-Hosting.
+Diese Betriebsreferenz ist unabhängig von den lokalen Build- und
+Prüfplattformen und erweitert sich nicht automatisch mit ihnen.
+
+Für lokale Entwicklung ist die Zielreihenfolge plattformbezogen:
+
+| Ausführungskontext | Bevorzugte lokale Runtime | Fallback |
+| --- | --- | --- |
+| macOS mit Apple Silicon | Apple `container` | Docker |
+| Linux | rootless Podman | Docker |
+| Windows-Host | Microsoft `wslc` | Docker |
+| WSL-Linux-Shell | Linux-Hostauswahl: Podman, sofern installiert | Docker |
+
+Diese Tabelle legt die Zielauswahl fest, behauptet aber keine bereits
+abgeschlossene Plattformqualifikation.
+Apple `container`, Podman und `wslc` gehören erst dann zum nutzbaren lokalen
+Build-/Prüfumfang, wenn die jeweiligen Hostnachweise aus #939, #940 und #941
+vorliegen.
+Ein Linux-Prozess in WSL wird nicht allein wegen einer erreichbaren
+`wslc.exe` als Windows-Host behandelt; Windows- und WSL-Pfade, Dateirechte und
+Benutzerzuordnung sind getrennte Ausführungskontexte.
+
+Die Runtimeauswahl erfolgt nur einmal für einen Tasklauf.
+Ein expliziter Override wählt genau die angegebene Runtime; ist sie nicht
+installiert oder nicht verfügbar, wird mit Diagnose abgebrochen.
+In `auto` darf Docker nur verwendet werden, wenn die bevorzugte Runtime des
+Ausführungskontexts nicht installiert ist.
+Eine installierte, aber nicht erreichbare Runtime, ein Buildfehler oder ein
+Fehler beim Starten eines Containers löst keinen Wechsel zu Docker aus.
+So bleiben Infrastruktur- und Produktfehler sichtbar.
+
+Die gemeinsamen lokalen Builds verwenden unveränderte Dockerfiles und den
+nativen `linux/<arch>`-Zielpfad des Hosts.
+Build-Identität und vollständige Git-Revision bleiben über die vorhandenen
+Build-Argumente und OCI-Labels gebunden.
+Jeder Buildkandidat wird einmal erzeugt; SBOM und Laufzeittest verwenden
+anschließend dasselbe Artefakt.
+Für eine SBOM wird das tatsächlich gebaute Image explizit als Image-Archiv
+exportiert und aus diesem Archiv mit der versionierten Syft-Konfiguration
+gescannt.
+Der Laufzeittest verwendet dasselbe gebaute Image; ein impliziter Zugriff auf
+einen Docker-Imagespeicher oder ein zweiter Build ist kein zulässiger
+Übergabevertrag.
+Das Demo-Seed wird ausdrücklich aus dem Seed-Artefakt entnommen; die
+plattformbezogene Methode dafür wird im Runtime-Pilot nachgewiesen, statt
+`docker create`/`docker cp` als universellen Vertrag vorauszusetzen.
+
+Die gemeinsamen Laufzeitnachweise umfassen Image- und Buildidentität,
+Readiness, Daten-Roundtrip und Persistenz bei Restart/Stop-Start, UID/GID,
+read-only Root-Dateisystem, Admin-Socket-Eigentum und -Modus sowie die
+ausgelieferte CLI.
+Ein fehlender oder abweichender Plattformmechanismus darf diese Prüfungen
+nicht abschwächen.
+Docker Compose, seine Konfigurationsprüfung sowie Docker-basierte
+Veröffentlichungs- und CI-Schritte bleiben ausdrücklich Docker-spezifische
+Referenzprüfungen.
+
+Temporäre Ressourcen eines Worktree-Tests werden nach dem Scope benannt:
+`lzug-codex-<scope>-<rolle>`.
+Container, Images, Volumes und Netzwerke erhalten zusätzlich genau das
+Worktree-Label `lzug-codex-<scope>` ohne separates Label-Value-Schema.
+Der Scope kommt aus `LZUG_DEVELOPMENT_RESOURCE_SCOPE`; Task konsumiert ihn,
+ohne Codex als Voraussetzung zu machen.
+Jede Runtime-Qualifikation muss belegen, dass dieses Label für die erstellten
+Ressourcentypen gesetzt, abgefragt und für gezieltes Cleanup verwendet werden
+kann.
+Cleanup entfernt ausschließlich Ressourcen mit dem exakten Label und dem
+erwarteten Namenspräfix; kein globales `prune` oder Entfernen fremder Volumes
+ist zulässig.
 
 Compose bleibt ein optionaler, knapper Docker-Referenzweg für genau den einen
 `lzug-app`-Service mit persistentem `/data`.
 Es ist weder eine zweite Produktbeschreibung noch eine plattformneutrale
 Orchestrierungsabstraktion.
-Apple `container` und Microsoft `wslc` sind keine aktuellen Referenzen,
-Supportversprechen oder Release-Gates.
 
 ## Konsequenzen
 
@@ -162,9 +225,11 @@ Supportversprechen oder Release-Gates.
   einer Datenmigration getrennt.
 - `lzug-app` und `lzug-demo` haben eindeutige, unterschiedliche
   Lieferverantwortungen.
-- Docker-spezifische Referenzprüfung schränkt die OCI-Portabilität des
-  Produktimages nicht ein, begründet aber auch kein Supportversprechen für
-  weitere Laufzeiten.
+- Die lokale Runtimeauswahl verändert weder die Docker-Referenz für zentrale
+  CI, Release und Self-Hosting noch die fachlichen, Persistenz- und
+  Sicherheitsverträge der Images.
+- Eine lokale Runtime wird erst nach einem realen Build-, Laufzeit- und
+  Cleanup-Nachweis als qualifiziert dokumentiert.
 - ADR-0014 behält den Einzelcontainer- und `/data`-Vertrag bei; ADR-0017 behält
   die Entscheidung gegen Kubernetes und Helm als Pflichtpfad bei.
 

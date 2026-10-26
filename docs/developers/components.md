@@ -1269,8 +1269,14 @@ flüchtig.
 
 Docker Engine auf Linux ist die qualifizierte Referenz für Build, Release, CI
 und Self-Hosting.
-Das OCI-Image bleibt portabel; weitere konkrete Laufzeiten gehören nicht zum
-unterstützten oder geprüften Umfang.
+Für lokale Builds und Laufzeitprüfungen sind Apple `container` auf Apple
+Silicon, rootless Podman auf Linux und `wslc` auf einem Windows-Host die
+bevorzugten Kandidaten; Docker ist der Fallback, wenn die jeweilige Runtime
+fehlt.
+Die drei Alternativen bleiben bis zum erfolgreichen realen Plattformnachweis
+unqualifiziert und begründen keinen Produktivsupport.
+Die OCI-Liefergrenze und Docker-Referenz für zentrale CI, Release und
+Self-Hosting bleiben davon unberührt.
 `deployment/self-hosted/compose.yaml` ist ein optionaler knapper Docker-Referenzweg für genau einen
 `lzug-app`-Container und ein persistentes Volume.
 Im Repository wird Compose vom Root mit explizitem Projektverzeichnis aufgerufen:

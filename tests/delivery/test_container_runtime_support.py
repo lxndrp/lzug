@@ -5,32 +5,25 @@ from pathlib import Path
 
 
 class ContainerRuntimeSupportTests(unittest.TestCase):
-    def test_current_runtime_contract_is_docker_only(self) -> None:
-        roots = (
-            Path(".github/workflows"),
-            Path("docs"),
-            Path("operator-cli"),
-            Path("scripts"),
-            Path("tests/pester"),
+    def test_local_runtime_and_production_scopes_are_separate(self) -> None:
+        decision = Path(
+            "docs/developers/decisions/0033-aio-betrieb-admintransport-und-lifecycle.md"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn(
+            "Docker Engine auf Linux bleibt die qualifizierte Referenz für zentrale CI,\n"
+            "Release und Self-Hosting.",
+            decision,
         )
-        files = [
-            Path("Taskfile.yml"),
-            Path("deployment/self-hosted/compose.yaml"),
-            Path("deployment/self-hosted/.env.example"),
-        ]
-        for root in roots:
-            files.extend(path for path in root.rglob("*") if path.is_file())
-
-        findings = []
-        for path in files:
-            try:
-                content = path.read_text(encoding="utf-8")
-            except UnicodeDecodeError:
-                continue
-            if "pod" + "man" in content.lower():
-                findings.append(str(path))
-
-        self.assertEqual(findings, [])
+        self.assertIn("Apple `container`", decision)
+        self.assertIn("rootless Podman", decision)
+        self.assertIn("Microsoft `wslc`", decision)
+        self.assertIn("vorliegen", decision)
+        self.assertIn("Eine installierte, aber nicht erreichbare Runtime", decision)
+        self.assertIn("Image-Archiv", decision)
+        self.assertIn("lzug-codex-<scope>", decision)
+        self.assertIn("kein globales `prune`", decision)
+        self.assertIn("Docker Compose", decision)
 
 
 if __name__ == "__main__":
