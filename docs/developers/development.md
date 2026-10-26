@@ -101,9 +101,18 @@ keinen Kindprozess; Komponenten-, in-process HTTP- und Prozess-/Sockettests
 haben eigene Einstiege.
 `task backend:test` führt alle Ebenen parallel aus, während Coverage weiterhin
 die vollständige Suite gemeinsam ausführt. Die HTTP-Ebene verteilt ihre Module
-für den PR-Lauf deterministisch nach Testumfang auf drei parallele Shards.
+für den PR-Lauf deterministisch nach aufgezeichneten Modul-Laufzeiten auf drei
+parallele Shards. Neue oder ungemessene Module erhalten eine stabile Schätzung
+aus ihrer Testanzahl und der mittleren Laufzeit pro gemessenem Test.
 Gemischte Module gehören zur höchsten von ihnen geprüften Ebene, bis sie
 sinnvoll getrennt werden.
+
+Der Backend-PR-Job speichert sieben Tage lang maschinenlesbare Testlaufzeiten
+als CI-Artefakt. Jeder Bericht bindet Checkout-Revision, PR-Head, Runner,
+Suite, Modul und Einzeltest ein; die Testdauer umfasst Setup, Testkörper und
+Teardown.
+Lokal lässt sich derselbe Nachweis mit `LZUG_TEST_TIMINGS_DIR=/tmp/backend-test-timings`
+vor `task backend:test` erzeugen.
 
 Die vollständige Taskliste mit Beschreibungen steht im Taskfile und unter
 `task --list`.

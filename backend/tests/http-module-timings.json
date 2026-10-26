@@ -1,0 +1,37 @@
+{
+  "measurement": {
+    "revision": "8177efe75b523043f12f75872c973536ca5ca317",
+    "runner": "Linux Docker Desktop arm64, Python 3.14.6",
+    "suite": "complete unsharded backend suite",
+    "scope": "814 tests passed in 111.65 s; three optional tests skipped. TestCase elapsed time includes setUp, test body, and tearDown."
+  },
+  "module_seconds": {
+    "test_absence": 2.5413,
+    "test_api": 9.2499,
+    "test_auth": 1.7336,
+    "test_authorization": 2.3803,
+    "test_calendar": 2.6292,
+    "test_e2e_server": 0.6713,
+    "test_exam_day_closures": 5.1132,
+    "test_exam_protocols": 1.8675,
+    "test_exam_results": 3.7635,
+    "test_exam_round_lifecycle": 2.1237,
+    "test_exam_venue_http": 1.3656,
+    "test_fastapi_app": 2.9484,
+    "test_fastapi_dependencies": 3.738,
+    "test_fastapi_execution_routing": 0.4902,
+    "test_fastapi_planning_router": 0.5384,
+    "test_fastapi_request_stream": 1.9497,
+    "test_http_contract_parity": 9.1232,
+    "test_lifecycle": 1.5042,
+    "test_map_provider": 3.5412,
+    "test_notifications": 1.2696,
+    "test_openapi_contract": 5.4019,
+    "test_plan_consequences": 5.2219,
+    "test_public_lifecycle": 1.6288,
+    "test_runtime_adapters": 0.9214,
+    "test_security": 2.4673,
+    "test_venue_consequences": 10.819
+  },
+  "schema_version": 1
+}

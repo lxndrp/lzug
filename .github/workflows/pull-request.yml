@@ -270,7 +270,18 @@ jobs:
       - name: Install locked dependencies
         run: uv sync --locked --extra dev
       - name: Run pull-request backend quality
+        env:
+          LZUG_TEST_TIMINGS_DIR: ${{ runner.temp }}/lzug-backend-test-timings
+          LZUG_TEST_TIMINGS_PR_HEAD: ${{ github.event.pull_request.head.sha }}
         run: task backend:quality:pr
+      - name: Upload backend test timings
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: backend-test-timings
+          path: ${{ runner.temp }}/lzug-backend-test-timings/*.json
+          if-no-files-found: warn
+          retention-days: 7
 
   backend-integration:
     name: Backend admin-socket integration
