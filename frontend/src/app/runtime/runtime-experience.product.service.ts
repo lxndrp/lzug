@@ -10,6 +10,10 @@ export class RuntimeExperienceService {
     return this.unavailable();
   }
 
+  getDemoScenarios(): Observable<never> {
+    return this.unavailable();
+  }
+
   resetDemoScenarios(): Observable<{ status: 'reset'; role: string; expires_at: string }> {
     return this.unavailable();
   }

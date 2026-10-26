@@ -11,6 +11,10 @@ export class RuntimeExperienceService {
     return this.api.startDemoSession(role);
   }
 
+  getDemoScenarios() {
+    return this.api.getDemoScenarios();
+  }
+
   resetDemoScenarios() {
     return this.api.resetDemoScenarios();
   }
