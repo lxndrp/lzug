@@ -1,5 +1,6 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+Import-Module (Join-Path $PSScriptRoot 'runner-contract.psm1') -Force
 
 function Get-NativeOutput {
     param(
@@ -72,13 +73,35 @@ try {
         throw 'Docker is required for task quality:ubuntu.'
     }
 
-    Invoke-Docker -Arguments @('info') -Quiet
-    if (-not (Test-Path -LiteralPath '/var/run/docker.sock')) {
-        throw 'The local Docker socket is unavailable at /var/run/docker.sock.'
+    $dockerSocketPath = '/var/run/docker.sock'
+    if (-not (Test-Path -LiteralPath $dockerSocketPath)) {
+        throw "The local Docker socket is unavailable at $dockerSocketPath."
     }
 
+    if ($env:DOCKER_CONTEXT) {
+        $dockerContext = $env:DOCKER_CONTEXT
+        $dockerEndpoint = Get-NativeOutput -Command docker -Arguments @(
+            'context', 'inspect', $dockerContext, '--format', '{{.Endpoints.docker.Host}}'
+        )
+    }
+    elseif ($env:DOCKER_HOST) {
+        $dockerEndpoint = $env:DOCKER_HOST
+    }
+    else {
+        $dockerContext = Get-NativeOutput -Command docker -Arguments @('context', 'show')
+        $dockerEndpoint = Get-NativeOutput -Command docker -Arguments @(
+            'context', 'inspect', $dockerContext, '--format', '{{.Endpoints.docker.Host}}'
+        )
+    }
+
+    if (-not (Test-LzugLocalDockerEndpoint -Endpoint $dockerEndpoint -SocketPath $dockerSocketPath)) {
+        throw "Docker endpoint '$dockerEndpoint' does not resolve to the local socket $dockerSocketPath. Select the local Docker context; this task bind-mounts that socket into the runner."
+    }
+
+    Invoke-Docker -Arguments @('info') -Quiet
+
     if ($persistentResources) {
-        if ($resourceScope -notmatch '^[a-z0-9-]+$') {
+        if (-not (Test-LzugWorktreeScope -Scope $resourceScope)) {
             throw "Invalid LZUG_DEVELOPMENT_RESOURCE_SCOPE: $resourceScope"
         }
 
@@ -86,19 +109,28 @@ try {
         $resourcePrefix = "$resourceLabel-ubuntu-quality"
     }
     else {
-        $resourceLabel = $null
         $resourcePrefix = "lzug-ubuntu-quality-$mutexHash"
+        $resourceLabel = $resourcePrefix
     }
 
     $staleContainerPrefix = "$resourcePrefix-run"
     $staleContainers = Get-NativeOutput -Command docker -Arguments @(
         'container', 'ls', '--all', '--format', '{{.ID}} {{.Names}}', '--filter', "name=$staleContainerPrefix"
     )
-    $expectedRunnerName = '^' + [regex]::Escape($staleContainerPrefix) + '-[0-9]+$'
     foreach ($staleContainer in ($staleContainers -split '\r?\n')) {
         $containerDetails = $staleContainer.Trim() -split '\s+', 2
-        if ($containerDetails.Count -eq 2 -and $containerDetails[1] -cmatch $expectedRunnerName) {
-            Invoke-Docker -Arguments @('container', 'rm', '--force', $containerDetails[0]) -Quiet
+        if ($containerDetails.Count -eq 2) {
+            $labelJson = Get-NativeOutput -Command docker -Arguments @(
+                'container', 'inspect', '--format', '{{json .Config.Labels}}', $containerDetails[0]
+            )
+            $containerLabels = if ($labelJson -eq 'null') { @{} } else { ConvertFrom-Json -InputObject $labelJson -AsHashtable }
+            if (Test-LzugRunnerContainerOwnership `
+                    -ContainerName $containerDetails[1] `
+                    -ContainerPrefix $staleContainerPrefix `
+                    -ResourceLabel $resourceLabel `
+                    -Labels $containerLabels) {
+                Invoke-Docker -Arguments @('container', 'rm', '--force', $containerDetails[0]) -Quiet
+            }
         }
     }
 
@@ -157,9 +189,7 @@ try {
         '--build-arg', "MISE_VERSION=$miseVersion",
         '--build-arg', "DOCKER_CLI_VERSION=$dockerCliVersion"
     )
-    if ($resourceLabel) {
-        $buildArguments += @('--label', $resourceLabel)
-    }
+    $buildArguments += @('--label', $resourceLabel)
     $buildArguments += @(
         '--tag', $image,
         '--file', 'development/ubuntu-quality/Dockerfile',
@@ -171,9 +201,7 @@ try {
     foreach ($cacheName in $cacheNames) {
         $volumeName = "$resourcePrefix-$cacheName"
         $volumeArguments = @('volume', 'create', '--name', $volumeName)
-        if ($resourceLabel) {
-            $volumeArguments += @('--label', $resourceLabel)
-        }
+        $volumeArguments += @('--label', $resourceLabel)
         Invoke-Docker -Arguments $volumeArguments -Quiet
         $createdVolumes.Add($volumeName) | Out-Null
 
@@ -203,8 +231,8 @@ try {
         '--group-add', $socketGroupId,
         '--security-opt', "seccomp=$worktreeRoot/development/ubuntu-quality/seccomp-profile.json"
     )
-    if ($resourceLabel) {
-        $runArguments += @('--label', $resourceLabel)
+    $runArguments += @('--label', $resourceLabel)
+    if ($persistentResources) {
         $runArguments += @('--env', "LZUG_DEVELOPMENT_RESOURCE_SCOPE=$resourceScope")
     }
     $runArguments += @(
