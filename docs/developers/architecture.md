@@ -165,6 +165,8 @@ rootless Podman auf Linux und `wslc` auf einem Windows-Host, mit Docker als
 Fallback bei fehlendem bevorzugtem Werkzeug.
 Diese lokale Auswahl ist von der Self-Hosting-Referenz getrennt und gilt für
 eine alternative Runtime erst nach dem realen Hostnachweis als qualifiziert.
+Eine installierte, aber nicht qualifizierte Runtime bricht die automatische
+Auswahl ab; Docker kann dafür explizit gewählt werden.
 Eine WSL-Linux-Shell wird nach ihrer Linux-Ausführung ausgewählt und nicht
 automatisch als Windows-Host behandelt.
 TLS-Terminierung, Host-Härtung, Schlüsselverwahrung, Sicherung und

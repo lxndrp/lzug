@@ -48,6 +48,14 @@ Nachweise werden getrennt in #939, #940 und #941 geführt. Eine WSL-Linux-Shell
 wird anhand ihres Linux-Prozesskontexts ausgewählt; eine erreichbare
 `wslc.exe` macht sie nicht zum Windows-Host.
 
+Eine Runtime gilt nur für die versionierte Kombination aus Host-Betriebssystem
+und -Version, Architektur, Runtime und unterstützter Runtime-Version als
+qualifiziert. Die Einträge werden mit der Task-Auswahl im Repository gepflegt
+und müssen auf den realen Hostnachweisen aus #939, #940 oder #941 beruhen.
+Erkannte Versionen oder Plattformen werden nicht auf ungeprüfte Versionen
+oder Hosts übertragen; freigegebene Versionsbereiche sind ausdrücklich zu
+dokumentieren.
+
 `CONTAINER_ENGINE` akzeptiert `auto`, `podman`, `apple`, `wslc` oder `docker`.
 Ohne gesetzten Wert gilt `auto`:
 
@@ -61,10 +69,12 @@ Ohne gesetzten Wert gilt `auto`:
 
 Ein unbekannter Wert bricht vor Ressourcenänderungen mit einer Diagnose ab.
 Die Auswahl erfolgt einmal je Tasklauf. Eine explizit gewählte Runtime, die
-nicht installiert oder nicht erreichbar ist, führt zum Abbruch. In `auto`
-darf Docker nur gewählt werden, wenn die bevorzugte Runtime fehlt. Ein
-unerreichbarer Dienst, Buildfehler oder Containerstartfehler führt nicht zum
-Runtimewechsel.
+nicht installiert, nicht erreichbar oder für die erkannte Host-/Runtimeversion
+nicht qualifiziert ist, führt zum Abbruch. In `auto` darf Docker nur gewählt
+werden, wenn die bevorzugte Runtime fehlt. Ist sie installiert, aber nicht
+qualifiziert, bricht `auto` mit einer Diagnose ab; ein Wechsel
+erfordert dann eine explizite Wahl `CONTAINER_ENGINE=docker`. Ein unerreichbarer
+Dienst, Buildfehler oder Containerstartfehler führt nicht zum Runtimewechsel.
 
 ### Buildartefakte und Prüfvertrag
 

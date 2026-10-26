@@ -20,6 +20,13 @@ class ContainerRuntimeSupportTests(unittest.TestCase):
         self.assertIn("Microsoft `wslc`", normalized)
         self.assertIn("Nachweise werden getrennt in #939, #940 und #941 geführt.", normalized)
         self.assertIn(
+            "Eine Runtime gilt nur für die versionierte Kombination aus Host-Betriebssystem und -Version, Architektur, Runtime und unterstützter Runtime-Version als qualifiziert.",
+            normalized,
+        )
+        self.assertIn(
+            "freigegebene Versionsbereiche sind ausdrücklich zu dokumentieren.", normalized
+        )
+        self.assertIn(
             "`CONTAINER_ENGINE` akzeptiert `auto`, `podman`, `apple`, `wslc` oder `docker`.",
             normalized,
         )
@@ -43,7 +50,11 @@ class ContainerRuntimeSupportTests(unittest.TestCase):
             normalized,
         )
         self.assertIn(
-            "Eine explizit gewählte Runtime, die nicht installiert oder nicht erreichbar ist, führt zum Abbruch.",
+            "Eine explizit gewählte Runtime, die nicht installiert, nicht erreichbar oder für die erkannte Host-/Runtimeversion nicht qualifiziert ist, führt zum Abbruch.",
+            normalized,
+        )
+        self.assertIn(
+            "Ist sie installiert, aber nicht qualifiziert, bricht `auto` mit einer Diagnose ab; ein Wechsel erfordert dann eine explizite Wahl `CONTAINER_ENGINE=docker`.",
             normalized,
         )
         self.assertIn(
