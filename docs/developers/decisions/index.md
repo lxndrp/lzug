@@ -18,7 +18,7 @@ Die vollständige Statuszuordnung folgt in der unveränderten Nummernfolge.
 - **Anwendung, Fachlichkeit und Vertrauensgrenzen:** [Persistenz und Backend](0001-lokale-relationale-persistenz.md), [Frontend und API](0004-angular-rest-integration.md), [Instanz- und Datenverantwortung](0013-dezentrale-instanzen-je-ausschuss.md), [Runtime, Admin und Lifecycle](0033-aio-betrieb-admintransport-und-lifecycle.md) sowie [geschützte Artefakte](0031-age-huelle-in-der-betreiber-cli.md).
 - **Backend-Modulverantwortung und Use-Case-Verträge:** [ADR-0041](0041-backend-modulverantwortung-und-use-case-vertraege.md) und der zugehörige [Backend-Vertrag](../backend-architecture-contract.md).
 - **Frontend-Zustand und Featuregrenzen:** [ADR-0042](0042-frontend-zustandsbesitz-und-feature-lebensdauern.md) und der zugehörige [Frontend-Vertrag](../frontend-architecture-contract.md).
-- **Persistenz, Administration und Betrieb:** [SQLite und SQLAlchemy](0001-lokale-relationale-persistenz.md), [Self-Hosting](0014-oci-einzelcontainer-und-persistentes-data.md), [Betriebszielbilder](0015-fluechtige-azure-demo.md), [Lifecycle](0033-aio-betrieb-admintransport-und-lifecycle.md) und [Versionen/Digests](0034-versionsbindung-und-unveraenderliche-referenzen.md).
+- **Persistenz, Administration und Betrieb:** [SQLite und SQLAlchemy](0001-lokale-relationale-persistenz.md), [Self-Hosting](0014-oci-einzelcontainer-und-persistentes-data.md), [Betriebszielbilder](0015-fluechtige-azure-demo.md), [Lifecycle](0033-aio-betrieb-admintransport-und-lifecycle.md), [lokale OCI-Runtimes](0043-lokale-oci-runtimes-und-plattformqualifikation.md) und [Versionen/Digests](0034-versionsbindung-und-unveraenderliche-referenzen.md).
 - **Release, Artefakte und Demo:** [SemVer, Milestones und Project](0018-semver-release-und-milestones.md), [geltender Releaseablauf](0020-minimaler-releaseablauf-mit-github-bordmitteln.md), [Demo-Assembly und Seed](0022-tag-gebundene-demo-assembly-und-seed.md), [Snapshot-Promotion](0024-manuell-promotete-demo-snapshots.md) und [stabile Demo-Promotion](0026-automatische-demo-promotion-stabiler-releases.md).
 - **Entwicklungstoolchain und Qualität:** [Werkzeugwahl](0003-toolchain-mise-uv-npm.md), [öffentliche Taskgrenze](0009-toolchain-und-entwicklungs-tasks.md), [CLI-Paketierung](0021-goreleaser-fuer-die-betreiber-cli.md), [Pester-Vertrag](0037-powershell-pester-testharness.md), [Syft-SBOMs](0038-syft-standardaufrufe-fuer-sbom-erzeugung.md),
   [Snapshot-SBOMs mit Buildx](0040-buildx-sbom-produkt-snapshots.md) und
@@ -69,7 +69,7 @@ sichern Verständlichkeit und Auffindbarkeit.
 | [0030](0030-x25519-aes-gcm-fuer-geschuetzte-artefakte.md) | X25519 und AES-GCM für geschützte Artefakte | Abgelöst durch ADR-0031 |
 | [0031](0031-age-huelle-in-der-betreiber-cli.md) | age-Hülle in der Betreiber-CLI | Akzeptiert |
 | [0032](0032-repository-zentrierte-oeffentliche-dokumentation.md) | Repository-zentrierte öffentliche Dokumentation | Vollständig abgelöst durch ADR-0035 |
-| [0033](0033-aio-betrieb-admintransport-und-lifecycle.md) | AIO-Betrieb, Admintransport und Lifecycle gemeinsam begrenzen | Akzeptiert |
+| [0033](0033-aio-betrieb-admintransport-und-lifecycle.md) | AIO-Betrieb, Admintransport und Lifecycle gemeinsam begrenzen | Akzeptiert; lokale Runtimeaussagen durch ADR-0043 ergänzt und teilweise abgelöst |
 | [0034](0034-versionsbindung-und-unveraenderliche-referenzen.md) | Versionsbindung und unveränderliche Referenzen an Risikogrenzen | Akzeptiert |
 | [0035](0035-getrennte-publikations-und-versionsarchitektur.md) | Getrennte Publikations- und Versionsarchitektur | Akzeptiert |
 | [0036](0036-powershell-adapter-fuer-werkzeuggrenzen.md) | PowerShell-Adapter für portable Werkzeuggrenzen | Akzeptiert |
@@ -79,3 +79,4 @@ sichern Verständlichkeit und Auffindbarkeit.
 | [0040](0040-buildx-sbom-produkt-snapshots.md) | Buildx-SBOM für Produkt-Snapshots | Akzeptiert in PR #805; rückwirkend dokumentiert; ergänzt ADR-0038 um den früheren Produkt-Snapshot-Pfad |
 | [0041](0041-backend-modulverantwortung-und-use-case-vertraege.md) | Backend-Modulverantwortung und Use-Case-Verträge | Akzeptiert |
 | [0042](0042-frontend-zustandsbesitz-und-feature-lebensdauern.md) | Frontend-Zustandsbesitz und Feature-Lebensdauern | Akzeptiert |
+| [0043](0043-lokale-oci-runtimes-und-plattformqualifikation.md) | Lokale OCI-Runtimeauswahl und Plattformqualifikation | Akzeptiert; ergänzt ADR-0033 für lokale Entwicklung und Prüfungen |

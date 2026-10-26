@@ -134,123 +134,18 @@ Sie ist kein Self-Hosting-Muster und teilt keine produktive Persistenz mit
 `lzug-app`.
 
 Das OCI-Image ist die portable Liefergrenze.
-Docker Engine auf Linux bleibt die qualifizierte Referenz für zentrale CI,
-Release und Self-Hosting.
-Diese Betriebsreferenz ist unabhängig von den lokalen Build- und
-Prüfplattformen und erweitert sich nicht automatisch mit ihnen.
-
-Die historische Aussage in ADR-0014, dass weitere Runtimes nicht zum
-unterstützten oder geprüften Umfang gehören, bleibt für die ausgelieferte
-Betriebsreferenz, zentrale CI und Release gültig.
-Hinsichtlich lokaler Entwicklungs- und Prüfplattformen wird sie durch diese
-ADR gezielt abgelöst:
-Die folgenden Plattformziele dürfen nach realer Qualifikation lokal
-genutzt werden, ohne den Produktivsupport oder die Self-Hosting-Referenz zu
-ändern.
-
-Für lokale Entwicklung ist die Zielreihenfolge plattformbezogen:
-
-| Ausführungskontext | Bevorzugte lokale Runtime | Fallback |
-| --- | --- | --- |
-| macOS mit Apple Silicon | Apple `container` | Docker |
-| Linux | rootless Podman | Docker |
-| Windows-Host | Microsoft `wslc` | Docker |
-| WSL-Linux-Shell | Linux-Hostauswahl: Podman, sofern installiert | Docker |
-
-Diese Tabelle legt die Zielauswahl fest, behauptet aber keine bereits
-abgeschlossene Plattformqualifikation.
-Apple `container`, Podman und `wslc` gehören erst dann zum nutzbaren lokalen
-Build-/Prüfumfang, wenn die jeweiligen Hostnachweise aus #939, #940 und #941
-vorliegen.
-Ein Linux-Prozess in WSL wird nicht allein wegen einer erreichbaren
-`wslc.exe` als Windows-Host behandelt; Windows- und WSL-Pfade, Dateirechte und
-Benutzerzuordnung sind getrennte Ausführungskontexte.
-
-`CONTAINER_ENGINE` steuert die Runtimeauswahl und akzeptiert `auto`, `podman`,
-`apple`, `wslc` oder `docker`; ohne gesetzten Wert gilt `auto`.
-Die Werte `podman`, `apple`, `wslc` und `docker` wählen genau die Runtime aus
-der folgenden Zuordnung:
-
-| Wert | Ausgewählte Runtime |
-| --- | --- |
-| `auto` | Plattformpräferenz aus der obigen Ausführungskontext-Tabelle |
-| `podman` | Podman |
-| `apple` | Apple `container` |
-| `wslc` | Microsoft `wslc` |
-| `docker` | Docker |
-
-Ein unbekannter Wert bricht vor einer Ressourcenänderung mit Diagnose ab.
-Die Auswahl erfolgt nur einmal pro Tasklauf.
-Ist eine explizit gewählte Runtime nicht installiert oder nicht verfügbar,
-wird mit Diagnose abgebrochen.
-In `auto` darf Docker nur verwendet werden, wenn die bevorzugte Runtime des
-Ausführungskontexts nicht installiert ist.
-Eine installierte, aber nicht erreichbare Runtime, ein Buildfehler oder ein
-Fehler beim Starten eines Containers löst keinen Wechsel zu Docker aus.
-So bleiben Infrastruktur- und Produktfehler sichtbar.
-
-Die gemeinsamen lokalen Builds verwenden unveränderte Dockerfiles und den
-nativen `linux/<arch>`-Zielpfad des Hosts.
-Build-Identität und vollständige Git-Revision bleiben über die vorhandenen
-Build-Argumente und OCI-Labels gebunden.
-Jeder Buildkandidat wird einmal erzeugt. SBOM und zugehöriger Laufzeit- oder
-Integrationsnachweis beziehen sich auf genau dieses Artefakt:
-
-| Image | SBOM-Nachweis | Laufzeit- und Integrationsnachweis |
-| --- | --- | --- |
-| `lzug-app` | Aus dem Archiv des gebauten Images | Gemeinsamer App-Runtimevertrag mit genau diesem Image |
-| `lzug-demo-app` | Aus dem Archiv des gebauten Images | Demo-Runtimevertrag mit genau diesem Image und dem zugehörigen Seed |
-| `lzug-demo-seed` | Aus dem Archiv des gebauten Images | SQLite-Datei und Manifest aus genau diesem Image extrahieren und Identität, Produktrevision, Runtimevertrag sowie Schemafingerabdruck prüfen; den Seed nicht als eigenständigen Server starten |
-
-Der Laufzeit- beziehungsweise Integrationsnachweis verwendet dasselbe
-gebaute Image; ein impliziter Zugriff auf einen Docker-Imagespeicher oder ein
-zweiter Build ist kein zulässiger Übergabevertrag.
-Der extrahierte Seed wird für den Demo-Runtime-Nachweis mit dem zugehörigen
-`lzug-demo-app`-Image verwendet.
-Die plattformbezogene Extraktionsmethode weist der Runtime-Pilot nach, statt
-`docker create`/`docker cp` als universellen Vertrag vorauszusetzen.
-Für eine SBOM wird das tatsächlich gebaute Image explizit als Image-Archiv
-exportiert und aus diesem Archiv mit der versionierten Syft-Konfiguration
-gescannt.
-
-Die gemeinsamen Laufzeitnachweise umfassen Image- und Buildidentität,
-Readiness, Daten-Roundtrip und Persistenz bei Restart/Stop-Start, UID/GID,
-read-only Root-Dateisystem, Admin-Socket-Eigentum und -Modus sowie die
-ausgelieferte CLI.
-Ein fehlender oder abweichender Plattformmechanismus darf diese Prüfungen
-nicht abschwächen.
-Die Matrix beschreibt die gemeinsamen Artefakt- und Nachweisverträge.
-Docker Compose, seine Konfigurationsprüfung sowie Docker-basierte
-Veröffentlichungs- und CI-Schritte bleiben ausdrücklich Docker-spezifische
-Referenzprüfungen und ersetzen keinen plattformneutralen Runtime-Nachweis.
-
-Temporäre Ressourcen eines Worktree-Tests werden nach dem Scope benannt:
-`lzug-codex-<scope>-<rolle>`.
-Container, Images, Volumes und Netzwerke erhalten zusätzlich genau das
-Worktree-Label `lzug-codex-<scope>` ohne separates Label-Value-Schema.
-Der Scope kommt aus `LZUG_DEVELOPMENT_RESOURCE_SCOPE`; Task konsumiert ihn,
-ohne Codex als Voraussetzung zu machen.
-Ein Scope enthält mindestens ein kleingeschriebenes ASCII-Zeichen oder eine
-Ziffer; weitere Zeichen dürfen kleingeschriebene ASCII-Buchstaben, Ziffern
-oder einzelne Bindestriche zwischen nichtleeren Teilen sein.
-Ressourcen, die einen Tasklauf überleben oder durch einen späteren Cleanup
-entfernt werden, dürfen nur mit einem gesetzten und validierten Scope angelegt
-werden; fehlt er oder ist er ungültig, bricht die Anlage beziehungsweise das
-Cleanup vor Änderungen ab.
-Temporäre Test- und Cache-Volumes dürfen das Worktree-Label tragen.
-Persistente Anwendungsdatenvolumes bleiben unlabeled und werden beim
-Worktree-Cleanup ausdrücklich nicht entfernt.
-Jede Runtime-Qualifikation muss belegen, dass dieses Label für die erstellten
-Ressourcentypen gesetzt, abgefragt und für gezieltes Cleanup verwendet werden
-kann.
-Cleanup entfernt ausschließlich Ressourcen mit dem exakten Label und dem
-erwarteten Namenspräfix; kein globales `prune` oder Entfernen fremder Volumes
-ist zulässig.
+Docker Engine auf Linux ist die qualifizierte Referenz für Build, Release, CI
+und Self-Hosting.
+Andere OCI-Laufzeiten können das Image ausführen, gehören daraus aber nicht
+automatisch zum unterstützten oder geprüften Umfang.
+Weitere konkrete Runtimes werden nicht unterstützt oder geprüft.
 
 Compose bleibt ein optionaler, knapper Docker-Referenzweg für genau den einen
 `lzug-app`-Service mit persistentem `/data`.
 Es ist weder eine zweite Produktbeschreibung noch eine plattformneutrale
 Orchestrierungsabstraktion.
+Apple `container` und Microsoft `wslc` sind keine aktuellen Referenzen,
+Supportversprechen oder Release-Gates.
 
 ## Konsequenzen
 
@@ -267,11 +162,9 @@ Orchestrierungsabstraktion.
   einer Datenmigration getrennt.
 - `lzug-app` und `lzug-demo` haben eindeutige, unterschiedliche
   Lieferverantwortungen.
-- Die lokale Runtimeauswahl verändert weder die Docker-Referenz für zentrale
-  CI, Release und Self-Hosting noch die fachlichen, Persistenz- und
-  Sicherheitsverträge der Images.
-- Eine lokale Runtime wird erst nach einem realen Build-, Laufzeit- und
-  Cleanup-Nachweis als qualifiziert dokumentiert.
+- Docker-spezifische Referenzprüfung schränkt die OCI-Portabilität des
+  Produktimages nicht ein, begründet aber auch kein Supportversprechen für
+  weitere Laufzeiten.
 - ADR-0014 behält den Einzelcontainer- und `/data`-Vertrag bei; ADR-0017 behält
   die Entscheidung gegen Kubernetes und Helm als Pflichtpfad bei.
 
@@ -299,3 +192,5 @@ Orchestrierungsabstraktion.
 - [ADR-0014: OCI-Einzelcontainer mit SQLite und persistentem `/data`](0014-oci-einzelcontainer-und-persistentes-data.md)
 - [ADR-0017: Erstveröffentlichung ohne Kubernetes und Helm](0017-erstveroeffentlichung-ohne-kubernetes.md)
 - [ADR-0031: age-Hülle in der Betreiber-CLI](0031-age-huelle-in-der-betreiber-cli.md)
+- Lokale OCI-Runtimeauswahl und Plattformqualifikation sind durch
+  [ADR-0043](0043-lokale-oci-runtimes-und-plattformqualifikation.md) geregelt.

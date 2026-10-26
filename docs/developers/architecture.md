@@ -158,7 +158,9 @@ Die unterstützte Referenz ist eine einzelne Self-Hosting-Instanz mit
 `lzug-app`, Docker auf Linux und persistenter `/data`-Grenze.
 Compose ist ein optionaler knapper Docker-Referenzweg für genau diesen einen
 Service.
-Die lokale Entwicklungszielauswahl ist Apple `container` auf Apple Silicon,
+Die lokale Entwicklungszielauswahl gemäß
+[ADR-0043](decisions/0043-lokale-oci-runtimes-und-plattformqualifikation.md)
+ist Apple `container` auf Apple Silicon,
 rootless Podman auf Linux und `wslc` auf einem Windows-Host, mit Docker als
 Fallback bei fehlendem bevorzugtem Werkzeug.
 Diese lokale Auswahl ist von der Self-Hosting-Referenz getrennt und gilt für

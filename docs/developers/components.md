@@ -1269,7 +1269,8 @@ flüchtig.
 
 Docker Engine auf Linux ist die qualifizierte Referenz für Build, Release, CI
 und Self-Hosting.
-Für lokale Builds und Laufzeitprüfungen sind Apple `container` auf Apple
+Gemäß [ADR-0043](decisions/0043-lokale-oci-runtimes-und-plattformqualifikation.md)
+sind für lokale Builds und Laufzeitprüfungen Apple `container` auf Apple
 Silicon, rootless Podman auf Linux und `wslc` auf einem Windows-Host die
 bevorzugten Kandidaten; Docker ist der Fallback, wenn die jeweilige Runtime
 fehlt.
