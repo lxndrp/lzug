@@ -460,6 +460,65 @@ describe('ExamDayComponent', () => {
     expect(element.textContent).not.toContain('Anwesenheit speichern');
   });
 
+  it('allows regular closure after switching back from empty exception details', () => {
+    const open = dayView();
+    open.day.closure.permissions.close = true;
+    open.day.closure.evaluation.regularCloseReady = true;
+    vi.mocked(examDay.getConfirmedPlanDay).mockReturnValueOnce(of(open));
+    vi.mocked(examDay.closeExamDay).mockReturnValueOnce(
+      of({
+        ...open.day.closure,
+        revision: 2,
+        status: 'closed',
+        permissions: { close: false, reopen: false, export: true },
+      }),
+    );
+    authorizeClosure('exam-day-closure:close');
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    const closureType = element.querySelector<HTMLSelectElement>(
+      '.app-exam-day-closure-form select',
+    )!;
+    closureType.value = 'exception';
+    closureType.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+
+    const exceptionFields = element.querySelectorAll<HTMLTextAreaElement>(
+      '.app-exam-day-closure-form textarea',
+    );
+    const [reason, attempts] = exceptionFields;
+    expect(reason?.getAttribute('aria-required')).toBe('true');
+    expect(attempts?.getAttribute('aria-required')).toBe('true');
+    expect(reason?.hasAttribute('required')).toBe(false);
+    expect(attempts?.hasAttribute('required')).toBe(false);
+    expect(
+      (fixture.componentInstance as unknown as { closureForm: { invalid: boolean } }).closureForm
+        .invalid,
+    ).toBe(true);
+
+    closureType.value = 'regular';
+    closureType.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+
+    expect(
+      (fixture.componentInstance as unknown as { closureForm: { valid: boolean } }).closureForm
+        .valid,
+    ).toBe(true);
+    Array.from(element.querySelectorAll<HTMLButtonElement>('button'))
+      .find((item) => item.textContent?.includes('Voraussetzungen bestätigen'))
+      ?.click();
+    fixture.detectChanges();
+
+    expect(examDay.closeExamDay).toHaveBeenCalledWith({
+      dayId: 7,
+      revision: 1,
+      closureType: 'regular',
+      reason: '',
+      clarificationAttempts: '',
+    });
+  });
+
   it('previews and performs a targeted reopening using feature-owned scopes', () => {
     TestBed.inject(AuthService).session.set({
       authenticated: true,
