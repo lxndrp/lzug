@@ -77,6 +77,29 @@ try {
         throw 'The local Docker socket is unavailable at /var/run/docker.sock.'
     }
 
+    if ($persistentResources) {
+        if ($resourceScope -notmatch '^[a-z0-9-]+$') {
+            throw "Invalid LZUG_DEVELOPMENT_RESOURCE_SCOPE: $resourceScope"
+        }
+
+        $resourceLabel = "lzug-codex-$resourceScope"
+        $resourcePrefix = "$resourceLabel-ubuntu-quality"
+    }
+    else {
+        $resourceLabel = $null
+        $resourcePrefix = "lzug-ubuntu-quality-$mutexHash"
+    }
+
+    $staleContainerPrefix = "$resourcePrefix-run"
+    $staleContainers = Get-NativeOutput -Command docker -Arguments @(
+        'container', 'ls', '--all', '--quiet', '--filter', "name=$staleContainerPrefix"
+    )
+    foreach ($staleContainer in ($staleContainers -split '\s+')) {
+        if (-not [string]::IsNullOrWhiteSpace($staleContainer)) {
+            Invoke-Docker -Arguments @('container', 'rm', '--force', $staleContainer) -Quiet
+        }
+    }
+
     $gitCommonDirectory = Get-NativeOutput -Command git -Arguments @(
         'rev-parse', '--path-format=absolute', '--git-common-dir'
     )
@@ -98,19 +121,6 @@ try {
         throw "Cannot parse Docker CLI version from '$dockerOutput'."
     }
     $dockerCliVersion = $Matches.Version
-
-    if ($persistentResources) {
-        if ($resourceScope -notmatch '^[a-z0-9-]+$') {
-            throw "Invalid LZUG_DEVELOPMENT_RESOURCE_SCOPE: $resourceScope"
-        }
-
-        $resourceLabel = "lzug-codex-$resourceScope"
-        $resourcePrefix = "$resourceLabel-ubuntu-quality"
-    }
-    else {
-        $resourceLabel = $null
-        $resourcePrefix = "lzug-ubuntu-quality-$PID"
-    }
 
     $fingerprintInput = @(
         (Get-Content -Raw Taskfile.yml)

@@ -60,7 +60,8 @@ mise exec -- task quality:ubuntu
 Der Root-Task bleibt der öffentliche Einstieg; der nahe am Runner abgelegte
 PowerShell-Adapter verwaltet Docker-Ressourcen und ruft die bestehende Task-
 Quality im Container auf. Gleichzeitige Läufe desselben Worktrees warten
-aufeinander; der Cleanup entfernt nur den Container des jeweiligen Laufs.
+aufeinander; nach einem abgebrochenen Lauf entfernt der nächste Start nur
+verwaiste Runner-Container dieses Worktrees.
 Der Pilot verwendet native Linux-Architektur, dieselbe projektweite Task-Quality
 und die Playwright-Version aus `frontend/package-lock.json`.
 Der Worktree wird im Runner unter demselben absoluten Pfad eingebunden, damit
