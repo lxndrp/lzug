@@ -44,12 +44,22 @@ Push-Location $repositoryRoot
 
 $containerName = $null
 $image = $null
+$builderName = $null
+$buildxConfigPath = $null
 $mutex = $null
 $mutexAcquired = $false
 $createdVolumes = [System.Collections.Generic.List[string]]::new()
+$cleanupErrors = [System.Collections.Generic.List[string]]::new()
+$qualityImages = $null
 $resourceScope = $env:LZUG_DEVELOPMENT_RESOURCE_SCOPE
 $persistentResources = -not [string]::IsNullOrWhiteSpace($resourceScope)
 $imageBuilt = $false
+$taskError = $null
+$previousDockerHost = $env:DOCKER_HOST
+$previousDockerContext = $env:DOCKER_CONTEXT
+$previousBuildxConfig = $env:BUILDX_CONFIG
+$dockerEnvironmentChanged = $false
+$builderCleanupSucceeded = $true
 
 try {
     $worktreeRoot = Get-NativeOutput -Command git -Arguments @('rev-parse', '--show-toplevel')
@@ -57,11 +67,11 @@ try {
     $mutexHash = [Convert]::ToHexString(
         [Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($mutexIdentity))
     ).ToLowerInvariant().Substring(0, 24)
-    $mutex = [Threading.Mutex]::new($false, "lzug-ubuntu-quality-$mutexHash")
+    $mutex = [Threading.Mutex]::new($false, 'lzug-ubuntu-quality-local-docker')
     try {
         $mutexAcquired = $mutex.WaitOne(0)
         if (-not $mutexAcquired) {
-            Write-Host 'Another Ubuntu quality run is active for this worktree; waiting for it to finish.'
+            Write-Host 'Another Ubuntu quality run is active against the shared Docker engine; waiting for it to finish.'
             $mutexAcquired = $mutex.WaitOne()
         }
     }
@@ -97,14 +107,21 @@ try {
     if (-not (Test-LzugLocalDockerEndpoint -Endpoint $dockerEndpoint -SocketPath $dockerSocketPath)) {
         throw "Docker endpoint '$dockerEndpoint' does not resolve to the local socket $dockerSocketPath. Select the local Docker context; this task bind-mounts that socket into the runner."
     }
+    if ($persistentResources -and -not (Test-LzugWorktreeScope -Scope $resourceScope)) {
+        throw "Invalid LZUG_DEVELOPMENT_RESOURCE_SCOPE: $resourceScope"
+    }
 
+    $buildxConfigPath = Join-Path $worktreeRoot '.codex/ubuntu-quality/buildx'
+    New-Item -ItemType Directory -Force -Path $buildxConfigPath | Out-Null
+    $dockerEnvironmentChanged = $true
+    $env:BUILDX_CONFIG = $buildxConfigPath
+    $env:DOCKER_HOST = 'unix:///var/run/docker.sock'
+    Remove-Item Env:DOCKER_CONTEXT -ErrorAction SilentlyContinue
+
+    Invoke-Docker -Arguments @('buildx', 'version') -Quiet
     Invoke-Docker -Arguments @('info') -Quiet
 
     if ($persistentResources) {
-        if (-not (Test-LzugWorktreeScope -Scope $resourceScope)) {
-            throw "Invalid LZUG_DEVELOPMENT_RESOURCE_SCOPE: $resourceScope"
-        }
-
         $resourceLabel = "lzug-codex-$resourceScope"
         $resourcePrefix = "$resourceLabel-ubuntu-quality"
     }
@@ -112,6 +129,8 @@ try {
         $resourcePrefix = "lzug-ubuntu-quality-$mutexHash"
         $resourceLabel = $resourcePrefix
     }
+    $builderName = "$resourcePrefix-buildx"
+    $qualityImages = Get-LzugQualityImageReferences -ResourcePrefix $resourcePrefix
 
     $staleContainerPrefix = "$resourcePrefix-run"
     $staleContainers = Get-NativeOutput -Command docker -Arguments @(
@@ -182,9 +201,31 @@ try {
         'frontend-node-modules'
     )
 
+    $builderNames = Get-NativeOutput -Command docker -Arguments @('buildx', 'ls', '--format', '{{.Name}}')
+    $builderExists = $false
+    foreach ($existingBuilder in ($builderNames -split '\r?\n')) {
+        if (Test-LzugBuilderOwnership -BuilderName $existingBuilder.Trim() -ExpectedBuilderName $builderName) {
+            $builderExists = $true
+            break
+        }
+    }
+
+    if ($builderExists -and -not $persistentResources) {
+        Invoke-Docker -Arguments @('buildx', 'rm', '--force', $builderName) -Quiet
+        $builderExists = $false
+    }
+
+    if (-not $builderExists) {
+        Invoke-Docker -Arguments @(
+            'buildx', 'create', '--name', $builderName, '--driver', 'docker-container', '--use', 'unix:///var/run/docker.sock'
+        ) -Quiet
+    }
+
     $buildArguments = @(
-        'build',
+        'buildx', 'build',
+        '--builder', $builderName,
         '--pull',
+        '--load',
         '--build-arg', "PLAYWRIGHT_VERSION=$playwrightVersion",
         '--build-arg', "MISE_VERSION=$miseVersion",
         '--build-arg', "DOCKER_CLI_VERSION=$dockerCliVersion"
@@ -197,6 +238,12 @@ try {
     )
     Invoke-Docker -Arguments $buildArguments
     $imageBuilt = $true
+
+    $buildxConfigGroupId = Get-NativeOutput -Command id -Arguments @('-g')
+    if ($buildxConfigGroupId -notmatch '^\d+$') {
+        throw "Cannot parse host group ID '$buildxConfigGroupId' for the worktree Buildx config."
+    }
+    Get-NativeOutput -Command chmod -Arguments @('-R', 'g+rwX', (Join-Path $buildxConfigPath 'buildx')) | Out-Null
 
     foreach ($cacheName in $cacheNames) {
         $volumeName = "$resourcePrefix-$cacheName"
@@ -229,6 +276,7 @@ try {
         'run', '--rm', '--name', $containerName,
         '--init', '--shm-size=1g', '--user', '1001:1001',
         '--group-add', $socketGroupId,
+        '--group-add', $buildxConfigGroupId,
         '--security-opt', "seccomp=$worktreeRoot/development/ubuntu-quality/seccomp-profile.json"
     )
     $runArguments += @('--label', $resourceLabel)
@@ -251,7 +299,15 @@ try {
         '--env', 'CI=true',
         '--env', 'DOCKER_BUILDKIT=1',
         '--env', 'DOCKER_HOST=unix:///var/run/docker.sock',
+        '--env', "BUILDX_CONFIG=$buildxConfigPath",
+        '--env', "BUILDX_BUILDER=$builderName",
+        '--env', "LZUG_QUALITY_BUILDX_BUILDER=$builderName",
         '--env', 'GIT_OPTIONAL_LOCKS=0',
+        '--env', "LZUG_QUALITY_APP_IMAGE=$($qualityImages.App)",
+        '--env', "LZUG_QUALITY_CONTRACT_IMAGE=$($qualityImages.Contract)",
+        '--env', "LZUG_QUALITY_DEMO_APP_IMAGE=$($qualityImages.DemoApp)",
+        '--env', "LZUG_QUALITY_DEMO_SEED_IMAGE=$($qualityImages.DemoSeed)",
+        '--env', "LZUG_QUALITY_RESOURCE_LABEL=$resourceLabel",
         $image,
         '/bin/sh', '-eu', '-c', @'
 git config --global --add safe.directory "$PWD"
@@ -264,13 +320,24 @@ mise exec -- task --concurrency=4 quality
     )
     Invoke-Docker -Arguments $runArguments
 }
+catch {
+    $taskError = $_
+}
 finally {
     if ($containerName) {
         try {
-            Invoke-Docker -Arguments @('rm', '-f', $containerName) -Quiet
+            $containerRows = Get-NativeOutput -Command docker -Arguments @(
+                'container', 'ls', '--all', '--format', '{{.ID}} {{.Names}}'
+            )
+            foreach ($containerRow in ($containerRows -split '\r?\n')) {
+                $containerDetails = $containerRow.Trim() -split '\s+', 2
+                if ($containerDetails.Count -eq 2 -and $containerDetails[1] -ceq $containerName) {
+                    Invoke-Docker -Arguments @('container', 'rm', '--force', $containerDetails[0]) -Quiet
+                }
+            }
         }
         catch {
-            # The container may already have been removed by --rm.
+            $cleanupErrors.Add("runner container cleanup failed: $($_.Exception.Message)") | Out-Null
         }
     }
 
@@ -280,7 +347,7 @@ finally {
                 Invoke-Docker -Arguments @('volume', 'rm', $volumeName) -Quiet
             }
             catch {
-                # Preserve the original task failure if Docker cannot remove a cache.
+                $cleanupErrors.Add("volume '$volumeName' cleanup failed: $($_.Exception.Message)") | Out-Null
             }
         }
 
@@ -289,17 +356,96 @@ finally {
                 Invoke-Docker -Arguments @('image', 'rm', $image) -Quiet
             }
             catch {
-                # Preserve the original task failure if Docker cannot remove the runner image.
+                $cleanupErrors.Add("runner image '$image' cleanup failed: $($_.Exception.Message)") | Out-Null
+            }
+        }
+
+        if ($qualityImages) {
+            try {
+                $existingImages = Get-NativeOutput -Command docker -Arguments @(
+                    'image', 'ls', '--format', '{{.Repository}}:{{.Tag}}'
+                )
+                foreach ($qualityImage in $qualityImages.Values) {
+                    if (($existingImages -split '\r?\n') -ccontains $qualityImage) {
+                        Invoke-Docker -Arguments @('image', 'rm', $qualityImage) -Quiet
+                    }
+                }
+            }
+            catch {
+                $cleanupErrors.Add("quality image cleanup failed: $($_.Exception.Message)") | Out-Null
+            }
+        }
+
+        if ($builderName) {
+            try {
+                $existingBuilders = Get-NativeOutput -Command docker -Arguments @(
+                    'buildx', 'ls', '--format', '{{.Name}}'
+                )
+                foreach ($existingBuilder in ($existingBuilders -split '\r?\n')) {
+                    if (Test-LzugBuilderOwnership -BuilderName $existingBuilder.Trim() -ExpectedBuilderName $builderName) {
+                        Invoke-Docker -Arguments @('buildx', 'rm', '--force', $builderName) -Quiet
+                        break
+                    }
+                }
+            }
+            catch {
+                $builderCleanupSucceeded = $false
+                $cleanupErrors.Add("Buildx builder '$builderName' cleanup failed: $($_.Exception.Message)") | Out-Null
+            }
+        }
+
+        if ($buildxConfigPath -and $builderCleanupSucceeded -and
+            (Test-Path -LiteralPath $buildxConfigPath -PathType Container)) {
+            try {
+                Remove-Item -LiteralPath $buildxConfigPath -Recurse -Force
+            }
+            catch {
+                $cleanupErrors.Add("Buildx config '$buildxConfigPath' cleanup failed: $($_.Exception.Message)") | Out-Null
             }
         }
     }
 
     if ($mutex -and $mutexAcquired) {
-        $mutex.ReleaseMutex()
+        try {
+            $mutex.ReleaseMutex()
+        }
+        catch {
+            $cleanupErrors.Add("runner lock release failed: $($_.Exception.Message)") | Out-Null
+        }
     }
     if ($mutex) {
-        $mutex.Dispose()
+        try {
+            $mutex.Dispose()
+        }
+        catch {
+            $cleanupErrors.Add("runner lock disposal failed: $($_.Exception.Message)") | Out-Null
+        }
     }
 
-    Pop-Location
+    if ($dockerEnvironmentChanged) {
+        if ($null -eq $previousDockerHost) {
+            Remove-Item Env:DOCKER_HOST -ErrorAction SilentlyContinue
+        } else {
+            $env:DOCKER_HOST = $previousDockerHost
+        }
+        if ($null -eq $previousDockerContext) {
+            Remove-Item Env:DOCKER_CONTEXT -ErrorAction SilentlyContinue
+        } else {
+            $env:DOCKER_CONTEXT = $previousDockerContext
+        }
+        if ($null -eq $previousBuildxConfig) {
+            Remove-Item Env:BUILDX_CONFIG -ErrorAction SilentlyContinue
+        } else {
+            $env:BUILDX_CONFIG = $previousBuildxConfig
+        }
+    }
+
+    try {
+        Pop-Location
+    }
+    catch {
+        $cleanupErrors.Add("working directory restore failed: $($_.Exception.Message)") | Out-Null
+    }
 }
+
+Complete-LzugRunnerOutcome -TaskError $taskError -CleanupErrors $cleanupErrors.ToArray()

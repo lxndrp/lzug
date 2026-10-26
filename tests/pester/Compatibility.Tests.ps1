@@ -6,7 +6,12 @@ Describe 'v0.6.0 restore and explicit forward migration' {
     BeforeAll {
         # A release-form local fixture is necessary: dev builds correctly refuse upgrades.
         # This does not create a Git tag or publish a release.
-        $fixture = New-LzugFixture "$TestDrive/legacy" -Image 'lzug-app:0.0.0-rc.0-contract'
+        $contractImage = if ($env:LZUG_CONTRACT_IMAGE) {
+            $env:LZUG_CONTRACT_IMAGE
+        } else {
+            'lzug-app:0.0.0-rc.0-contract'
+        }
+        $fixture = New-LzugFixture "$TestDrive/legacy" -Image $contractImage
         $legacy = 'ghcr.io/lxndrp/lzug@sha256:00e467d8acd6602ba8b4259b3f2a4e51ec98273e0be551f367e5979d5c780fe6'
         $legacyContainer = "$($fixture.Name)-legacy"
         Initialize-LzugFixture $fixture -Legacy

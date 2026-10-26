@@ -8,6 +8,20 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$env:LZUG_IMAGE = if ($env:LZUG_IMAGE) {
+    $env:LZUG_IMAGE
+} elseif ($env:LZUG_QUALITY_APP_IMAGE) {
+    $env:LZUG_QUALITY_APP_IMAGE
+} else {
+    'lzug-app:0.0.0-dev.local'
+}
+$env:LZUG_CONTRACT_IMAGE = if ($env:LZUG_CONTRACT_IMAGE) {
+    $env:LZUG_CONTRACT_IMAGE
+} elseif ($env:LZUG_QUALITY_CONTRACT_IMAGE) {
+    $env:LZUG_QUALITY_CONTRACT_IMAGE
+} else {
+    'lzug-app:0.0.0-rc.0-contract'
+}
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $requirements = Join-Path $root 'tests/pester/requirements.psd1'
 $moduleRoot = Join-Path $root '.tools/powershell'

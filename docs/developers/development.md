@@ -59,30 +59,44 @@ mise exec -- task quality:ubuntu
 
 Der Root-Task bleibt der öffentliche Einstieg; der nahe am Runner abgelegte
 PowerShell-Adapter verwaltet Docker-Ressourcen und ruft die bestehende Task-
-Quality im Container auf. Gleichzeitige Läufe desselben Worktrees warten
-aufeinander; nach einem abgebrochenen Lauf entfernt der nächste Start nur
-verwaiste Runner-Container dieses Worktrees.
+Quality im Container auf. Läufe warten aufeinander, weil sie dieselbe lokale
+Docker Engine verwenden. Produkt- und Demo-Quality-Images tragen pro Worktree
+eigene Referenzen und können dadurch nicht gegenseitig überschrieben werden.
+Der nächste Start entfernt einen liegengebliebenen Runner-Container desselben
+Worktrees; verwaltete Worktree-Caches bleiben bis zum Environment-Cleanup erhalten.
 Der Pilot verwendet native Linux-Architektur, dieselbe projektweite Task-Quality
 und die Playwright-Version aus `frontend/package-lock.json`.
 Der Worktree wird im Runner unter demselben absoluten Pfad eingebunden, damit
 Compose- und Pester-Tests ihre Quellen über den Docker-Host erreichen.
 Die Linux-`.venv`, `node_modules` und Paket-/Build-Caches liegen in getrennten
-Docker-Volumes; macOS-Abhängigkeiten werden nicht wiederverwendet.
+Docker-Volumes; macOS-Abhängigkeiten werden nicht wiederverwendet. Der
+Buildx-Builder und sein BuildKit-Cache sind ebenfalls pro Worktree isoliert.
+Verwaltete Codex-Worktrees behalten diesen Cache bis zum Environment-Cleanup;
+außerhalb davon werden Builder und Quality-Images nach dem Lauf entfernt.
 Browser laufen als `pwuser` mit aktivierter Chromium-Sandbox.
 Das gepinnte Playwright-Seccomp-Profil erlaubt dafür User-Namespaces und behält
 die übrigen Docker-Standardbeschränkungen bei; der Runner erhält 1 GiB Shared
 Memory für Chromium.
 Der Docker-Socket wird für die bestehenden Runtime-Prüfungen eingebunden; es
-gibt kein Docker-in-Docker.
+gibt kein Docker-in-Docker. Der Socket gewährt Zugriff auf den Host-Docker-
+Daemon und ist keine Sicherheitsgrenze; den Runner deshalb nur mit
+vertrauenswürdigem Quellcode verwenden.
 Task begrenzt die parallelen Teilaufgaben auf vier, um den lokalen
 Containerressourcenbedarf zu begrenzen; der vorhandene Quality-Task bleibt die
 einzige Prüfdefinition.
-In einem verwalteten Codex-Worktree tragen Runnerimage und Volumes das Label
-`lzug-codex-<Worktree-ID>` und werden vom Environment-Cleanup bereinigt.
+In einem verwalteten Codex-Worktree tragen Runnerimage, Quality-Images und
+Volumes das Label `lzug-codex-<Worktree-ID>` und werden vom Environment-Cleanup
+bereinigt. Buildx bietet keine eigenen Labels für Builder; der Cleanup entfernt
+daher ausschließlich den exakt namensgebundenen Builder
+`lzug-codex-<Worktree-ID>-ubuntu-quality-buildx`. Seine getrennten
+Instanzdaten liegen unter `.codex/ubuntu-quality/buildx`.
 Außerhalb eines verwalteten Worktrees räumt der Task seine flüchtigen Ressourcen
-nach dem Lauf auf.
-Der Pilot belegt Linux-ARM64 auf Apple Silicon und ist kein Ersatz für CI auf
-Linux-AMD64 oder deren finale Abnahme.
+nach dem Lauf auf. Fehler beim Cleanup schlagen einen ansonsten erfolgreichen
+Runnerlauf fehl; bei einem bereits fehlgeschlagenen Quality-Lauf bleibt dessen
+Fehler primär und zusätzliche Cleanupfehler werden ausgegeben.
+Auf Apple Silicon verwendet Docker dafür Linux-ARM64; der vollständige lokale
+Quality-Lauf muss diese Plattform noch qualifizieren. Er ersetzt nicht die
+CI-Abnahme auf Linux-AMD64.
 GitHub Actions führt dieselben Task-Verträge in domänenspezifischen Jobs auf
 `ubuntu-24.04` aus; der PR-Workflow nutzt dafür teils engere `:pr`-Einstiege.
 Die Quality-Pipeline baut und überträgt das Produktimage nur für die Container-

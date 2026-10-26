@@ -52,4 +52,42 @@ function Test-LzugRunnerContainerOwnership {
     return ($ContainerName -cmatch $expectedName) -and $Labels.Contains($ResourceLabel)
 }
 
-Export-ModuleMember -Function Test-LzugWorktreeScope, Test-LzugLocalDockerEndpoint, Test-LzugRunnerContainerOwnership
+function Get-LzugQualityImageReferences {
+    param([Parameter(Mandatory)][string]$ResourcePrefix)
+
+    return @{
+        App = "$ResourcePrefix-product:0.0.0-dev.local"
+        Contract = "$ResourcePrefix-product:0.0.0-rc.0-contract"
+        DemoApp = "$ResourcePrefix-demo-app:local"
+        DemoSeed = "$ResourcePrefix-demo-seed:local"
+    }
+}
+
+function Test-LzugBuilderOwnership {
+    param(
+        [Parameter(Mandatory)][string]$BuilderName,
+        [Parameter(Mandatory)][string]$ExpectedBuilderName
+    )
+
+    return [string]::Equals($BuilderName, $ExpectedBuilderName, [StringComparison]::Ordinal)
+}
+
+function Complete-LzugRunnerOutcome {
+    param(
+        [AllowNull()][System.Management.Automation.ErrorRecord]$TaskError,
+        [string[]]$CleanupErrors = @()
+    )
+
+    if ($TaskError) {
+        foreach ($cleanupError in $CleanupErrors) {
+            [Console]::Error.WriteLine("Ubuntu quality cleanup also failed: $cleanupError")
+        }
+        throw $TaskError
+    }
+
+    if ($CleanupErrors.Count -gt 0) {
+        throw "Ubuntu quality cleanup failed: $($CleanupErrors -join '; ')"
+    }
+}
+
+Export-ModuleMember -Function Test-LzugWorktreeScope, Test-LzugLocalDockerEndpoint, Test-LzugRunnerContainerOwnership, Get-LzugQualityImageReferences, Test-LzugBuilderOwnership, Complete-LzugRunnerOutcome

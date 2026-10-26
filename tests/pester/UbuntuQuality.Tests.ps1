@@ -42,4 +42,48 @@ Describe 'Ubuntu quality runner resource contracts' {
             'lzug-codex-other' `
             $labels | Should -BeFalse
     }
+
+    It 'scopes quality images to the runner resource prefix' {
+        $images = Get-LzugQualityImageReferences -ResourcePrefix 'lzug-codex-a8d8-ubuntu-quality'
+
+        $images.App | Should -Be 'lzug-codex-a8d8-ubuntu-quality-product:0.0.0-dev.local'
+        $images.Contract | Should -Be 'lzug-codex-a8d8-ubuntu-quality-product:0.0.0-rc.0-contract'
+        $images.DemoApp | Should -Be 'lzug-codex-a8d8-ubuntu-quality-demo-app:local'
+        $images.DemoSeed | Should -Be 'lzug-codex-a8d8-ubuntu-quality-demo-seed:local'
+    }
+
+    It 'matches only the exact generated Buildx builder name' {
+        Test-LzugBuilderOwnership `
+            'lzug-codex-a8d8-ubuntu-quality-buildx' `
+            'lzug-codex-a8d8-ubuntu-quality-buildx' | Should -BeTrue
+        Test-LzugBuilderOwnership `
+            'lzug-codex-a8d8-ubuntu-quality-buildx-other' `
+            'lzug-codex-a8d8-ubuntu-quality-buildx' | Should -BeFalse
+        Test-LzugBuilderOwnership `
+            'lzug-codex-other-ubuntu-quality-buildx' `
+            'lzug-codex-a8d8-ubuntu-quality-buildx' | Should -BeFalse
+    }
+
+    It 'reports cleanup failure after an otherwise successful quality run' {
+        {
+            Complete-LzugRunnerOutcome -TaskError $null -CleanupErrors @('Buildx builder cleanup failed')
+        } | Should -Throw '*Ubuntu quality cleanup failed*'
+    }
+
+    It 'preserves the task failure when cleanup also fails' {
+        try {
+            throw 'quality task failed'
+        } catch {
+            $taskError = $_
+        }
+
+        $failureMessage = $null
+        try {
+            Complete-LzugRunnerOutcome -TaskError $taskError -CleanupErrors @('volume cleanup failed')
+        } catch {
+            $failureMessage = $_.Exception.Message
+        }
+
+        $failureMessage | Should -Be 'quality task failed'
+    }
 }
