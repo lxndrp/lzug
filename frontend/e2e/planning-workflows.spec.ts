@@ -16,9 +16,10 @@ test.describe('planning workflows', () => {
   }) => {
     test.setTimeout(120_000);
     await page.goto('/scheduling-overview/1');
-    await expect(page.getByText('Daten synchronisiert', { exact: true })).toBeVisible({
+    await expect(page.getByText('Bereit', { exact: true })).toBeVisible({
       timeout: 30_000,
     });
+    await expect(page.getByText('Winter 2026/27', { exact: true })).toBeVisible();
 
     await expect(
       page.getByRole('navigation', { name: 'Schritte der Terminorganisation' }),
@@ -60,7 +61,8 @@ test.describe('planning workflows', () => {
     await page.getByText('Entstandene Revisionen (1)').click();
     await expect(page.getByText(/^Revision \d+ → \d+$/).last()).toBeVisible();
 
-    await page.goto('/scheduling-overview/1');
+    await page.goto('/scheduling-overview');
+    await page.getByRole('button', { name: 'Prüfungsplan anzeigen' }).click();
     await expect(page).toHaveURL('/confirmed-plans/1');
     await expect(page.getByRole('heading', { name: 'Prüfungspläne' })).toBeVisible();
   });
