@@ -6,8 +6,8 @@ import { Subject, of, throwError } from 'rxjs';
 import { ApplicationError } from '../application/application-error';
 import { AuthService } from '../auth/auth.service';
 import type { AuthSession } from '../auth/auth.service';
-import { RuntimeExperienceService } from '../runtime/runtime-experience.service';
-import { ConfirmedPlansWorkflowService } from './confirmed-plans-workflow.service';
+import { DEMO_SCENARIOS_PORT } from '../demo-scenarios/demo-scenarios.port';
+import { CONFIRMED_PLANS_PORT } from './confirmed-plans.port';
 import { ConfirmedPlanEditorComponent } from './confirmed-plan-editor.component';
 import type {
   ConfirmedPlan,
@@ -25,11 +25,11 @@ describe('ConfirmedPlanEditorComponent', () => {
   }>;
   let saves: Array<Subject<EditableConfirmedPlan>>;
   let workflow: {
-    getEditableConfirmedPlan: ReturnType<typeof vi.fn>;
-    saveEditableConfirmedPlan: ReturnType<typeof vi.fn>;
-    getConfirmedPlanRevisions: ReturnType<typeof vi.fn>;
+    getEditable: ReturnType<typeof vi.fn>;
+    saveEditable: ReturnType<typeof vi.fn>;
+    listRevisions: ReturnType<typeof vi.fn>;
   };
-  let runtime: { getDemoScenarios: ReturnType<typeof vi.fn> };
+  let demoScenarios: { getOverview: ReturnType<typeof vi.fn> };
   let nextSaveError: Error | null;
 
   beforeEach(async () => {
@@ -37,12 +37,12 @@ describe('ConfirmedPlanEditorComponent', () => {
     saves = [];
     nextSaveError = null;
     workflow = {
-      getEditableConfirmedPlan: vi.fn((roundId: number) => {
+      getEditable: vi.fn((roundId: number) => {
         const subject = new Subject<EditableConfirmedPlan>();
         loads.push({ roundId, subject, settled: false });
         return subject;
       }),
-      saveEditableConfirmedPlan: vi.fn(() => {
+      saveEditable: vi.fn(() => {
         if (nextSaveError) {
           const error = nextSaveError;
           nextSaveError = null;
@@ -52,9 +52,9 @@ describe('ConfirmedPlanEditorComponent', () => {
         saves.push(subject);
         return subject;
       }),
-      getConfirmedPlanRevisions: vi.fn(() => of([] as ConfirmedPlanRevision[])),
+      listRevisions: vi.fn(() => of([] as ConfirmedPlanRevision[])),
     };
-    runtime = { getDemoScenarios: vi.fn(() => of({ prepared_plan_change: null })) };
+    demoScenarios = { getOverview: vi.fn(() => of({ preparedPlanChange: null })) };
 
     await TestBed.configureTestingModule({
       imports: [ConfirmedPlanEditorComponent],
@@ -64,8 +64,8 @@ describe('ConfirmedPlanEditorComponent', () => {
           provide: AuthService,
           useValue: { session: signal<AuthSession | null>(null) },
         },
-        { provide: ConfirmedPlansWorkflowService, useValue: workflow },
-        { provide: RuntimeExperienceService, useValue: runtime },
+        { provide: CONFIRMED_PLANS_PORT, useValue: workflow },
+        { provide: DEMO_SCENARIOS_PORT, useValue: demoScenarios },
       ],
     }).compileComponents();
     fixture = TestBed.createComponent(ConfirmedPlanEditorComponent);
@@ -88,13 +88,13 @@ describe('ConfirmedPlanEditorComponent', () => {
     fixture.detectChanges();
 
     button(element, 'Änderung mit Grund speichern').click();
-    expect(workflow.saveEditableConfirmedPlan).toHaveBeenCalledTimes(1);
-    const [roundId, saved, changeReason] = workflow.saveEditableConfirmedPlan.mock.calls[0];
+    expect(workflow.saveEditable).toHaveBeenCalledTimes(1);
+    const [roundId, saved, changeReason] = workflow.saveEditable.mock.calls[0];
     expect(roundId).toBe(1);
     expect(changeReason).toBe('Reihenfolge nach Rücksprache korrigiert');
     expect(saved.days[0].slots.map((slot: { id: number | null }) => slot.id)).toEqual([2, 1]);
 
-    workflow.getConfirmedPlanRevisions.mockReturnValueOnce(
+    workflow.listRevisions.mockReturnValueOnce(
       of([
         {
           id: 1,
@@ -233,15 +233,15 @@ describe('ConfirmedPlanEditorComponent', () => {
       demo_role: 'chair',
       capabilities: ['confirmed-plan:revise'],
     });
-    runtime.getDemoScenarios.mockReturnValueOnce(
+    demoScenarios.getOverview.mockReturnValueOnce(
       of({
-        prepared_plan_change: {
-          round_id: 1,
-          day_id: 1,
-          source_location_id: 1,
-          target_location_id: 2,
-          assignment_id: 1,
-          replacement_member_id: 2,
+        preparedPlanChange: {
+          roundId: 1,
+          dayId: 1,
+          sourceLocationId: 1,
+          targetLocationId: 2,
+          assignmentId: 1,
+          replacementMemberId: 2,
           reason: 'Synthetischer Ortswechsel mit gleichseitiger Ersatzbesetzung',
         },
       }),
@@ -264,7 +264,7 @@ describe('ConfirmedPlanEditorComponent', () => {
     button(element, 'Änderung vorbereiten').click();
     fixture.detectChanges();
     button(element, 'Änderung mit Grund speichern').click();
-    const [roundId, saved, reason] = workflow.saveEditableConfirmedPlan.mock.calls[0];
+    const [roundId, saved, reason] = workflow.saveEditable.mock.calls[0];
     expect(roundId).toBe(1);
     expect(reason).toBe('Synthetischer Ortswechsel mit gleichseitiger Ersatzbesetzung');
     expect(saved.days[0].roomId).toBe(2);

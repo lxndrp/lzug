@@ -628,7 +628,7 @@ lzug-admin export verify --artifact export.lzug --identity-file backup.agekey
 
 ### `lzug-admin notification process`
 
-Process due notification deliveries and re-drive confirmed-plan and versioned venue consequences without returning message content.
+Process due notification deliveries and re-drive confirmed-plan, versioned venue, and durable absence consequences without returning message content.
 
 Ausführung: versionierter Backendauftrag.
 
@@ -679,7 +679,7 @@ Zeitlimit: `10m0s`; nach einem Timeout muss der Auftragsstatus vor einer Wiederh
 
 Geführter Modus: zeigt vor der Ausführung Ziel, Wirkung und alle nicht geheimen Parameter.
 
-Ausgabe: Successful human output is silent; JSON includes technical counters only.
+Ausgabe: Successful human output is silent; JSON includes technical plan-revision counters.
 `--verbose` ergänzt geheimnisfreien Fortschritt und die Ergebniszusammenfassung auf `stderr`; `--json` verwendet den deklarierten `projected`-Ergebnisvertrag auf `stdout`.
 
 ```console

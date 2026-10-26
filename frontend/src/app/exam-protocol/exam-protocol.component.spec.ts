@@ -142,6 +142,50 @@ describe('ExamProtocolComponent', () => {
     expect(changes).toEqual([{ roundId: 1, dayId: 7, revision: 5 }]);
   });
 
+  it('clears correction and reservation drafts when the slot changes', () => {
+    fixture.detectChanges();
+    fixture.detectChanges();
+    const component = fixture.componentInstance as unknown as {
+      correctionReason: string;
+      reopeningReference: string;
+      reservationText: string;
+    };
+    component.correctionReason = 'alter Prüfungstag';
+    component.reopeningReference = 'alte Referenz';
+    component.reservationText = 'alter Vorbehalt';
+
+    fixture.componentRef.setInput('slotId', 12);
+    fixture.detectChanges();
+
+    expect(component.correctionReason).toBe('');
+    expect(component.reopeningReference).toBe('');
+    expect(component.reservationText).toBe('');
+    expect(port.get).toHaveBeenLastCalledWith(7, 12);
+  });
+
+  it('clears protected protocol data when the authenticated session changes', () => {
+    fixture.detectChanges();
+    fixture.detectChanges();
+    const component = fixture.componentInstance as unknown as {
+      protocol: { (): ExamProtocol | null };
+      reservationText: string;
+    };
+    component.reservationText = 'geschützte Eingabe';
+
+    const scope = TestBed.inject(SessionScopeService);
+    scope.establish({
+      authenticated: true,
+      account_id: 2,
+      person_id: 3,
+      committee_member_id: 1,
+      is_operator: false,
+    });
+    scope.clear();
+
+    expect(component.protocol()).toBeNull();
+    expect(component.reservationText).toBe('');
+  });
+
   it('keeps a pending command fenced to the same action context during a day refresh', () => {
     const pending = new Subject<ExamProtocol>();
     vi.mocked(port.update).mockReturnValueOnce(pending.asObservable());
@@ -258,6 +302,27 @@ describe('ExamProtocolComponent', () => {
     expect(component.entries[0]?.statement).toBe('Manuell ergänzte Unterbrechung');
     expect(component.reservationText).toBe('Manueller Vorbehalt');
     expect(component.state()).toBe('ready');
+  });
+
+  it('models the previous protocol explicitly while a same-context refresh is pending or fails', () => {
+    const pending = new Subject<ExamProtocol>();
+    vi.mocked(port.get).mockReturnValueOnce(of(protocolFixture())).mockReturnValueOnce(pending);
+    fixture.detectChanges();
+    fixture.detectChanges();
+    const component = fixture.componentInstance as unknown as {
+      state: () => string;
+      protocol: () => ExamProtocol | null;
+    };
+    const previous = component.protocol();
+
+    fixture.componentRef.setInput('dayRevision', 5);
+    fixture.detectChanges();
+    expect(component.state()).toBe('loading');
+    expect(component.protocol()).toBe(previous);
+
+    pending.error(new ApplicationError('unavailable', 'Reload fehlgeschlagen.'));
+    expect(component.state()).toBe('error');
+    expect(component.protocol()).toBe(previous);
   });
 
   it('offers participant confirmation only for the active version', () => {

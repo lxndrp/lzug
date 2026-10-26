@@ -1,10 +1,12 @@
 import { InjectionToken } from '@angular/core';
 import { Observable } from 'rxjs';
 
+import type { FileDownload } from '../application/file-download';
 import type {
   DetermineComponent,
   DetermineExamResult,
   ExamResult,
+  ExamResultExportFormat,
   RecordExternalResult,
   SaveIndividualAssessment,
   SetResultRetention,
@@ -13,6 +15,7 @@ import type {
 /** Reads and workflow commands required by the exam assessment/result feature. */
 export interface ExamResultPort {
   get(dayId: number, slotId: number): Observable<ExamResult>;
+  export(resultId: number, format: ExamResultExportFormat): Observable<FileDownload>;
   saveIndividualAssessment(command: SaveIndividualAssessment): Observable<ExamResult>;
   withdrawIndividualAssessment(
     resultId: number,

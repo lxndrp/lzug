@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 
-import type { DemoRole, DemoScenarioOverview } from './api.models';
+import type { DemoRole } from '../auth/auth.models';
+import type { DemoScenarioOverviewResponse } from './generated/types.gen';
 import { ApiClient } from './api-client.service';
 
 /** HTTP adapter for optional demonstration scenarios. */
@@ -13,7 +14,7 @@ export class RuntimeExperienceApiService {
   }
 
   getDemoScenarios() {
-    return this.client.get<DemoScenarioOverview>('/api/demo/scenarios');
+    return this.client.get<DemoScenarioOverviewResponse>('/api/demo/scenarios');
   }
 
   resetDemoScenarios() {

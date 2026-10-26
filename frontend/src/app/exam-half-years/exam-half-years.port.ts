@@ -3,6 +3,7 @@ import { Observable } from 'rxjs';
 
 import type {
   CreateExamRound,
+  ExamHalfYearsReferences,
   ExamHalfYear,
   ExamRound,
   LifecycleExport,
@@ -14,6 +15,7 @@ import type {
 
 /** Examination-context operations required by the half-year feature. */
 export interface ExamHalfYearsPort {
+  loadViewReferences(roundId: number): Observable<ExamHalfYearsReferences>;
   listHalfYears(): Observable<ExamHalfYear[]>;
   listRounds(): Observable<ExamRound[]>;
   createRound(payload: CreateExamRound): Observable<ExamRound>;

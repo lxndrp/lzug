@@ -63,8 +63,15 @@ erDiagram
   Neue Einplanungen referenzieren immer einen konkreten aktiven Raum.
 - **Ausfall und Folgen:** Ein Ausfall bezieht sich auf eine bestätigte
   Besetzung und ändert den Plan nicht voreilig.
-  Benachrichtigungs- und Kalenderfolgen werden nach einem erfolgreichen
-  Fach-Commit getrennt, wiederholbar und best effort verarbeitet.
+  Audit, Zuweisungsrevision und unveränderliche Folgequelle werden gemeinsam
+  committet. Die Quelle friert Empfänger, Notice, das Vorherbild aktiver
+  Kalendergenerationen und den Tages-Guard ein. Bereits stornierte
+  Generationen bleiben in der Calendar-Projektion, statt in jeder Quelle
+  erneut kopiert zu werden. Application leitet daraus bei jedem Lauf fehlende
+  Benachrichtigungs- und Kalenderaufträge ab und verarbeitet sie mit stabiler
+  Origin, Claim und Retry. Das Upgrade speichert ein Audit-Cutover-Wasserzeichen;
+  ältere Audits ohne Quelle werden gezählt, aber nicht rekonstruiert oder
+  zugestellt.
 - **Prüfungsprotokoll:** Ein tatsächlich gestarteter Slot erhält genau ein
   gemeinsames Protokoll mit unveränderlichen Inhaltsversionen und Reaktionen
   der tatsächlich Beteiligten.
@@ -174,7 +181,7 @@ diagnostizierbar.
 Die gemeinsame Zustands- und Sperrgrenze beschreibt
 [Komponenten](components.md#backend).
 
-Die Migrationen bis `028_add_exam_venue_change_notifications.sql` bilden den aktuellen
+Die Migrationen bis `029_add_absence_consequence_sources.sql` bilden den aktuellen
 Stand von Authentifizierung und Sitzungen, Planrevisionen, Benachrichtigungen,
 Kalendern, Ausfall und Ersatz, Prüfungsprotokollen, Ergebnissen,
 Tagesabschlüssen, Ausschuss-Bootstrap, Planfolgen, Rundenlebenszyklus sowie
@@ -196,6 +203,11 @@ technische Operator-Akteure und die Ereignisse für beantragte, genehmigte oder
 abgelehnte Hochstufungen.
 `028_add_exam_venue_change_notifications.sql` ergänzt den Ereignistyp für
 persistierte Benachrichtigungen nach wirksamen Prüfungsortänderungen.
+`029_add_absence_consequence_sources.sql` versieht Besetzungen mit Revisionen
+und speichert unveränderliche Ausfall-Folgequellen samt Cutover-Wasserzeichen.
+Historische Ausfall-Audits vor diesem Wasserzeichen werden nicht nachträglich
+als Replay-Quellen ausgegeben; die Migration weist sie als nicht replaybar aus.
+Calendar-Folgen werden anhand ihrer gespeicherten Origin-Version gefenced.
 Unbekannte oder nicht unterstützte Schemastände verhindern Start, Restore oder
 Lifecycle-Mutation an der jeweiligen kontrollierenden Grenze.
 
@@ -241,6 +253,9 @@ Die Modelle `LifecycleResponse` und `RuntimeUnavailableResponse` sowie die
 erzeugte OpenAPI-Beschreibung besitzen die Zustands- und Fehlercodes.
 `public_lifecycle` projiziert ausschließlich erlaubte Zustände aus dem
 Runtime-Snapshot; Diagnosefelder werden nie übernommen.
+Das Frontend leitet seine geschlossene Lifecycle-Wertemenge aus einer Quelle
+ab und behandelt unbekannte oder widersprüchliche Antworten als nicht
+verfügbar.
 Außerhalb von ready weist die HTTP-Zulassung fachliche Requests vor
 Authentisierung und Persistenz einheitlich mit 503 ab.
 Origin- und Body-Headerprüfungen bleiben vorgeschaltet; ein schon abgewiesener

@@ -3,16 +3,13 @@ import { TuiButton, TuiNotification } from '@taiga-ui/core';
 import { TuiBadge } from '@taiga-ui/kit';
 import { TuiHeader } from '@taiga-ui/layout';
 
-import {
-  AvailabilityValue,
-  ExamDayAssignment,
-  ExamRound,
-  ExamSlot,
-  PlanningBoard,
-  PlanningDayView,
-  PlanningResult,
-  RoundSummary,
-} from '../api/api.models';
+import type {
+  DashboardBoard,
+  DashboardDayView,
+  DashboardPlanningResult,
+  DashboardProjection,
+  DashboardSummary,
+} from './dashboard-projection.port';
 import { AppView } from '../app-view';
 import { appIcons } from '../app-icons';
 import { AppIconDirective } from '../app-icon.directive';
@@ -48,10 +45,10 @@ export class DashboardComponent {
     confirmedPlans: 'confirmed-plans',
   };
 
-  @Input() summary: RoundSummary | null = null;
-  @Input() round: ExamRound | null = null;
-  @Input() board: PlanningBoard | null = null;
-  @Input() planningResult: PlanningResult | null = null;
+  @Input() summary: DashboardSummary | null = null;
+  @Input() round: DashboardProjection['round'] | null = null;
+  @Input() board: DashboardBoard | null = null;
+  @Input() planningResult: DashboardPlanningResult | null = null;
   @Input() loading = false;
   @Input() error = false;
   @Input() locationRefreshError = false;
@@ -207,14 +204,14 @@ export class DashboardComponent {
     this.navigate('confirmedPlans');
   }
 
-  protected confirmedDays(): PlanningDayView[] {
+  protected confirmedDays(): DashboardDayView[] {
     const isConfirmedRound = this.summary?.round.status === 'plan_confirmed';
     return (this.board?.days ?? []).filter(
       (item) => isConfirmedRound || item.day.status === 'confirmed',
     );
   }
 
-  protected availabilityLabel(value: AvailabilityValue): string {
+  protected availabilityLabel(value: string): string {
     const labels: Record<string, string> = {
       full_day: 'Ganztägig',
       morning: 'Vormittag',
@@ -251,7 +248,7 @@ export class DashboardComponent {
     return match?.[1] ?? value;
   }
 
-  protected slotTitle(slot: ExamSlot): string {
+  protected slotTitle(slot: DashboardDayView['slots'][number]): string {
     return `${this.timeLabel(slot.starts_at)}-${this.timeLabel(slot.ends_at)} · ${this.candidateName(
       slot.round_candidate_id,
     )}`;
@@ -285,24 +282,24 @@ export class DashboardComponent {
     return labels[side ?? ''] ?? side ?? '';
   }
 
-  protected assignmentsFor(day: PlanningDayView, part: 'morning' | 'afternoon') {
+  protected assignmentsFor(day: DashboardDayView, part: 'morning' | 'afternoon') {
     return day.assignments
       .filter((assignment) => assignment.day_part === part)
       .sort((a, b) => a.assignment_role.localeCompare(b.assignment_role));
   }
 
-  protected assignmentColor(assignment: ExamDayAssignment): string {
+  protected assignmentColor(assignment: DashboardDayView['assignments'][number]): string {
     return assignment.assignment_role === 'fallback' ? 'warning' : 'info';
   }
 
-  protected assignmentRoleLabel(assignment: ExamDayAssignment): string {
+  protected assignmentRoleLabel(assignment: DashboardDayView['assignments'][number]): string {
     if (assignment.assignment_role === 'fallback') {
       return 'Fallback';
     }
     return 'Prüfer';
   }
 
-  protected availabilityColor(value: AvailabilityValue): string {
+  protected availabilityColor(value: string): string {
     const colors: Record<string, string> = {
       full_day: 'success',
       morning: 'info',

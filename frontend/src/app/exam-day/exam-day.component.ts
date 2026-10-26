@@ -1,10 +1,33 @@
-import { Component, Input, OnChanges, SimpleChanges, effect, inject } from '@angular/core';
-import { FormsModule } from '@angular/forms';
+import {
+  Component,
+  DestroyRef,
+  Input,
+  OnChanges,
+  SimpleChanges,
+  effect,
+  inject,
+  signal,
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import {
+  AbstractControl,
+  FormControl,
+  FormGroup,
+  FormsModule,
+  ReactiveFormsModule,
+  ValidationErrors,
+  ValidatorFn,
+} from '@angular/forms';
 import { Router } from '@angular/router';
 import { TuiButton } from '@taiga-ui/core';
 import { TuiBadge } from '@taiga-ui/kit';
 
 import {
+  isAttendanceStatus,
+  isExecutionStatusSummaryState,
+  reopeningScopeFromToken,
+} from './exam-day.models';
+import type {
   Attendance,
   AttendanceStatus,
   ConfirmedPlanDay,
@@ -12,17 +35,65 @@ import {
   ExecutionStatus,
   ExecutionStatusSummary,
   ExamDayReopeningScope,
-  ExamDayReopeningScopeKind,
 } from './exam-day.models';
 import { ExamDayFacade } from './exam-day.facade';
+import { ApplicationError } from '../application/application-error';
+import { downloadFile } from '../application/file-download';
 import { AuthService } from '../auth/auth.service';
 import { ExamProtocolComponent } from '../exam-protocol/exam-protocol.component';
 import { ExamResultComponent } from '../exam-result/exam-result.component';
 
+type ClosureFormValue = {
+  closureType: 'regular' | 'exception';
+  reason: string;
+  clarificationAttempts: string;
+};
+
+type ReopeningFormValue = {
+  token: string;
+  occasion: string;
+  source: string;
+  reason: string;
+};
+
+const requiredWhenException: ValidatorFn = (control: AbstractControl): ValidationErrors | null => {
+  const value = control.value as Partial<ClosureFormValue>;
+  return value.closureType === 'exception' &&
+    (typeof value.reason !== 'string' ||
+      !value.reason.trim() ||
+      typeof value.clarificationAttempts !== 'string' ||
+      !value.clarificationAttempts.trim())
+    ? { requiredClosureDetails: true }
+    : null;
+};
+
+const requiredReopeningDetails: ValidatorFn = (
+  control: AbstractControl,
+): ValidationErrors | null => {
+  const value = control.value as Partial<ReopeningFormValue>;
+  return typeof value.token !== 'string' ||
+    !value.token.trim() ||
+    typeof value.occasion !== 'string' ||
+    !value.occasion.trim() ||
+    typeof value.source !== 'string' ||
+    !value.source.trim() ||
+    typeof value.reason !== 'string' ||
+    !value.reason.trim()
+    ? { requiredReopeningDetails: true }
+    : null;
+};
+
 @Component({
   selector: 'app-exam-day',
   providers: [ExamDayFacade],
-  imports: [ExamProtocolComponent, ExamResultComponent, FormsModule, TuiBadge, TuiButton],
+  imports: [
+    ExamProtocolComponent,
+    ExamResultComponent,
+    FormsModule,
+    ReactiveFormsModule,
+    TuiBadge,
+    TuiButton,
+  ],
   templateUrl: './exam-day.component.html',
   styleUrl: './exam-day.component.css',
 })
@@ -30,6 +101,7 @@ export class ExamDayComponent implements OnChanges {
   private readonly examDay = inject(ExamDayFacade);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly destroyRef = inject(DestroyRef);
 
   @Input() roundId: number | null = null;
   @Input() dayId: number | null = null;
@@ -44,16 +116,31 @@ export class ExamDayComponent implements OnChanges {
   protected readonly actionError = this.examDay.actionError;
   protected readonly embeddedActionError = this.examDay.embeddedActionError;
   protected readonly savingKeys = this.examDay.savingKeys;
+  protected readonly exportBusy = signal(false);
   protected readonly drafts = new Map<string, AttendanceDraft>();
   protected readonly executionDrafts = new Map<number, ExecutionStatusDraft>();
   protected readonly reopeningImpact = this.examDay.reopeningImpact;
-  protected closureType: 'regular' | 'exception' = 'regular';
-  protected closureReason = '';
-  protected clarificationAttempts = '';
-  protected reopeningToken = '';
-  protected reopeningOccasion = '';
-  protected reopeningSource = '';
-  protected reopeningReason = '';
+  protected readonly closureForm = new FormGroup(
+    {
+      closureType: new FormControl<ClosureFormValue['closureType']>('regular', {
+        nonNullable: true,
+      }),
+      reason: new FormControl('', { nonNullable: true }),
+      clarificationAttempts: new FormControl('', { nonNullable: true }),
+    },
+    { validators: requiredWhenException },
+  );
+  private exportSequence = 0;
+  private exportContextGeneration: number | null = null;
+  protected readonly reopeningForm = new FormGroup(
+    {
+      token: new FormControl('', { nonNullable: true }),
+      occasion: new FormControl('', { nonNullable: true }),
+      source: new FormControl('', { nonNullable: true }),
+      reason: new FormControl('', { nonNullable: true }),
+    },
+    { validators: requiredReopeningDetails },
+  );
   private draftContext: string | null = null;
   private lastDraftView: ConfirmedPlanDayView | null = null;
   private draftContextGeneration: number | null = null;
@@ -69,6 +156,11 @@ export class ExamDayComponent implements OnChanges {
     effect(() => {
       const contextGeneration = this.examDay.contextGeneration();
       const view = this.view();
+      if (this.exportContextGeneration !== contextGeneration) {
+        this.exportContextGeneration = contextGeneration;
+        this.exportSequence += 1;
+        this.exportBusy.set(false);
+      }
       if (this.draftContextGeneration !== contextGeneration) {
         this.drafts.clear();
         this.executionDrafts.clear();
@@ -96,6 +188,57 @@ export class ExamDayComponent implements OnChanges {
 
   protected load(): void {
     this.examDay.load();
+  }
+
+  protected downloadClosureExport(format: 'machine-readable' | 'human-readable'): void {
+    const current = this.view();
+    if (
+      !current ||
+      this.exportBusy() ||
+      this.examDay.hasSavingAction() ||
+      !current.day.closure.permissions.export ||
+      !this.auth.hasCapability('exam-day-closure:export') ||
+      (format === 'machine-readable' && !current.day.closure.exportAvailability.machine) ||
+      (format === 'human-readable' && !current.day.closure.exportAvailability.human)
+    ) {
+      return;
+    }
+
+    const exportSequence = ++this.exportSequence;
+    const contextGeneration = this.examDay.contextGeneration();
+    const dayId = current.day.id;
+    this.exportBusy.set(true);
+    this.examDay
+      .exportClosure(dayId, format)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (file) => {
+          if (
+            exportSequence !== this.exportSequence ||
+            contextGeneration !== this.examDay.contextGeneration() ||
+            this.view()?.day.id !== dayId
+          ) {
+            return;
+          }
+          downloadFile(file);
+          this.examDay.load();
+        },
+        error: (error: ApplicationError) => {
+          if (
+            exportSequence !== this.exportSequence ||
+            contextGeneration !== this.examDay.contextGeneration()
+          ) {
+            return;
+          }
+          this.examDay.showActionError(
+            error.message || 'Der Tagesabschlussnachweis konnte nicht geladen werden.',
+          );
+          this.exportBusy.set(false);
+        },
+        complete: () => {
+          if (exportSequence === this.exportSequence) this.exportBusy.set(false);
+        },
+      });
   }
 
   protected attendanceDraft(key: string, attendance: Attendance | undefined): AttendanceDraft {
@@ -126,6 +269,12 @@ export class ExamDayComponent implements OnChanges {
     if (!this.canCoordinateAttendance || !this.canMutateDayData('candidate_attendance', slotId)) {
       return;
     }
+    if (!isAttendanceStatus(draft.status)) {
+      this.examDay.showValidationError(
+        'Der unbekannte Anwesenheitsstatus kann nicht gespeichert werden.',
+      );
+      return;
+    }
     const dayId = this.view()?.day.id;
     if (dayId === undefined) return;
     this.examDay.saveCandidateAttendance({
@@ -144,6 +293,12 @@ export class ExamDayComponent implements OnChanges {
       !this.canEditMemberAttendance(assignment) ||
       !this.canMutateDayData('member_attendance', assignmentId)
     ) {
+      return;
+    }
+    if (!isAttendanceStatus(draft.status)) {
+      this.examDay.showValidationError(
+        'Der unbekannte Anwesenheitsstatus kann nicht gespeichert werden.',
+      );
       return;
     }
     const dayId = this.view()?.day.id;
@@ -251,10 +406,9 @@ export class ExamDayComponent implements OnChanges {
   protected closeDay(): void {
     const day = this.view()?.day;
     if (!day || !day.closure.permissions.close || !this.can('exam-day-closure:close')) return;
-    if (
-      this.closureType === 'exception' &&
-      (!this.closureReason.trim() || !this.clarificationAttempts.trim())
-    ) {
+    const draft = this.closureForm.getRawValue();
+    if (this.closureForm.invalid) {
+      this.closureForm.markAllAsTouched();
       this.examDay.showValidationError('Grund und bisherige Klärungsversuche sind erforderlich.');
       return;
     }
@@ -262,9 +416,9 @@ export class ExamDayComponent implements OnChanges {
       {
         dayId: day.id,
         revision: day.revision,
-        closureType: this.closureType,
-        reason: this.closureReason,
-        clarificationAttempts: this.clarificationAttempts,
+        closureType: draft.closureType,
+        reason: draft.reason,
+        clarificationAttempts: draft.clarificationAttempts,
       },
       'Prüfungstag formal abgeschlossen.',
     );
@@ -287,13 +441,10 @@ export class ExamDayComponent implements OnChanges {
   protected reopenDay(): void {
     const day = this.view()?.day;
     const scope = this.selectedReopeningScope();
+    const draft = this.reopeningForm.getRawValue();
     if (!day || !scope || !this.can('exam-day-closure:reopen')) return;
-    if (
-      !this.reopeningImpact() ||
-      !this.reopeningOccasion.trim() ||
-      !this.reopeningSource.trim() ||
-      !this.reopeningReason.trim()
-    ) {
+    if (!this.reopeningImpact() || this.reopeningForm.invalid) {
+      this.reopeningForm.markAllAsTouched();
       this.examDay.showValidationError(
         'Auswirkungsprüfung, Anlass, Quelle und fachliche Begründung sind erforderlich.',
       );
@@ -303,9 +454,9 @@ export class ExamDayComponent implements OnChanges {
       {
         dayId: day.id,
         revision: day.revision,
-        occasion: this.reopeningOccasion,
-        source: this.reopeningSource,
-        reason: this.reopeningReason,
+        occasion: draft.occasion,
+        source: draft.source,
+        reason: draft.reason,
         scope: [scope],
       },
       'Prüfungstag zielgerichtet wieder geöffnet.',
@@ -411,7 +562,7 @@ export class ExamDayComponent implements OnChanges {
   }
 
   protected executionStatusCount(summary: ExecutionStatusSummary, status: string): number {
-    return summary[status as keyof ExecutionStatusSummary] ?? 0;
+    return isExecutionStatusSummaryState(status) ? summary[status] : 0;
   }
 
   protected arrivalLabel(value: string | null): string {
@@ -426,7 +577,7 @@ export class ExamDayComponent implements OnChanges {
   }
 
   protected hasSavingAction(): boolean {
-    return this.savingKeys().size > 0;
+    return this.savingKeys().size > 0 || this.exportBusy();
   }
 
   protected canEditMemberAttendance(assignment: ConfirmedPlanDay['assignments'][number]): boolean {
@@ -446,20 +597,12 @@ export class ExamDayComponent implements OnChanges {
   }
 
   private selectedReopeningScope(): ExamDayReopeningScope | null {
-    const [kind, rawId] = this.reopeningToken.split(':');
-    const entityId = Number(rawId);
-    if (!kind || !Number.isInteger(entityId) || entityId < 1) return null;
-    return { kind: kind as ExamDayReopeningScopeKind, entityId };
+    return reopeningScopeFromToken(this.reopeningForm.controls.token.value);
   }
 
   private resetClosureDrafts(): void {
-    this.closureType = 'regular';
-    this.closureReason = '';
-    this.clarificationAttempts = '';
-    this.reopeningToken = '';
-    this.reopeningOccasion = '';
-    this.reopeningSource = '';
-    this.reopeningReason = '';
+    this.closureForm.reset({ closureType: 'regular', reason: '', clarificationAttempts: '' });
+    this.reopeningForm.reset({ token: '', occasion: '', source: '', reason: '' });
   }
 
   private resetDrafts(view: ConfirmedPlanDayView): void {
@@ -540,7 +683,7 @@ export class ExamDayComponent implements OnChanges {
 
   private toAttendanceDraft(attendance: Attendance): AttendanceDraft {
     return {
-      status: attendance.status as AttendanceStatus,
+      status: isAttendanceStatus(attendance.status) ? attendance.status : null,
       arrivedAt: this.datetimeLocalValue(attendance.arrivedAt),
     };
   }
@@ -651,7 +794,7 @@ export class ExamDayComponent implements OnChanges {
   }
 }
 
-export type AttendanceDraft = { status: AttendanceStatus; arrivedAt: string };
+export type AttendanceDraft = { status: AttendanceStatus | null; arrivedAt: string };
 export type ExecutionStatusDraft = {
   status: ExecutionStatus;
   reason: string;

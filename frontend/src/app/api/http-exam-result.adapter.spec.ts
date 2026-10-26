@@ -1,8 +1,9 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
+import { ApplicationError } from '../application/application-error';
 
-import type { ExamResult as ApiExamResult } from './execution.models';
+import type { ExamResultResponse as ApiExamResult } from './generated/types.gen';
 import { HttpExamResultAdapter } from './http-exam-result.adapter';
 
 describe('HttpExamResultAdapter', () => {
@@ -29,6 +30,7 @@ describe('HttpExamResultAdapter', () => {
     expect(result).toMatchObject({
       roundCandidateId: 5,
       correctionOpen: false,
+      candidate: { ihkExamNumber: null, specialization: null },
       modelVersion: {
         modelKey: 'standard',
         rules: {
@@ -52,10 +54,41 @@ describe('HttpExamResultAdapter', () => {
         path: { unroundedTotal: '82', roundedTotal: '82' },
       },
       permissions: { assessOwn: true, determineResult: true },
-      exportsLinks: {
-        machine: '/api/exam-results/41/export.json',
-        human: '/api/exam-results/41/export.txt',
+      exportAvailability: { machine: true, human: true },
+    });
+  });
+
+  it('downloads result exports with response metadata and translates 403 errors', () => {
+    let file: unknown;
+    adapter.export(41, 'machine-readable').subscribe((value) => (file = value));
+    const json = http.expectOne('/api/exam-results/41/export.json');
+    expect(json.request.responseType).toBe('text');
+    json.flush('{"result":41}', {
+      headers: {
+        'content-type': 'application/json',
+        'content-disposition': 'attachment; filename="result-41.json"',
       },
+    });
+    expect(file).toEqual({
+      content: '{"result":41}',
+      mediaType: 'application/json',
+      fileName: 'result-41.json',
+    });
+
+    let failure: unknown;
+    adapter.export(41, 'human-readable').subscribe({ error: (error) => (failure = error) });
+    http
+      .expectOne('/api/exam-results/41/export.txt')
+      .flush(
+        { error: { code: 'forbidden', message: 'Not allowed', details: { reason: 'scope' } } },
+        { status: 403, statusText: 'Forbidden' },
+      );
+    expect(failure).toBeInstanceOf(ApplicationError);
+    expect(failure).toMatchObject({
+      kind: 'forbidden',
+      code: 'forbidden',
+      message: 'Not allowed',
+      details: { reason: 'scope' },
     });
   });
 
@@ -252,6 +285,10 @@ function apiResult(): ApiExamResult {
     round_candidate_id: 5,
     day_revisions: { '7': 4 },
     version: 3,
+    created_at: '2026-09-30T12:00:00Z',
+    updated_at: '2026-09-30T12:00:00Z',
+    binding: {},
+    calculations: [],
     state: 'calculation_ready',
     correction_open: false,
     legacy_status: null,
@@ -259,8 +296,8 @@ function apiResult(): ApiExamResult {
       id: 5,
       first_name: 'Ada',
       last_name: 'Beispiel',
-      ihk_exam_number: '123',
-      specialization: 'Anwendung',
+      ihk_exam_number: null,
+      specialization: null,
     },
     model_version: {
       id: 2,
@@ -313,7 +350,7 @@ function apiResult(): ApiExamResult {
         criterion_key: 'clarity',
         assessor_member_id: 1,
         revision: 1,
-        raw_points: '82',
+        raw_points: 82,
         normalized_points: '82',
         rationale: 'Beobachtung',
         status: 'submitted',
@@ -358,5 +395,5 @@ function apiResult(): ApiExamResult {
       machine_export: { href: '/api/exam-results/41/export.json' },
       human_export: { href: '/api/exam-results/41/export.txt' },
     },
-  } as ApiExamResult;
+  } satisfies ApiExamResult;
 }

@@ -146,8 +146,9 @@ class AdminSocketTests(unittest.TestCase):
         self.listener.start()
         connection = self.connect()
         self.handshake(connection)
-        self.send(connection, CONFIG)
-        self.send(connection, CONFIG)
+        payload = json.dumps(CONFIG, separators=(",", ":")).encode()
+        frame = struct.pack("!I", len(payload)) + payload
+        connection.sendall(frame + frame)
         self.assertEqual("result", self.read(connection)["type"])
         try:
             self.assertEqual(b"", connection.recv(1))

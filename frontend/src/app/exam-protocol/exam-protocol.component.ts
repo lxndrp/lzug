@@ -4,6 +4,7 @@ import {
   Input,
   OnChanges,
   SimpleChanges,
+  computed,
   inject,
   output,
   signal,
@@ -15,11 +16,14 @@ import { TuiBadge } from '@taiga-ui/kit';
 import { Observable } from 'rxjs';
 
 import { ApplicationError } from '../application/application-error';
+import { downloadFile } from '../application/file-download';
+import { loadStateValue, type LoadState } from '../application/load-state';
 import { AuthService } from '../auth/auth.service';
 import { SessionScopeService } from '../auth/session-scope.service';
 import { ExamProtocolFacade } from './exam-protocol.facade';
 import type {
   ExamProtocol,
+  ExamProtocolDayRevisionUpdate,
   ProtocolDeclaration,
   ProtocolEntryCategory,
   ProtocolExportFormat,
@@ -36,6 +40,7 @@ export type EntryDraft = {
 
 @Component({
   selector: 'app-exam-protocol',
+  providers: [ExamProtocolFacade],
   imports: [FormsModule, TuiBadge, TuiButton],
   templateUrl: './exam-protocol.component.html',
   styleUrl: './exam-protocol.component.css',
@@ -52,11 +57,15 @@ export class ExamProtocolComponent implements OnChanges {
   @Input() dayRefreshing = false;
   @Input({ required: true }) slotId!: number;
   @Input() ownMemberId: number | null = null;
-  readonly dayRevisionChanged = output<{ roundId: number; dayId: number; revision: number }>();
+  readonly dayRevisionChanged = output<ExamProtocolDayRevisionUpdate>();
   readonly actionErrorOccurred = output<string>();
 
-  protected readonly state = signal<ProtocolState>('loading');
-  protected readonly protocol = signal<ExamProtocol | null>(null);
+  private readonly loadState = signal<LoadState<ExamProtocol>>({
+    status: 'loading',
+    previous: null,
+  });
+  protected readonly state = computed(() => this.loadState().status);
+  protected readonly protocol = computed(() => loadStateValue(this.loadState()));
   protected readonly busy = signal(false);
   protected readonly exportBusy = signal(false);
   protected readonly message = signal<string | null>(null);
@@ -81,16 +90,42 @@ export class ExamProtocolComponent implements OnChanges {
     { value: 'other', label: 'Sonstiges' },
   ];
 
+  constructor() {
+    this.sessionScope.changes$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((change) => {
+      this.contextSequence += 1;
+      this.requestSequence += 1;
+      this.exportSequence += 1;
+      this.loadState.set({ status: 'loading', previous: null });
+      this.busy.set(false);
+      this.exportBusy.set(false);
+      this.loadedContextSequence = null;
+      this.resetContextDrafts();
+      if (change.established) this.load();
+    });
+  }
+
   ngOnChanges(changes: SimpleChanges): void {
     const identityChanged = changes['roundId'] || changes['dayId'] || changes['slotId'];
     if (identityChanged) {
       this.contextSequence += 1;
       this.exportSequence += 1;
-      this.protocol.set(null);
+      this.loadState.set({ status: 'loading', previous: null });
       this.busy.set(false);
       this.exportBusy.set(false);
+      this.loadedContextSequence = null;
+      this.resetContextDrafts();
     }
     if (identityChanged || changes['dayRevision']) this.load(!identityChanged);
+  }
+
+  private resetContextDrafts(): void {
+    this.declaration = '';
+    this.entries = [];
+    this.reservationText = '';
+    this.correctionReason = '';
+    this.reopeningReference = '';
+    this.message.set(null);
+    this.error.set(null);
   }
 
   protected load(preserveDrafts = false, preserveFeedback = preserveDrafts): void {
@@ -101,7 +136,7 @@ export class ExamProtocolComponent implements OnChanges {
     const roundId = this.roundId;
     const dayId = this.dayId;
     const slotId = this.slotId;
-    this.state.set('loading');
+    this.loadState.set({ status: 'loading', previous: this.protocol() });
     if (!preserveFeedback) {
       this.message.set(null);
       this.error.set(null);
@@ -113,13 +148,16 @@ export class ExamProtocolComponent implements OnChanges {
         }
         this.accept(protocol, keepDrafts);
         this.loadedContextSequence = contextSequence;
-        this.state.set('ready');
       },
       error: (error: ApplicationError) => {
         if (!this.isCurrent(sequence, contextSequence, sessionGeneration, roundId, dayId, slotId)) {
           return;
         }
-        this.state.set(error.kind === 'not-found' ? 'not-found' : 'error');
+        this.loadState.set(
+          error.kind === 'not-found'
+            ? { status: 'not-found', previous: this.protocol() }
+            : { status: 'error', previous: this.protocol() },
+        );
       },
     });
   }
@@ -248,12 +286,7 @@ export class ExamProtocolComponent implements OnChanges {
           ) {
             return;
           }
-          const url = URL.createObjectURL(new Blob([content], { type: mediaType }));
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = fileName;
-          link.click();
-          window.setTimeout(() => URL.revokeObjectURL(url), 0);
+          downloadFile({ content, mediaType, fileName });
           this.exportBusy.set(false);
         },
         error: () => {
@@ -381,6 +414,7 @@ export class ExamProtocolComponent implements OnChanges {
 
   private accept(protocol: ExamProtocol, preserveDrafts = false): void {
     const previous = this.protocol();
+    this.loadState.set({ status: 'ready', data: protocol });
     const incomingDeclaration = protocol.currentRevision.declaration ?? '';
     const incomingEntries = this.entryDrafts(protocol);
     const preserveDeclaration =
@@ -393,7 +427,6 @@ export class ExamProtocolComponent implements OnChanges {
       previous !== null &&
       !this.sameEntries(this.entries, this.entryDrafts(previous)) &&
       !this.sameEntries(this.entries, incomingEntries);
-    this.protocol.set(protocol);
     if (!preserveDeclaration) this.declaration = incomingDeclaration;
     if (!preserveEntries) this.entries = incomingEntries;
     if (!preserveDrafts) this.reservationText = '';
