@@ -6,7 +6,6 @@ import type { AppView } from '../app-view';
 import { DashboardComponent } from '../dashboard/dashboard.component';
 import { DashboardProjectionService } from '../dashboard/dashboard-projection.service';
 import { PlanningWorkflowService } from '../planning/planning-workflow.service';
-import { ApplicationWorkspaceService } from '../shell/application-workspace.service';
 
 /** Route entry for the selected examination round's dashboard. */
 @Component({
@@ -24,14 +23,12 @@ import { ApplicationWorkspaceService } from '../shell/application-workspace.serv
       [candidateRefreshError]="dashboard.candidateRefreshError()"
       [committeeRefreshLoading]="dashboard.committeeRefreshLoading()"
       [committeeRefreshError]="dashboard.committeeRefreshError()"
-      [actionBusy]="workspace.actionBusy()"
       (openView)="openView($event)"
       (retry)="dashboard.refresh()"
     />
   `,
 })
 export class DashboardRouteComponent implements OnDestroy {
-  protected readonly workspace = inject(ApplicationWorkspaceService);
   protected readonly dashboard = inject(DashboardProjectionService);
   protected readonly planning = inject(PlanningWorkflowService);
   private readonly roundContext = inject(RoundContextService);

@@ -11,6 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError, OperationalError
 
 from backend.errors import TransactionConflictError, TransactionUnavailableError
+from backend.identity_scope import IdentityScopeCoordinator
 from backend.persistence.database import DEFAULT_DB_PATH, read_session_scope, session_scope
 from backend.persistence.models import (
     COMMITTEE,
@@ -223,20 +224,27 @@ class SQLiteIdentityUnitOfWork:
 class SQLiteIdentityUnitOfWorkFactory:
     """Open Identity-owned write transactions over the configured SQLite store."""
 
-    def __init__(self, db_path: Path = DEFAULT_DB_PATH) -> None:
+    def __init__(
+        self,
+        db_path: Path = DEFAULT_DB_PATH,
+        *,
+        scope_coordinator: IdentityScopeCoordinator | None = None,
+    ) -> None:
         self.db_path = Path(db_path)
+        self.scope_coordinator = scope_coordinator or IdentityScopeCoordinator()
 
     @contextmanager
     def unit_of_work(self) -> Iterator[IdentityUnitOfWork]:
-        try:
-            with session_scope(self.db_path, begin_immediate=True) as session:
-                yield SQLiteIdentityUnitOfWork(Store(session))
-        except IntegrityError as error:
-            raise TransactionConflictError(
-                "Identity write conflicts with persisted data"
-            ) from error
-        except OperationalError as error:
-            raise TransactionUnavailableError("Identity storage is unavailable") from error
+        with self.scope_coordinator.guard():
+            try:
+                with session_scope(self.db_path, begin_immediate=True) as session:
+                    yield SQLiteIdentityUnitOfWork(Store(session))
+            except IntegrityError as error:
+                raise TransactionConflictError(
+                    "Identity write conflicts with persisted data"
+                ) from error
+            except OperationalError as error:
+                raise TransactionUnavailableError("Identity storage is unavailable") from error
 
 
 class SQLiteIdentityQueryFactory:

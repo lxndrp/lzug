@@ -230,8 +230,8 @@ export type PlanningProposalDay = {
   candidate_exam_day_id: number;
   id: number | null;
   date: string;
-  room_id?: number;
-  location_id: number;
+  room_id?: number | null;
+  location_id: number | null;
   status: 'proposed' | 'confirmed' | 'completed' | 'cancelled' | string;
   slots: PlanningProposalSlot[];
   assignments: PlanningProposalAssignment[];

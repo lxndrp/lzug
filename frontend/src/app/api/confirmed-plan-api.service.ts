@@ -1,5 +1,10 @@
 import type { ConfirmedPlan } from './execution.models';
-import type { ConfirmedPlanRevision, EditablePlanningProposal } from './planning.models';
+import type { ConfirmedPlanRevision } from './planning.models';
+import type {
+  ConfirmedPlanChangeRequest,
+  PlanningProposalResponse,
+  PlanningProposalWriteRequest,
+} from './generated/types.gen';
 import { Injectable, inject } from '@angular/core';
 
 import { ApiClient } from './api-client.service';
@@ -21,16 +26,24 @@ export class ConfirmedPlanApiService {
   }
 
   getEditableConfirmedPlan(roundId = this.roundId) {
-    return this.client.get<EditablePlanningProposal>(`/api/exam-rounds/${roundId}/confirmed-plan`);
+    return this.client.get<PlanningProposalResponse>(`/api/exam-rounds/${roundId}/confirmed-plan`);
   }
 
-  saveEditableConfirmedPlan(roundId: number, proposal: EditablePlanningProposal, reason: string) {
-    const { _links, ...payload } = proposal;
-    void _links;
-    return this.client.put<EditablePlanningProposal>(`/api/exam-rounds/${roundId}/confirmed-plan`, {
-      ...payload,
+  saveEditableConfirmedPlan(
+    roundId: number,
+    proposal: PlanningProposalWriteRequest,
+    reason: string,
+  ) {
+    const request = {
+      round_id: proposal.round_id,
+      revision: proposal.revision,
+      exam_days: proposal.exam_days,
       reason: reason.trim(),
-    });
+    } satisfies ConfirmedPlanChangeRequest;
+    return this.client.put<PlanningProposalResponse>(
+      `/api/exam-rounds/${roundId}/confirmed-plan`,
+      request,
+    );
   }
 
   getConfirmedPlanRevisions(roundId = this.roundId) {

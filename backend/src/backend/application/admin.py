@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
+from backend.application.absence_consequences import AbsenceConsequenceApplication
 from backend.application.consequence_ports import NotificationApplicationPort
 from backend.application.plan_consequences import PlanConsequenceService
 from backend.application.venue_consequences import VenueConsequenceService
@@ -188,6 +189,9 @@ class AdminServices:
     artifact_factory: Callable[[AdminPersistencePaths], ArtifactService]
     recipient_repository_factory: Callable[[ArtifactService], BackupRecipientRepository]
     lifecycle_factory: Callable[[AdminPersistencePaths], LifecycleService]
+    absence_consequence_factory: (
+        Callable[[Path, NotificationApplicationPort], AbsenceConsequenceApplication] | None
+    ) = None
     persistence_error: Callable[[Exception], bool] = lambda _error: False
     venue_consequence_factory: (
         Callable[[Path, NotificationApplicationPort], VenueConsequenceService] | None
@@ -348,12 +352,15 @@ def _execute_notification_processing(
     notifications: AdminNotificationPort,
     consequences: PlanConsequenceService,
     venue_consequences: VenueConsequenceService | None = None,
+    absence_consequences: AbsenceConsequenceApplication | None = None,
 ) -> dict[str, Any]:
     result = notifications.process_due_events()
     consequence_result = consequences.process_due()
     response = {**result, "plan_consequences": consequence_result}
     if venue_consequences is not None:
         response["venue_consequences"] = venue_consequences.process_due()
+    if absence_consequences is not None:
+        response["absence_consequences"] = absence_consequences.process_due()
     return response
 
 
@@ -438,8 +445,15 @@ def _run_command(
                 if services.venue_consequence_factory is not None
                 else None
             )
+            absence_consequences = (
+                services.absence_consequence_factory(paths.database, notifications)
+                if services.absence_consequence_factory is not None
+                else None
+            )
             return (
-                _execute_notification_processing(notifications, consequences, venue_consequences),
+                _execute_notification_processing(
+                    notifications, consequences, venue_consequences, absence_consequences
+                ),
                 EXIT_OK,
             )
         return _execute_plan_consequences(command, arguments, consequences), EXIT_OK

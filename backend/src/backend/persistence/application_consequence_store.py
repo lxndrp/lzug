@@ -65,6 +65,28 @@ class SQLiteApplicationConsequenceStore:
         with session_scope(self.db_path) as session:
             return tuple(session.scalars(statement.order_by(PlanConsequence.id)))
 
+    def retry_permanently_failed_tasks(self, *, origin_type: str, now: str) -> int:
+        with session_scope(self.db_path) as session:
+            result = session.execute(
+                update(PlanConsequence)
+                .where(
+                    PlanConsequence.batch_id.in_(
+                        select(PlanConsequenceBatch.id).where(
+                            PlanConsequenceBatch.origin_type == origin_type
+                        )
+                    ),
+                    PlanConsequence.status == "permanently_failed",
+                )
+                .values(
+                    status="temporarily_failed",
+                    attempt_count=0,
+                    next_attempt_at=now,
+                    error_code=None,
+                    updated_at=now,
+                )
+            )
+            return int(result.rowcount or 0)
+
     def due_revision_ids(self, revision_ids: tuple[int, ...], *, now: str) -> tuple[int, ...]:
         if not revision_ids:
             return ()

@@ -1,26 +1,26 @@
 import { forkJoin, map } from 'rxjs';
 
 import type {
-  Candidate,
   CandidateCommitteeAssignment,
   CandidateCreateCommand,
   CandidateUpdateCommand,
-  CandidateView,
-  Committee,
-  CommitteeMember,
-  ExamVenue,
   Location,
-  Person,
   RoundCandidate,
 } from './master-data.models';
 import type {
+  CandidateResponse,
   CandidateCreate,
   CandidateUpdate as TransportCandidateUpdate,
+  CommitteeResponse,
   CommitteeUpdate,
+  ExamHalfYearResponse,
+  ExamRoundResponse,
+  ExamVenueResponse,
+  MembershipResponse,
   MembershipCreate,
   MembershipUpdate,
+  PersonResponse,
 } from './generated/types.gen';
-import type { ExamHalfYear, ExamRound } from './planning.models';
 import { Injectable, inject } from '@angular/core';
 
 import { ApiClient } from './api-client.service';
@@ -39,17 +39,17 @@ export class MasterDataApiService {
 
   getMasterData() {
     return forkJoin({
-      committees: this.client.list<Committee>('/api/committees'),
-      examHalfYears: this.client.list<ExamHalfYear>('/api/exam-half-years'),
-      persons: this.client.list<Person>('/api/persons'),
-      members: this.client.list<CommitteeMember>('/api/members'),
+      committees: this.client.list<CommitteeResponse>('/api/committees'),
+      examHalfYears: this.client.list<ExamHalfYearResponse>('/api/exam-half-years'),
+      persons: this.client.list<PersonResponse>('/api/persons'),
+      members: this.client.list<MembershipResponse>('/api/members'),
       candidates: this.getCandidateViews(),
-      examRounds: this.client.list<ExamRound>('/api/exam-rounds'),
+      examRounds: this.client.list<ExamRoundResponse>('/api/exam-rounds'),
       candidateAssignments: this.client.list<CandidateCommitteeAssignment>(
         '/api/candidate-committee-assignments',
       ),
       locations: this.client.list<Location>('/api/locations'),
-      examVenueCollection: this.client.collection<ExamVenue>('/api/exam-venues'),
+      examVenueCollection: this.client.collection<ExamVenueResponse>('/api/exam-venues'),
     }).pipe(
       map(({ examVenueCollection, ...masterData }) => ({
         ...masterData,
@@ -60,19 +60,19 @@ export class MasterDataApiService {
   }
 
   getCommittees() {
-    return this.client.list<Committee>('/api/committees');
+    return this.client.list<CommitteeResponse>('/api/committees');
   }
 
   getExamHalfYears() {
-    return this.client.list<ExamHalfYear>('/api/exam-half-years');
+    return this.client.list<ExamHalfYearResponse>('/api/exam-half-years');
   }
 
   getCommitteeMembers() {
-    return this.client.list<CommitteeMember>('/api/members');
+    return this.client.list<MembershipResponse>('/api/members');
   }
 
   getPersons() {
-    return this.client.list<Person>('/api/persons');
+    return this.client.list<PersonResponse>('/api/persons');
   }
 
   getCandidateAssignments() {
@@ -80,7 +80,7 @@ export class MasterDataApiService {
   }
 
   getExamRounds() {
-    return this.client.list<ExamRound>('/api/exam-rounds');
+    return this.client.list<ExamRoundResponse>('/api/exam-rounds');
   }
 
   /**
@@ -90,13 +90,13 @@ export class MasterDataApiService {
 
   getCandidateViews(roundId = this.roundId) {
     return forkJoin({
-      candidates: this.client.list<Candidate>('/api/candidates'),
+      candidates: this.client.list<CandidateResponse>('/api/candidates'),
       roundCandidates: this.client.list<RoundCandidate>(
         `/api/round-candidates?round_id=${roundId}&is_active=1`,
       ),
     }).pipe(
       map(({ candidates, roundCandidates }) =>
-        candidates.map((candidate): CandidateView => ({
+        candidates.map((candidate) => ({
           candidate,
           roundCandidate: roundCandidates.find((item) => item.candidate_id === candidate.id),
         })),
@@ -112,15 +112,15 @@ export class MasterDataApiService {
    */
 
   updateCommittee(id: number, payload: CommitteeUpdate) {
-    return this.client.patch<Committee>(`/api/committees/${id}`, payload);
+    return this.client.patch<CommitteeResponse>(`/api/committees/${id}`, payload);
   }
 
   createMember(payload: MembershipCreate) {
-    return this.client.post<CommitteeMember>('/api/members', payload);
+    return this.client.post<MembershipResponse>('/api/members', payload);
   }
 
   updateMember(id: number, payload: MembershipUpdate) {
-    return this.client.patch<CommitteeMember>(`/api/members/${id}`, payload);
+    return this.client.patch<MembershipResponse>(`/api/members/${id}`, payload);
   }
 
   createCandidate(payload: CandidateCreateCommand) {
@@ -134,7 +134,7 @@ export class MasterDataApiService {
       specialization: payload.specialization,
       training_company: payload.training_company,
     } satisfies CandidateCreate;
-    return this.client.post<Candidate>('/api/candidates', request);
+    return this.client.post<CandidateResponse>('/api/candidates', request);
   }
 
   updateCandidate(id: number, payload: CandidateUpdateCommand) {
@@ -142,7 +142,7 @@ export class MasterDataApiService {
       ...payload,
       exam_round_id: payload.exam_round_id ?? this.roundId,
     } satisfies TransportCandidateUpdate;
-    return this.client.patch<Candidate>(`/api/candidates/${id}`, request);
+    return this.client.patch<CandidateResponse>(`/api/candidates/${id}`, request);
   }
 
   deleteCandidate(id: number) {

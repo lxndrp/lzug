@@ -4,6 +4,8 @@ import { Observable } from 'rxjs';
 import type {
   CloseExamDayCommand,
   ConfirmedPlanDayView,
+  ExamDayExportFormat,
+  ExamDayExportFile,
   ExamDayClosure,
   ExamDayReopeningImpact,
   ExamDayReopeningScope,
@@ -15,6 +17,7 @@ import type {
 /** Application boundary for examination-day reads and commands. */
 export interface ExamDayPort {
   getConfirmedPlanDay(dayId: number): Observable<ConfirmedPlanDayView>;
+  exportClosure(dayId: number, format: ExamDayExportFormat): Observable<ExamDayExportFile>;
   saveCandidateAttendance(command: SaveAttendanceCommand): Observable<ConfirmedPlanDayView>;
   saveMemberAttendance(command: SaveAttendanceCommand): Observable<ConfirmedPlanDayView>;
   startExamSlot(

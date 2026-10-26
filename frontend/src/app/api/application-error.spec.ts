@@ -48,6 +48,24 @@ describe('HTTP error translation', () => {
     expect(error.message).toBe('Ungültige Auswahl.');
   });
 
+  it('parses structured JSON error bodies returned by text export requests', () => {
+    const error = toApplicationError(
+      new HttpErrorResponse({
+        status: 403,
+        error: JSON.stringify({
+          error: { code: 'forbidden', message: 'Export nicht erlaubt', details: { scope: 'exam' } },
+        }),
+      }),
+    );
+
+    expect(error).toMatchObject({
+      kind: 'forbidden',
+      code: 'forbidden',
+      message: 'Export nicht erlaubt',
+      details: { scope: 'exam' },
+    });
+  });
+
   it.each([
     new HttpErrorResponse({ status: 503, statusText: 'Unavailable', url: '/api/session' }),
     new HttpErrorResponse({ status: 0, statusText: 'Unknown Error', url: '/api/session' }),

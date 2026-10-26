@@ -11,7 +11,7 @@ import { ExamProtocolComponent } from '../exam-protocol/exam-protocol.component'
 import { EXAM_PROTOCOL_PORT, type ExamProtocolPort } from '../exam-protocol/exam-protocol.port';
 import type { ExamProtocol } from '../exam-protocol/exam-protocol.models';
 import { EXAM_RESULT_PORT } from '../exam-result/exam-result.port';
-import { PERSONAL_PORT, type PersonalPort } from '../personal/personal.port';
+import { PERSONAL_ABSENCE_PORT, type PersonalAbsencePort } from '../personal/personal.port';
 import type { PersonalAbsenceReport } from '../personal/personal.models';
 import { EXAM_DAY_PORT, type ExamDayPort } from './exam-day.port';
 import type {
@@ -26,7 +26,7 @@ describe('ExamDayComponent', () => {
   let fixture: ComponentFixture<ExamDayComponent>;
   let examDay: ExamDayPort;
   let protocolPort: ExamProtocolPort;
-  let personal: Pick<PersonalPort, 'createAbsenceReport'>;
+  let personal: Pick<PersonalAbsencePort, 'createAbsenceReport'>;
 
   beforeEach(async () => {
     examDay = createExamDayPort();
@@ -38,7 +38,7 @@ describe('ExamDayComponent', () => {
         provideRouter([]),
         provideTaiga({ scrollbars: 'native' }),
         { provide: EXAM_DAY_PORT, useValue: examDay },
-        { provide: PERSONAL_PORT, useValue: personal },
+        { provide: PERSONAL_ABSENCE_PORT, useValue: personal },
         { provide: EXAM_PROTOCOL_PORT, useValue: protocolPort },
         {
           provide: EXAM_RESULT_PORT,
@@ -72,7 +72,7 @@ describe('ExamDayComponent', () => {
     expect(element.textContent).toContain('Anwesenheit speichern');
     expect(element.textContent).toContain('Prüfung starten');
     expect(element.querySelector('a[href="/confirmed-plans/1"]')).not.toBeNull();
-    expect(element.querySelectorAll('button')).toHaveLength(8);
+    expect(element.querySelectorAll('button')).toHaveLength(10);
     expect(
       element
         .querySelector<HTMLButtonElement>('.app-exam-day-actions button')
@@ -460,6 +460,65 @@ describe('ExamDayComponent', () => {
     expect(element.textContent).not.toContain('Anwesenheit speichern');
   });
 
+  it('allows regular closure after switching back from empty exception details', () => {
+    const open = dayView();
+    open.day.closure.permissions.close = true;
+    open.day.closure.evaluation.regularCloseReady = true;
+    vi.mocked(examDay.getConfirmedPlanDay).mockReturnValueOnce(of(open));
+    vi.mocked(examDay.closeExamDay).mockReturnValueOnce(
+      of({
+        ...open.day.closure,
+        revision: 2,
+        status: 'closed',
+        permissions: { close: false, reopen: false, export: true },
+      }),
+    );
+    authorizeClosure('exam-day-closure:close');
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    const closureType = element.querySelector<HTMLSelectElement>(
+      '.app-exam-day-closure-form select',
+    )!;
+    closureType.value = 'exception';
+    closureType.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+
+    const exceptionFields = element.querySelectorAll<HTMLTextAreaElement>(
+      '.app-exam-day-closure-form textarea',
+    );
+    const [reason, attempts] = exceptionFields;
+    expect(reason?.getAttribute('aria-required')).toBe('true');
+    expect(attempts?.getAttribute('aria-required')).toBe('true');
+    expect(reason?.hasAttribute('required')).toBe(false);
+    expect(attempts?.hasAttribute('required')).toBe(false);
+    expect(
+      (fixture.componentInstance as unknown as { closureForm: { invalid: boolean } }).closureForm
+        .invalid,
+    ).toBe(true);
+
+    closureType.value = 'regular';
+    closureType.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+
+    expect(
+      (fixture.componentInstance as unknown as { closureForm: { valid: boolean } }).closureForm
+        .valid,
+    ).toBe(true);
+    Array.from(element.querySelectorAll<HTMLButtonElement>('button'))
+      .find((item) => item.textContent?.includes('Voraussetzungen bestätigen'))
+      ?.click();
+    fixture.detectChanges();
+
+    expect(examDay.closeExamDay).toHaveBeenCalledWith({
+      dayId: 7,
+      revision: 1,
+      closureType: 'regular',
+      reason: '',
+      clarificationAttempts: '',
+    });
+  });
+
   it('previews and performs a targeted reopening using feature-owned scopes', () => {
     TestBed.inject(AuthService).session.set({
       authenticated: true,
@@ -543,6 +602,86 @@ describe('ExamDayComponent', () => {
     expect(element.textContent).toContain('Wiederöffnung läuft');
   });
 
+  it('requests closure evidence through the feature port without exposing an API URL', () => {
+    authorizeClosure('exam-day-closure:export');
+    const closed = dayView();
+    closed.day.closureStatus = 'closed';
+    closed.day.closure.status = 'closed';
+    closed.day.closure.permissions = { close: false, reopen: false, export: true };
+    closed.day.closure.exportAvailability = { machine: true, human: true };
+    vi.mocked(examDay.getConfirmedPlanDay).mockReturnValueOnce(of(closed));
+    const file = { content: '{"day":7}', mediaType: 'application/json', fileName: 'day-7.json' };
+    vi.mocked(examDay.exportClosure).mockReturnValueOnce(of(file));
+    fixture.detectChanges();
+    const element = fixture.nativeElement as HTMLElement;
+    const exportButton = Array.from(element.querySelectorAll<HTMLButtonElement>('button')).find(
+      (button) => button.textContent?.includes('Maschinenlesbaren Nachweis exportieren'),
+    );
+    expect(exportButton).toBeTruthy();
+    expect(element.querySelector('a[href*="/api/confirmed-plan-days"]')).toBeNull();
+    vi.mocked(examDay.getConfirmedPlanDay).mockClear();
+    exportButton?.click();
+
+    expect(examDay.exportClosure).toHaveBeenCalledWith(7, 'machine-readable');
+    expect(examDay.getConfirmedPlanDay).toHaveBeenCalledOnce();
+    expect(examDay.getConfirmedPlanDay).toHaveBeenCalledWith(7);
+  });
+
+  it('shows closure export failures without replaying the audited operation', () => {
+    authorizeClosure('exam-day-closure:export');
+    const closed = dayView();
+    closed.day.closureStatus = 'closed';
+    closed.day.closure.status = 'closed';
+    closed.day.closure.permissions = { close: false, reopen: false, export: true };
+    vi.mocked(examDay.getConfirmedPlanDay).mockReturnValueOnce(of(closed));
+    vi.mocked(examDay.exportClosure).mockReturnValueOnce(
+      throwError(() => new ApplicationError('forbidden', 'Export nicht erlaubt.')),
+    );
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    Array.from(element.querySelectorAll<HTMLButtonElement>('button'))
+      .find((button) => button.textContent?.includes('Maschinenlesbaren Nachweis exportieren'))
+      ?.click();
+    fixture.detectChanges();
+
+    expect(examDay.exportClosure).toHaveBeenCalledTimes(1);
+    expect(element.querySelector('[role="alert"]')?.textContent).toContain('Export nicht erlaubt.');
+  });
+
+  it('does not create reopening commands for an invalid scope token', () => {
+    const closed = dayView();
+    closed.day.closureStatus = 'closed';
+    closed.day.closure.status = 'closed';
+    closed.day.closure.permissions = { close: false, reopen: true, export: true };
+    vi.mocked(examDay.getConfirmedPlanDay).mockReturnValueOnce(of(closed));
+    authorizeClosure('exam-day-closure:preview-reopening', 'exam-day-closure:reopen');
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance as unknown as {
+      reopeningForm: {
+        controls: {
+          token: { setValue(value: string): void };
+          occasion: { setValue(value: string): void };
+          source: { setValue(value: string): void };
+          reason: { setValue(value: string): void };
+        };
+      };
+      previewReopening(): void;
+      reopenDay(): void;
+    };
+    component.reopeningForm.controls.token.setValue('unknown:41');
+    component.reopeningForm.controls.occasion.setValue('Nachträglicher Widerspruch');
+    component.reopeningForm.controls.source.setValue('IHK-Schreiben');
+    component.reopeningForm.controls.reason.setValue('Protokollangabe korrigieren');
+
+    component.previewReopening();
+    component.reopenDay();
+
+    expect(examDay.previewExamDayReopening).not.toHaveBeenCalled();
+    expect(examDay.reopenExamDay).not.toHaveBeenCalled();
+  });
+
   it('ignores a response for a previous day after the route changes', () => {
     const first = new Subject<ConfirmedPlanDayView>();
     vi.mocked(examDay.getConfirmedPlanDay)
@@ -621,10 +760,10 @@ describe('ExamDayComponent', () => {
     fixture.detectChanges();
 
     const component = fixture.componentInstance as unknown as {
-      reopeningToken: string;
+      reopeningForm: { controls: { token: { setValue(value: string): void } } };
       previewReopening(): void;
     };
-    component.reopeningToken = 'exam_protocol:41';
+    component.reopeningForm.controls.token.setValue('exam_protocol:41');
     component.previewReopening();
     fixture.componentRef.setInput('dayId', 8);
     fixture.detectChanges();
@@ -656,10 +795,10 @@ describe('ExamDayComponent', () => {
     fixture.detectChanges();
 
     const component = fixture.componentInstance as unknown as {
-      reopeningToken: string;
+      reopeningForm: { controls: { token: { setValue(value: string): void } } };
       previewReopening(): void;
     };
-    component.reopeningToken = 'exam_protocol:41';
+    component.reopeningForm.controls.token.setValue('exam_protocol:41');
     component.previewReopening();
     fixture.componentRef.setInput('dayId', 8);
     fixture.detectChanges();
@@ -676,33 +815,80 @@ describe('ExamDayComponent', () => {
   it('preserves closure and reopening drafts when refreshing the same day', () => {
     fixture.detectChanges();
     const component = fixture.componentInstance as unknown as {
-      closureType: 'regular' | 'exception';
-      closureReason: string;
-      clarificationAttempts: string;
-      reopeningToken: string;
-      reopeningOccasion: string;
-      reopeningSource: string;
-      reopeningReason: string;
+      closureForm: {
+        controls: {
+          closureType: { setValue(value: 'regular' | 'exception'): void; value: string };
+          reason: { setValue(value: string): void; value: string };
+          clarificationAttempts: { setValue(value: string): void; value: string };
+        };
+      };
+      reopeningForm: {
+        controls: {
+          token: { setValue(value: string): void; value: string };
+          occasion: { setValue(value: string): void; value: string };
+          source: { setValue(value: string): void; value: string };
+          reason: { setValue(value: string): void; value: string };
+        };
+      };
       load(): void;
     };
-    component.closureType = 'exception';
-    component.closureReason = 'Protokollsystem nicht erreichbar';
-    component.clarificationAttempts = 'Support kontaktiert';
-    component.reopeningToken = 'exam_protocol:41';
-    component.reopeningOccasion = 'Nachträglicher Widerspruch';
-    component.reopeningSource = 'IHK-Schreiben';
-    component.reopeningReason = 'Protokollangabe korrigieren';
+    component.closureForm.controls.closureType.setValue('exception');
+    component.closureForm.controls.reason.setValue('Protokollsystem nicht erreichbar');
+    component.closureForm.controls.clarificationAttempts.setValue('Support kontaktiert');
+    component.reopeningForm.controls.token.setValue('exam_protocol:41');
+    component.reopeningForm.controls.occasion.setValue('Nachträglicher Widerspruch');
+    component.reopeningForm.controls.source.setValue('IHK-Schreiben');
+    component.reopeningForm.controls.reason.setValue('Protokollangabe korrigieren');
 
     component.load();
     fixture.detectChanges();
 
-    expect(component.closureType).toBe('exception');
-    expect(component.closureReason).toBe('Protokollsystem nicht erreichbar');
-    expect(component.clarificationAttempts).toBe('Support kontaktiert');
-    expect(component.reopeningToken).toBe('exam_protocol:41');
-    expect(component.reopeningOccasion).toBe('Nachträglicher Widerspruch');
-    expect(component.reopeningSource).toBe('IHK-Schreiben');
-    expect(component.reopeningReason).toBe('Protokollangabe korrigieren');
+    expect(component.closureForm.controls.closureType.value).toBe('exception');
+    expect(component.closureForm.controls.reason.value).toBe('Protokollsystem nicht erreichbar');
+    expect(component.closureForm.controls.clarificationAttempts.value).toBe('Support kontaktiert');
+    expect(component.reopeningForm.controls.token.value).toBe('exam_protocol:41');
+    expect(component.reopeningForm.controls.occasion.value).toBe('Nachträglicher Widerspruch');
+    expect(component.reopeningForm.controls.source.value).toBe('IHK-Schreiben');
+    expect(component.reopeningForm.controls.reason.value).toBe('Protokollangabe korrigieren');
+  });
+
+  it('clears closure and reopening form drafts when the day context changes', () => {
+    fixture.detectChanges();
+    const component = fixture.componentInstance as unknown as {
+      closureForm: {
+        controls: {
+          closureType: { setValue(value: 'regular' | 'exception'): void; value: string };
+          reason: { setValue(value: string): void; value: string };
+          clarificationAttempts: { setValue(value: string): void; value: string };
+        };
+      };
+      reopeningForm: {
+        controls: {
+          token: { setValue(value: string): void; value: string };
+          occasion: { setValue(value: string): void; value: string };
+          source: { setValue(value: string): void; value: string };
+          reason: { setValue(value: string): void; value: string };
+        };
+      };
+    };
+    component.closureForm.controls.closureType.setValue('exception');
+    component.closureForm.controls.reason.setValue('Grund');
+    component.closureForm.controls.clarificationAttempts.setValue('Klärung');
+    component.reopeningForm.controls.token.setValue('exam_protocol:41');
+    component.reopeningForm.controls.occasion.setValue('Anlass');
+    component.reopeningForm.controls.source.setValue('Quelle');
+    component.reopeningForm.controls.reason.setValue('Begründung');
+
+    fixture.componentRef.setInput('dayId', 8);
+    fixture.detectChanges();
+
+    expect(component.closureForm.controls.closureType.value).toBe('regular');
+    expect(component.closureForm.controls.reason.value).toBe('');
+    expect(component.closureForm.controls.clarificationAttempts.value).toBe('');
+    expect(component.reopeningForm.controls.token.value).toBe('');
+    expect(component.reopeningForm.controls.occasion.value).toBe('');
+    expect(component.reopeningForm.controls.source.value).toBe('');
+    expect(component.reopeningForm.controls.reason.value).toBe('');
   });
 
   it('preserves dirty attendance and execution drafts across an embedded day refresh', () => {
@@ -754,6 +940,35 @@ describe('ExamDayComponent', () => {
       status: 'late',
       arrivedAt: '2026-11-16T08:51',
     });
+  });
+
+  it('validates exception closure details as a single typed form contract', () => {
+    const open = dayView();
+    open.day.closure.permissions.close = true;
+    open.day.closure.evaluation.exceptionCloseReady = true;
+    vi.mocked(examDay.getConfirmedPlanDay).mockReturnValueOnce(of(open));
+    authorizeClosure('exam-day-closure:close');
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance as unknown as {
+      closureForm: {
+        controls: {
+          closureType: { setValue(value: 'regular' | 'exception'): void };
+          reason: { setValue(value: string): void };
+          clarificationAttempts: { setValue(value: string): void };
+        };
+        invalid: boolean;
+      };
+      closeDay(): void;
+    };
+    component.closureForm.controls.closureType.setValue('exception');
+    component.closureForm.controls.reason.setValue('   ');
+    component.closureForm.controls.clarificationAttempts.setValue('Support kontaktiert');
+
+    component.closeDay();
+
+    expect(component.closureForm.invalid).toBe(true);
+    expect(examDay.closeExamDay).not.toHaveBeenCalled();
   });
 
   it('clears attendance and execution drafts when the selected day changes', () => {
@@ -836,19 +1051,23 @@ describe('ExamDayComponent', () => {
     fixture.detectChanges();
 
     const component = fixture.componentInstance as unknown as {
-      reopeningToken: string;
-      reopeningOccasion: string;
-      reopeningSource: string;
-      reopeningReason: string;
+      reopeningForm: {
+        controls: {
+          token: { setValue(value: string): void };
+          occasion: { setValue(value: string): void };
+          source: { setValue(value: string): void };
+          reason: { setValue(value: string): void };
+        };
+      };
       previewReopening(): void;
       reopenDay(): void;
       load(): void;
       savingKeys(): Set<string>;
     };
-    component.reopeningToken = 'exam_protocol:41';
-    component.reopeningOccasion = 'Nachträglicher Widerspruch';
-    component.reopeningSource = 'IHK-Schreiben';
-    component.reopeningReason = 'Protokollangabe korrigieren';
+    component.reopeningForm.controls.token.setValue('exam_protocol:41');
+    component.reopeningForm.controls.occasion.setValue('Nachträglicher Widerspruch');
+    component.reopeningForm.controls.source.setValue('IHK-Schreiben');
+    component.reopeningForm.controls.reason.setValue('Protokollangabe korrigieren');
     component.previewReopening();
     component.reopenDay();
     component.load();
@@ -888,6 +1107,9 @@ function authorizeClosure(...capabilities: string[]): void {
 function createExamDayPort(): ExamDayPort {
   return {
     getConfirmedPlanDay: vi.fn((dayId: number) => of(dayView(dayId))),
+    exportClosure: vi.fn(() =>
+      of({ content: 'abschluss', mediaType: 'text/plain', fileName: 'abschluss.txt' }),
+    ),
     saveCandidateAttendance: vi.fn(() => of(dayView())),
     saveMemberAttendance: vi.fn(() => of(dayView())),
     startExamSlot: vi.fn(() => of(dayView())),
@@ -1050,9 +1272,6 @@ function closure(dayId: number): ExamDayClosure {
     history: [],
     tasks: [],
     permissions: { close: false, reopen: false, export: true },
-    exportLinks: {
-      machine: `/api/confirmed-plan-days/${dayId}/closure/export.json`,
-      human: `/api/confirmed-plan-days/${dayId}/closure/export.txt`,
-    },
+    exportAvailability: { machine: true, human: true },
   };
 }

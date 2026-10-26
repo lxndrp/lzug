@@ -2,8 +2,11 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { catchError, map, throwError } from 'rxjs';
 
-import type { ExamProtocol as ApiExamProtocol } from './execution.models';
-import type { DomainResourceWrite, ExamProtocolContentRequest } from './generated/types.gen';
+import type {
+  DomainResourceWrite,
+  ExamProtocolContentRequest,
+  ExamProtocolResponse as ApiExamProtocol,
+} from './generated/types.gen';
 import { ApiClient } from './api-client.service';
 import { toApplicationError } from './application-error';
 import type {
@@ -27,7 +30,7 @@ export class HttpExamProtocolAdapter implements ExamProtocolPort {
   }
 
   update(command: UpdateExamProtocol) {
-    const body: ExamProtocolContentRequest & { day_revision?: number } = {
+    const body = {
       version: command.version,
       declaration: command.declaration,
       entries: command.entries.map((entry) => ({
@@ -38,7 +41,7 @@ export class HttpExamProtocolAdapter implements ExamProtocolPort {
       })),
       ...(command.changeReason?.trim() ? { change_reason: command.changeReason.trim() } : {}),
       ...(command.dayRevision ? { day_revision: command.dayRevision } : {}),
-    };
+    } satisfies ExamProtocolContentRequest;
     return this.client
       .patch<ApiExamProtocol>(`/api/exam-protocols/${command.protocolId}`, body)
       .pipe(map(fromApiProtocol));
@@ -133,7 +136,7 @@ function fromApiProtocol(value: ApiExamProtocol): ExamProtocol {
   return {
     id: value.id,
     examSlotId: value.exam_slot_id,
-    ...(value.day_revision === undefined ? {} : { dayRevision: value.day_revision }),
+    ...(value.day_revision === null ? {} : { dayRevision: value.day_revision }),
     currentVersion: value.current_version,
     state: value.state,
     closingReady: value.closing_ready,
@@ -148,18 +151,29 @@ function fromApiProtocol(value: ApiExamProtocol): ExamProtocol {
       reopeningReference: request.reopening_reference,
     })),
     permissions: {
-      edit: value.permissions.edit,
-      submit: value.permissions.submit,
-      respond: value.permissions.respond,
-      requestCorrection: value.permissions.request_correction,
-      coordinateCorrection: value.permissions.coordinate_correction,
-      manageRetention: value.permissions.manage_retention,
+      edit: value.permissions['edit'],
+      submit: value.permissions['submit'],
+      respond: value.permissions['respond'],
+      requestCorrection: value.permissions['request_correction'],
+      coordinateCorrection: value.permissions['coordinate_correction'],
+      manageRetention: value.permissions['manage_retention'],
     },
     exports: {
-      machineReadable: Boolean(value._links['machine_export']?.href),
-      humanReadable: Boolean(value._links['human_export']?.href),
+      machineReadable: linkHref(value._links['machine_export']) !== undefined,
+      humanReadable: linkHref(value._links['human_export']) !== undefined,
     },
   };
+}
+
+function linkHref(value: unknown): string | undefined {
+  if (typeof value !== 'object' || value === null || !('href' in value)) return undefined;
+  return typeof value.href === 'string' ? value.href : undefined;
+}
+
+function oneOf<const Value extends string>(value: string, allowed: readonly Value[]): Value {
+  const match = allowed.find((candidate) => candidate === value);
+  if (match === undefined) throw new Error(`Unexpected protocol value: ${value}`);
+  return match;
 }
 
 function fromApiRevision(
@@ -168,7 +182,10 @@ function fromApiRevision(
   return {
     id: value.id,
     version: value.version,
-    declaration: value.declaration,
+    declaration:
+      value.declaration === null
+        ? null
+        : oneOf(value.declaration, ['without_special_occurrences', 'with_special_occurrences']),
     workflowState: value.workflow_state,
     changeReason: value.change_reason,
     submittedAt: value.submitted_at,
@@ -176,7 +193,15 @@ function fromApiRevision(
     missingResponseMemberIds: [...value.missing_response_member_ids],
     entries: value.entries.map((entry) => ({
       id: entry.id,
-      category: entry.category,
+      category: oneOf(entry.category, [
+        'late_start',
+        'interruption',
+        'termination',
+        'different_staffing',
+        'procedural_deviation',
+        'objection_or_reservation',
+        'other',
+      ]),
       statement: entry.statement,
       occurredFrom: entry.occurred_from,
       occurredTo: entry.occurred_to,
@@ -186,7 +211,7 @@ function fromApiRevision(
     responses: value.responses.map((response) => ({
       id: response.id,
       committeeMemberId: response.committee_member_id,
-      response: response.response,
+      response: oneOf(response.response, ['confirmed', 'reservation']),
       entryId: response.entry_id,
       statement: response.statement,
       respondedAt: response.responded_at,

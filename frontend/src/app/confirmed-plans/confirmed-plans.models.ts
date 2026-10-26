@@ -48,8 +48,8 @@ export type EditableConfirmedPlanDay = {
   candidateDayId: number;
   id: number | null;
   date: string;
-  roomId?: number;
-  locationId: number;
+  roomId?: number | null;
+  locationId: number | null;
   status: string;
   slots: EditableConfirmedPlanSlot[];
   assignments: EditableConfirmedPlanAssignment[];

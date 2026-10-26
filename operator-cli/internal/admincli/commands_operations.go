@@ -16,12 +16,12 @@ func operationalCommands() []Command {
 			Path:        []string{"notification", "process"},
 			Interactive: InteractiveSpec{SearchTerms: []string{"benachrichtigung", "zustellung"}}, Effect: MutatingEffect, Retry: RetryForbidden, Timeout: 10 * time.Minute,
 			Summary:        "Process due technical notifications.",
-			Description:    "Process due notification deliveries and re-drive confirmed-plan and versioned venue consequences without returning message content.",
+			Description:    "Process due notification deliveries and re-drive confirmed-plan, versioned venue, and durable absence consequences without returning message content.",
 			Examples:       []string{"lzug-admin notification process"},
 			Transport:      ContainerExecTransport,
 			BackendCommand: "process-notifications",
 			LegacyForms:    []string{"process-notifications"},
-			Output:         OutputSpec{Human: HumanSilent, Verbose: VerboseSummary, JSON: JSONProjected, Summary: "Successful human output is silent; JSON includes notification and consequence recovery counters.", ResultKeys: []string{"processed", "succeeded", "failed", "plan_consequences", "venue_consequences"}},
+			Output:         OutputSpec{Human: HumanSilent, Verbose: VerboseSummary, JSON: JSONProjected, Summary: "Successful human output is silent; JSON includes notification and consequence recovery counters.", ResultKeys: []string{"processed", "succeeded", "failed", "plan_consequences", "venue_consequences", "absence_consequences"}},
 			BuildRequest:   simpleRequest("process-notifications", func(_, _ Values) map[string]any { return map[string]any{} }),
 		},
 		{
@@ -218,7 +218,7 @@ func planConsequenceCommand(action string) Command {
 		legacy = backendCommand
 		summary = "Retry technical confirmed-plan consequences."
 		description = "Retry eligible technical follow-up work for one confirmed plan revision without exposing business content."
-		output = OutputSpec{Human: HumanSilent, Verbose: VerboseSummary, JSON: JSONProjected, Summary: "Successful human output is silent; JSON includes technical counters only.", ResultKeys: []string{"revision_id", "derivation_status", "processed", "problems", "pending", "superseded"}}
+		output = OutputSpec{Human: HumanSilent, Verbose: VerboseSummary, JSON: JSONProjected, Summary: "Successful human output is silent; JSON includes technical plan-revision counters.", ResultKeys: []string{"revision_id", "derivation_status", "processed", "problems", "pending", "superseded"}}
 	}
 	effect := ReadOnlyEffect
 	retry := RetryAllowed

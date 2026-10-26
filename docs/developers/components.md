@@ -14,7 +14,7 @@ Die gemeinsame AIO-, Admintransport- und Lifecyclegrenze legt
 | Bereich | Verantwortung | Zulässige Außengrenze | Maßgebliche Quellen |
 | --- | --- | --- | --- |
 | Backend | ein autoritativer Prozess für HTTP, Admin-Socket, Lifecycle, Fachservices, Persistenz, Dokumente und Integrationsadapter | OpenAPI/JSON, versionierter Unix-Socket-Vertrag, SQLite und kontrollierte Provideradapter | `backend/src/backend/`, `backend/db/` |
-| Frontend | aufgabenorientierte Ausschussoberfläche, Routing, Formulare und sichtbare Zustände | same-origin API über zentrale Modelle und Services | `frontend/src/app/` |
+| Frontend | aufgabenorientierte Ausschussoberfläche, Routing, Formulare und sichtbare Zustände | same-origin API über HTTP-Adapter; Transportzugriffe verwenden generierte OpenAPI-Typen | `frontend/src/app/` |
 | Betreiber-CLI | portable Orchestrierung von Administration, Diagnose und Lifecycle | bereitgestellter lokaler Socket mit versioniertem Adminvertrag | `operator-cli/cmd/lzug-admin/`, `operator-cli/internal/admincli/`, `operator-cli/internal/tools/cli-reference/`, `operator-cli/.goreleaser.yml` |
 | OCI und Self-Hosting | Produktimage `lzug-app`, gehärtete Docker-Referenz und persistentes `/data` | `packaging/product/Dockerfile`, `deployment/self-hosted/compose.yaml` und Containerverträge | `packaging/product/`, `deployment/self-hosted/` und `tests/pester/` |
 | Öffentliche Demo | getrenntes Image `lzug-demo`, flüchtige App-/Seed-Assembly, Reset, Promotion und Azure-Deployment | digestgebundene Manifeste, OIDC und Demo-Runtime-Policy | `packaging/demo/contract.py`, `packaging/demo/runtime/`, `packaging/demo/artifacts.py`, `packaging/demo/`, `deployment/demo/infra/`, `packaging/demo/tests/`, Demo-Workflows |
@@ -332,6 +332,14 @@ Heute beschränkt die Feedprüfung die Person nur darauf, mindestens eine aktive
 Mitgliedschaft zu haben; die Synchronisierung und Ausgabe filtern anschließend
 nach `person_id`.
 Sync und Ausgabe sind auf die aktiven Membership-IDs der Person begrenzt.
+Die finale Scope-Revalidierung eines Feed-ICS-Reads verwendet ein mit den
+Identity- und Committee-Schreib-UoWs geteiltes Scope-Gate. Damit kann eine
+Mitgliedschaftsänderung zwischen letzter Prüfung und Antwortfreigabe nicht
+committen; Sync und Rendering laufen außerhalb des Gates. Ein nicht bestätigter
+dauerhafter Widerruf liefert über `DELETE /api/calendar/feed` den typisierten
+HTTP-503-Fehler `calendar_feed_revocation_pending`, der einen erneuten
+Widerrufsversuch erlaubt. Calendar zählt nur aktive Mitgliedschaften in
+aktiven und vollständig initialisierten Committees zum Scope.
 `list_events`, `feed_ics` und `event_ics` synchronisieren über `sync_person`
 weiterhin vor dem Lesen oder Rendern; Refresh und Read verwenden getrennte
 UoWs.
@@ -354,54 +362,30 @@ Application revalidiert den Claim unmittelbar vor dem Seiteneffekt und
 schreibt den Abschluss nur unter dem gespeicherten Leasewert.
 Externe Seiteneffekte sind damit nicht Exactly-once.
 
-Weitere heutige Kalenderpfade liegen in `execution.absence`:
-`select_replacement` ermittelt über `_report_round_id` eine Runde nur für
-einen offenen Prüfungstag und ruft dann `sync_round` vor der
-Abwesenheitsmutation auf.
-Nach dem Commit ruft es `sync_round` erneut auf, ebenfalls nur bei offenem
-Prüfungstag.
-Diese direkten Pre- und Post-Commit-Aufrufe sind ein dokumentierter
-Übergangspfad bis zum abhängigen Issue [#1158](https://github.com/lxndrp/lzug/issues/1158).
-Sie bleiben in #1085 migrationsfrei bestehen und sind keine Abnahmebedingung
-dieses Issues; ihre Entfernung und dauerhafte Application-Orchestrierung
-gehören zu #1158.
-Aktuell speichert `AbsenceUnitOfWork` keine Calendar-Before-Image-Quelle,
-keinen Guard-Snapshot und keine ursprünglichen Notification-Empfänger.
-Calendar- und Notification-Aufrufe erfolgen direkt nach dem Commit; nach einem
-Prozessabbruch gibt es für diese Folgen keine dauerhafte Wiederholung.
-Die nachfolgende Replay-Beschreibung ist das Ziel von #1158, nicht der
-implementierte Stand von #1085.
-In #1158 soll nur bei offenem Prüfungstag eine unveränderliche
-Execution-Folgequelle im Mutation-UoW das Before-Image samt
-`closure_status == "open"`, Assignment-ID, altem Empfänger und
-materialisiertem Eventinhalt speichern. Application soll diese Quelle ohne
-Neubewertung des späteren Tagesstatus replayen und an Calendar übergeben.
-Bei `reopening` soll keine Calendar-Quelle entstehen.
-Auch die ursprünglichen Notification-Empfänger für
-`replacement_selected` sollen erst dort im gemeinsamen Cross-Domain-UoW
-eingefroren werden.
-Für die in #1158 geplante Before-Image-Wiederholung soll Calendar die
-Generationreservierung je Assignment in seinem eigenen Repository-UoW
-serialisieren und die idempotente Zuordnung von stabilem Quellursprung zu
-Generation speichern.
-`sync_round`, `sync_assignment` und `sync_person` sollen dabei vor jeder
-Assignment-Reconciliation den Planning-Snapshot mit der neuesten Execution-
-Folgeversion samt Cancellation-Tombstone kombinieren. Ein verzögerter
-Planning-Auftrag soll keine stornierte Zuweisung reaktivieren; nur eine höhere
-Execution-Folgeversion darf sie wieder aktivieren. ICS-read-triggered Sync und
-Before-Image-Replay sollen denselben Calendar-Allocator verwenden.
-Damit soll ein Read-Sync die Ersatzprojektion bereits anlegen können, ohne
-UID-Kollision oder zweite aktive Generation; Wiederholungen behalten dieselben
-Origin-zu-Generation-Zuordnungen.
-Wiederöffnung stellt im Execution-Zustand den ursprünglichen
-Assignee wieder her und ruft `sync_round` nach dem Commit nur für einen
-offenen Prüfungstag auf.
-Dieser Sync storniert das Ersatz-Event mit Versionssprung und erzeugt für den
-ursprünglichen Assignee eine neue Eventgeneration.
-Abbruch ruft `cancel_assignment` nach dem Commit ebenfalls nur für einen
-offenen Prüfungstag auf.
-Diese Aufrufe sind direkte synchrone Folgen ohne dauerhaften Application-
-Auftrag und ohne garantierte Wiederholung nach Prozessabbruch.
+Der Abwesenheits- und Ersatzpfad wird durch #1158 über Application
+orchestriert.
+`AbsenceUnitOfWork` schreibt mit der Mutation eine unveränderliche
+Folgequelle mit Audit-Ursprung, Guard-Snapshot, ursprünglichen
+Notification-Empfängern und – bei offenem Prüfungstag – Calendar-Before-Image.
+Die Empfänger werden zum auslösenden Zustand eingefroren und beim Replay nicht
+aus späteren Memberships neu berechnet.
+Application verarbeitet nach dem Commit nur die neu angelegte Quelle; ein
+expliziter `lzug-admin notification process` stellt fehlende Batches wieder her
+und verarbeitet fällige oder erneut freigegebene Aufgaben.
+Ein Prozessneustart startet keinen automatischen Replay-Worker.
+
+Ersatzwahl, Wiederöffnung und Absage teilen Assignment-CAS, Execution-Audit
+und Folgequelle im Application-UoW.
+Kalenderfolgen entstehen nur für offene Prüfungstage; eine Wiederöffnung nach
+einer Absage erzeugt eine Update-Quelle und erhöht die Assignment-Revision.
+Calendar reserviert die Generation pro Assignment in seinem Repository-UoW
+und persistiert die Zuordnung von Ursprung und Ausführungsrevision samt Aktion.
+Eine Cancellation-Tombstone bleibt bei `sync_round`, `sync_assignment` und
+`sync_person` wirksam; nur eine neuere Execution-Folgeversion darf die
+Zuweisung wieder aktivieren.
+ICS-Read-Sync und Folgequellen-Replay verwenden denselben Allocator.
+Wiederholungen behalten dieselbe Ursprungszuordnung und erzeugen keine zweite
+aktive Generation.
 Eine Rundungsabsage verhält sich anders:
 `ExamRoundLifecycleService` setzt nicht stornierte `CalendarEvent`-Zeilen mit
 `date >= now[:10]` während derselben Rundungsentscheidungs-Transaktion auf
@@ -460,23 +444,20 @@ Frontend-Produktcode.
 Die Calendar-Garantie, dass das alte Token nach dem Widerrufscommit ungültig
 ist, gilt unabhängig vom Frontend-Fehlerpfad.
 
-Heute speichert `activate` beziehungsweise `rotate` das Credential vor dem
-anschließenden Sync.
-Bei Rotation wird das alte Credential dadurch vor dem fehleranfälligen Sync
-ungültig; schlägt der Sync fehl, bleibt jedoch das neue Token-Hash aktiv,
-obwohl dessen einmalige URL nicht zurückgegeben werden konnte.
-Zielvertrag für die initiale Aktivierung bleibt Sync-first:
-erst lokale Projektion im eigenen Calendar-UoW erfolgreich aktualisieren,
-dann das Credential atomar anlegen und dessen URL einmalig zurückgeben.
-Bei Rotation wird das alte Credential zuerst in einem eigenen atomaren
-Calendar-UoW widerrufen und ein nicht-geheimer Pending-Generationsstand
-gespeichert.
-Scheitert dieser erste Commit, bleibt die bisherige Generation aktiv und
-Calendar beginnt keinen Sync.
-Der alte Token ist ab diesem Commit ungültig, auch wenn der folgende Sync
-scheitert; der Pending-Stand bleibt für einen ausdrücklichen Retry erhalten.
-Ein Retry synchronisiert erneut und darf die neue Token-Generation nur per
-CAS auf genau diesen Pending-Stand aktivieren.
+Die initiale Aktivierung persistiert zuerst eine nicht-geheime
+Pending-Generation, synchronisiert danach außerhalb des Lifecycle-Locks und
+speichert das Credential erst nach erfolgreichem Sync und CAS-Finalisierung.
+Ein Sync- oder Finalisierungsfehler gibt kein Secret aus; ein verbleibender
+Pending-Stand kann durch den nächsten expliziten `POST` erneut synchronisiert
+werden.
+Bei Rotation werden das alte Credential und seine Generation zuerst atomar
+widerrufen und der Pending-Stand persistiert.
+Ein Syncfehler lässt den alten Token ungültig und den Retry-Stand erhalten.
+Die neue Token-Generation wird nach erneutem Sync nur per CAS auf diesen
+Pending-Stand aktiviert und die URL erst nach dem Commit einmalig ausgegeben.
+Migration `030_calendar_feed_lifecycle.sql` ergänzt dafür eine
+Calendar-eigene Lifecycle-Tabelle und überführt vorhandene aktive Credentials
+mit Generation 1; Secret-Werte werden weder kopiert noch wiederhergestellt.
 Der bestehende Aktivierungs-POST prüft diesen persistierten Pending-Stand
 unabhängig vom `rotate`-Argument zuerst und setzt ihn fort, ohne ein weiteres
 Pending anzulegen oder erneut zu widerrufen.
@@ -502,16 +483,20 @@ geladene Status wird als veraltet oder unbekannt behandelt, nicht als aktuell
 aktiv bestätigt.
 Ein pro-Feed Lifecycle-Lock aus der Composition Root schützt kurze
 Credential-Prüfungen und -Commits; Sync, Snapshot und Rendering laufen
-außerhalb. Sein Registry-/Serviceobjekt wird prozessweit geteilt und nicht pro
-`RequestContext` oder `CalendarService` instanziiert.
+außerhalb. Registry und Sync-Coordinator werden pro Prozess nach aufgelöstem
+Datenbankpfad und Personen-ID geteilt und nicht pro `RequestContext` oder
+`CalendarService` instanziiert.
 ICS prüft Credential-Generation und Identity-Scope vor der Arbeit, prüft den
 Read-Snapshot unter kurzer Sperre und unmittelbar vor Rückgabe Credential-
 Generation und Identity-Scope erneut. Bei einer Scope-Änderung seit dem
 Snapshot verwirft Calendar das gesamte materialisierte ICS-Ergebnis; es muss
-keine gerenderte Antwort nachträglich parsen oder filtern. Alle Sync-Auslöser
-gehen durch den je Feed serialisierten Coordinator; Rotation committet Widerruf und
-Pending-Generation unter dem Lifecycle-Lock, synchronisiert außerhalb und
-finalisiert nach erneuter Pending-Prüfung unter dem Lock. `DELETE` setzt unter
+keine gerenderte Antwort nachträglich parsen oder filtern. Feed-Refreshes aus
+`sync_person` sowie Aktivierungs- und Rotations-Syncs nutzen den je Feed
+serialisierten Coordinator. Allgemeine `sync_round`- und `sync_assignment`-
+Aufrufe verwenden eigene UoWs außerhalb dieses Coordinators. Rotation committet
+Widerruf und Pending-Generation unter dem Lifecycle-Lock, synchronisiert
+außerhalb und finalisiert nach erneuter Pending-Prüfung unter dem Lock.
+`DELETE` setzt unter
 dem Commit-Gate zuerst ein prozesslokales Abbruchsignal, wartet ohne beide Locks
 auf Rollback oder Abschluss des aktiven UoW und committet danach die dauerhafte
 Revocation-Generation. Wartende Aufträge starten nach dem Fence nicht; ein
@@ -528,8 +513,15 @@ Snapshot verwirft Calendar das gesamte materialisierte ICS-Ergebnis; Sync und
 Rendering liegen außerhalb.
 Rotation hält die Sperre für Widerrufscommit sowie spätere Pending-Revalidierung
 und Finalisierung; ihr Sync läuft außerhalb.
-Die Garantie gilt prozessweit im einzelnen autoritativen Backendprozess;
-mehrere Serverprozesse für dieselbe Datenbank sind nicht unterstützt.
+Die Cancellation-Fence ist prozesslokal; nach einem fehlgeschlagenen
+Revocation-Commit bleiben Feed-Credential-Reads, Feed-Syncs und Finalizer bis
+zum expliziten `DELETE`-Retry gefenced. Identity-autorisierte
+Membership-Reads über `list_events` und `event_ics` dürfen nach dem Fehler
+weiter auffrischen, werden aber während eines laufenden Retries ebenfalls
+gefenced.
+Nach einem Prozessneustart wird ausschließlich der persistierte Zustand
+herangezogen; ein nicht bestätigter Commit gilt nicht als Widerruf.
+Mehrere Backendprozesse für dieselbe Datenbank werden nicht unterstützt.
 Erst der erfolgreiche Finalisierungscommit gibt die neue URL einmalig aus.
 Bei Commitfehler wird kein Secret ausgegeben; bleibt der Pending-Stand
 erhalten, kann der Sync mit einer neuen Secret-Erzeugung wiederholt werden.
@@ -963,6 +955,20 @@ Prüfungsprotokolle, Ergebnisse, persönliche Daten und Prüfungsorte besitzen
 jeweils einen fachlichen Client.
 Der schmale `api.models.ts`-Export hält bestehende Importpfade stabil, ohne
 Transportmodelle erneut zu definieren.
+Die HTTP-Adapter verwenden vollständige generierte Responseverträge am
+Transporteingang, soweit OpenAPI sie bereitstellt.
+Sie projizieren die benötigten Felder in fachliche Featuremodelle und werten
+offene Zusatzfelder gezielt und typgeprüft aus.
+Das gilt für Protokolle, Ergebnisse, Planungsvorschläge, bestätigte Pläne,
+Stammdaten, Prüfungsorte, Halbjahre, Kalender- und Benachrichtigungseinstellungen
+sowie Demo-Szenarien.
+Ein allgemeiner Camelizer und parallele vollständige Wire-Modellfamilien sind
+entfallen.
+`day_revision` wird bei `null` aus dem optionalen Protokoll-Featurefeld
+weggelassen.
+Für Operationen mit weiterhin unbekanntem OpenAPI-Antwortschema bleiben kleine
+gezielte Projektionen bestehen, etwa bei Ausführungsübersichten,
+Abwesenheitslisten und Änderungsfolgen.
 Komponenten konsumieren nur die Facade ihres Features oder ausdrücklich
 UI-nahe gemeinsame Services.
 Facades stellen die Zustände und Befehle bereit, die eine Oberfläche benötigt;
@@ -975,17 +981,22 @@ Schnittstellen.
 Eine lokale Feature-Registrierung ist passend, wenn ein Adapter nur zu einem
 Feature gehört.
 
-Diese Grenze wird schrittweise featureweise eingeführt.
+Die Featuregrenzen werden dort eingeführt, wo sie eine tatsächliche
+Austausch-, Lebensdauer- oder Testgrenze bilden.
 Die Terminübersicht unter `frontend/src/app/scheduling-overview/` zeigt das
-Muster: Ihre Komponente verwendet `SchedulingOverviewFacade`, der
-Anwendungsfall hängt am `SchedulingOverviewPort`, und
-`HttpSchedulingOverviewAdapter` übersetzt das vorhandene API-Modell in ein
-transportneutrales Featuremodell.
+Muster: `SchedulingOverviewFacade` besitzt Lade- und Fehlerzustand und
+verwendet `SchedulingOverviewPort` direkt; `HttpSchedulingOverviewAdapter`
+übersetzt das API-Modell in ein transportneutrales Featuremodell.
 Die bestehende Anzeige und ihre Lade-, Leer- und Fehlerzustände bleiben dabei
 unverändert; ihre Komponententests benötigen keinen HTTP-Testcontroller.
-Der Architekturtest prüft die Abhängigkeiten dieses Beispiels.
-Weitere direkte API-Abhängigkeiten werden mit der Migrationsplanung #907
-umgestellt.
+`npm run architecture:check` verfolgt statische Import- und Re-Export-Pfade
+transitiv innerhalb der jeweiligen Featuregrenze.
+Die Prüfung endet an Transportgrenzen sowie am Modul einer Port-Implementierung,
+die `app.config.ts` an ein Port-Token bindet.
+Dieses Modul bildet selbst die technische Grenze; seine weiteren Importe werden
+nicht dem Featureverbraucher zugerechnet.
+Außerhalb dieser Grenzen meldet die Prüfung verbotene Transport-, HTTP- und
+Adapterabhängigkeiten, ohne Helper-Namen oder Weiterleitungsketten vorzuschreiben.
 
 Abstraktionen entstehen nur an einer tatsächlichen Austausch- oder
 Testgrenze.
@@ -997,18 +1008,17 @@ HTTP-Fehlergrenzen ist in #908 nachgewiesen.
 `DashboardProjectionService` besitzt den Dashboard-Read einschließlich seines
 Lade- und Fehlerzustands; `HttpDashboardProjectionAdapter` lädt nur Runde,
 Summary und Board.
-`ApplicationShellContextService` lädt Version sowie kompakte Halbjahr-,
-Runden- und Ausschusslabels separat.
+`ApplicationShellContextService` lädt kompakte Halbjahr-, Runden- und
+Ausschusslabels; `AboutRouteComponent` liest die Buildversion über
+`BuildInfoPort`.
 Kandidaten- und Ausschussansichten laden über eigene Methoden des
 `MasterDataPort`; deren Fehler und Invalidierung bleiben voneinander getrennt.
-`ApplicationWorkspaceService` hält befristet den Planungs-/Halbjahres-
-Kompatibilitätszustand hinter `WorkspacePort`.
-Die Prüfungshalbjahresroute bezieht die aktive Runde aus `RoundContextService`.
-Weicht sie von der Workspace-Runde ab, aktualisiert sie gezielt die
-rundenabhängigen Prüflingsreferenzen statt den vollständigen Workspace zu laden.
-Nach Venue-/Raumänderungen werden die Dashboard- und Legacy-Board-Ortsreferenzen
-mit gezielten `/api/locations`-Reads aktualisiert; die übrigen Workspace- und
-Dashboarddaten bleiben erhalten.
+Es gibt keinen globalen Workspace mehr.
+Die Prüfungshalbjahresansicht bezieht die aktive Runde aus
+`RoundContextService` und lädt ihre rundenabhängigen Referenzen über
+`ExamHalfYearsPort`.
+Nach Venue-/Raumänderungen werden betroffene Dashboardprojektionen gezielt
+aktualisiert; unabhängige Dashboarddaten bleiben erhalten.
 Bestätigte Pläne und Prüfungstage lesen ihre Ortsangaben über eigene
 API-Projektionen, sobald ihre Route geöffnet wird; sie halten keine globale
 Ortskopie über einen Routenwechsel hinweg.
@@ -1051,10 +1061,27 @@ Die Komponente behält ihre Formularentwürfe und Darstellung. Ein Refresh im
 gleichen Runden-/Tageskontext übernimmt neue Serverwerte in unveränderte Drafts,
 bewahrt davon abweichende lokale Drafts und löscht Drafts entfernter Einträge.
 Ein Wechsel von Runde oder Tag verwirft alle Tages-Drafts.
+Die Formulare für formalen Abschluss und zielgerichtete Wiederöffnung sind
+typisierte `FormGroup`s. Gruppenvalidatoren bündeln die bedingte
+Pflichtfeldprüfung für den Ausnahmeabschluss und die erforderlichen
+Wiederöffnungsangaben; Submit bildet ihre Werte explizit auf die bestehenden
+Commands ab.
+Der Wiederöffnungstoken wird an dieser Grenze auf einen erlaubten Scope-Kind
+und eine positive sichere Ganzzahl-ID geprüft. Unbekannte
+Anwesenheitsstatus werden nicht als gültiger Draft übernommen und können nicht
+versehentlich gespeichert werden.
 Protokoll und Ergebnis erhalten Runde, Tag, Slot und Tagesrevision explizit;
 ihre erfolgreichen Änderungen melden Tagesrevisionen über Outputs zurück,
 damit Prüfungstag den bestätigten Tagesread und beide Kindreads gezielt
 aktualisiert.
+Protokoll und Ergebnis behalten getrennte Feature-Facades direkt über ihren
+jeweiligen Ports; reine Application-Weiterleitungen entfallen.
+Jede Facade wird von ihrer Featurekomponente bereitgestellt und teilt daher
+weder Operationszustand noch Drafts zwischen Slots oder Prüfungstagen.
+Die Komponenten besitzen ihre Formulardrafts und fencen Reads, Commands und
+private Antworten gegen Runde, Tag, Slot und Sitzung.
+Ein Kontext- oder Sitzungswechsel verwirft die zugehörigen Bewertungs-,
+Korrektur-, Vorbehalts- und Offenlegungsentwürfe.
 Während dieser Tagesrefresh läuft, bleibt der bestätigte Snapshot verborgen
 gemountet, damit bereits angenommene Kindcommands ihre verzögerten Antworten
 weiter an Protokoll oder Ergebnis zurückmelden können. Fehler dieser Commands
@@ -1071,23 +1098,20 @@ Protokollentwürfe, Vorbehaltstexte und Ergebnis-Punkteentwürfe überstehen
 denselben Reload.
 Session- und Ansichtswechsel verhindern, dass verspätete Antworten geschützten
 Zustand einer neuen Ansicht verändern.
-Bestätigte Pläne verwenden denselben Schnitt: `ConfirmedPlansWorkflowService`
-ruft `ConfirmedPlansPort` auf, dessen HTTP-Adapter Plan- und Revisionsantworten
-von HAL-Links bereinigt.
+Bestätigte Pläne verwenden `ConfirmedPlansPort` direkt; dessen HTTP-Adapter
+bereinigt Plan- und Revisionsantworten von HAL-Links.
 Planungs-, Stammdaten- und Ortsbefehle liegen in den zuständigen
 Workflow-Services.
 Die Verwaltung der Prüfungshalbjahre verwendet eigene Featuremodelle und den
-`ExamHalfYearsWorkflowService`; `HttpExamHalfYearsAdapter` übersetzt
+`ExamHalfYearsPort`; `HttpExamHalfYearsAdapter` übersetzt
 Runden- und Lebenszyklusverträge einschließlich der Nachweisexporte an der
 HTTP-Grenze.
 `App` besitzt nur Rahmen, Authentisierung, globale Runtimezustände,
 Navigationsdarstellung und die gemeinsame Zugriffsansicht.
-Die Hauptpfade in `app.routes.ts` aktivieren über `loadComponent` jeweils einen
-eigenen Feature-Einstieg unter `frontend/src/app/routes/` oder eine bereits
-eigenständige Fachkomponente.
-Diese Einstiege binden Routeparameter und Feature-Ereignisse an den zuständigen
-Kontext beziehungsweise Workflow; die Shell interpretiert keine URL-Segmente
-und rendert Fachbereiche ausschließlich im `router-outlet`.
+Die Hauptpfade in `app.routes.ts` laden Features direkt oder über einen
+Route-Einstieg, wenn dieser URLparameter an den zuständigen Kontext bindet.
+Die Shell interpretiert keine URL-Segmente und rendert Fachbereiche
+ausschließlich im `router-outlet`.
 
 `RoundContextService` hält den aktuellen Prüfungsrundenkontext.
 Dashboard, Stammdaten, Planung, Durchführung und Nachweise bleiben fachlich

@@ -19,7 +19,7 @@ export type ProtocolEntryDraft = {
 
 export type ProtocolEntry = ProtocolEntryDraft & {
   id: number;
-  recordedByMemberId: number;
+  recordedByMemberId: number | null;
   createdAt: string;
 };
 
@@ -92,6 +92,13 @@ export type UpdateExamProtocol = {
 };
 
 export type ProtocolExportFormat = 'machine-readable' | 'human-readable';
+
+/** Accepted child mutation revision returned to the owning examination-day view. */
+export type ExamProtocolDayRevisionUpdate = {
+  roundId: number;
+  dayId: number;
+  revision: number;
+};
 
 export type ProtocolExport = {
   content: string;

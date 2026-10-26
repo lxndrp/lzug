@@ -583,8 +583,28 @@
 
     @if (can('exam-result:export')) {
       <nav aria-label="Ergebnisexporte">
-        <a [href]="current.exportsLinks.machine">Maschinenlesbarer Ergebnisexport</a>
-        <a [href]="current.exportsLinks.human">Menschenlesbare Ergebnisniederschrift</a>
+        @if (current.exportAvailability.machine) {
+          <button
+            tuiButton
+            appearance="secondary"
+            type="button"
+            [disabled]="exportBusy() || dayRefreshing"
+            (click)="downloadExport('machine-readable')"
+          >
+            Maschinenlesbarer Ergebnisexport
+          </button>
+        }
+        @if (current.exportAvailability.human) {
+          <button
+            tuiButton
+            appearance="secondary"
+            type="button"
+            [disabled]="exportBusy() || dayRefreshing"
+            (click)="downloadExport('human-readable')"
+          >
+            Menschenlesbare Ergebnisniederschrift
+          </button>
+        }
       </nav>
     }
 

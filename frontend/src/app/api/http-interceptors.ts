@@ -6,18 +6,14 @@ import { AUTHENTICATION_PORT } from '../auth/auth.models';
 import { SessionScopeService } from '../auth/session-scope.service';
 import { FRONTEND_ERROR_REPORTER_PORT } from '../observability/frontend-error.port';
 import { LIFECYCLE_AVAILABILITY_PORT } from '../runtime/lifecycle.port';
-import { LifecycleState, lifecycleStates } from '../runtime/lifecycle.models';
+import { unavailableLifecycleStateFrom } from '../runtime/lifecycle.models';
+import type { LifecycleState } from '../runtime/lifecycle.models';
 
 const publicProbePaths = ['/api/health', '/api/ready', '/api/lifecycle'];
 const lifecycleExemptPaths = [...publicProbePaths, '/api/session/logout'];
 
 function unavailableState(error: HttpErrorResponse): LifecycleState | null {
-  const detail = error.error?.error;
-  if (error.status !== 503 || !detail || typeof detail !== 'object') return null;
-  if (detail.code !== 'runtime_not_ready' || detail.ready !== false) return null;
-  return lifecycleStates.includes(detail.state as LifecycleState)
-    ? (detail.state as LifecycleState)
-    : null;
+  return error.status === 503 ? unavailableLifecycleStateFrom(error.error?.error) : null;
 }
 
 /** Stops business requests while the runtime is unavailable; never retries mutations. */

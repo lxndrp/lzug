@@ -1,14 +1,16 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { map } from 'rxjs';
+import { catchError, forkJoin, map, throwError } from 'rxjs';
 
 import { ExamRoundApiService } from './exam-round-api.service';
+import { MasterDataApiService } from './master-data-api.service';
+import { toApplicationError } from './application-error';
 import type {
-  ExamHalfYear as ApiExamHalfYear,
-  ExamRound as ApiExamRound,
-  ExamRoundLifecycle as ApiRoundLifecycle,
+  ExamHalfYearResponse as ApiExamHalfYear,
   ExamRoundCreate,
-} from './planning.models';
+  ExamRoundResponse as ApiExamRound,
+} from './generated/types.gen';
+import type { ExamRoundLifecycle as ApiRoundLifecycle } from './planning.models';
 import type {
   CreateExamRound,
   ExamHalfYear,
@@ -24,7 +26,30 @@ import type { ExamHalfYearsPort } from '../exam-half-years/exam-half-years.port'
 @Injectable({ providedIn: 'root' })
 export class HttpExamHalfYearsAdapter implements ExamHalfYearsPort {
   private readonly api = inject(ExamRoundApiService);
+  private readonly masterData = inject(MasterDataApiService);
   private readonly http = inject(HttpClient);
+
+  loadViewReferences(roundId: number) {
+    return forkJoin({
+      committees: this.masterData.getCommittees(),
+      candidates: this.masterData.getCandidateViews(roundId),
+      candidateAssignments: this.masterData.getCandidateAssignments(),
+    }).pipe(
+      map(({ committees, candidates, candidateAssignments }) => ({
+        committees: committees.map(({ id, name }) => ({ id, name })),
+        candidates: candidates.map(({ candidate }) => ({
+          id: candidate.id,
+          firstName: candidate.first_name,
+          lastName: candidate.last_name,
+        })),
+        candidateAssignments: candidateAssignments.map((assignment) => ({
+          halfYearId: assignment.exam_half_year_id,
+          candidateId: assignment.candidate_id,
+          endedAt: assignment.ended_at,
+        })),
+      })),
+    );
+  }
 
   listHalfYears() {
     return this.api.listExamHalfYears().pipe(map((items) => items.map(toHalfYear)));
@@ -35,13 +60,13 @@ export class HttpExamHalfYearsAdapter implements ExamHalfYearsPort {
   }
 
   createRound(payload: CreateExamRound) {
-    const apiPayload: ExamRoundCreate = {
+    const apiPayload = {
       ...('halfYearId' in payload && payload.halfYearId !== undefined
         ? { exam_half_year_id: payload.halfYearId }
         : { season: payload.season, year: payload.year }),
       committee_id: payload.committeeId,
       name: payload.name,
-    };
+    } satisfies ExamRoundCreate;
     return this.api.createExamRound(apiPayload).pipe(map(toRound));
   }
 
@@ -120,11 +145,15 @@ export class HttpExamHalfYearsAdapter implements ExamHalfYearsPort {
             response.headers.get('content-disposition')?.match(/filename="?([^";]+)"?/i)?.[1] ??
             `pruefungsrunde-${roundId}-nachweis.${format === 'text' ? 'txt' : 'json'}`,
         })),
+        catchError((error: unknown) => throwError(() => toApplicationError(error))),
       );
   }
 }
 
 function toHalfYear(value: ApiExamHalfYear): ExamHalfYear {
+  if (value.season !== 'summer' && value.season !== 'winter') {
+    throw new Error(`Unsupported exam half-year season: ${value.season}`);
+  }
   return { id: value.id, season: value.season, year: value.year, status: value.status };
 }
 

@@ -1,22 +1,62 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
+import { ApplicationError } from '../application/application-error';
+import { of } from 'rxjs';
 
 import { HttpExamHalfYearsAdapter } from './http-exam-half-years.adapter';
+import { MasterDataApiService } from './master-data-api.service';
 
 describe('HttpExamHalfYearsAdapter', () => {
   let adapter: HttpExamHalfYearsAdapter;
   let http: HttpTestingController;
+  let masterData: {
+    getCommittees: ReturnType<typeof vi.fn>;
+    getCandidateViews: ReturnType<typeof vi.fn>;
+    getCandidateAssignments: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(() => {
+    masterData = {
+      getCommittees: vi.fn(() => of([])),
+      getCandidateViews: vi.fn(() => of([])),
+      getCandidateAssignments: vi.fn(() => of([])),
+    };
     TestBed.configureTestingModule({
-      providers: [HttpExamHalfYearsAdapter, provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        HttpExamHalfYearsAdapter,
+        { provide: MasterDataApiService, useValue: masterData },
+        provideHttpClient(),
+        provideHttpClientTesting(),
+      ],
     });
     adapter = TestBed.inject(HttpExamHalfYearsAdapter);
     http = TestBed.inject(HttpTestingController);
   });
 
   afterEach(() => http.verify());
+
+  it('loads only references needed by the half-year view for its selected round', () => {
+    masterData.getCommittees.mockReturnValue(of([{ id: 3, name: 'Ausschuss' }]));
+    masterData.getCandidateViews.mockReturnValue(
+      of([{ candidate: { id: 8, first_name: 'Ada', last_name: 'Lovelace' } }]),
+    );
+    masterData.getCandidateAssignments.mockReturnValue(
+      of([{ exam_half_year_id: 4, candidate_id: 8, ended_at: null }]),
+    );
+
+    adapter.loadViewReferences(7).subscribe((references) => {
+      expect(references).toEqual({
+        committees: [{ id: 3, name: 'Ausschuss' }],
+        candidates: [{ id: 8, firstName: 'Ada', lastName: 'Lovelace' }],
+        candidateAssignments: [{ halfYearId: 4, candidateId: 8, endedAt: null }],
+      });
+    });
+
+    expect(masterData.getCommittees).toHaveBeenCalledOnce();
+    expect(masterData.getCandidateViews).toHaveBeenCalledExactlyOnceWith(7);
+    expect(masterData.getCandidateAssignments).toHaveBeenCalledOnce();
+  });
 
   it('maps half-year and round collections into link-free feature models', () => {
     adapter.listHalfYears().subscribe((items) => {
@@ -198,6 +238,19 @@ describe('HttpExamHalfYearsAdapter', () => {
     http.expectOne('/api/exam-rounds/4/lifecycle/export.txt').flush('Prüfungsrundennachweis', {
       headers: { 'content-type': 'text/plain; charset=utf-8' },
     });
+  });
+
+  it('translates lifecycle export HTTP failures, including forbidden responses', () => {
+    let failure: unknown;
+    adapter.exportLifecycle(4, 'json').subscribe({ error: (error) => (failure = error) });
+    http
+      .expectOne('/api/exam-rounds/4/lifecycle/export.json')
+      .flush(
+        { error: { code: 'forbidden', message: 'Export nicht erlaubt' } },
+        { status: 403, statusText: 'Forbidden' },
+      );
+    expect(failure).toBeInstanceOf(ApplicationError);
+    expect(failure).toMatchObject({ kind: 'forbidden', code: 'forbidden' });
   });
 });
 

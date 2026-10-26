@@ -32,7 +32,6 @@ import type {
 } from './locations.models';
 import type { VenueViewEffect, VenueViewEffectCommand } from './venue-view-effect';
 import { UiFeedbackService } from '../shell/ui-feedback.service';
-import { ApplicationWorkspaceService } from '../shell/application-workspace.service';
 import { DashboardProjectionService } from '../dashboard/dashboard-projection.service';
 import { ReferenceDataWriteEventsService } from '../application/reference-data-write-events.service';
 
@@ -42,7 +41,6 @@ export class VenueWorkflowService {
   private readonly port = inject(LOCATIONS_PORT);
   private readonly feedback = inject(UiFeedbackService);
   private readonly sessionScope = inject(SessionScopeService);
-  private readonly workspace = inject(ApplicationWorkspaceService);
   private readonly dashboard = inject(DashboardProjectionService);
   private readonly referenceDataWrites = inject(ReferenceDataWriteEventsService);
   private readonly pending = signal(false);
@@ -438,7 +436,6 @@ export class VenueWorkflowService {
 
   private refreshLocationProjections(): void {
     this.dashboard.refreshLocations();
-    this.workspace.refreshLocations();
     this.referenceDataWrites.notifyCommitted('locations');
   }
 

@@ -25,7 +25,6 @@ describe('DashboardProjectionService', () => {
   beforeEach(() => {
     load = vi.fn(() =>
       of({
-        applicationVersion: 'test',
         round: examRoundFixture,
         summary: summaryFixture,
         board: planningBoardFixture,
@@ -86,7 +85,6 @@ describe('DashboardProjectionService', () => {
     service.deactivate();
     expect(pending.observed).toBe(false);
     pending.next({
-      applicationVersion: 'stale',
       round: examRoundFixture,
       summary: summaryFixture,
       board: planningBoardFixture,
@@ -100,7 +98,6 @@ describe('DashboardProjectionService', () => {
     const staleRead = new Subject<never>();
     load.mockReturnValueOnce(staleRead).mockReturnValueOnce(
       of({
-        applicationVersion: 'after commit',
         round: examRoundFixture,
         summary: summaryFixture,
         board: planningBoardFixture,
@@ -114,14 +111,12 @@ describe('DashboardProjectionService', () => {
     expect(load).toHaveBeenCalledTimes(2);
     expect(staleRead.observed).toBe(false);
     staleRead.next({} as never);
-    expect(service.projection()?.applicationVersion).toBe('after commit');
   });
 
   it('reloads the active dashboard when availability may mirror from another round', () => {
     const roundTwo = { ...examRoundFixture, id: 2 };
     load.mockImplementation((id: number) =>
       of({
-        applicationVersion: 'test',
         round: id === 2 ? roundTwo : examRoundFixture,
         summary: summaryFixture,
         board: planningBoardFixture,
@@ -230,7 +225,6 @@ describe('DashboardProjectionService', () => {
     service.activate();
     scope.clear();
     pending.next({
-      applicationVersion: 'stale',
       round: examRoundFixture,
       summary: summaryFixture,
       board: planningBoardFixture,
@@ -275,7 +269,6 @@ describe('DashboardProjectionService', () => {
     const oldLocation = locationsFixture[0];
     const updatedLocation = { ...oldLocation, name: 'Aktualisierter Prüfungsort' };
     const staleProjection = {
-      applicationVersion: 'test',
       round: examRoundFixture,
       summary: summaryFixture,
       board: { ...planningBoardFixture, locations: [oldLocation] },
@@ -347,7 +340,6 @@ describe('DashboardProjectionService', () => {
     const service = TestBed.inject(DashboardProjectionService);
     service.activate();
     const staleProjection = {
-      applicationVersion: 'test',
       round: examRoundFixture,
       summary: summaryFixture,
       board: planningBoardFixture,

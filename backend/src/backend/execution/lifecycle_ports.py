@@ -35,6 +35,7 @@ class PlanAssignmentLifecycleSnapshot(Protocol):
     id: int
     exam_day_id: int
     committee_member_id: int
+    revision: int
     assignment_role: str
     day_part: str
     fallback_status: str | None
@@ -112,6 +113,8 @@ class RoundLifecycleFacts(Protocol):
 
     def round_lifecycle_snapshot(self, round_id: int) -> PlanningRoundLifecycleSnapshot | None: ...
     def round_committee_id(self, round_id: int) -> int | None: ...
+
+    def assignment_revision(self, assignment_id: int) -> int | None: ...
     def committee_members(self, committee_id: int) -> Sequence[IdentityMemberLifecycleSnapshot]: ...
     def management_member_ids_for_committee(self, committee_id: int) -> set[int]: ...
     def results_for_round(self, round_id: int) -> Sequence[Mapping[str, Any]]: ...
@@ -170,6 +173,25 @@ class PlanningLifecycleWork(Protocol):
         lifecycle_status: str | None = None,
     ) -> bool: ...
     def delete_empty_draft_round(self, round_id: int, expected_revision: int) -> bool: ...
+    def reassign_absence_assignment(
+        self,
+        assignment_id: int,
+        *,
+        expected_revision: int,
+        expected_member_id: int,
+        member_id: int,
+        now: str,
+        fallback_status: str | None = None,
+    ) -> bool: ...
+    def restore_absence_assignment(
+        self,
+        assignment_id: int,
+        *,
+        expected_revision: int,
+        expected_member_id: int,
+        member_id: int,
+        now: str,
+    ) -> bool: ...
     def round_candidates(self, round_id: int) -> Sequence[Mapping[str, Any]]: ...
     def candidate_details(
         self, candidate_ids: Sequence[int]
@@ -231,6 +253,8 @@ class IdentityLifecycleWorkFactory(Protocol):
 
 class CalendarLifecycleWork(Protocol):
     def cancel_future_round_events(self, round_id: int, cutoff_date: str, now: str) -> set[int]: ...
+
+    def assignment_before_image(self, assignment_id: int) -> Sequence[Mapping[str, Any]]: ...
 
 
 class CalendarLifecycleWorkFactory(Protocol):

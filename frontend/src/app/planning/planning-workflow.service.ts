@@ -42,6 +42,7 @@ import type {
 import type { ProposalEditorState } from './planning-proposal-editor.component';
 import { UiFeedbackService } from '../shell/ui-feedback.service';
 import { PLANNING_PORT } from './planning.port';
+import { planningValidationViolationsFrom } from './planning-validation';
 
 /** Planning commands and editor state for the selected examination round. */
 @Injectable({ providedIn: 'root' })
@@ -736,11 +737,7 @@ export class PlanningWorkflowService {
         error: (error: ApplicationError) => {
           if (!this.isSelectedRound(roundId) || !this.isCurrentView(view)) return;
           this.editorState.set('error');
-          const detail =
-            typeof error.details === 'object' && error.details !== null
-              ? (error.details as { violations?: PlanningValidationViolation[] })
-              : undefined;
-          this.editorViolations.set(detail?.violations ?? []);
+          this.editorViolations.set(planningValidationViolationsFrom(error.details));
           this.editorError.set(
             error.kind === 'conflict'
               ? 'Der Vorschlag wurde zwischenzeitlich geändert. Laden Sie die aktuelle Fassung, bevor Sie erneut speichern.'

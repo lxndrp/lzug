@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from contextlib import AbstractContextManager, contextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 
 from sqlalchemy import select
@@ -22,8 +23,11 @@ from backend.persistence.database import (
     session_scope,
 )
 from backend.persistence.models import (
+    CalendarAssignmentExecutionOrigin,
     CalendarEvent,
     CalendarFeed,
+    CalendarFeedLifecycle,
+    Committee,
     CommitteeMember,
     ExamDay,
     ExamDayAssignment,
@@ -33,6 +37,10 @@ from backend.persistence.models import (
     ExamSlot,
     ExamVenue,
 )
+
+
+def _timestamp() -> str:
+    return datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
 def _event_snapshot(event: CalendarEvent) -> CalendarEventSnapshot:
@@ -71,7 +79,10 @@ class SQLiteCalendarUnitOfWork:
         feed = self._session.scalars(
             select(CalendarFeed).where(CalendarFeed.person_id == person_id)
         ).first()
-        return self._feed_snapshot(feed) if feed else None
+        lifecycle = self._session.get(CalendarFeedLifecycle, person_id)
+        if feed is None and lifecycle is None:
+            return None
+        return self._feed_snapshot(feed, lifecycle, person_id)
 
     def active_feed_for_token(self, token_hash: str) -> CalendarFeedSnapshot | None:
         feed = self._session.scalars(
@@ -80,27 +91,48 @@ class SQLiteCalendarUnitOfWork:
                 CalendarFeed.revoked_at.is_(None),
             )
         ).first()
-        return self._feed_snapshot(feed) if feed else None
+        if feed is None:
+            return None
+        lifecycle = self._session.get(CalendarFeedLifecycle, feed.person_id)
+        return self._feed_snapshot(feed, lifecycle, feed.person_id)
 
     def save_feed(self, feed: CalendarFeedSnapshot) -> None:
         current = self._session.scalars(
             select(CalendarFeed).where(CalendarFeed.person_id == feed.person_id)
         ).first()
-        if current is None:
-            current = CalendarFeed(person_id=feed.person_id)
-            self._session.add(current)
-        current.token_hash = feed.token_hash
-        current.created_at = feed.created_at
-        current.revoked_at = feed.revoked_at
+        if feed.token_hash is None:
+            if current is not None:
+                self._session.delete(current)
+        else:
+            if current is None:
+                current = CalendarFeed(
+                    person_id=feed.person_id,
+                    token_hash=feed.token_hash,
+                    created_at=feed.created_at,
+                    revoked_at=feed.revoked_at,
+                )
+                self._session.add(current)
+            else:
+                current.token_hash = feed.token_hash
+                current.created_at = feed.created_at
+                current.revoked_at = feed.revoked_at
+        lifecycle = self._session.get(CalendarFeedLifecycle, feed.person_id)
+        if lifecycle is None:
+            lifecycle = CalendarFeedLifecycle(person_id=feed.person_id)
+            self._session.add(lifecycle)
+        lifecycle.generation = feed.generation
+        lifecycle.pending_generation = feed.pending_generation
+        lifecycle.revocation_generation = feed.revocation_generation
+        lifecycle.revoked_at = feed.lifecycle_revoked_at
         self._session.flush()
 
-    def revoke_feed(self, person_id: int, revoked_at: str) -> bool:
-        feed = self._session.scalars(
-            select(CalendarFeed).where(CalendarFeed.person_id == person_id)
-        ).first()
-        if feed is None or feed.revoked_at is not None:
+    def save_feed_if_current(
+        self, feed: CalendarFeedSnapshot, *, expected_pending_generation: int | None
+    ) -> bool:
+        current = self.feed_for_person(feed.person_id)
+        if current is None or current.pending_generation != expected_pending_generation:
             return False
-        feed.revoked_at = revoked_at
+        self.save_feed(feed)
         return True
 
     def events_for_source(self, source_prefix: str) -> Sequence[CalendarEventSnapshot]:
@@ -113,6 +145,42 @@ class SQLiteCalendarUnitOfWork:
             .order_by(CalendarEvent.id)
         ).all()
         return tuple(_event_snapshot(event) for event in events)
+
+    def reserve_execution_origin(
+        self, assignment_id: int, origin_id: str, execution_version: int, action: str
+    ) -> str:
+        current = self._session.get(CalendarAssignmentExecutionOrigin, assignment_id)
+        if current is not None:
+            if current.execution_version > execution_version:
+                return "superseded"
+            if current.execution_version == execution_version:
+                return (
+                    "apply"
+                    if current.origin_id == origin_id and current.action == action
+                    else "conflict"
+                )
+            current.origin_id = origin_id
+            current.execution_version = execution_version
+            current.action = action
+            current.updated_at = _timestamp()
+            self._session.flush()
+            return "apply"
+
+        self._session.add(
+            CalendarAssignmentExecutionOrigin(
+                assignment_id=assignment_id,
+                origin_id=origin_id,
+                execution_version=execution_version,
+                action=action,
+                updated_at=_timestamp(),
+            )
+        )
+        self._session.flush()
+        return "apply"
+
+    def execution_action(self, assignment_id: int) -> str | None:
+        origin = self._session.get(CalendarAssignmentExecutionOrigin, assignment_id)
+        return origin.action if origin is not None else None
 
     def events_for_round(
         self,
@@ -190,12 +258,21 @@ class SQLiteCalendarUnitOfWork:
         return _event_snapshot(model)
 
     @staticmethod
-    def _feed_snapshot(feed: CalendarFeed) -> CalendarFeedSnapshot:
+    def _feed_snapshot(
+        feed: CalendarFeed | None,
+        lifecycle: CalendarFeedLifecycle | None,
+        person_id: int,
+    ) -> CalendarFeedSnapshot:
         return CalendarFeedSnapshot(
-            person_id=feed.person_id,
-            token_hash=feed.token_hash,
-            created_at=feed.created_at,
-            revoked_at=feed.revoked_at,
+            person_id=person_id,
+            token_hash=feed.token_hash if feed else None,
+            created_at=feed.created_at if feed else _timestamp(),
+            revoked_at=(feed.revoked_at if feed else None)
+            or (lifecycle.revoked_at if lifecycle else None),
+            generation=lifecycle.generation if lifecycle else (1 if feed else 0),
+            pending_generation=lifecycle.pending_generation if lifecycle else None,
+            revocation_generation=lifecycle.revocation_generation if lifecycle else 0,
+            lifecycle_revoked_at=lifecycle.revoked_at if lifecycle else None,
         )
 
 
@@ -208,9 +285,25 @@ class SQLiteCalendarPersistence:
     def __call__(self) -> AbstractContextManager[SQLiteCalendarUnitOfWork]:
         return self._unit_of_work()
 
+    def feed_for_person(self, person_id: int) -> CalendarFeedSnapshot | None:
+        with read_session_scope(self.db_path) as session:
+            return SQLiteCalendarUnitOfWork(session).feed_for_person(person_id)
+
+    def active_feed_for_token(self, token_hash: str) -> CalendarFeedSnapshot | None:
+        with read_session_scope(self.db_path) as session:
+            return SQLiteCalendarUnitOfWork(session).active_feed_for_token(token_hash)
+
+    def events_for_members_in_period(
+        self, member_ids: frozenset[int], half_year_id: int
+    ) -> Sequence[CalendarEventSnapshot]:
+        with read_session_scope(self.db_path) as session:
+            return SQLiteCalendarUnitOfWork(session).events_for_members_in_period(
+                member_ids, half_year_id
+            )
+
     @contextmanager
     def _unit_of_work(self):
-        with session_scope(self.db_path) as session:
+        with session_scope(self.db_path, begin_immediate=True) as session:
             yield SQLiteCalendarUnitOfWork(session)
 
     def current_half_year_id(self) -> int | None:
@@ -289,9 +382,12 @@ class SQLiteCalendarPersistence:
         with read_session_scope(self.db_path) as session:
             rows = session.execute(
                 select(CommitteeMember.id, CommitteeMember.committee_id)
+                .join(Committee, Committee.id == CommitteeMember.committee_id)
                 .where(
                     CommitteeMember.person_id == person_id,
                     CommitteeMember.is_active == 1,
+                    Committee.is_active == 1,
+                    Committee.bootstrap_state == "ready",
                 )
                 .order_by(CommitteeMember.id)
             ).all()

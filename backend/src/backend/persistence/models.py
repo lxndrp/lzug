@@ -994,6 +994,7 @@ class ExamDayAssignment(Base):
     committee_member_id: Mapped[int] = mapped_column(ForeignKey("committee_member.id"))
     assignment_role: Mapped[str] = mapped_column(String)
     day_part: Mapped[str] = mapped_column(String)
+    revision: Mapped[int] = mapped_column(Integer, server_default=sql_text("1"))
     fallback_status: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[str] = mapped_column(
         String,
@@ -1774,6 +1775,22 @@ class CalendarFeed(Base):
     __table_args__ = (Index("calendar_feed_person", "person_id", unique=True),)
 
 
+class CalendarFeedLifecycle(Base):
+    """Non-secret pending and monotone generation state for a feed credential."""
+
+    __tablename__ = "calendar_feed_lifecycle"
+
+    person_id: Mapped[int] = mapped_column(
+        ForeignKey("person.id", ondelete="CASCADE"), primary_key=True
+    )
+    generation: Mapped[int] = mapped_column(Integer, nullable=False, server_default=sql_text("0"))
+    pending_generation: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    revocation_generation: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=sql_text("0")
+    )
+    revoked_at: Mapped[str | None] = mapped_column(String, nullable=True)
+
+
 class CalendarEvent(Base):
     """Dataminimized, versioned snapshot exposed through ICS."""
 
@@ -1813,6 +1830,20 @@ class CalendarEvent(Base):
         Index("calendar_event_recipient_period", "recipient_member_id", "exam_half_year_id"),
         Index("calendar_event_status", "status"),
     )
+
+
+class CalendarAssignmentExecutionOrigin(Base):
+    """Latest immutable Execution origin accepted for a Calendar assignment."""
+
+    __tablename__ = "calendar_assignment_execution_origin"
+
+    assignment_id: Mapped[int] = mapped_column(
+        ForeignKey("exam_day_assignment.id", ondelete="CASCADE"), primary_key=True
+    )
+    origin_id: Mapped[str] = mapped_column(String, nullable=False)
+    execution_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    action: Mapped[str] = mapped_column(String, nullable=False)
+    updated_at: Mapped[str] = mapped_column(String, nullable=False)
 
 
 @dataclass(frozen=True)
