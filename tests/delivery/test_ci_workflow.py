@@ -122,7 +122,7 @@ class QualityWorkflowContractTests(unittest.TestCase):
             ("perl-base", "5.40.1-6+deb13u1"),
         ):
             with self.subTest(package=package):
-                self.assertIn(f"--show {package})\" ge \"{version}\"", dockerfile)
+                self.assertIn(f'--show {package})" ge "{version}"', dockerfile)
 
     def test_pull_request_codeql_matrix_covers_all_configured_languages(self) -> None:
         self.assertIn(
