@@ -34,16 +34,20 @@ export function inspectArchitecture(files, resolveModule) {
       visited.add(target);
 
       const relative = normalizedPath(target);
-      const transportType = isGeneratedTransport(target);
+      const transportType = isTransportModel(target);
       const apiClient = isApiClient(target);
       const adapter = isAdapterModule(target);
       if (!transportBoundary && transportType) {
         violations.push({
           file,
-          message: `imports generated/API transport model through ${relative}`,
+          message: `imports transport model through ${relative}`,
         });
       }
-      if (!transportBoundary && (featureComponent || portContract) && apiClient) {
+      if (
+        !transportBoundary &&
+        (featureComponent || portContract || isFeatureWorkflow(file)) &&
+        apiClient
+      ) {
         violations.push({
           file,
           message: `imports API client through ${relative}`,
@@ -55,7 +59,7 @@ export function inspectArchitecture(files, resolveModule) {
           message: `imports concrete HTTP adapter through ${relative}`,
         });
       }
-      if (!transportBoundary && portContract && isTransportImplementation(target)) {
+      if (portContract && isTransportImplementation(target)) {
         violations.push({
           file,
           message: `port contract reaches transport implementation through ${relative}`,
@@ -170,8 +174,9 @@ export function moduleReferences(source, fileName = 'fixture.ts') {
     } else if (
       ts.isCallExpression(node) &&
       node.expression.kind === ts.SyntaxKind.ImportKeyword &&
-      node.arguments.length === 1 &&
-      ts.isStringLiteral(node.arguments[0])
+      node.arguments.length >= 1 &&
+      (ts.isStringLiteral(node.arguments[0]) ||
+        ts.isNoSubstitutionTemplateLiteral(node.arguments[0]))
     ) {
       references.push({ specifier: node.arguments[0].text, kind: 'dynamic-import' });
     }
@@ -200,7 +205,8 @@ function normalizedPath(file) {
 }
 
 function isTestFixture(file) {
-  return normalizedPath(file).includes('/architecture-fixtures/');
+  const normalized = normalizedPath(file);
+  return normalized.includes('/architecture-fixtures/') || normalized.includes('/src/app/testing/');
 }
 
 function isCompositionRoot(file) {
@@ -220,7 +226,19 @@ function isGeneratedTransport(file) {
 }
 
 function isApiModel(file) {
-  return /(?:^|\/)api\/api\.models\.ts$/.test(normalizedPath(file));
+  return /(?:^|\/)api\/[^/]+\.models\.ts$/.test(normalizedPath(file));
+}
+
+function isTransportModel(file) {
+  return isGeneratedTransport(file) || isApiModel(file);
+}
+
+function isFeatureWorkflow(file) {
+  const normalized = normalizedPath(file);
+  return (
+    /(?:^|\/)[^/]+\.facade\.ts$/.test(normalized) ||
+    /(?:^|\/)[^/]+-(?:workflow|projection)\.service\.ts$/.test(normalized)
+  );
 }
 
 function isApiClient(file) {

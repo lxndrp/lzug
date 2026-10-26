@@ -519,11 +519,16 @@ Command im Ursprungsworkflow noch abgeschlossen wird.
 TypeScript-Imports, dynamische `import()`-Aufrufe und Reexports an den
 tatsächlich geltenden Grenzen.
 Die Prüfung löst relative, verschachtelte und Barrel-Imports auf und verbietet
-Transportmodelle, HTTP-Clients und konkrete HTTP-Adapter außerhalb ihrer
-Adapter- beziehungsweise Composition-Root-Verantwortung.
-Portverträge bleiben frei von Transportimplementierungen; der Composition
-Root muss importierte Porttokens und Adapter in seiner Providerkonfiguration
-verwenden.
+generierte sowie handgeschriebene Transportmodelle außerhalb der
+Transportgrenze.
+Komponenten, Feature-Facades, Workflows und Projektionen dürfen keine API-Clients
+importieren; Portverträge bleiben unabhängig von ihrem Verzeichnispfad frei von
+Transportimplementierungen.
+Konkrete HTTP-Adapter dürfen nur am Composition Root gebunden werden.
+Angular HTTP bleibt außerhalb der Transportgrenzen und des Composition Roots
+verboten.
+Der Composition Root muss importierte Porttokens und Adapter in seiner
+Providerkonfiguration verwenden.
 Die Prüfung schreibt weder eine bestimmte Facade-/Application-Kette noch
 konkrete Dateinamen, Importsammlungen oder eine Orts-/Dashboard-Kopplung vor.
 

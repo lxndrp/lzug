@@ -64,7 +64,7 @@ test('rejects a generated transport type re-exported through nested barrels', ()
     inspectArchitecture(sources, resolve)
       .map((item) => item.message)
       .join('\n'),
-    /generated\/API transport model/,
+    /imports transport model/,
   );
 });
 
@@ -83,6 +83,35 @@ test('rejects transport dependencies in ports and Angular HTTP outside transport
   assert.match(messages, /imports Angular HTTP outside a transport boundary/);
 });
 
+test('rejects API clients in port contracts even when the port is under the API directory', () => {
+  const { sources, resolve } = fixture({
+    'api/planning.port.ts': "import { PlanningApiService } from './planning-api.service';",
+    'api/planning-api.service.ts': 'export class PlanningApiService {}',
+  });
+
+  assert.match(
+    inspectArchitecture(sources, resolve)
+      .map((item) => item.message)
+      .join('\n'),
+    /port contract reaches transport implementation/,
+  );
+});
+
+test('rejects handwritten API transport models from feature components', () => {
+  const { sources, resolve } = fixture({
+    'planning/planning.component.ts':
+      "import type { PlanningBoard } from '../api/planning.models';",
+    'api/planning.models.ts': 'export interface PlanningBoard { id: number }',
+  });
+
+  assert.match(
+    inspectArchitecture(sources, resolve)
+      .map((item) => item.message)
+      .join('\n'),
+    /imports transport model/,
+  );
+});
+
 test('rejects concrete adapter imports outside the composition root', () => {
   const { sources, resolve } = fixture({
     'planning/planning.component.ts':
@@ -95,6 +124,22 @@ test('rejects concrete adapter imports outside the composition root', () => {
       .map((item) => item.message)
       .join('\n'),
     /imports concrete HTTP adapter/,
+  );
+});
+
+test('rejects API clients imported by feature workflows', () => {
+  const { sources, resolve } = fixture({
+    'planning/planning-workflow.service.ts':
+      "import { PlanningApiService } from '../api/planning-api.service';",
+    'scheduling-overview/scheduling-overview.facade.ts':
+      "import { PlanningApiService } from '../api/planning-api.service';",
+    'api/planning-api.service.ts': 'export class PlanningApiService {}',
+  });
+
+  assert.equal(
+    inspectArchitecture(sources, resolve).filter((item) => /imports API client/.test(item.message))
+      .length,
+    2,
   );
 });
 
@@ -113,6 +158,21 @@ test('rejects dynamically imported adapters and API clients outside transport bo
     .join('\n');
   assert.match(messages, /imports concrete HTTP adapter/);
   assert.match(messages, /imports API client/);
+});
+
+test('rejects dynamic imports written as template literals without substitutions', () => {
+  const { sources, resolve } = fixture({
+    'planning/planning.component.ts':
+      'void import(`./http-planning.adapter`, { with: { type: "json" } });',
+    'planning/http-planning.adapter.ts': 'export class HttpPlanningAdapter {}',
+  });
+
+  assert.match(
+    inspectArchitecture(sources, resolve)
+      .map((item) => item.message)
+      .join('\n'),
+    /imports concrete HTTP adapter/,
+  );
 });
 
 test('rejects a concrete adapter re-exported through a feature barrel', () => {

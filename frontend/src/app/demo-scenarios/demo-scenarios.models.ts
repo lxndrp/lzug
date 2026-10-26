@@ -1,5 +1,8 @@
-/** Roles available in the isolated demonstration workspace. */
-export type DemoRole = 'chair' | 'examiner' | 'replacement';
+import type { DemoRole } from '../auth/auth.models';
+
+export type { DemoRole } from '../auth/auth.models';
+
+/** Demo role changes belong to the Auth session contract. */
 
 export type DemoScenario = {
   completedSteps: number;

@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { Observable, throwError } from 'rxjs';
 
-import { DemoRole } from '../api/api.models';
+import type { DemoRole } from '../auth/auth.models';
 
 @Injectable({ providedIn: 'root' })
 export class RuntimeExperienceService {

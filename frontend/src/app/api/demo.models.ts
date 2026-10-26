@@ -1,4 +1,6 @@
-export type DemoRole = 'chair' | 'examiner' | 'replacement';
+import type { DemoRole } from '../auth/auth.models';
+
+export type { DemoRole } from '../auth/auth.models';
 
 export type DemoScenario = {
   completed_steps: number;
