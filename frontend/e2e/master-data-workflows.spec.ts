@@ -173,11 +173,13 @@ test.describe('master data workflows', () => {
 
   test('shows a readable message when the API becomes unavailable', async ({ page }) => {
     await page.goto('/');
-    await page.route('**/api/round-summary*', (route) => route.fulfill({ status: 500 }));
+    await page.route('**/api/exam-rounds/*', (route) => route.fulfill({ status: 500 }));
 
     await page.getByRole('button', { name: 'Aktualisieren' }).click();
     const alert = page.getByRole('alert');
-    await expect(alert.getByText('Synchronisierung nicht möglich')).toBeVisible();
+    await expect(
+      alert.getByText('Der aktuelle Prüfungskontext konnte nicht geladen werden.'),
+    ).toBeVisible();
   });
 
   test('renders an empty candidate list without breaking the view', async ({ page }) => {
