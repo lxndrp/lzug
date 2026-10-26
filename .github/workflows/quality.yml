@@ -6,8 +6,8 @@ on:
   workflow_dispatch:
     inputs:
       expected_sha:
-        description: Exact current master SHA to verify for the next release
-        required: true
+        description: Optional expected master SHA; the workflow always tests GitHub's dispatched commit
+        required: false
         type: string
       force_full:
         description: Run deterministic Quality jobs even when recent evidence exists
@@ -54,12 +54,12 @@ jobs:
         with:
           ref: ${{ github.sha }}
       - env:
-          EXPECTED_SHA: ${{ inputs.expected_sha }}
+          EXPECTED_SHA: ${{ inputs.expected_sha || '' }}
         run: |
           test "$GITHUB_REF" = refs/heads/master
-          if test "$GITHUB_EVENT_NAME" = workflow_dispatch; then
+          if test "$GITHUB_EVENT_NAME" = workflow_dispatch && test -n "$EXPECTED_SHA"; then
             test "$EXPECTED_SHA" = "$GITHUB_SHA" || {
-              echo "Master changed or expected_sha is missing; dispatch the intended master SHA again." >&2
+              echo "expected_sha does not match the commit selected by GitHub for this dispatch." >&2
               exit 1
             }
           fi
