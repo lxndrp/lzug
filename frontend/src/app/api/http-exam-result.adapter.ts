@@ -1,15 +1,19 @@
 import { Injectable, inject } from '@angular/core';
-import { map } from 'rxjs';
+import { HttpClient } from '@angular/common/http';
+import { catchError, map, throwError } from 'rxjs';
 
 import type {
   ExamResultResponse as ApiExamResult,
   IndividualAssessmentRequest,
 } from './generated/types.gen';
 import { ApiClient } from './api-client.service';
+import { toApplicationError } from './application-error';
+import type { FileDownload } from '../application/file-download';
 import type {
   DetermineComponent,
   DetermineExamResult,
   ExamResult,
+  ExamResultExportFormat,
   RecordExternalResult,
   SaveIndividualAssessment,
   SetResultRetention,
@@ -20,6 +24,30 @@ import type { ExamResultPort } from '../exam-result/exam-result.port';
 @Injectable({ providedIn: 'root' })
 export class HttpExamResultAdapter implements ExamResultPort {
   private readonly client = inject(ApiClient);
+  private readonly http = inject(HttpClient);
+
+  export(resultId: number, format: ExamResultExportFormat) {
+    const extension = format === 'machine-readable' ? 'json' : 'txt';
+    return this.http
+      .get(`/api/exam-results/${resultId}/export.${extension}`, {
+        observe: 'response',
+        responseType: 'text',
+      })
+      .pipe(
+        map((response): FileDownload => ({
+          content: response.body ?? '',
+          mediaType:
+            response.headers.get('content-type') ??
+            (format === 'machine-readable'
+              ? 'application/json; charset=utf-8'
+              : 'text/plain; charset=utf-8'),
+          fileName:
+            response.headers.get('content-disposition')?.match(/filename="?([^";]+)"?/i)?.[1] ??
+            `pruefungsergebnis-${resultId}.${extension}`,
+        })),
+        catchError((error: unknown) => throwError(() => toApplicationError(error))),
+      );
+  }
 
   get(dayId: number, slotId: number) {
     return this.client
@@ -431,9 +459,9 @@ function fromApiResult(value: ApiExamResult): ExamResult {
       communicate: boolean(value.permissions, 'communicate'),
       manageRetention: boolean(value.permissions, 'manage_retention'),
     },
-    exportsLinks: {
-      machine: linkHref(value._links['machine_export']) ?? null,
-      human: linkHref(value._links['human_export']) ?? null,
+    exportAvailability: {
+      machine: linkHref(value._links['machine_export']) !== null,
+      human: linkHref(value._links['human_export']) !== null,
     },
   } satisfies ExamResult;
 }

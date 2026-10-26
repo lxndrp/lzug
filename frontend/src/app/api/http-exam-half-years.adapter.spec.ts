@@ -1,6 +1,7 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
+import { ApplicationError } from '../application/application-error';
 import { of } from 'rxjs';
 
 import { HttpExamHalfYearsAdapter } from './http-exam-half-years.adapter';
@@ -237,6 +238,19 @@ describe('HttpExamHalfYearsAdapter', () => {
     http.expectOne('/api/exam-rounds/4/lifecycle/export.txt').flush('Prüfungsrundennachweis', {
       headers: { 'content-type': 'text/plain; charset=utf-8' },
     });
+  });
+
+  it('translates lifecycle export HTTP failures, including forbidden responses', () => {
+    let failure: unknown;
+    adapter.exportLifecycle(4, 'json').subscribe({ error: (error) => (failure = error) });
+    http
+      .expectOne('/api/exam-rounds/4/lifecycle/export.json')
+      .flush(
+        { error: { code: 'forbidden', message: 'Export nicht erlaubt' } },
+        { status: 403, statusText: 'Forbidden' },
+      );
+    expect(failure).toBeInstanceOf(ApplicationError);
+    expect(failure).toMatchObject({ kind: 'forbidden', code: 'forbidden' });
   });
 });
 

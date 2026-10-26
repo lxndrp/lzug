@@ -11,6 +11,10 @@ export class ExamResultFacade {
     return this.port.get(...args);
   }
 
+  export(...args: Parameters<typeof this.port.export>) {
+    return this.port.export(...args);
+  }
+
   saveIndividualAssessment(...args: Parameters<typeof this.port.saveIndividualAssessment>) {
     return this.port.saveIndividualAssessment(...args);
   }
