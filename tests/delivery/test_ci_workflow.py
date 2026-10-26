@@ -145,7 +145,7 @@ class QualityWorkflowContractTests(unittest.TestCase):
 
     def test_native_socket_endpoints_and_backend_contract_selection(self) -> None:
         cli = job_block(self.pull_request, "cli")
-        for platform in ("ubuntu-24.04", "macos-14", "windows-2025"):
+        for platform in ("ubuntu-24.04", "macos-15", "windows-2025"):
             self.assertIn(platform, cli)
         self.assertIn("-run TestEndpoint", cli)
         self.assertIn(
