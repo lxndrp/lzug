@@ -97,7 +97,7 @@ try {
     $expectedRunnerName = '^' + [regex]::Escape($staleContainerPrefix) + '-[0-9]+$'
     foreach ($staleContainer in ($staleContainers -split '\r?\n')) {
         $containerDetails = $staleContainer.Trim() -split '\s+', 2
-        if ($containerDetails.Count -eq 2 -and $containerDetails[1] -match $expectedRunnerName) {
+        if ($containerDetails.Count -eq 2 -and $containerDetails[1] -cmatch $expectedRunnerName) {
             Invoke-Docker -Arguments @('container', 'rm', '--force', $containerDetails[0]) -Quiet
         }
     }
