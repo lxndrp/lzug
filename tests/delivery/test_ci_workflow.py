@@ -86,7 +86,7 @@ class QualityWorkflowContractTests(unittest.TestCase):
                 self.assertNotRegex(workflow, r"runs-on:\s*\S+-latest\b")
 
     def test_go_toolchain_patch_is_consistent_across_build_contexts(self) -> None:
-        expected_version = "1.26.8"
+        expected_version = "1.26.10"
         self.assertIn(
             f'go = "{expected_version}"',
             Path(".mise.toml").read_text(encoding="utf-8"),
@@ -106,6 +106,23 @@ class QualityWorkflowContractTests(unittest.TestCase):
                     f'go-version: "{expected_version}"',
                     workflow_text(path),
                 )
+
+    def test_product_python_images_use_trixie_and_apply_runtime_security_updates(self) -> None:
+        dockerfile = Path("packaging/product/Dockerfile").read_text(encoding="utf-8")
+        python_images = [
+            line for line in dockerfile.splitlines() if line.startswith("FROM python:")
+        ]
+        self.assertEqual(len(python_images), 4)
+        self.assertTrue(all("-slim-trixie" in line for line in python_images))
+        self.assertIn("apt-get update \\", dockerfile)
+        self.assertIn("apt-get upgrade --no-install-recommends -y \\", dockerfile)
+        for package, version in (
+            ("libpcre2-8-0", "10.46-1~deb13u3"),
+            ("libssl3t64", "3.5.7-1~deb13u3"),
+            ("perl-base", "5.40.1-6+deb13u1"),
+        ):
+            with self.subTest(package=package):
+                self.assertIn(f'--show {package})" ge "{version}"', dockerfile)
 
     def test_pull_request_codeql_matrix_covers_all_configured_languages(self) -> None:
         self.assertIn(

@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM python:3.14.6-slim-bookworm AS backend-build
+FROM python:3.14.6-slim-trixie AS backend-build
 
 COPY --from=ghcr.io/astral-sh/uv:0.11.28 /uv /uvx /bin/
 WORKDIR /src
@@ -11,7 +11,7 @@ RUN uv build --wheel --out-dir /dist
 RUN mkdir -p /transport \
     && uv run --locked --extra dev python -m backend.fastapi_assembly --profile transport /transport/openapi.json
 
-FROM python:3.14.6-slim-bookworm AS build-metadata
+FROM python:3.14.6-slim-trixie AS build-metadata
 
 ARG BUILD_IDENTITY
 ARG RELEASE_TAG=""
@@ -30,7 +30,7 @@ RUN set -eu; \
     python -m backend.version "$@" --output /build-metadata.json >/dev/null; \
     test "$(python -m backend.version "$@" --field identity)" = "$BUILD_IDENTITY"
 
-FROM --platform=$BUILDPLATFORM golang:1.26.8-bookworm AS operator-cli-build
+FROM --platform=$BUILDPLATFORM golang:1.26.10-bookworm AS operator-cli-build
 
 ARG BUILD_IDENTITY
 ARG RELEASE_TAG=""
@@ -68,7 +68,7 @@ RUN LZUG_OPENAPI_INPUT=openapi.json LZUG_TRANSPORT_OUTPUT=src/app/api/generated 
       ./node_modules/.bin/openapi-ts --file openapi-ts.config.mjs --no-log-file --silent \
     && node node_modules/@angular/cli/bin/ng.js build --configuration production
 
-FROM python:3.14.6-slim-bookworm AS python-dependencies
+FROM python:3.14.6-slim-trixie AS python-dependencies
 
 COPY --from=ghcr.io/astral-sh/uv:0.11.28 /uv /uvx /bin/
 WORKDIR /src
@@ -79,7 +79,7 @@ RUN mkdir -p /src/backend/src \
     && uv pip install --python /src/.venv/bin/python --target /src/backend/src \
        --no-deps /dist/*.whl
 
-FROM python:3.14.6-slim-bookworm AS runtime
+FROM python:3.14.6-slim-trixie AS runtime
 
 ARG BUILD_IDENTITY
 ARG VCS_REF
@@ -99,8 +99,10 @@ ENV PATH="/opt/venv/bin:$PATH" \
 WORKDIR /app
 
 RUN apt-get update \
-    && apt-get install --no-install-recommends --only-upgrade -y libpcre2-8-0 \
-    && dpkg --compare-versions "$(dpkg-query --showformat='${Version}' --show libpcre2-8-0)" ge "10.42-1+deb12u1" \
+    && apt-get upgrade --no-install-recommends -y \
+    && dpkg --compare-versions "$(dpkg-query --showformat='${Version}' --show libpcre2-8-0)" ge "10.46-1~deb13u3" \
+    && dpkg --compare-versions "$(dpkg-query --showformat='${Version}' --show libssl3t64)" ge "3.5.7-1~deb13u3" \
+    && dpkg --compare-versions "$(dpkg-query --showformat='${Version}' --show perl-base)" ge "5.40.1-6+deb13u1" \
     && rm -rf /var/lib/apt/lists/*
 
 RUN groupadd --system --gid 10001 lzug \

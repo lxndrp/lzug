@@ -124,7 +124,7 @@ jobs:
       - run: uv sync --locked --extra dev
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.26.8"
+          go-version: "1.26.10"
           cache: true
           cache-dependency-path: operator-cli/go.sum
       - name: Build the operator CLI socket test binary once
@@ -253,7 +253,7 @@ jobs:
           ref: ${{ github.sha }}
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.26.8"
+          go-version: "1.26.10"
           cache: true
           cache-dependency-path: operator-cli/go.sum
       - uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
@@ -333,7 +333,7 @@ jobs:
           enable-cache: true
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.26.8"
+          go-version: "1.26.10"
           cache: true
           cache-dependency-path: operator-cli/go.sum
       - uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e # v2.2.0
