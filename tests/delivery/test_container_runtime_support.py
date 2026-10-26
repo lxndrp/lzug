@@ -46,17 +46,29 @@ class ContainerRuntimeSupportTests(unittest.TestCase):
             "Eine explizit gewählte Runtime, die nicht installiert oder nicht erreichbar ist, führt zum Abbruch.",
             normalized,
         )
-        self.assertIn("führt nicht zum Runtimewechsel", normalized)
+        self.assertIn(
+            "Ein unerreichbarer Dienst, Buildfehler oder Containerstartfehler führt nicht zum Runtimewechsel.",
+            normalized,
+        )
         self.assertIn("Der Runtimevertrag erstellt den Buildkandidaten einmal.", normalized)
         self.assertIn(
             "Ein impliziter Zugriff auf einen enginespezifischen Imagespeicher oder ein zweiter Build ist kein Übergabevertrag.",
             normalized,
         )
         self.assertIn("als Archiv exportiert", normalized)
-        for image in ("lzug-app", "lzug-demo-app", "lzug-demo-seed"):
-            self.assertIn(f"| `{image}` |", normalized)
+        for row in (
+            "| `lzug-app` | Aus dem Archiv des gebauten Images | Gemeinsamer App-Runtimevertrag mit genau diesem Image |",
+            "| `lzug-demo-app` | Aus dem Archiv des gebauten Images | Demo-Runtimevertrag mit genau diesem Image und dem zugehörigen Seed |",
+            "| `lzug-demo-seed` | Aus dem Archiv des gebauten Images | SQLite-Datei und Manifest aus genau diesem Image extrahieren und Identität, Produktrevision, Runtimevertrag sowie Schemafingerabdruck prüfen; Seed nicht als eigenständigen Server starten |",
+        ):
+            self.assertIn(row, normalized)
         self.assertIn("Seed nicht als eigenständigen Server starten", normalized)
+        self.assertIn("Daten-Roundtrip und Persistenz bei Restart/Stop-Start", normalized)
         self.assertIn("lzug-codex-<scope>", normalized)
+        self.assertIn(
+            "Temporäre Ressourcen eines Worktree-Tests verwenden Namen der Form `lzug-codex-<scope>-<rolle>`.",
+            normalized,
+        )
         self.assertIn(
             "Container, Images, Volumes und Netzwerke erhalten zusätzlich genau das Worktree-Label `lzug-codex-<scope>`.",
             normalized,
@@ -71,7 +83,10 @@ class ContainerRuntimeSupportTests(unittest.TestCase):
             "Globales `prune` und das Entfernen fremder Volumes sind unzulässig.",
             normalized,
         )
-        self.assertIn("Docker Compose", normalized)
+        self.assertIn(
+            "Docker Compose, seine Konfigurationsprüfung und Docker-basierte Veröffentlichungs- sowie CI-Schritte bleiben Docker-spezifische Referenzprüfungen und ersetzen keinen plattformneutralen Runtime-Nachweis.",
+            normalized,
+        )
         self.assertIn(
             "ADR-0033 bleibt für Prozess, Persistenz, Admintransport und Lifecycle maßgeblich",
             normalized,
