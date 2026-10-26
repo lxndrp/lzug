@@ -1,3 +1,5 @@
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { firstValueFrom, of } from 'rxjs';
 
@@ -14,7 +16,12 @@ describe('HttpExamDayAdapter', () => {
   it('maps the API day view into a link-free feature model', async () => {
     const api = createApiMock();
     TestBed.configureTestingModule({
-      providers: [HttpExamDayAdapter, { provide: ExamDayApiService, useValue: api }],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        HttpExamDayAdapter,
+        { provide: ExamDayApiService, useValue: api },
+      ],
     });
     const adapter = TestBed.inject(HttpExamDayAdapter);
 
@@ -24,12 +31,18 @@ describe('HttpExamDayAdapter', () => {
     expect(view).toEqual(featureView());
     expect(JSON.stringify(view)).not.toContain('_links');
     expect(JSON.stringify(view)).not.toContain('first_name');
+    expect(JSON.stringify(view)).not.toContain('/api/');
   });
 
   it('maps transport-neutral commands to the existing API operation arguments', async () => {
     const api = createApiMock();
     TestBed.configureTestingModule({
-      providers: [HttpExamDayAdapter, { provide: ExamDayApiService, useValue: api }],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        HttpExamDayAdapter,
+        { provide: ExamDayApiService, useValue: api },
+      ],
     });
     const adapter = TestBed.inject(HttpExamDayAdapter);
 
@@ -107,6 +120,65 @@ describe('HttpExamDayAdapter', () => {
       'Protokoll prüfen',
       [{ kind: 'exam_protocol', entity_id: 41 }],
     );
+  });
+
+  it('exports day closure evidence through the feature operation with response metadata', () => {
+    const api = createApiMock();
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        HttpExamDayAdapter,
+        { provide: ExamDayApiService, useValue: api },
+      ],
+    });
+    const adapter = TestBed.inject(HttpExamDayAdapter);
+    const http = TestBed.inject(HttpTestingController);
+    let file: unknown;
+
+    adapter.exportClosure(7, 'machine-readable').subscribe((value) => (file = value));
+    const request = http.expectOne('/api/confirmed-plan-days/7/closure/export.json');
+    expect(request.request.method).toBe('GET');
+    expect(request.request.responseType).toBe('text');
+    request.flush('{"day":7}', {
+      headers: {
+        'content-type': 'application/json',
+        'content-disposition': 'attachment; filename="day-7.json"',
+      },
+    });
+
+    expect(file).toEqual({
+      content: '{"day":7}',
+      mediaType: 'application/json',
+      fileName: 'day-7.json',
+    });
+    http.verify();
+  });
+
+  it('translates forbidden day export responses at the adapter boundary', () => {
+    const api = createApiMock();
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        HttpExamDayAdapter,
+        { provide: ExamDayApiService, useValue: api },
+      ],
+    });
+    const adapter = TestBed.inject(HttpExamDayAdapter);
+    const http = TestBed.inject(HttpTestingController);
+    let failure: unknown;
+
+    adapter.exportClosure(7, 'human-readable').subscribe({ error: (error) => (failure = error) });
+    http
+      .expectOne('/api/confirmed-plan-days/7/closure/export.txt')
+      .flush(JSON.stringify({ error: { code: 'forbidden', message: 'Export nicht erlaubt' } }), {
+        status: 403,
+        statusText: 'Forbidden',
+      });
+
+    expect(failure).toMatchObject({ kind: 'forbidden', code: 'forbidden' });
+    http.verify();
   });
 });
 
@@ -276,10 +348,7 @@ function featureClosure() {
     history: [],
     tasks: [],
     permissions: { close: false, reopen: true, export: true },
-    exportLinks: {
-      machine: '/api/confirmed-plan-days/7/closure/export.json',
-      human: '/api/confirmed-plan-days/7/closure/export.txt',
-    },
+    exportAvailability: { machine: true, human: true },
   };
 }
 

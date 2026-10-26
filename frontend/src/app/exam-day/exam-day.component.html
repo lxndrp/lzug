@@ -225,13 +225,29 @@
         }
 
         @if (current.day.closure.permissions.export && can('exam-day-closure:export')) {
-          <div class="app-exam-day-closure-actions">
-            <a tuiButton appearance="secondary" [href]="current.day.closure.exportLinks.machine">
-              Maschinenlesbaren Nachweis exportieren
-            </a>
-            <a tuiButton appearance="secondary" [href]="current.day.closure.exportLinks.human">
-              Lesbaren Nachweis exportieren
-            </a>
+          <div class="app-exam-day-closure-actions" [attr.aria-busy]="exportBusy()">
+            @if (current.day.closure.exportAvailability.machine) {
+              <button
+                tuiButton
+                appearance="secondary"
+                type="button"
+                [disabled]="hasSavingAction()"
+                (click)="downloadClosureExport('machine-readable')"
+              >
+                Maschinenlesbaren Nachweis exportieren
+              </button>
+            }
+            @if (current.day.closure.exportAvailability.human) {
+              <button
+                tuiButton
+                appearance="secondary"
+                type="button"
+                [disabled]="hasSavingAction()"
+                (click)="downloadClosureExport('human-readable')"
+              >
+                Lesbaren Nachweis exportieren
+              </button>
+            }
           </div>
         }
 

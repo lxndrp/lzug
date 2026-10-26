@@ -72,7 +72,7 @@ describe('ExamDayComponent', () => {
     expect(element.textContent).toContain('Anwesenheit speichern');
     expect(element.textContent).toContain('Prüfung starten');
     expect(element.querySelector('a[href="/confirmed-plans/1"]')).not.toBeNull();
-    expect(element.querySelectorAll('button')).toHaveLength(8);
+    expect(element.querySelectorAll('button')).toHaveLength(10);
     expect(
       element
         .querySelector<HTMLButtonElement>('.app-exam-day-actions button')
@@ -602,6 +602,53 @@ describe('ExamDayComponent', () => {
     expect(element.textContent).toContain('Wiederöffnung läuft');
   });
 
+  it('requests closure evidence through the feature port without exposing an API URL', () => {
+    authorizeClosure('exam-day-closure:export');
+    const closed = dayView();
+    closed.day.closureStatus = 'closed';
+    closed.day.closure.status = 'closed';
+    closed.day.closure.permissions = { close: false, reopen: false, export: true };
+    closed.day.closure.exportAvailability = { machine: true, human: true };
+    vi.mocked(examDay.getConfirmedPlanDay).mockReturnValueOnce(of(closed));
+    const file = { content: '{"day":7}', mediaType: 'application/json', fileName: 'day-7.json' };
+    vi.mocked(examDay.exportClosure).mockReturnValueOnce(of(file));
+    fixture.detectChanges();
+    const element = fixture.nativeElement as HTMLElement;
+    const exportButton = Array.from(element.querySelectorAll<HTMLButtonElement>('button')).find(
+      (button) => button.textContent?.includes('Maschinenlesbaren Nachweis exportieren'),
+    );
+    expect(exportButton).toBeTruthy();
+    expect(element.querySelector('a[href*="/api/confirmed-plan-days"]')).toBeNull();
+    vi.mocked(examDay.getConfirmedPlanDay).mockClear();
+    exportButton?.click();
+
+    expect(examDay.exportClosure).toHaveBeenCalledWith(7, 'machine-readable');
+    expect(examDay.getConfirmedPlanDay).toHaveBeenCalledOnce();
+    expect(examDay.getConfirmedPlanDay).toHaveBeenCalledWith(7);
+  });
+
+  it('shows closure export failures without replaying the audited operation', () => {
+    authorizeClosure('exam-day-closure:export');
+    const closed = dayView();
+    closed.day.closureStatus = 'closed';
+    closed.day.closure.status = 'closed';
+    closed.day.closure.permissions = { close: false, reopen: false, export: true };
+    vi.mocked(examDay.getConfirmedPlanDay).mockReturnValueOnce(of(closed));
+    vi.mocked(examDay.exportClosure).mockReturnValueOnce(
+      throwError(() => new ApplicationError('forbidden', 'Export nicht erlaubt.')),
+    );
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    Array.from(element.querySelectorAll<HTMLButtonElement>('button'))
+      .find((button) => button.textContent?.includes('Maschinenlesbaren Nachweis exportieren'))
+      ?.click();
+    fixture.detectChanges();
+
+    expect(examDay.exportClosure).toHaveBeenCalledTimes(1);
+    expect(element.querySelector('[role="alert"]')?.textContent).toContain('Export nicht erlaubt.');
+  });
+
   it('does not create reopening commands for an invalid scope token', () => {
     const closed = dayView();
     closed.day.closureStatus = 'closed';
@@ -1060,6 +1107,9 @@ function authorizeClosure(...capabilities: string[]): void {
 function createExamDayPort(): ExamDayPort {
   return {
     getConfirmedPlanDay: vi.fn((dayId: number) => of(dayView(dayId))),
+    exportClosure: vi.fn(() =>
+      of({ content: 'abschluss', mediaType: 'text/plain', fileName: 'abschluss.txt' }),
+    ),
     saveCandidateAttendance: vi.fn(() => of(dayView())),
     saveMemberAttendance: vi.fn(() => of(dayView())),
     startExamSlot: vi.fn(() => of(dayView())),
@@ -1222,9 +1272,6 @@ function closure(dayId: number): ExamDayClosure {
     history: [],
     tasks: [],
     permissions: { close: false, reopen: false, export: true },
-    exportLinks: {
-      machine: `/api/confirmed-plan-days/${dayId}/closure/export.json`,
-      human: `/api/confirmed-plan-days/${dayId}/closure/export.txt`,
-    },
+    exportAvailability: { machine: true, human: true },
   };
 }

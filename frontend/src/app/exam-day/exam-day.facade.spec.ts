@@ -157,6 +157,36 @@ describe('ExamDayFacade', () => {
     expect(facade.savingKeys()).toEqual(new Set());
   });
 
+  it('discards a pending closure export when the authenticated session changes', () => {
+    const pendingExport = new Subject<{
+      content: string;
+      mediaType: string;
+      fileName: string;
+    }>();
+    vi.mocked(port.exportClosure).mockReturnValueOnce(pendingExport.asObservable());
+    facade.bindContext(1, 7);
+    const current = facade.view()!;
+    facade.view.set({
+      ...current,
+      day: {
+        ...current.day,
+        closure: { permissions: { close: false, reopen: false, export: true } },
+      },
+    } as ConfirmedPlanDayView);
+    const received: unknown[] = [];
+
+    facade.exportClosure(7, 'machine-readable').subscribe((file) => received.push(file));
+    TestBed.inject(SessionScopeService).establish(session(1));
+    pendingExport.next({
+      content: '{"day":7}',
+      mediaType: 'application/json',
+      fileName: 'day.json',
+    });
+
+    expect(port.exportClosure).toHaveBeenCalledWith(7, 'machine-readable');
+    expect(received).toEqual([]);
+  });
+
   it('clears an embedded-write acknowledgement when the authenticated session changes', () => {
     facade.bindContext(1, 7);
     vi.mocked(port.getConfirmedPlanDay)
@@ -282,6 +312,9 @@ describe('ExamDayFacade', () => {
 function createPort(): ExamDayPort {
   return {
     getConfirmedPlanDay: vi.fn((dayId: number) => of(dayView(dayId, dayId === 7 ? 1 : 2))),
+    exportClosure: vi.fn(() =>
+      of({ content: 'abschluss', mediaType: 'text/plain', fileName: 'abschluss.txt' }),
+    ),
     saveCandidateAttendance: vi.fn(() => of(dayView(7, 1))),
     saveMemberAttendance: vi.fn(() => of(dayView(7, 1))),
     startExamSlot: vi.fn(() => of(dayView(7, 1))),
@@ -311,7 +344,7 @@ function closure(): ExamDayClosure {
     history: [],
     tasks: [],
     permissions: { close: true, reopen: false, export: false },
-    exportLinks: { machine: '', human: '' },
+    exportAvailability: { machine: false, human: false },
   };
 }
 
