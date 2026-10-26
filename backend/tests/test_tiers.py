@@ -97,10 +97,12 @@ class BackendTestTierTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "timings.json"
-            _write_timings(path, result, 0.01, args)
+            with patch.dict("os.environ", {"GITHUB_SHA": "test-revision"}, clear=True):
+                _write_timings(path, result, 0.01, args)
             report = json.loads(path.read_text(encoding="utf-8"))
 
         self.assertEqual(1, report["schema_version"])
+        self.assertEqual("test-revision", report["revision"])
         self.assertIsNone(report["pull_request_head"])
         self.assertEqual("http", report["suite"])
         self.assertEqual({"index": 0, "count": 3}, report["shard"])
