@@ -171,6 +171,22 @@ test('rejects API clients imported by feature workflows', () => {
   );
 });
 
+test('rejects API clients reached through a normally imported feature helper', () => {
+  const { sources, resolve } = fixture({
+    'planning/planning.component.ts': "import { loadPlan } from './planner.helper';",
+    'planning/planner.helper.ts':
+      "import { PlanningApiService } from '../api/planning-api.service';",
+    'api/planning-api.service.ts': 'export class PlanningApiService {}',
+  });
+
+  assert.match(
+    inspectArchitecture(sources, resolve)
+      .map((item) => item.message)
+      .join('\n'),
+    /imports API client through .*api\/planning-api\.service\.ts/,
+  );
+});
+
 test('rejects dynamically imported adapters and API clients outside transport boundaries', () => {
   const { sources, resolve } = fixture({
     'planning/planning.component.ts': [

@@ -52,7 +52,7 @@ export function inspectArchitecture(files, resolveModule) {
       }
       if (
         !transportBoundary &&
-        (featureComponent || portContract || isFeatureWorkflow(file)) &&
+        (featureComponent || portContract || isFeatureWorkflow(file) || isFeatureHelper(file)) &&
         apiClient
       ) {
         violations.push({
@@ -288,6 +288,10 @@ function isFeatureWorkflow(file) {
     /(?:^|\/)[^/]+\.facade\.ts$/.test(normalized) ||
     /(?:^|\/)[^/]+-(?:workflow|projection)\.service\.ts$/.test(normalized)
   );
+}
+
+function isFeatureHelper(file) {
+  return /(?:^|\/)[^/]+\.helper\.ts$/.test(normalizedPath(file));
 }
 
 function isApiClient(file) {
