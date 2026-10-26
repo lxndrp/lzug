@@ -541,11 +541,15 @@ class QualityWorkflowContractTests(unittest.TestCase):
                 self.assertIn("quality-evidence-v2", workflow)
                 self.assertIn('.decision == "reused"', workflow)
 
-    def test_dispatch_rejects_a_moved_master_or_another_branch(self) -> None:
+    def test_dispatch_accepts_an_omitted_sha_but_rejects_mismatch_or_another_branch(self) -> None:
         gate = job_block(self.quality, "revision")
         command = gate.split("        run: |\n", 1)[1]
         command = command.split("      - name: Select reusable complete evidence", 1)[0]
         command = "\n".join(line[10:] for line in command.splitlines())
+        dispatch = trigger_block(self.quality).split("workflow_dispatch:", 1)[1]
+        expected_sha = dispatch.split("      force_full:", 1)[0]
+        self.assertIn("expected_sha:", expected_sha)
+        self.assertIn("required: false", expected_sha)
         valid = {
             "GITHUB_SHA": "a" * 40,
             "EXPECTED_SHA": "a" * 40,
@@ -555,7 +559,8 @@ class QualityWorkflowContractTests(unittest.TestCase):
         for change, accepted in (
             ({}, True),
             ({"EXPECTED_SHA": "b" * 40}, False),
-            ({"EXPECTED_SHA": ""}, False),
+            ({"EXPECTED_SHA": ""}, True),
+            ({"EXPECTED_SHA": "not-a-sha"}, False),
             ({"GITHUB_REF": "refs/heads/topic"}, False),
             ({"GITHUB_EVENT_NAME": "schedule", "EXPECTED_SHA": ""}, True),
         ):

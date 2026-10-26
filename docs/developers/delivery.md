@@ -89,10 +89,12 @@ Matrix.
 
 Für einen Release wird zuerst die aktuelle `master`-SHA ermittelt.
 Fehlt dafür ein erfolgreicher nächtlicher Lauf, startet der Maintainer
-`Quality` auf `master` mit dieser SHA als `expected_sha`.
-Der Workflow lehnt eine inzwischen veränderte Revision ab und verwendet
-überall die im GitHub-Lauf verzeichnete SHA; es gibt keinen abweichenden
-Checkout über eine Revisionseingabe.
+`Quality` auf `master`; der Workflow verwendet automatisch die von GitHub
+für den Dispatch festgehaltene SHA.
+`expected_sha` kann optional als zusätzliche Assertion mitgegeben werden;
+wenn gesetzt, muss sie genau dieser Dispatch-SHA entsprechen.
+Alle Jobs und die Evidenz bleiben an die im GitHub-Lauf verzeichnete SHA
+gebunden; eine Revisionseingabe ändert den Checkout nicht.
 Erst nach dessen Erfolg wird `Release` auf demselben Stand gestartet.
 Release, stabile Demo-Promotion und Snapshot-Promotion lesen ausschließlich
 vollständige erfolgreiche Schedule-/Dispatch-Evidenz für diese `master`-SHA.
