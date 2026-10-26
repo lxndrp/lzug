@@ -92,11 +92,13 @@ try {
 
     $staleContainerPrefix = "$resourcePrefix-run"
     $staleContainers = Get-NativeOutput -Command docker -Arguments @(
-        'container', 'ls', '--all', '--quiet', '--filter', "name=$staleContainerPrefix"
+        'container', 'ls', '--all', '--format', '{{.ID}} {{.Names}}', '--filter', "name=$staleContainerPrefix"
     )
-    foreach ($staleContainer in ($staleContainers -split '\s+')) {
-        if (-not [string]::IsNullOrWhiteSpace($staleContainer)) {
-            Invoke-Docker -Arguments @('container', 'rm', '--force', $staleContainer) -Quiet
+    $expectedRunnerName = '^' + [regex]::Escape($staleContainerPrefix) + '-[0-9]+$'
+    foreach ($staleContainer in ($staleContainers -split '\r?\n')) {
+        $containerDetails = $staleContainer.Trim() -split '\s+', 2
+        if ($containerDetails.Count -eq 2 -and $containerDetails[1] -match $expectedRunnerName) {
+            Invoke-Docker -Arguments @('container', 'rm', '--force', $containerDetails[0]) -Quiet
         }
     }
 
