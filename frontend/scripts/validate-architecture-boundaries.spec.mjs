@@ -171,11 +171,89 @@ test('rejects API clients imported by feature workflows', () => {
   );
 });
 
-test('rejects API clients reached through a normally imported feature helper', () => {
+test('rejects API clients reached through normally imported, arbitrarily named helpers', () => {
   const { sources, resolve } = fixture({
-    'planning/planning.component.ts': "import { loadPlan } from './planner.helper';",
-    'planning/planner.helper.ts':
+    'planning/planning.component.ts': "import { loadPlan } from './planning-tools';",
+    'planning/planning-tools.ts': "import { loadPlan } from './planning-utils';",
+    'planning/planning-utils.ts':
       "import { PlanningApiService } from '../api/planning-api.service';",
+    'api/planning-api.service.ts': 'export class PlanningApiService {}',
+  });
+
+  assert.match(
+    inspectArchitecture(sources, resolve)
+      .map((item) => item.message)
+      .join('\n'),
+    /imports API client through .*api\/planning-api\.service\.ts/,
+  );
+});
+
+test('does not follow API imports behind a port implementation bound by the composition root', () => {
+  const { sources, resolve } = fixture({
+    'auth/auth-flow.component.ts': [
+      "import { AuthService } from './index';",
+      "import type { AuthCompletion } from './index';",
+    ].join('\n'),
+    'auth/auth.service.ts': [
+      "import { AuthenticationPort } from './authentication.port';",
+      "import { AuthApiService } from '../api/auth-api.service';",
+      "export type { AuthCompletion } from './auth-types';",
+      'export class AuthService implements AuthenticationPort {}',
+    ].join('\n'),
+    'auth/index.ts': [
+      "export { AuthService } from './auth.service';",
+      "export type { AuthCompletion } from './auth.service';",
+    ].join('\n'),
+    'auth/auth-types.ts': 'export type AuthCompletion = { authenticated: boolean };',
+    'auth/authentication.port.ts': [
+      'export interface AuthenticationPort {}',
+      'export const AUTHENTICATION_PORT = Symbol();',
+    ].join('\n'),
+    'app.config.ts': [
+      "import { AUTHENTICATION_PORT } from './auth/authentication.port';",
+      "import { AuthService } from './auth';",
+      'export const appConfig = { providers: [{ provide: AUTHENTICATION_PORT, useExisting: AuthService }] };',
+    ].join('\n'),
+    'api/auth-api.service.ts': 'export class AuthApiService {}',
+  });
+
+  assert.deepEqual(inspectArchitecture(sources, resolve), []);
+});
+
+test('treats the module of a bound port implementation as a traversal boundary', () => {
+  const { sources, resolve } = fixture({
+    'auth/auth-flow.component.ts': "import { AuthDiagnostics } from './index';",
+    'auth/auth.service.ts': [
+      "import { AuthenticationPort } from './authentication.port';",
+      "import { AuthApiService } from '../api/auth-api.service';",
+      'export class AuthService implements AuthenticationPort {}',
+      'export class AuthDiagnostics {}',
+    ].join('\n'),
+    'auth/index.ts': ["export { AuthService, AuthDiagnostics } from './auth.service';"].join('\n'),
+    'auth/authentication.port.ts': [
+      'export interface AuthenticationPort {}',
+      'export const AUTHENTICATION_PORT = Symbol();',
+    ].join('\n'),
+    'app.config.ts': [
+      "import { AUTHENTICATION_PORT } from './auth/authentication.port';",
+      "import { AuthService } from './auth';",
+      'export const appConfig = { providers: [{ provide: AUTHENTICATION_PORT, useExisting: AuthService }] };',
+    ].join('\n'),
+    'api/auth-api.service.ts': 'export class AuthApiService {}',
+  });
+
+  assert.deepEqual(inspectArchitecture(sources, resolve), []);
+});
+
+test('rejects API imports behind an unbound port implementation', () => {
+  const { sources, resolve } = fixture({
+    'planning/planning.component.ts': "import { PlanningHandler } from './planning-handler';",
+    'planning/planning-handler.ts': [
+      "import { PlanningPort } from './planning.port';",
+      "import { PlanningApiService } from '../api/planning-api.service';",
+      'export class PlanningHandler implements PlanningPort {}',
+    ].join('\n'),
+    'planning/planning.port.ts': 'export interface PlanningPort {}',
     'api/planning-api.service.ts': 'export class PlanningApiService {}',
   });
 

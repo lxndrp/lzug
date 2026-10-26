@@ -10,6 +10,7 @@ const appRoot = path.resolve(import.meta.dirname, '../src/app');
 export function inspectArchitecture(files, resolveModule) {
   const violations = [];
   const resolve = (file, specifier) => resolveModule(file, specifier);
+  const boundPortImplementations = findBoundPortImplementations(files, resolve);
 
   for (const [file, source] of files) {
     if (file.endsWith('.spec.ts') || isTestFixture(file)) continue;
@@ -73,9 +74,17 @@ export function inspectArchitecture(files, resolveModule) {
         });
       }
 
+      if (isTransportBoundary(target) || boundPortImplementations.has(target)) {
+        continue;
+      }
+
       for (const { specifier, kind } of moduleReferences(files.get(target), target)) {
-        if (kind !== 'export') continue;
         const nested = resolve(target, specifier);
+        const reachesBoundary =
+          nested &&
+          (isTransportBoundary(nested) || isTransportModel(nested) || isApiClient(nested));
+        if (kind !== 'export' && !reachesBoundary && !sharesFeatureDirectory(file, nested))
+          continue;
         if (nested && !visited.has(nested)) queue.push(nested);
       }
     }
@@ -174,10 +183,11 @@ export function moduleReferences(source, fileName = 'fixture.ts') {
       node.moduleSpecifier &&
       ts.isStringLiteral(node.moduleSpecifier)
     ) {
-      references.push({
-        specifier: node.moduleSpecifier.text,
-        kind: ts.isExportDeclaration(node) ? 'export' : 'import',
-      });
+      if (ts.isImportDeclaration(node)) {
+        references.push({ specifier: node.moduleSpecifier.text, kind: 'import' });
+      } else {
+        references.push({ specifier: node.moduleSpecifier.text, kind: 'export' });
+      }
     } else if (
       ts.isCallExpression(node) &&
       node.expression.kind === ts.SyntaxKind.ImportKeyword &&
@@ -186,7 +196,7 @@ export function moduleReferences(source, fileName = 'fixture.ts') {
       const specifier = staticModuleSpecifier(node.arguments[0]);
       references.push(
         typeof specifier === 'string'
-          ? { specifier, kind: 'dynamic-import' }
+          ? { specifier, kind: 'dynamic-import', symbols: ['*'], typeOnly: false }
           : { kind: 'non-static-dynamic-import' },
       );
     } else if (
@@ -194,7 +204,12 @@ export function moduleReferences(source, fileName = 'fixture.ts') {
       ts.isLiteralTypeNode(node.argument) &&
       ts.isStringLiteral(node.argument.literal)
     ) {
-      references.push({ specifier: node.argument.literal.text, kind: 'import-type' });
+      references.push({
+        specifier: node.argument.literal.text,
+        kind: 'import-type',
+        symbols: ['*'],
+        typeOnly: true,
+      });
     }
   });
   return references;
@@ -292,6 +307,156 @@ function isFeatureWorkflow(file) {
 
 function isFeatureHelper(file) {
   return /(?:^|\/)[^/]+\.helper\.ts$/.test(normalizedPath(file));
+}
+
+function sharesFeatureDirectory(origin, target) {
+  if (!target) return false;
+  const featureDirectory = (file) => {
+    const normalized = normalizedPath(file);
+    const appIndex = normalized.indexOf('/src/app/');
+    if (appIndex >= 0) {
+      const relative = normalized.slice(appIndex + '/src/app/'.length);
+      return relative.split('/')[0];
+    }
+    return normalized.split('/').at(-2);
+  };
+  return featureDirectory(origin) === featureDirectory(target);
+}
+
+function isFeaturePortImplementation(source, file, className) {
+  const ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
+  let implementsPort = false;
+  walk(ast, (node) => {
+    if (!ts.isClassDeclaration(node) || node.name?.text !== className || !node.heritageClauses)
+      return;
+    for (const clause of node.heritageClauses) {
+      if (clause.token !== ts.SyntaxKind.ImplementsKeyword) continue;
+      for (const heritage of clause.types) {
+        const expression = heritage.expression;
+        const name = ts.isIdentifier(expression)
+          ? expression.text
+          : ts.isPropertyAccessExpression(expression)
+            ? expression.name.text
+            : undefined;
+        if (name?.endsWith('Port')) implementsPort = true;
+      }
+    }
+  });
+  return implementsPort;
+}
+
+function findBoundPortImplementations(files, resolveModule) {
+  const compositionRoot = [...files].find(([file]) => isCompositionRoot(file));
+  if (!compositionRoot) return new Set();
+
+  const [file, source] = compositionRoot;
+  const ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
+  const portTokens = new Set();
+  const importedProviders = new Map();
+  for (const statement of ast.statements) {
+    if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier))
+      continue;
+    const target = resolveModule(file, statement.moduleSpecifier.text);
+    if (!target || !statement.importClause) continue;
+    const clause = statement.importClause;
+    if (clause.name) {
+      importedProviders.set(clause.name.text, { target, exportedName: 'default' });
+    }
+    if (!clause.namedBindings || !ts.isNamedImports(clause.namedBindings)) continue;
+    for (const element of clause.namedBindings.elements) {
+      const localName = element.name.text;
+      importedProviders.set(localName, {
+        target,
+        exportedName: element.propertyName?.text ?? localName,
+      });
+      if (localName.endsWith('_PORT')) portTokens.add(localName);
+    }
+  }
+
+  const boundImplementations = new Set();
+  for (const statement of ast.statements) {
+    if (!ts.isVariableStatement(statement)) continue;
+    for (const declaration of statement.declarationList.declarations) {
+      if (!ts.isIdentifier(declaration.name) || declaration.name.text !== 'appConfig') continue;
+      const providers =
+        declaration.initializer && propertyValue(declaration.initializer, 'providers');
+      if (!providers || !ts.isArrayLiteralExpression(providers)) continue;
+      for (const provider of providers.elements) {
+        const token = propertyValue(provider, 'provide');
+        const implementation =
+          propertyValue(provider, 'useClass') ?? propertyValue(provider, 'useExisting');
+        if (
+          token &&
+          ts.isIdentifier(token) &&
+          portTokens.has(token.text) &&
+          implementation &&
+          ts.isIdentifier(implementation)
+        ) {
+          const binding = importedProviders.get(implementation.text);
+          if (!binding) continue;
+          for (const exported of resolveExportedClasses(
+            files,
+            resolveModule,
+            binding.target,
+            binding.exportedName,
+          )) {
+            if (
+              !isFeaturePortImplementation(files.get(exported.file), exported.file, exported.name)
+            )
+              continue;
+            boundImplementations.add(exported.file);
+          }
+        }
+      }
+    }
+  }
+  return boundImplementations;
+}
+
+function resolveExportedClasses(files, resolveModule, file, exportedName, visited = new Set()) {
+  const key = `${file}\0${exportedName}`;
+  if (visited.has(key) || !files.has(file)) return [];
+  visited.add(key);
+  const source = files.get(file);
+  const ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
+  const classes = [];
+
+  for (const statement of ast.statements) {
+    if (
+      !ts.isClassDeclaration(statement) ||
+      !statement.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword)
+    ) {
+      continue;
+    }
+    const isDefault = statement.modifiers.some(
+      (modifier) => modifier.kind === ts.SyntaxKind.DefaultKeyword,
+    );
+    if (statement.name?.text === exportedName || (exportedName === 'default' && isDefault)) {
+      classes.push({ file, name: statement.name?.text ?? exportedName });
+    }
+  }
+
+  for (const statement of ast.statements) {
+    if (
+      !ts.isExportDeclaration(statement) ||
+      !statement.moduleSpecifier ||
+      !ts.isStringLiteral(statement.moduleSpecifier)
+    ) {
+      continue;
+    }
+    const target = resolveModule(file, statement.moduleSpecifier.text);
+    if (!target) continue;
+    if (!statement.exportClause || ts.isNamespaceExport(statement.exportClause)) {
+      classes.push(...resolveExportedClasses(files, resolveModule, target, exportedName, visited));
+    } else if (ts.isNamedExports(statement.exportClause)) {
+      for (const element of statement.exportClause.elements) {
+        if (element.name.text !== exportedName) continue;
+        const sourceName = element.propertyName?.text ?? element.name.text;
+        classes.push(...resolveExportedClasses(files, resolveModule, target, sourceName, visited));
+      }
+    }
+  }
+  return classes;
 }
 
 function isApiClient(file) {

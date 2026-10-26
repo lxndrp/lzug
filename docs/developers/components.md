@@ -989,10 +989,14 @@ verwendet `SchedulingOverviewPort` direkt; `HttpSchedulingOverviewAdapter`
 übersetzt das API-Modell in ein transportneutrales Featuremodell.
 Die bestehende Anzeige und ihre Lade-, Leer- und Fehlerzustände bleiben dabei
 unverändert; ihre Komponententests benötigen keinen HTTP-Testcontroller.
-`npm run architecture:check` prüft statische Import- und Re-Export-Pfade sowie
-featureeigene Helferdateien auf verbotene Transport-, HTTP- und
-Adapterabhängigkeiten, ohne Beispielklassen oder eine Weiterleitungskette
-vorzuschreiben.
+`npm run architecture:check` verfolgt statische Import- und Re-Export-Pfade
+transitiv innerhalb der jeweiligen Featuregrenze.
+Die Prüfung endet an Transportgrenzen sowie am Modul einer Port-Implementierung,
+die `app.config.ts` an ein Port-Token bindet.
+Dieses Modul bildet selbst die technische Grenze; seine weiteren Importe werden
+nicht dem Featureverbraucher zugerechnet.
+Außerhalb dieser Grenzen meldet die Prüfung verbotene Transport-, HTTP- und
+Adapterabhängigkeiten, ohne Helper-Namen oder Weiterleitungsketten vorzuschreiben.
 
 Abstraktionen entstehen nur an einer tatsächlichen Austausch- oder
 Testgrenze.
