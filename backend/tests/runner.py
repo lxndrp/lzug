@@ -151,9 +151,9 @@ def _write_timings(
     modules: dict[str, list[float]] = defaultdict(list)
     for timing in result.test_timings:
         modules[str(timing["module"])].append(float(timing["seconds"]))
-    failures = {test.id() for test, _ in result.failures}
-    errors = {test.id() for test, _ in result.errors}
-    skipped = {test.id() for test, _ in result.skipped}
+    failures = {_parent_test_id(test) for test, _ in result.failures}
+    errors = {_parent_test_id(test) for test, _ in result.errors}
+    skipped = {_parent_test_id(test) for test, _ in result.skipped}
     try:
         revision = os.environ.get("GITHUB_SHA")
         if not revision:
@@ -167,7 +167,7 @@ def _write_timings(
     payload = {
         "schema_version": 1,
         "revision": revision,
-        "pull_request_head": os.environ.get("LZUG_TEST_TIMINGS_PR_HEAD"),
+        "pull_request_head": os.environ.get("LZUG_TEST_TIMINGS_PR_HEAD") or None,
         "suite": args.suite or "targets",
         "shard": {"index": args.shard_index, "count": args.shard_count},
         "runner": {"platform": platform.platform(), "python": platform.python_version()},
@@ -206,6 +206,12 @@ def _write_timings(
     temporary = path.with_suffix(path.suffix + ".tmp")
     temporary.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     temporary.replace(path)
+
+
+def _parent_test_id(test: unittest.case.TestCase) -> str:
+    """Return the timed test ID for a result entry, including unittest subtests."""
+    parent = getattr(test, "test_case", test)
+    return parent.id()
 
 
 def main(argv: Iterable[str] | None = None) -> int:

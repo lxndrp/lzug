@@ -97,7 +97,11 @@ class BackendTestTierTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "timings.json"
-            with patch.dict("os.environ", {"GITHUB_SHA": "test-revision"}, clear=True):
+            with patch.dict(
+                "os.environ",
+                {"GITHUB_SHA": "test-revision", "LZUG_TEST_TIMINGS_PR_HEAD": ""},
+                clear=True,
+            ):
                 _write_timings(path, result, 0.01, args)
             report = json.loads(path.read_text(encoding="utf-8"))
 
@@ -112,6 +116,29 @@ class BackendTestTierTests(unittest.TestCase):
         self.assertEqual(1, len(report["modules"][module]["tests"]))
         self.assertEqual("passed", report["modules"][module]["tests"][0]["status"])
         self.assertIn("python", report["runner"])
+
+    def test_subtest_failures_and_errors_are_attributed_to_the_parent_test(self) -> None:
+        class SubtestExample(unittest.TestCase):
+            def test_failure(self) -> None:
+                with self.subTest(case="failure"):
+                    self.fail("expected failure")
+
+            def test_error(self) -> None:
+                with self.subTest(case="error"):
+                    raise RuntimeError("expected error")
+
+        suite = unittest.defaultTestLoader.loadTestsFromTestCase(SubtestExample)
+        result = TimedTextTestRunner(stream=io.StringIO(), verbosity=0).run(suite)
+        args = Namespace(suite="unit", shard_index=None, shard_count=None)
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "timings.json"
+            _write_timings(path, result, 0.01, args)
+            report = json.loads(path.read_text(encoding="utf-8"))
+
+        tests = report["modules"][__name__]["tests"]
+        statuses = {item["test"].rsplit(".", maxsplit=1)[-1]: item["status"] for item in tests}
+        self.assertEqual({"test_error": "error", "test_failure": "failure"}, statuses)
 
     def test_timing_directory_uses_unique_filename_for_each_http_shard(self) -> None:
         args = type("Args", (), {"suite": "http", "shard_index": 2, "shard_count": 3})()
