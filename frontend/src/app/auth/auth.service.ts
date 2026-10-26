@@ -3,12 +3,11 @@ import { Injectable, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { catchError, map, of, switchMap, tap, throwError } from 'rxjs';
 
-import type { DemoRole } from '../api/api.models';
 import { ApplicationError } from '../api/application-error';
 import { AuthApiService } from '../api/auth-api.service';
 import { RuntimeExperienceService } from '../runtime/runtime-experience.service';
 import { SessionScopeService } from './session-scope.service';
-import type { AuthenticationPort, AuthSession, AuthState } from './auth.models';
+import type { AuthenticationPort, AuthSession, AuthState, DemoRole } from './auth.models';
 
 export type { AuthCompletion, AuthPreparation, AuthSession, AuthState } from './auth.models';
 

@@ -513,6 +513,45 @@ Command im Ursprungsworkflow noch abgeschlossen wird.
 | Persönliche Ansichten, Halbjahre, bestätigte Pläne und Produktinformation konsumierten teils geteilte Workspacewerte oder reine Weiterleitungsschichten. | Jedes Feature besitzt seine Reads über den eigenen Port; Produktinformation lädt die Buildversion über `BuildInfoPort`. | Personal lokal und mit gezielten Fähigkeiten: #1096; direkte Featuregrenzen, Build-Info-Port und Workspace-Rückbau: #1097. |
 | Route-Einstiege und fachliche Services existieren parallel. | Route besitzt URL-Bindung/Command-Origin, Feature besitzt Fachzustand. | Beibehalten, solange beide eine dieser Aufgaben tragen; #1097 entfernt nur reine Durchreichung. |
 
+### Architekturprüfungen
+
+`frontend/scripts/validate-architecture-boundaries.mjs` prüft statische
+TypeScript-Imports, dynamische `import()`-Aufrufe und Reexports an den
+tatsächlich geltenden Grenzen.
+Jeder dynamische Import muss einen statisch auflösbaren Modulpfad verwenden.
+Die Prüfung löst relative, verschachtelte und Barrel-Imports auf und verbietet
+generierte sowie handgeschriebene Transportmodelle außerhalb der
+Transportgrenze.
+Komponenten, Feature-Facades, Workflows und Projektionen dürfen keine API-Clients
+importieren; Portverträge bleiben unabhängig von ihrem Verzeichnispfad frei von
+Transportimplementierungen.
+Konkrete HTTP-Adapter dürfen nur am Composition Root gebunden werden.
+Nur `src/app/app.config.ts` ist der Composition Root.
+Angular HTTP bleibt außerhalb der Transportgrenzen und des Composition Roots
+verboten.
+Direkte `fetch()`-Aufrufe bleiben außerhalb der Transportgrenze und des
+Composition Roots ebenfalls verboten.
+Der Composition Root muss importierte Porttokens und Adapter in seiner
+Providerkonfiguration verwenden.
+Die Prüfung schreibt weder eine bestimmte Facade-/Application-Kette noch
+konkrete Dateinamen, Importsammlungen oder eine Orts-/Dashboard-Kopplung vor.
+
+Positive und negative Importbeispiele liegen in
+`frontend/scripts/validate-architecture-boundaries.spec.mjs`.
+Sie prüfen auch verschachtelte Reexports, Import-Type-Ausdrücke und dynamische
+Imports, die verbotene Abhängigkeiten vermitteln, sowie direkte `fetch()`-Aufrufe
+außerhalb der Transportgrenze.
+`npm run architecture:check` führt diese Fixtures und danach die Prüfung des
+aktuellen Frontendbaums aus.
+
+Laufzeitverträge bleiben in den featureeigenen Tests belegt:
+unabhängige Orts-Reads in `locations-workspace.facade.spec.ts`,
+Runden-/Sessionbindung in `planning-workflow.service.spec.ts`,
+`session-scope.service.spec.ts` und den Prüfungstagstests sowie Export- und
+Fehlerübersetzung in den HTTP-Adaptertests für Halbjahre, Protokoll und
+Ergebnis.
+Ein grüner Strukturcheck ersetzt diese Verhaltensprüfungen nicht.
+
 Jede Rückbauänderung erhält vorhandene Lade-, Fehler-, Berechtigungs-,
 Revisions-, Session- und Accessibility-Semantik.
 Es wird weder ein Universal-Workspace noch eine Pflichtschicht je Request

@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 
-import type { DemoRole } from '../api/api.models';
+import type { DemoRole } from '../auth/auth.models';
 import { RuntimeExperienceApiService } from '../api/runtime-experience-api.service';
 
 @Injectable({ providedIn: 'root' })
