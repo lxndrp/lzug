@@ -15,8 +15,9 @@ technische Details im [Entwicklerhandbuch](docs/developers/index.md).
   bleiben beim bestehenden Dependabot-Verfahren und den deterministischen CI-Prüfungen.
 - Ändere eine exakt fixierte Abhängigkeit für ausgelieferte Assets nur zusammen
   mit den passenden Prüfungen, regenerierten Artefakten und Lizenzangaben.
-  Für Lucide prüft `brand/generate-assets.mjs` den exakten Manifest-/Lockfile-Pin;
-  ein Versionswechsel erfordert daher die abgestimmte Generator-/Asset-/Lizenzänderung.
+  Lucide ist eine Laufzeitbibliothek für Frontend-Icons; `package-lock.json`
+  fixiert die konkret gebaute Version. Bei Updates sind die verwendeten Icons
+  und Lizenzangaben zu prüfen.
   Ein verfügbares Update allein ist kein Reviewbefund.
 - Für issuebezogene Umsetzungs- und PR-Abnahmereviews gilt lokal in Codex und
   auf GitHub dieselbe Auswahlmatrix.
