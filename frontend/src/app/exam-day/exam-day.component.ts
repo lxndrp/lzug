@@ -13,6 +13,11 @@ import { TuiButton } from '@taiga-ui/core';
 import { TuiBadge } from '@taiga-ui/kit';
 
 import {
+  isAttendanceStatus,
+  isExecutionStatusSummaryState,
+  reopeningScopeFromToken,
+} from './exam-day.models';
+import type {
   Attendance,
   AttendanceStatus,
   ConfirmedPlanDay,
@@ -20,22 +25,11 @@ import {
   ExecutionStatus,
   ExecutionStatusSummary,
   ExamDayReopeningScope,
-  ExamDayReopeningScopeKind,
 } from './exam-day.models';
 import { ExamDayFacade } from './exam-day.facade';
 import { AuthService } from '../auth/auth.service';
 import { ExamProtocolComponent } from '../exam-protocol/exam-protocol.component';
 import { ExamResultComponent } from '../exam-result/exam-result.component';
-
-const reopeningScopeKinds = [
-  'slot_status',
-  'candidate_attendance',
-  'member_attendance',
-  'staffing',
-  'absence',
-  'exam_protocol',
-  'exam_result',
-] as const satisfies readonly ExamDayReopeningScopeKind[];
 
 type ClosureFormValue = {
   closureType: 'regular' | 'exception';
@@ -76,10 +70,6 @@ const requiredReopeningDetails: ValidatorFn = (
     ? { requiredReopeningDetails: true }
     : null;
 };
-
-function isReopeningScopeKind(value: string): value is ExamDayReopeningScopeKind {
-  return reopeningScopeKinds.some((kind) => kind === value);
-}
 
 @Component({
   selector: 'app-exam-day',
@@ -207,6 +197,12 @@ export class ExamDayComponent implements OnChanges {
     if (!this.canCoordinateAttendance || !this.canMutateDayData('candidate_attendance', slotId)) {
       return;
     }
+    if (!isAttendanceStatus(draft.status)) {
+      this.examDay.showValidationError(
+        'Der unbekannte Anwesenheitsstatus kann nicht gespeichert werden.',
+      );
+      return;
+    }
     const dayId = this.view()?.day.id;
     if (dayId === undefined) return;
     this.examDay.saveCandidateAttendance({
@@ -225,6 +221,12 @@ export class ExamDayComponent implements OnChanges {
       !this.canEditMemberAttendance(assignment) ||
       !this.canMutateDayData('member_attendance', assignmentId)
     ) {
+      return;
+    }
+    if (!isAttendanceStatus(draft.status)) {
+      this.examDay.showValidationError(
+        'Der unbekannte Anwesenheitsstatus kann nicht gespeichert werden.',
+      );
       return;
     }
     const dayId = this.view()?.day.id;
@@ -488,7 +490,7 @@ export class ExamDayComponent implements OnChanges {
   }
 
   protected executionStatusCount(summary: ExecutionStatusSummary, status: string): number {
-    return summary[status as keyof ExecutionStatusSummary] ?? 0;
+    return isExecutionStatusSummaryState(status) ? summary[status] : 0;
   }
 
   protected arrivalLabel(value: string | null): string {
@@ -523,10 +525,7 @@ export class ExamDayComponent implements OnChanges {
   }
 
   private selectedReopeningScope(): ExamDayReopeningScope | null {
-    const [kind, rawId] = this.reopeningForm.controls.token.value.split(':');
-    const entityId = Number(rawId);
-    if (!isReopeningScopeKind(kind) || !Number.isInteger(entityId) || entityId < 1) return null;
-    return { kind, entityId };
+    return reopeningScopeFromToken(this.reopeningForm.controls.token.value);
   }
 
   private resetClosureDrafts(): void {
@@ -612,7 +611,7 @@ export class ExamDayComponent implements OnChanges {
 
   private toAttendanceDraft(attendance: Attendance): AttendanceDraft {
     return {
-      status: attendance.status as AttendanceStatus,
+      status: isAttendanceStatus(attendance.status) ? attendance.status : null,
       arrivedAt: this.datetimeLocalValue(attendance.arrivedAt),
     };
   }
@@ -723,7 +722,7 @@ export class ExamDayComponent implements OnChanges {
   }
 }
 
-export type AttendanceDraft = { status: AttendanceStatus; arrivedAt: string };
+export type AttendanceDraft = { status: AttendanceStatus | null; arrivedAt: string };
 export type ExecutionStatusDraft = {
   status: ExecutionStatus;
   reason: string;

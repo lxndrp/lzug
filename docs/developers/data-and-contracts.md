@@ -253,6 +253,9 @@ Die Modelle `LifecycleResponse` und `RuntimeUnavailableResponse` sowie die
 erzeugte OpenAPI-Beschreibung besitzen die Zustands- und Fehlercodes.
 `public_lifecycle` projiziert ausschließlich erlaubte Zustände aus dem
 Runtime-Snapshot; Diagnosefelder werden nie übernommen.
+Das Frontend leitet seine geschlossene Lifecycle-Wertemenge aus einer Quelle
+ab und behandelt unbekannte oder widersprüchliche Antworten als nicht
+verfügbar.
 Außerhalb von ready weist die HTTP-Zulassung fachliche Requests vor
 Authentisierung und Persistenz einheitlich mit 503 ab.
 Origin- und Body-Headerprüfungen bleiben vorgeschaltet; ein schon abgewiesener

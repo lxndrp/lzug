@@ -1060,6 +1060,10 @@ typisierte `FormGroup`s. Gruppenvalidatoren bündeln die bedingte
 Pflichtfeldprüfung für den Ausnahmeabschluss und die erforderlichen
 Wiederöffnungsangaben; Submit bildet ihre Werte explizit auf die bestehenden
 Commands ab.
+Der Wiederöffnungstoken wird an dieser Grenze auf einen erlaubten Scope-Kind
+und eine positive sichere Ganzzahl-ID geprüft. Unbekannte
+Anwesenheitsstatus werden nicht als gültiger Draft übernommen und können nicht
+versehentlich gespeichert werden.
 Protokoll und Ergebnis erhalten Runde, Tag, Slot und Tagesrevision explizit;
 ihre erfolgreichen Änderungen melden Tagesrevisionen über Outputs zurück,
 damit Prüfungstag den bestätigten Tagesread und beide Kindreads gezielt
