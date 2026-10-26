@@ -7,8 +7,11 @@ import { PlanningWriteEventsService } from '../application/planning-write-events
 import { RoundContextService } from '../api/round-context.service';
 import { AuthService } from '../auth/auth.service';
 import { SessionScopeService } from '../auth/session-scope.service';
-import type { Location } from '../api/master-data.models';
-import { DASHBOARD_PROJECTION_PORT, type DashboardProjection } from './dashboard-projection.port';
+import {
+  DASHBOARD_PROJECTION_PORT,
+  type DashboardLocation,
+  type DashboardProjection,
+} from './dashboard-projection.port';
 
 /** Independent dashboard projection and loading/error state. */
 @Injectable({ providedIn: 'root' })
@@ -37,7 +40,7 @@ export class DashboardProjectionService {
     revision: number;
     roundId: number;
     sessionGeneration: number;
-    locations: Location[];
+    locations: DashboardLocation[];
   } | null = null;
   private latestCandidateReferences: {
     revision: number;
@@ -328,7 +331,7 @@ export class DashboardProjectionService {
       });
   }
 
-  applyLocations(locations: Location[]): void {
+  applyLocations(locations: DashboardLocation[]): void {
     const current = this.projection();
     if (!current) return;
     const byId = new Map(locations.map((location) => [location.id, location]));
@@ -404,7 +407,7 @@ export class DashboardProjectionService {
 
 function withLocations(
   projection: DashboardProjection,
-  locations: Location[],
+  locations: DashboardLocation[],
 ): DashboardProjection {
   const byId = new Map(locations.map((location) => [location.id, location]));
   return {

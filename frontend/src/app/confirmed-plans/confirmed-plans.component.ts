@@ -16,7 +16,7 @@ import { TuiBadge } from '@taiga-ui/kit';
 import { AuthService } from '../auth/auth.service';
 import { SessionScopeService } from '../auth/session-scope.service';
 
-import { ConfirmedPlansWorkflowService } from './confirmed-plans-workflow.service';
+import { CONFIRMED_PLANS_PORT } from './confirmed-plans.port';
 import type { ConfirmedPlan, ConfirmedPlansBoard } from './confirmed-plans.models';
 import { ConfirmedPlanEditorComponent } from './confirmed-plan-editor.component';
 import { Subscription, filter, switchMap, take } from 'rxjs';
@@ -30,7 +30,7 @@ export type ViewState = 'loading' | 'ready' | 'error';
   styleUrl: './confirmed-plans.component.css',
 })
 export class ConfirmedPlansComponent implements OnInit, OnChanges, OnDestroy {
-  private readonly confirmedPlans = inject(ConfirmedPlansWorkflowService);
+  private readonly confirmedPlans = inject(CONFIRMED_PLANS_PORT);
   private readonly router = inject(Router);
   private readonly auth = inject(AuthService);
   private readonly authenticated$ = toObservable(this.auth.state).pipe(
@@ -119,30 +119,28 @@ export class ConfirmedPlansComponent implements OnInit, OnChanges, OnDestroy {
     this.plansLoad?.unsubscribe();
     this.state.set('loading');
     const sessionGeneration = this.sessionScope.generation();
-    this.plansLoad = this.sessionScope
-      .forCurrentSession(this.confirmedPlans.getConfirmedPlans())
-      .subscribe({
-        next: (plans) => {
-          if (
-            generation !== this.plansGeneration ||
-            sessionGeneration !== this.sessionScope.generation()
-          ) {
-            return;
-          }
-          this.plans.set(plans);
-          this.selectFirstVisibleCommittee();
-          this.state.set('ready');
-        },
-        error: () => {
-          if (
-            generation !== this.plansGeneration ||
-            sessionGeneration !== this.sessionScope.generation()
-          ) {
-            return;
-          }
-          this.state.set('error');
-        },
-      });
+    this.plansLoad = this.sessionScope.forCurrentSession(this.confirmedPlans.list()).subscribe({
+      next: (plans) => {
+        if (
+          generation !== this.plansGeneration ||
+          sessionGeneration !== this.sessionScope.generation()
+        ) {
+          return;
+        }
+        this.plans.set(plans);
+        this.selectFirstVisibleCommittee();
+        this.state.set('ready');
+      },
+      error: () => {
+        if (
+          generation !== this.plansGeneration ||
+          sessionGeneration !== this.sessionScope.generation()
+        ) {
+          return;
+        }
+        this.state.set('error');
+      },
+    });
   }
 
   private selectFirstVisibleCommittee(): void {
@@ -167,7 +165,7 @@ export class ConfirmedPlansComponent implements OnInit, OnChanges, OnDestroy {
         switchMap(() => {
           sessionGeneration = this.sessionScope.generation();
           return this.sessionScope.forCurrentSession(
-            this.confirmedPlans.getEditorReferences(roundId),
+            this.confirmedPlans.loadEditorReferences(roundId),
           );
         }),
       )

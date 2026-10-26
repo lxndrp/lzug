@@ -7,7 +7,6 @@ import { VenueApiService } from './venue-api.service';
 import { toVenue } from './http-locations.mapper';
 import type { LocationsReadPort } from '../locations/locations.port';
 import type { LocationSnapshot } from '../locations/locations.models';
-import { withoutHttpLinks } from '../application/without-http-links';
 
 /** Loads examination locations through their dedicated public read endpoint. */
 @Injectable({ providedIn: 'root' })
@@ -31,7 +30,7 @@ export class HttpLocationsReadAdapter implements LocationsReadPort {
             committees: committees.items.map(({ id, name }) => ({ id, name })),
             committeeLoadPending: committees.pending,
             committeeLoadError: committees.failed,
-            venues: collection.items.map((venue) => toVenue(withoutHttpLinks(venue))),
+            venues: collection.items.map(toVenue),
             canCreateVenue: Boolean(collection._links['create']),
           }) satisfies LocationSnapshot,
       ),

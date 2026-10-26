@@ -1,9 +1,11 @@
+import type { ExamRoundLifecycle } from './planning.models';
 import type {
-  ExamHalfYear,
-  ExamRound,
-  ExamRoundCreate,
-  ExamRoundLifecycle,
-} from './planning.models';
+  ExamHalfYearCreate,
+  ExamHalfYearResponse,
+  ExamHalfYearUpdate,
+  ExamRoundCreate as TransportExamRoundCreate,
+  ExamRoundResponse,
+} from './generated/types.gen';
 import { Injectable, inject } from '@angular/core';
 
 import { ApiClient } from './api-client.service';
@@ -14,26 +16,23 @@ import { ApiClient } from './api-client.service';
 export class ExamRoundApiService {
   private readonly client = inject(ApiClient);
   listExamHalfYears() {
-    return this.client.list<ExamHalfYear>('/api/exam-half-years');
+    return this.client.list<ExamHalfYearResponse>('/api/exam-half-years');
   }
 
   listExamRounds() {
-    return this.client.list<ExamRound>('/api/exam-rounds');
+    return this.client.list<ExamRoundResponse>('/api/exam-rounds');
   }
 
-  createExamHalfYear(payload: Pick<ExamHalfYear, 'season' | 'year' | 'status'>) {
-    return this.client.post<ExamHalfYear>('/api/exam-half-years', payload);
+  createExamHalfYear(payload: ExamHalfYearCreate) {
+    return this.client.post<ExamHalfYearResponse>('/api/exam-half-years', payload);
   }
 
-  updateExamHalfYear(
-    id: number,
-    payload: Partial<Pick<ExamHalfYear, 'season' | 'year' | 'status'>>,
-  ) {
-    return this.client.patch<ExamHalfYear>(`/api/exam-half-years/${id}`, payload);
+  updateExamHalfYear(id: number, payload: ExamHalfYearUpdate) {
+    return this.client.patch<ExamHalfYearResponse>(`/api/exam-half-years/${id}`, payload);
   }
 
-  createExamRound(payload: ExamRoundCreate) {
-    return this.client.post<ExamRound>('/api/exam-rounds', payload);
+  createExamRound(payload: TransportExamRoundCreate) {
+    return this.client.post<ExamRoundResponse>('/api/exam-rounds', payload);
   }
 
   getExamRoundLifecycle(roundId: number) {

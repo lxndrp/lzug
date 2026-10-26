@@ -25,6 +25,7 @@ from backend.application.exam_lifecycle_commands import (
     round_reopen_command,
 )
 from backend.assessment.exam_results import ExamResultConflictError
+from backend.calendar.feed_lifecycle import FeedRevocationPendingError
 from backend.errors import TransactionConflictError, TransactionUnavailableError
 from backend.execution.day_lifecycle_contracts import ExamDayConflictError, ExamDayValidationError
 from backend.execution.exam_protocols import ExamProtocolConflictError
@@ -745,6 +746,20 @@ def _register_request_errors(app, resolved, application, read_security, write_se
                     "error": {
                         "code": "notification_provider_configuration_invalid",
                         "message": "Notification provider configuration is invalid",
+                    }
+                },
+                HTTPStatus.SERVICE_UNAVAILABLE,
+            )
+        )
+
+    @app.exception_handler(FeedRevocationPendingError)
+    def calendar_feed_revocation_pending(_request: Request, _error: FeedRevocationPendingError):
+        return _json_response(
+            ApplicationResult(
+                {
+                    "error": {
+                        "code": "calendar_feed_revocation_pending",
+                        "message": "Calendar feed revocation is pending; retry the request.",
                     }
                 },
                 HTTPStatus.SERVICE_UNAVAILABLE,

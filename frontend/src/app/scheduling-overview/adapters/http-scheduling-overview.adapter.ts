@@ -18,7 +18,7 @@ export class HttpSchedulingOverviewAdapter implements SchedulingOverviewPort {
           statusGroup: item.status_group,
           committeeName: item.committee_name,
           examHalfYear: {
-            season: item.exam_half_year.season,
+            season: season(item.exam_half_year.season),
             year: item.exam_half_year.year,
           },
           calendarWeekFrom: item.calendar_week_from,
@@ -27,4 +27,9 @@ export class HttpSchedulingOverviewAdapter implements SchedulingOverviewPort {
       ),
     );
   }
+}
+
+function season(value: string): 'summer' | 'winter' {
+  if (value === 'summer' || value === 'winter') return value;
+  throw new Error(`Unsupported exam half-year season: ${value}`);
 }

@@ -4477,9 +4477,9 @@ export type RevokeFeedApiCalendarFeedDeleteErrors = {
      */
     500: ErrorResponse;
     /**
-     * Runtime is not ready. Inspect lifecycle; never automatically retry a mutation.
+     * Feed revocation is pending and may be retried.
      */
-    503: RuntimeUnavailableResponse;
+    503: ErrorResponse;
 };
 
 export type RevokeFeedApiCalendarFeedDeleteError = RevokeFeedApiCalendarFeedDeleteErrors[keyof RevokeFeedApiCalendarFeedDeleteErrors];

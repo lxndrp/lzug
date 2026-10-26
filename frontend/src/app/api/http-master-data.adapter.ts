@@ -2,9 +2,12 @@ import { Injectable, inject } from '@angular/core';
 import { map } from 'rxjs';
 
 import type {
-  Candidate as ApiCandidate,
-  CommitteeMember as ApiCommitteeMember,
-} from './api.models';
+  CandidateResponse as ApiCandidate,
+  CommitteeResponse,
+  ExamRoundResponse,
+  MembershipResponse as ApiCommitteeMember,
+  PersonResponse,
+} from './generated/types.gen';
 import { MasterDataApiService } from './master-data-api.service';
 import type {
   Candidate,
@@ -17,7 +20,6 @@ import type {
 import type { MasterDataPort } from '../master-data/master-data.port';
 import type { CandidateWorkspace, CommitteeWorkspace } from '../master-data/master-data.models';
 import type { MasterData } from './master-data.models';
-import type { ExamRound as ApiExamRound } from './planning.models';
 import { PlanningApiService } from './planning-api.service';
 import { forkJoin } from 'rxjs';
 
@@ -84,11 +86,17 @@ export class HttpMasterDataAdapter implements MasterDataPort {
 }
 
 function toCandidateWorkspace(source: {
-  candidates: MasterData['candidates'];
+  candidates: Array<{
+    candidate: ApiCandidate;
+    roundCandidate?: MasterData['candidates'][number]['roundCandidate'];
+  }>;
   assignments: MasterData['candidateAssignments'];
-  examRounds: MasterData['examRounds'];
-  committees: MasterData['committees'];
-  activeRound: ApiExamRound;
+  examRounds: ExamRoundResponse[];
+  committees: CommitteeResponse[];
+  activeRound: Pick<
+    ExamRoundResponse,
+    'id' | 'name' | 'exam_half_year_id' | 'committee_id' | 'status'
+  >;
 }): CandidateWorkspace {
   return {
     candidates: source.candidates.map(({ candidate, roundCandidate }) => ({
@@ -135,9 +143,9 @@ function toCandidateWorkspace(source: {
 }
 
 function toCommitteeWorkspace(source: {
-  committees: MasterData['committees'];
-  members: MasterData['members'];
-  persons: MasterData['persons'];
+  committees: CommitteeResponse[];
+  members: ApiCommitteeMember[];
+  persons: PersonResponse[];
 }): CommitteeWorkspace {
   return {
     committees: source.committees.map(({ id, name, occupation, ihk }) => ({

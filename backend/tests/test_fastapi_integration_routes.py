@@ -133,6 +133,11 @@ class FastAPIIntegrationRouterTests(unittest.TestCase):
                 ]["schema"]
                 self.assertEqual(f"#/components/schemas/{model}", schema["$ref"])
 
+        revocation_error = document["paths"]["/api/calendar/feed"]["delete"]["responses"]["503"][
+            "content"
+        ]["application/json"]["schema"]
+        self.assertEqual("#/components/schemas/ErrorResponse", revocation_error["$ref"])
+
 
 if __name__ == "__main__":
     unittest.main()

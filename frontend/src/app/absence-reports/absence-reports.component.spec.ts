@@ -1,15 +1,16 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { provideTaiga } from '@taiga-ui/core';
-import { of, throwError } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { AuthService } from '../auth/auth.service';
-import { PERSONAL_PORT, type PersonalPort } from '../personal/personal.port';
+import { SessionScopeService } from '../auth/session-scope.service';
+import { PERSONAL_ABSENCE_PORT, type PersonalAbsencePort } from '../personal/personal.port';
 import { AbsenceReportsComponent } from './absence-reports.component';
 
 describe('AbsenceReportsComponent', () => {
-  let personal: PersonalPort;
+  let personal: PersonalAbsencePort;
 
   beforeEach(async () => {
     personal = createPersonalPort();
@@ -17,7 +18,7 @@ describe('AbsenceReportsComponent', () => {
       imports: [AbsenceReportsComponent],
       providers: [
         provideRouter([]),
-        { provide: PERSONAL_PORT, useValue: personal },
+        { provide: PERSONAL_ABSENCE_PORT, useValue: personal },
         provideTaiga({ scrollbars: 'native' }),
       ],
     }).compileComponents();
@@ -104,7 +105,7 @@ describe('AbsenceReportsComponent', () => {
     expect(personal.answerReplacement).toHaveBeenCalledWith(5, 'available');
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).textContent).toContain(
-      'Öffnen Sie die Demo-Szenarien für den nächsten Schritt.',
+      'Ersatzantwort gespeichert.',
     );
   });
 
@@ -135,8 +136,37 @@ describe('AbsenceReportsComponent', () => {
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('Ersatz ausgewählt.');
     expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      'Die Folgearbeit wurde angestoßen.',
+    );
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
       'Öffnen Sie die Demo-Szenarien',
     );
+  });
+
+  it('confirms replacement selection without claiming follow-up work already finished', () => {
+    TestBed.inject(AuthService).session.set({
+      authenticated: true,
+      account_id: 1,
+      person_id: 1,
+      committee_member_id: 1,
+      is_operator: false,
+      capabilities: ['absence:coordinate'],
+    });
+    personal.listAbsenceReports = vi.fn().mockReturnValue(of([report({ response: 'available' })]));
+    personal.selectReplacement = vi
+      .fn()
+      .mockReturnValue(of(report({ response: 'available', selected: true })));
+    const fixture = TestBed.createComponent(AbsenceReportsComponent);
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('button')?.click();
+    fixture.detectChanges();
+
+    const message = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(message).toContain('Ersatz ausgewählt.');
+    expect(message).toContain('Kalender- und Benachrichtigungsfolgen wurden angestoßen.');
+    expect(message).not.toContain('wurden verarbeitet');
   });
 
   it('reports answer and loading failures to the user', () => {
@@ -159,6 +189,25 @@ describe('AbsenceReportsComponent', () => {
     expect((failedFixture.nativeElement as HTMLElement).textContent).toContain(
       'Ausfallprozesse konnten nicht geladen werden.',
     );
+  });
+
+  it('clears absence data and ignores a late read after logout', () => {
+    const pending = new Subject<ReturnType<typeof report>[]>();
+    personal.listAbsenceReports = vi.fn().mockReturnValue(pending);
+    const scope = TestBed.inject(SessionScopeService);
+    scope.establish({
+      authenticated: true,
+      account_id: 1,
+      person_id: 7,
+      committee_member_id: 7,
+      is_operator: false,
+    });
+    const fixture = TestBed.createComponent(AbsenceReportsComponent);
+    fixture.detectChanges();
+    scope.clear();
+    pending.next([report()]);
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('Ausfallmeldung #1');
   });
 });
 
@@ -201,52 +250,11 @@ function report(overrides: { response?: 'available' | 'pending'; selected?: bool
   };
 }
 
-function createPersonalPort(): PersonalPort {
+function createPersonalPort(): PersonalAbsencePort {
   return {
-    listNotifications: vi.fn().mockReturnValue(of([])),
-    listNotificationProblems: vi.fn().mockReturnValue(of([])),
-    listNotificationOverview: vi.fn().mockReturnValue(of([])),
-    getNotificationChannels: vi.fn().mockReturnValue(
-      of({
-        webPush: { available: false, publicKey: null },
-        emailFallbackConfigured: false,
-        sinkEnabled: false,
-      }),
-    ),
-    getCalendarStatus: vi
-      .fn()
-      .mockReturnValue(
-        of({ active: false, activatedAt: null, revokedAt: null, timeZone: 'Europe/Berlin' }),
-      ),
-    listCalendarEvents: vi.fn().mockReturnValue(of([])),
-    downloadCalendarEvent: vi
-      .fn()
-      .mockReturnValue(
-        of({ content: 'BEGIN:VCALENDAR', mediaType: 'text/calendar', fileName: 'calendar.ics' }),
-      ),
-    activateCalendarFeed: vi.fn().mockReturnValue(
-      of({
-        active: true,
-        activatedAt: null,
-        revokedAt: null,
-        timeZone: 'Europe/Berlin',
-        feedUrl: '/api/calendar/feed/test.ics',
-        notice: 'activated',
-      }),
-    ),
-    revokeCalendarFeed: vi.fn().mockReturnValue(
-      of({
-        active: false,
-        activatedAt: null,
-        revokedAt: null,
-        timeZone: 'Europe/Berlin',
-        notice: 'revoked',
-      }),
-    ),
     listAbsenceReports: vi.fn().mockReturnValue(of([])),
     createAbsenceReport: vi.fn().mockReturnValue(of(report())),
     answerReplacement: vi.fn().mockReturnValue(of(report())),
     selectReplacement: vi.fn().mockReturnValue(of(report())),
-    registerPushSubscription: vi.fn().mockReturnValue(of(undefined)),
   };
 }

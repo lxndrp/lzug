@@ -1,37 +1,37 @@
 import { Injectable, inject } from '@angular/core';
 
-import { ExamProtocolApplication } from './exam-protocol.application';
+import { EXAM_PROTOCOL_PORT } from './exam-protocol.port';
 
-/** UI-facing operations for the exam protocol feature. */
-@Injectable({ providedIn: 'root' })
+/** Port boundary for one protocol view; component providers scope its lifetime to that view. */
+@Injectable()
 export class ExamProtocolFacade {
-  private readonly application = inject(ExamProtocolApplication);
+  private readonly port = inject(EXAM_PROTOCOL_PORT);
 
-  get(...args: Parameters<ExamProtocolApplication['get']>) {
-    return this.application.get(...args);
+  get(...args: Parameters<typeof this.port.get>) {
+    return this.port.get(...args);
   }
 
-  update(...args: Parameters<ExamProtocolApplication['update']>) {
-    return this.application.update(...args);
+  update(...args: Parameters<typeof this.port.update>) {
+    return this.port.update(...args);
   }
 
-  submit(...args: Parameters<ExamProtocolApplication['submit']>) {
-    return this.application.submit(...args);
+  submit(...args: Parameters<typeof this.port.submit>) {
+    return this.port.submit(...args);
   }
 
-  respond(...args: Parameters<ExamProtocolApplication['respond']>) {
-    return this.application.respond(...args);
+  respond(...args: Parameters<typeof this.port.respond>) {
+    return this.port.respond(...args);
   }
 
-  requestCorrection(...args: Parameters<ExamProtocolApplication['requestCorrection']>) {
-    return this.application.requestCorrection(...args);
+  requestCorrection(...args: Parameters<typeof this.port.requestCorrection>) {
+    return this.port.requestCorrection(...args);
   }
 
-  openCorrection(...args: Parameters<ExamProtocolApplication['openCorrection']>) {
-    return this.application.openCorrection(...args);
+  openCorrection(...args: Parameters<typeof this.port.openCorrection>) {
+    return this.port.openCorrection(...args);
   }
 
-  export(...args: Parameters<ExamProtocolApplication['export']>) {
-    return this.application.export(...args);
+  export(...args: Parameters<typeof this.port.export>) {
+    return this.port.export(...args);
   }
 }

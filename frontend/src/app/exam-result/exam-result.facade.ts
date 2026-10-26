@@ -1,59 +1,61 @@
 import { Injectable, inject } from '@angular/core';
 
-import { ExamResultApplication } from './exam-result.application';
+import { EXAM_RESULT_PORT } from './exam-result.port';
 
-/** UI-facing operations for the exam assessment/result feature. */
-@Injectable({ providedIn: 'root' })
+/** Port boundary for one result view; component providers scope its lifetime to that view. */
+@Injectable()
 export class ExamResultFacade {
-  private readonly application = inject(ExamResultApplication);
+  private readonly port = inject(EXAM_RESULT_PORT);
 
-  get(...args: Parameters<ExamResultApplication['get']>) {
-    return this.application.get(...args);
+  get(...args: Parameters<typeof this.port.get>) {
+    return this.port.get(...args);
   }
 
-  saveIndividualAssessment(...args: Parameters<ExamResultApplication['saveIndividualAssessment']>) {
-    return this.application.saveIndividualAssessment(...args);
+  export(...args: Parameters<typeof this.port.export>) {
+    return this.port.export(...args);
   }
 
-  withdrawIndividualAssessment(
-    ...args: Parameters<ExamResultApplication['withdrawIndividualAssessment']>
-  ) {
-    return this.application.withdrawIndividualAssessment(...args);
+  saveIndividualAssessment(...args: Parameters<typeof this.port.saveIndividualAssessment>) {
+    return this.port.saveIndividualAssessment(...args);
   }
 
-  discloseAssessments(...args: Parameters<ExamResultApplication['discloseAssessments']>) {
-    return this.application.discloseAssessments(...args);
+  withdrawIndividualAssessment(...args: Parameters<typeof this.port.withdrawIndividualAssessment>) {
+    return this.port.withdrawIndividualAssessment(...args);
   }
 
-  determineComponent(...args: Parameters<ExamResultApplication['determineComponent']>) {
-    return this.application.determineComponent(...args);
+  discloseAssessments(...args: Parameters<typeof this.port.discloseAssessments>) {
+    return this.port.discloseAssessments(...args);
   }
 
-  recordExternalResult(...args: Parameters<ExamResultApplication['recordExternalResult']>) {
-    return this.application.recordExternalResult(...args);
+  determineComponent(...args: Parameters<typeof this.port.determineComponent>) {
+    return this.port.determineComponent(...args);
   }
 
-  confirmExternalResult(...args: Parameters<ExamResultApplication['confirmExternalResult']>) {
-    return this.application.confirmExternalResult(...args);
+  recordExternalResult(...args: Parameters<typeof this.port.recordExternalResult>) {
+    return this.port.recordExternalResult(...args);
   }
 
-  determineExamResult(...args: Parameters<ExamResultApplication['determineExamResult']>) {
-    return this.application.determineExamResult(...args);
+  confirmExternalResult(...args: Parameters<typeof this.port.confirmExternalResult>) {
+    return this.port.confirmExternalResult(...args);
   }
 
-  confirmResultRecord(...args: Parameters<ExamResultApplication['confirmResultRecord']>) {
-    return this.application.confirmResultRecord(...args);
+  determineExamResult(...args: Parameters<typeof this.port.determineExamResult>) {
+    return this.port.determineExamResult(...args);
   }
 
-  openResultCorrection(...args: Parameters<ExamResultApplication['openResultCorrection']>) {
-    return this.application.openResultCorrection(...args);
+  confirmResultRecord(...args: Parameters<typeof this.port.confirmResultRecord>) {
+    return this.port.confirmResultRecord(...args);
   }
 
-  communicateExamResult(...args: Parameters<ExamResultApplication['communicateExamResult']>) {
-    return this.application.communicateExamResult(...args);
+  openResultCorrection(...args: Parameters<typeof this.port.openResultCorrection>) {
+    return this.port.openResultCorrection(...args);
   }
 
-  setExamResultRetention(...args: Parameters<ExamResultApplication['setExamResultRetention']>) {
-    return this.application.setExamResultRetention(...args);
+  communicateExamResult(...args: Parameters<typeof this.port.communicateExamResult>) {
+    return this.port.communicateExamResult(...args);
+  }
+
+  setExamResultRetention(...args: Parameters<typeof this.port.setExamResultRetention>) {
+    return this.port.setExamResultRetention(...args);
   }
 }

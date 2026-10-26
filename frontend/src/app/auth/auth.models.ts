@@ -1,6 +1,7 @@
 import { InjectionToken } from '@angular/core';
 
 export type AuthState = 'checking' | 'authenticated' | 'anonymous';
+export type DemoRole = 'chair' | 'examiner' | 'replacement';
 
 export interface AuthenticationPort {
   markAnonymous(): void;
@@ -14,7 +15,7 @@ export type AuthSession = {
   capabilities?: string[] | null;
   committee_member_id: number | null;
   demo_matrix_version?: string | null;
-  demo_role?: 'chair' | 'examiner' | 'replacement' | null;
+  demo_role?: DemoRole | null;
   demo_workspace_expires_at?: string | null;
   display_name?: string | null;
   is_operator: boolean;

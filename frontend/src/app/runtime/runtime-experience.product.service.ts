@@ -1,16 +1,12 @@
 import { Injectable } from '@angular/core';
 import { Observable, throwError } from 'rxjs';
 
-import { DemoRole, DemoScenarioOverview } from '../api/api.models';
+import type { DemoRole } from '../auth/auth.models';
 
 @Injectable({ providedIn: 'root' })
 export class RuntimeExperienceService {
   startDemoSession(role: DemoRole): Observable<void> {
     void role;
-    return this.unavailable();
-  }
-
-  getDemoScenarios(): Observable<DemoScenarioOverview> {
     return this.unavailable();
   }
 

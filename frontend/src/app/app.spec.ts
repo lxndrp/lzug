@@ -11,6 +11,8 @@ import { of, throwError } from 'rxjs';
 import { App } from './app';
 import { DashboardProjectionService } from './dashboard/dashboard-projection.service';
 import { APPLICATION_SHELL_CONTEXT_PORT } from './shell/application-shell-context.port';
+import { BUILD_INFO_PORT } from './about/build-info.port';
+import { DEMO_SCENARIOS_PORT } from './demo-scenarios/demo-scenarios.port';
 import { ApplicationShellContextService } from './shell/application-shell-context.service';
 import type {
   VenueContact,
@@ -20,7 +22,6 @@ import type {
   VenueDuplicate,
   VenueUpdate,
 } from './locations/locations.models';
-import { HttpWorkspaceAdapter } from './api/http-workspace.adapter';
 import { AuthService } from './auth/auth.service';
 import type { AuthSession } from './auth/auth.models';
 import { SessionScopeService } from './auth/session-scope.service';
@@ -32,10 +33,8 @@ import { toVenue } from './api/http-locations.mapper';
 import { LOCATIONS_PORT, type LocationsPort } from './locations/locations.port';
 import { PLANNING_PORT } from './planning/planning.port';
 import { LocationsRouteComponent } from './routes/locations-route.component';
-import { ApplicationWorkspaceService } from './shell/application-workspace.service';
 import { MasterDataWorkflowService } from './master-data/master-data-workflow.service';
 import { UiFeedbackService } from './shell/ui-feedback.service';
-import { WORKSPACE_PORT } from './shell/workspace.port';
 import { CONFIRMED_PLANS_PORT } from './confirmed-plans/confirmed-plans.port';
 import { HttpConfirmedPlansAdapter } from './api/http-confirmed-plans.adapter';
 import { VenueWorkflowService } from './locations/venue-workflow.service';
@@ -45,22 +44,16 @@ import { HttpLocationsReadAdapter } from './api/http-locations-read.adapter';
 import { MASTER_DATA_PORT } from './master-data/master-data.port';
 import { LifecycleService } from './runtime/lifecycle.service';
 import {
-  apiRootFixture,
   assignmentsFixture,
   availabilitiesFixture,
   candidateDaysFixture,
-  candidateAssignmentsFixture,
   candidatesFixture,
-  committeesFixture,
   examDaysFixture,
   examRoundFixture,
-  examRoundsFixture,
   examSlotsFixture,
-  foreignExamRoundFixture,
   locationsFixture,
   masterDataFixture,
   membersFixture,
-  personsFixture,
   roundCandidatesFixture,
   summaryFixture,
 } from './testing/fixtures';
@@ -94,7 +87,6 @@ describe('App', () => {
     locationsPort = createLocationsPortDouble();
     dashboard = {
       projection: signal({
-        applicationVersion: 'test',
         round: examRoundFixture,
         summary: summaryFixture,
         board: {
@@ -130,8 +122,21 @@ describe('App', () => {
         { provide: PLANNING_PORT, useClass: HttpPlanningAdapter },
         { provide: LOCATIONS_PORT, useValue: locationsPort },
         { provide: LOCATIONS_READ_PORT, useClass: HttpLocationsReadAdapter },
-        { provide: WORKSPACE_PORT, useClass: HttpWorkspaceAdapter },
         { provide: CONFIRMED_PLANS_PORT, useClass: HttpConfirmedPlansAdapter },
+        { provide: BUILD_INFO_PORT, useValue: { loadVersion: () => of('0.1.0') } },
+        {
+          provide: DEMO_SCENARIOS_PORT,
+          useValue: {
+            getOverview: () =>
+              of({
+                currentRole: 'chair',
+                remainingSeconds: 3600,
+                roles: [],
+                scenarios: [],
+              }),
+            reset: () => of(undefined),
+          },
+        },
         {
           provide: MASTER_DATA_PORT,
           useValue: {
@@ -201,17 +206,8 @@ describe('App', () => {
     }).compileComponents();
   });
 
-  afterEach(() => {
-    const http = TestBed.inject(HttpTestingController);
-    http.match('/api/locations').forEach((request) => request.flush(locationsFixture));
-    http.verify();
-  });
-
   it('should render the exam round dashboard', async () => {
     const fixture = TestBed.createComponent(App);
-    const http = TestBed.inject(HttpTestingController);
-
-    flushDashboardRequests(http);
 
     fixture.detectChanges();
     await TestBed.inject(Router).navigateByUrl('/dashboard');
@@ -228,8 +224,6 @@ describe('App', () => {
 
   it('refreshes the dashboard after a later login', () => {
     const fixture = TestBed.createComponent(App);
-    const http = TestBed.inject(HttpTestingController);
-    flushDashboardRequests(http);
 
     const auth = TestBed.inject(AuthService) as unknown as {
       state: { set(value: 'anonymous' | 'authenticated'): void };
@@ -238,14 +232,10 @@ describe('App', () => {
     fixture.detectChanges();
     auth.state.set('authenticated');
     fixture.detectChanges();
-
-    flushDashboardRequests(http);
   });
 
   it('loads the active master-data view after authentication completes on a deep link', async () => {
     const fixture = TestBed.createComponent(App);
-    const http = TestBed.inject(HttpTestingController);
-    flushDashboardRequests(http);
     const auth = TestBed.inject(AuthService) as unknown as {
       state: { set(value: 'checking' | 'authenticated'): void };
     };
@@ -266,8 +256,6 @@ describe('App', () => {
 
   it('shows shell-context retry progress and disables global refresh while it loads', () => {
     const fixture = TestBed.createComponent(App);
-    const http = TestBed.inject(HttpTestingController);
-    flushDashboardRequests(http);
     const shellContext = TestBed.inject(ApplicationShellContextService);
     shellContext.context.set(null);
     shellContext.loading.set(true);
@@ -284,8 +272,6 @@ describe('App', () => {
 
   it('reloads the workspace after an authenticated demo role changes', () => {
     const fixture = TestBed.createComponent(App);
-    const http = TestBed.inject(HttpTestingController);
-    flushDashboardRequests(http);
 
     const auth = TestBed.inject(AuthService) as unknown as {
       session: { set(value: AuthSession): void };
@@ -311,14 +297,11 @@ describe('App', () => {
     auth.session.set(chair);
     scope.establish(chair);
 
-    flushDashboardRequests(http);
     fixture.destroy();
   });
 
   it('keeps the authenticated shell landmark outside auth routes', async () => {
     const fixture = TestBed.createComponent(App);
-    const http = TestBed.inject(HttpTestingController);
-    flushDashboardRequests(http);
 
     const auth = TestBed.inject(AuthService) as unknown as {
       state: { set(value: 'anonymous' | 'authenticated'): void };
@@ -337,8 +320,6 @@ describe('App', () => {
 
   it('should expose the sidebar visibility through accessible toggle state', () => {
     const fixture = TestBed.createComponent(App);
-    const http = TestBed.inject(HttpTestingController);
-    flushDashboardRequests(http);
     fixture.detectChanges();
 
     const app = fixture.componentInstance as unknown as {
@@ -373,8 +354,6 @@ describe('App', () => {
 
   it('should update the selected committee', () => {
     TestBed.createComponent(App);
-    const http = TestBed.inject(HttpTestingController);
-    flushDashboardRequests(http);
 
     const workflow = TestBed.inject(MasterDataWorkflowService);
     workflow.selectedCommitteeId.set(2);
@@ -384,11 +363,8 @@ describe('App', () => {
 
   it('should refresh the visible context after selecting another exam round', () => {
     const fixture = TestBed.createComponent(App);
-    const http = TestBed.inject(HttpTestingController);
-    flushDashboardRequests(http);
 
-    TestBed.inject(ApplicationWorkspaceService).selectExamRound(2);
-    flushDashboardRequests(http, foreignExamRoundFixture);
+    TestBed.inject(RoundContextService).select(2);
     fixture.detectChanges();
 
     expect(TestBed.inject(RoundContextService).roundId()).toBe(2);
@@ -398,7 +374,6 @@ describe('App', () => {
   it('should ask before deleting a candidate', async () => {
     const fixture = TestBed.createComponent(App);
     const http = TestBed.inject(HttpTestingController);
-    flushDashboardRequests(http);
     fixture.detectChanges();
 
     await TestBed.inject(Router).navigateByUrl('/candidates');
@@ -422,7 +397,6 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     const http = TestBed.inject(HttpTestingController);
     const router = TestBed.inject(Router);
-    flushDashboardRequests(http);
 
     await router.navigateByUrl('/scheduling-overview/1');
     fixture.detectChanges();
@@ -439,8 +413,6 @@ describe('App', () => {
 
   it('includes the active planning feature in the application refresh', () => {
     const fixture = TestBed.createComponent(App);
-    const http = TestBed.inject(HttpTestingController);
-    flushDashboardRequests(http);
     const planning = TestBed.inject(PlanningWorkflowService);
     const refreshSpy = vi.spyOn(planning, 'refreshActiveView');
     const app = fixture.componentInstance as unknown as { refresh(): void };
@@ -448,15 +420,12 @@ describe('App', () => {
     app.refresh();
 
     expect(refreshSpy).toHaveBeenCalledOnce();
-    flushDashboardRequests(http);
     fixture.destroy();
   });
 
   it('updates title and focus from route data after browser navigation', async () => {
     const fixture = TestBed.createComponent(App);
-    const http = TestBed.inject(HttpTestingController);
     const router = TestBed.inject(Router);
-    flushDashboardRequests(http);
 
     await router.navigateByUrl('/about');
     await stabilizeRoute(fixture);
@@ -469,8 +438,6 @@ describe('App', () => {
 
   it('should expose operation errors as a consistent alert', () => {
     const fixture = TestBed.createComponent(App);
-    const http = TestBed.inject(HttpTestingController);
-    flushDashboardRequests(http);
 
     const app = fixture.componentInstance as unknown as { dismissFeedback: () => void };
     TestBed.inject(UiFeedbackService).notify(
@@ -492,8 +459,6 @@ describe('App', () => {
 
   it('should keep development-only prototype content out of the application shell', () => {
     const fixture = TestBed.createComponent(App);
-    const http = TestBed.inject(HttpTestingController);
-    flushDashboardRequests(http);
     fixture.detectChanges();
 
     const element = fixture.nativeElement as HTMLElement;
@@ -501,14 +466,12 @@ describe('App', () => {
     expect(element.textContent).not.toContain('Taiga-Prototyp');
     expect(element.querySelector('.app-header-title')?.textContent).toContain('Prüfungsverwaltung');
     expect(element.querySelector('h1')?.textContent).toContain('Übersicht');
-    expect(element.textContent).toContain('Daten synchronisiert');
+    expect(element.textContent).toContain('Bereit');
   });
 
   it('shows the active demo identity and protects role-incompatible routes', async () => {
     const fixture = TestBed.createComponent(App);
-    const http = TestBed.inject(HttpTestingController);
     const router = TestBed.inject(Router);
-    flushDashboardRequests(http);
 
     const auth = TestBed.inject(AuthService) as unknown as {
       session: {
@@ -556,8 +519,6 @@ describe('App', () => {
 
   it('guards demo mutations by the effective capability set', () => {
     const fixture = TestBed.createComponent(App);
-    const http = TestBed.inject(HttpTestingController);
-    flushDashboardRequests(http);
 
     const auth = TestBed.inject(AuthService) as unknown as {
       session: {
@@ -647,8 +608,6 @@ describe('App', () => {
 
   it('checks venue duplicates and future impact before persisting aggregates', () => {
     const fixture = TestBed.createComponent(App);
-    const http = TestBed.inject(HttpTestingController);
-    flushDashboardRequests(http);
     const workflow = TestBed.inject(VenueWorkflowService);
     const venue = toVenue(masterDataFixture.examVenues[0]);
     const create: VenueCreate = {
@@ -711,8 +670,6 @@ describe('App', () => {
   });
   it('keeps explicit geocoding candidates separate from venue data on success and failure', () => {
     TestBed.createComponent(App);
-    const http = TestBed.inject(HttpTestingController);
-    flushDashboardRequests(http);
     const workflow = TestBed.inject(VenueWorkflowService);
     const venue = toVenue(masterDataFixture.examVenues[0]);
     workflow.geocodeVenue(venue);
@@ -746,7 +703,6 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     const http = TestBed.inject(HttpTestingController);
     const router = TestBed.inject(Router);
-    flushDashboardRequests(http);
     await router.navigateByUrl('/locations');
     fixture.detectChanges();
     flushLocationRead(http);
@@ -762,16 +718,6 @@ describe('App', () => {
     expect(snapshot).not.toBeNull();
     fixture.detectChanges();
     expect(locations.snapshot()).toBe(snapshot);
-    const workspace = TestBed.inject(ApplicationWorkspaceService);
-    const currentMasterData = workspace.masterData();
-    expect(currentMasterData).not.toBeNull();
-    workspace.masterData.set({
-      ...currentMasterData!,
-      examVenues: [
-        ...currentMasterData!.examVenues,
-        { ...currentMasterData!.examVenues[0], id: 999 },
-      ],
-    });
     expect(locations.snapshot()).toBe(snapshot);
 
     route.openVenue(masterDataFixture.examVenues[0].id);
@@ -797,8 +743,6 @@ describe('App', () => {
 
   it('covers confirmed venue actions and their non-mutating failure paths', () => {
     const fixture = TestBed.createComponent(App);
-    const http = TestBed.inject(HttpTestingController);
-    flushDashboardRequests(http);
     const workflow = TestBed.inject(VenueWorkflowService);
     const venue = toVenue(masterDataFixture.examVenues[0]);
     locationsPort.deleteVenue.mockReturnValue(throwError(() => new Error('expected')));
@@ -853,8 +797,6 @@ describe('App', () => {
   });
   it('routes every nested venue command through the locations port', () => {
     const fixture = TestBed.createComponent(App);
-    const http = TestBed.inject(HttpTestingController);
-    flushDashboardRequests(http);
     const workflow = TestBed.inject(VenueWorkflowService);
     const venue = toVenue(masterDataFixture.examVenues[0]);
     locationsPort.deleteVenue.mockReturnValue(throwError(() => new Error('expected')));
@@ -980,74 +922,6 @@ function venueImpact(count: number, requiresConfirmation: boolean): VenueChangeI
     calendar: { eventCount: 0, fields: [] },
     notifications: { recipientCount: 0, fields: [] },
   };
-}
-
-function flushDashboardRequests(http: HttpTestingController, round = examRoundFixture): void {
-  const roundId = round.id;
-  http.expectOne('/api').flush(apiRootFixture);
-  http.expectOne(`/api/exam-rounds/${roundId}`).flush(round);
-  http.expectOne(`/api/round-summary?round_id=${roundId}`).flush({
-    ...summaryFixture,
-    round: {
-      ...summaryFixture.round,
-      id: roundId,
-      name: round.name,
-      committee_name:
-        committeesFixture.find((committee) => committee.id === round.committee_id)?.name ?? '',
-    },
-  });
-  http
-    .expectOne(`/api/exam-days?round_id=${roundId}`)
-    .flush({ items: examDaysFixture, _links: {} });
-  http.expectOne('/api/exam-slots').flush({ items: examSlotsFixture, _links: {} });
-  http.expectOne('/api/exam-day-assignments').flush({ items: assignmentsFixture, _links: {} });
-  const candidateRequests = http.match('/api/candidates');
-  expect(candidateRequests.length).toBe(2);
-  candidateRequests.forEach((request) => request.flush({ items: candidatesFixture, _links: {} }));
-
-  const roundCandidateRequests = http.match(
-    `/api/round-candidates?round_id=${roundId}&is_active=1`,
-  );
-  expect(roundCandidateRequests.length).toBe(2);
-  roundCandidateRequests.forEach((request) =>
-    request.flush({ items: roundCandidatesFixture, _links: {} }),
-  );
-  http.expectOne(`/api/candidate-exam-days?round_id=${roundId}`).flush({
-    items: candidateDaysFixture,
-    _links: {},
-  });
-  http.expectOne(`/api/member-availabilities?round_id=${roundId}`).flush({
-    items: availabilitiesFixture,
-    _links: {},
-  });
-
-  const memberRequests = http.match('/api/members');
-  expect(memberRequests.length).toBe(2);
-  memberRequests.forEach((request) => request.flush({ items: membersFixture, _links: {} }));
-
-  http.expectOne('/api/persons').flush({ items: personsFixture, _links: {} });
-
-  http.expectOne('/api/committees').flush({
-    items: committeesFixture,
-    _links: {},
-  });
-  http.expectOne('/api/exam-half-years').flush({
-    items: [{ id: 1, season: 'winter', year: 2026, status: 'active' }],
-    _links: {},
-  });
-  http.expectOne('/api/exam-rounds').flush({ items: examRoundsFixture, _links: {} });
-  http.expectOne('/api/candidate-committee-assignments').flush({
-    items: candidateAssignmentsFixture,
-    _links: {},
-  });
-  http.expectOne('/api/exam-venues').flush({
-    items: masterDataFixture.examVenues,
-    _links: {},
-  });
-
-  const locationRequests = http.match('/api/locations');
-  expect(locationRequests.length).toBe(2);
-  locationRequests.forEach((request) => request.flush({ items: locationsFixture, _links: {} }));
 }
 
 function flushPlanningRequests(http: HttpTestingController): void {

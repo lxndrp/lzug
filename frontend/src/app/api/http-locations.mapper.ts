@@ -1,8 +1,13 @@
 import type { MasterData } from './api.models';
 import type {
-  ExamRoom as ApiRoom,
-  ExamVenue as ApiVenue,
-  ExamVenueContact as ApiContact,
+  ExamRoomResponse as ApiRoom,
+  ExamVenueContactResponse as ApiContact,
+  ExamVenueResponse as ApiVenue,
+} from './generated/types.gen';
+import type {
+  ExamRoom as ProjectionRoom,
+  ExamVenue as ProjectionVenue,
+  ExamVenueContact as ProjectionContact,
 } from './master-data.models';
 import type {
   LocationSnapshot,
@@ -11,10 +16,12 @@ import type {
   VenueRoom,
 } from '../locations/locations.models';
 
-export function toVenue(value: ApiVenue): Venue {
+export function toVenue(value: ApiVenue | ProjectionVenue): Venue {
+  const mapProvider = record(value.map_provider ?? { mode: 'off' }, 'map_provider');
+  const capabilities = record(value['capabilities'], 'capabilities');
   return {
     id: value.id,
-    scope: value.scope,
+    scope: oneOf(value.scope, ['global', 'committee'], 'scope'),
     committeeId: value.committee_id,
     committeeName: value.committee_name ?? null,
     name: value.name,
@@ -26,46 +33,62 @@ export function toVenue(value: ApiVenue): Venue {
     entrance: value.entrance,
     travelDirections: value.travel_directions,
     isAccessible: value.is_accessible === null ? null : value.is_accessible === 1,
-    accessibilityStatus: value.accessibility_status,
+    accessibilityStatus: oneOf(
+      value.accessibility_status,
+      ['confirmed', 'needs_clarification'],
+      'accessibility_status',
+    ),
     accessibilityNotes: value.accessibility_notes,
     latitude: value.latitude ?? null,
     longitude: value.longitude ?? null,
-    coordinateStatus: value.coordinate_status ?? 'missing',
+    coordinateStatus: oneOf(
+      value.coordinate_status,
+      ['missing', 'needs_review', 'confirmed'],
+      'coordinate_status',
+    ),
     coordinateSource: value.coordinate_source ?? null,
     isActive: value.is_active === 1,
     revision: value.revision,
-    ...(typeof value.consequence_warning === 'string'
-      ? { consequenceWarning: value.consequence_warning }
+    ...(typeof value['consequence_warning'] === 'string'
+      ? { consequenceWarning: value['consequence_warning'] }
       : {}),
     rooms: value.rooms.map(toRoom),
     contacts: value.contacts.map(toContact),
-    consequenceProblems: (value.consequence_problems ?? []).map((problem) => ({
-      auditId: problem.audit_id,
-      venueId: problem.venue_id,
-      entityType: problem.entity_type,
-      entityId: problem.entity_id,
-      consequenceType: problem.consequence_type,
-      status: problem.status,
-      attemptCount: problem.attempt_count,
-      errorCode: problem.error_code,
-      updatedAt: problem.updated_at,
-      retryable: problem.retryable,
+    consequenceProblems: optionalRecordArray(value['consequence_problems']).map((problem) => ({
+      auditId: requiredNumber(problem, 'audit_id'),
+      venueId: requiredNumber(problem, 'venue_id'),
+      entityType: oneOf(requiredString(problem, 'entity_type'), ['venue', 'room'], 'entity_type'),
+      entityId: requiredNumber(problem, 'entity_id'),
+      consequenceType: oneOf(
+        requiredString(problem, 'consequence_type'),
+        ['calendar', 'notification', 'derivation'],
+        'consequence_type',
+      ),
+      status: oneOf(
+        requiredString(problem, 'status'),
+        ['temporarily_failed', 'permanently_failed'],
+        'status',
+      ),
+      attemptCount: requiredNumber(problem, 'attempt_count'),
+      errorCode: nullableString(problem, 'error_code'),
+      updatedAt: requiredString(problem, 'updated_at'),
+      retryable: requiredBoolean(problem, 'retryable'),
     })),
     mapProvider: {
-      mode: value.map_provider?.mode ?? 'off',
-      ...(value.map_provider?.attribution !== undefined
-        ? { attribution: value.map_provider.attribution }
+      mode: oneOf(mapProvider['mode'], ['off', 'osm', 'google'], 'map_provider.mode'),
+      ...(typeof mapProvider['attribution'] === 'string'
+        ? { attribution: mapProvider['attribution'] }
         : {}),
-      ...(value.map_provider?.attribution_url !== undefined
-        ? { attributionUrl: value.map_provider.attribution_url }
+      ...(typeof mapProvider['attribution_url'] === 'string'
+        ? { attributionUrl: mapProvider['attribution_url'] }
         : {}),
     },
     capabilities: {
-      manage: value.capabilities.manage,
-      retryConsequences: value.capabilities.retry_consequences ?? false,
-      geocode: value.capabilities.geocode ?? false,
-      requestPromotion: value.capabilities.request_promotion,
-      decidePromotion: value.capabilities.decide_promotion,
+      manage: requiredBoolean(capabilities, 'manage'),
+      retryConsequences: optionalBoolean(capabilities, 'retry_consequences') ?? false,
+      geocode: optionalBoolean(capabilities, 'geocode') ?? false,
+      requestPromotion: requiredBoolean(capabilities, 'request_promotion'),
+      decidePromotion: requiredBoolean(capabilities, 'decide_promotion'),
     },
   };
 }
@@ -82,7 +105,7 @@ export function toLocationSnapshot(
   };
 }
 
-export function toRoom(value: ApiRoom): VenueRoom {
+export function toRoom(value: ApiRoom | ProjectionRoom): VenueRoom {
   return {
     id: value.id,
     venueId: value.venue_id,
@@ -95,13 +118,68 @@ export function toRoom(value: ApiRoom): VenueRoom {
     capacity: value.capacity,
     isActive: value.is_active === 1,
     revision: value.revision,
-    ...(typeof value.consequence_warning === 'string'
-      ? { consequenceWarning: value.consequence_warning }
+    ...(typeof value['consequence_warning'] === 'string'
+      ? { consequenceWarning: value['consequence_warning'] }
       : {}),
   };
 }
 
-export function toContact(value: ApiContact): VenueContact {
+function oneOf<const T extends readonly string[]>(
+  value: unknown,
+  options: T,
+  field: string,
+): T[number] {
+  const match = options.find((option) => option === value);
+  if (match !== undefined) return match;
+  throw new Error(`Unsupported ${field}: ${String(value)}`);
+}
+
+function record(value: unknown, field: string): Record<string, unknown> {
+  if (isRecord(value)) return value;
+  throw new Error(`Expected ${field} to be an object`);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function optionalRecordArray(value: unknown): Record<string, unknown>[] {
+  if (value === undefined) return [];
+  if (Array.isArray(value)) return value.map((item) => record(item, 'consequence problem'));
+  throw new Error('Expected consequence_problems to be an array');
+}
+
+function requiredString(source: Record<string, unknown>, key: string): string {
+  const value = source[key];
+  if (typeof value === 'string') return value;
+  throw new Error(`Expected ${key} to be a string`);
+}
+
+function nullableString(source: Record<string, unknown>, key: string): string | null {
+  const value = source[key];
+  if (value === null || typeof value === 'string') return value;
+  throw new Error(`Expected ${key} to be a string or null`);
+}
+
+function requiredNumber(source: Record<string, unknown>, key: string): number {
+  const value = source[key];
+  if (typeof value === 'number') return value;
+  throw new Error(`Expected ${key} to be a number`);
+}
+
+function requiredBoolean(source: Record<string, unknown>, key: string): boolean {
+  const value = source[key];
+  if (typeof value === 'boolean') return value;
+  throw new Error(`Expected ${key} to be a boolean`);
+}
+
+function optionalBoolean(source: Record<string, unknown>, key: string): boolean | undefined {
+  const value = source[key];
+  if (value === undefined || typeof value === 'boolean') return value;
+  throw new Error(`Expected ${key} to be a boolean`);
+}
+
+export function toContact(value: ApiContact | ProjectionContact): VenueContact {
   return {
     id: value.id,
     venueId: value.venue_id,

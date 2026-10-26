@@ -13,8 +13,6 @@ import { TUI_GERMAN_LANGUAGE } from '@taiga-ui/i18n/languages/german';
 
 import { SCHEDULING_OVERVIEW_PORT } from './scheduling-overview/application/scheduling-overview.port';
 import { HttpSchedulingOverviewAdapter } from './scheduling-overview/adapters/http-scheduling-overview.adapter';
-import { WORKSPACE_PORT } from './shell/workspace.port';
-import { HttpWorkspaceAdapter } from './api/http-workspace.adapter';
 import { DASHBOARD_PROJECTION_PORT } from './dashboard/dashboard-projection.port';
 import { HttpDashboardProjectionAdapter } from './api/http-dashboard-projection.adapter';
 import { APPLICATION_SHELL_CONTEXT_PORT } from './shell/application-shell-context.port';
@@ -34,7 +32,11 @@ import { CONFIRMED_PLANS_PORT } from './confirmed-plans/confirmed-plans.port';
 import { HttpConfirmedPlansAdapter } from './api/http-confirmed-plans.adapter';
 import { EXAM_HALF_YEARS_PORT } from './exam-half-years/exam-half-years.port';
 import { HttpExamHalfYearsAdapter } from './api/http-exam-half-years.adapter';
-import { PERSONAL_PORT } from './personal/personal.port';
+import {
+  PERSONAL_ABSENCE_PORT,
+  PERSONAL_CALENDAR_PORT,
+  PERSONAL_NOTIFICATIONS_PORT,
+} from './personal/personal.port';
 import { HttpPersonalAdapter } from './api/http-personal.adapter';
 import { HttpExamProtocolAdapter } from './api/http-exam-protocol.adapter';
 import { EXAM_PROTOCOL_PORT } from './exam-protocol/exam-protocol.port';
@@ -43,31 +45,36 @@ import { HttpLocationsAdapter } from './api/http-locations.adapter';
 import { HttpLocationsReadAdapter } from './api/http-locations-read.adapter';
 import { LOCATIONS_READ_PORT } from './locations/locations.port';
 import { HttpDemoScenariosAdapter } from './api/http-demo-scenarios.adapter';
-import { DEMO_SCENARIOS_PORT } from './demo-scenarios/application/demo-scenarios.port';
+import { DEMO_SCENARIOS_PORT } from './demo-scenarios/demo-scenarios.port';
 import { EXAM_RESULT_PORT } from './exam-result/exam-result.port';
 import { HttpExamResultAdapter } from './api/http-exam-result.adapter';
 import { MASTER_DATA_PORT } from './master-data/master-data.port';
 import { HttpMasterDataAdapter } from './api/http-master-data.adapter';
 import { EXAM_DAY_PORT } from './exam-day/exam-day.port';
 import { HttpExamDayAdapter } from './api/http-exam-day.adapter';
+import { BUILD_INFO_PORT } from './about/build-info.port';
+import { HttpBuildInfoAdapter } from './api/http-build-info.adapter';
 
 export const appConfig: ApplicationConfig = {
   providers: [
     { provide: SCHEDULING_OVERVIEW_PORT, useClass: HttpSchedulingOverviewAdapter },
     { provide: PLANNING_PORT, useClass: HttpPlanningAdapter },
     { provide: EXAM_HALF_YEARS_PORT, useClass: HttpExamHalfYearsAdapter },
-    { provide: PERSONAL_PORT, useClass: HttpPersonalAdapter },
+    HttpPersonalAdapter,
+    { provide: PERSONAL_ABSENCE_PORT, useExisting: HttpPersonalAdapter },
+    { provide: PERSONAL_CALENDAR_PORT, useExisting: HttpPersonalAdapter },
+    { provide: PERSONAL_NOTIFICATIONS_PORT, useExisting: HttpPersonalAdapter },
     { provide: EXAM_PROTOCOL_PORT, useClass: HttpExamProtocolAdapter },
     { provide: EXAM_RESULT_PORT, useClass: HttpExamResultAdapter },
     { provide: LOCATIONS_PORT, useClass: HttpLocationsAdapter },
     { provide: LOCATIONS_READ_PORT, useClass: HttpLocationsReadAdapter },
     { provide: MASTER_DATA_PORT, useClass: HttpMasterDataAdapter },
     { provide: EXAM_DAY_PORT, useClass: HttpExamDayAdapter },
-    { provide: WORKSPACE_PORT, useClass: HttpWorkspaceAdapter },
     { provide: DASHBOARD_PROJECTION_PORT, useClass: HttpDashboardProjectionAdapter },
     { provide: APPLICATION_SHELL_CONTEXT_PORT, useClass: HttpApplicationShellContextAdapter },
     { provide: CONFIRMED_PLANS_PORT, useClass: HttpConfirmedPlansAdapter },
     { provide: DEMO_SCENARIOS_PORT, useClass: HttpDemoScenariosAdapter },
+    { provide: BUILD_INFO_PORT, useClass: HttpBuildInfoAdapter },
     { provide: AUTHENTICATION_PORT, useExisting: AuthService },
     { provide: LIFECYCLE_AVAILABILITY_PORT, useExisting: LifecycleService },
     { provide: FRONTEND_ERROR_REPORTER_PORT, useClass: HttpFrontendErrorReporter },

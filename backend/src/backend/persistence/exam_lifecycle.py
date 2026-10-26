@@ -70,6 +70,7 @@ class SQLiteExamLifecycleUnitOfWorkFactory:
         db_path: Path = DEFAULT_DB_PATH,
         assessment_lifecycle_factory: Callable[[Session], object] | None = None,
     ) -> None:
+
         self._execution_factory = execution_factory
         self._assessment_factory = assessment_factory
         self._db_path = Path(db_path)
@@ -123,6 +124,8 @@ class _SQLiteExamLifecycleUnitOfWork:
         calendar_lifecycle,
         consequences,
     ) -> None:
+        from backend.persistence.absence_uow import SQLiteAbsenceUnitOfWork
+
         self._execution = _SQLiteExamLifecycleExecution(execution, session)
         self._assessment = assessment
         self._assessment_lifecycle = assessment_lifecycle
@@ -130,6 +133,7 @@ class _SQLiteExamLifecycleUnitOfWork:
         self._identity_lifecycle = identity_lifecycle
         self._calendar_lifecycle = calendar_lifecycle
         self._consequences = consequences
+        self._absence = SQLiteAbsenceUnitOfWork(session)
 
     @property
     def execution(self):
@@ -158,6 +162,10 @@ class _SQLiteExamLifecycleUnitOfWork:
     @property
     def consequences(self):
         return self._consequences
+
+    @property
+    def absence(self):
+        return self._absence
 
 
 class _SQLiteExamLifecycleExecution:

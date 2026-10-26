@@ -4,6 +4,7 @@ import { provideTaiga } from '@taiga-ui/core';
 
 import { ApplicationError } from '../application/application-error';
 import { AuthService } from '../auth/auth.service';
+import { SessionScopeService } from '../auth/session-scope.service';
 import { EXAM_RESULT_PORT, type ExamResultPort } from './exam-result.port';
 import type { ExamResult } from './exam-result.models';
 import { ExamResultComponent } from './exam-result.component';
@@ -15,6 +16,9 @@ describe('ExamResultComponent', () => {
   beforeEach(async () => {
     port = {
       get: vi.fn((): Observable<ExamResult> => of(resultFixture())),
+      export: vi.fn(() =>
+        of({ content: 'result', mediaType: 'text/plain', fileName: 'result.txt' }),
+      ),
       saveIndividualAssessment: vi.fn(() => of(resultFixture())),
       withdrawIndividualAssessment: vi.fn(() => of(resultFixture())),
       discloseAssessments: vi.fn(() => of(resultFixture())),
@@ -101,6 +105,36 @@ describe('ExamResultComponent', () => {
     });
   });
 
+  it('requests an available export through the feature port without exposing a URL', () => {
+    fixture.detectChanges();
+    fixture.detectChanges();
+    const element = fixture.nativeElement as HTMLElement;
+    const exportButton = [...element.querySelectorAll('button')].find((button) =>
+      button.textContent?.includes('Maschinenlesbarer Ergebnisexport'),
+    );
+    expect(exportButton).toBeDefined();
+    expect(element.querySelector('a[href*="/api/exam-results"]')).toBeNull();
+    exportButton?.click();
+    expect(port.export).toHaveBeenCalledWith(41, 'machine-readable');
+  });
+
+  it('shows export failures and does not replay the audited export operation', () => {
+    vi.mocked(port.export).mockReturnValueOnce(
+      throwError(() => new ApplicationError('forbidden', 'Export nicht erlaubt.')),
+    );
+    fixture.detectChanges();
+    fixture.detectChanges();
+    const element = fixture.nativeElement as HTMLElement;
+
+    [...element.querySelectorAll<HTMLButtonElement>('button')]
+      .find((button) => button.textContent?.includes('Maschinenlesbarer Ergebnisexport'))
+      ?.click();
+    fixture.detectChanges();
+
+    expect(port.export).toHaveBeenCalledTimes(1);
+    expect(element.querySelector('[role="alert"]')?.textContent).toContain('Export nicht erlaubt.');
+  });
+
   it('returns accepted day revisions to the examination-day owner', () => {
     const changes: Array<Record<string, number>> = [];
     fixture.componentInstance.dayRevisionsChanged.subscribe((revisions) => changes.push(revisions));
@@ -130,6 +164,66 @@ describe('ExamResultComponent', () => {
     );
 
     expect(changes).toEqual([{ '7': 5 }]);
+  });
+
+  it('clears assessment, correction, disclosure, and retention drafts when the slot changes', () => {
+    fixture.detectChanges();
+    fixture.detectChanges();
+    const component = fixture.componentInstance as unknown as {
+      drafts: Map<string, { rawPoints: string; rationale: string; changeReason: string }>;
+      componentPoints: Map<string, string>;
+      componentReasons: Map<string, string>;
+      correctionReason: string;
+      reopeningReference: string;
+      retentionHoldReason: string;
+    };
+    component.drafts.set('documentation:clarity', {
+      rawPoints: 'stale slot value',
+      rationale: 'stale slot value',
+      changeReason: 'stale slot value',
+    });
+    component.componentPoints.set('documentation', 'stale slot value');
+    component.componentReasons.set('documentation', 'Korrektur');
+    component.correctionReason = 'alter Prüfungstag';
+    component.reopeningReference = 'alte Referenz';
+    component.retentionHoldReason = 'alter Grund';
+
+    fixture.componentRef.setInput('slotId', 12);
+    fixture.detectChanges();
+
+    expect(component.drafts.get('documentation:clarity')?.rawPoints).not.toBe('stale slot value');
+    expect(component.componentPoints.get('documentation')).not.toBe('stale slot value');
+    expect(component.componentReasons.size).toBe(0);
+    expect(component.correctionReason).toBe('');
+    expect(component.reopeningReference).toBe('');
+    expect(component.retentionHoldReason).toBe('');
+    expect(port.get).toHaveBeenLastCalledWith(7, 12);
+  });
+
+  it('clears protected result data when the authenticated session changes', () => {
+    fixture.detectChanges();
+    fixture.detectChanges();
+    const component = fixture.componentInstance as unknown as {
+      result: { (): ExamResult | null };
+      drafts: Map<string, unknown>;
+      correctionReason: string;
+    };
+    component.drafts.set('documentation:clarity', {});
+    component.correctionReason = 'geschützte Eingabe';
+
+    const scope = TestBed.inject(SessionScopeService);
+    scope.establish({
+      authenticated: true,
+      account_id: 2,
+      person_id: 3,
+      committee_member_id: 1,
+      is_operator: false,
+    });
+    scope.clear();
+
+    expect(component.result()).toBeNull();
+    expect(component.drafts.size).toBe(0);
+    expect(component.correctionReason).toBe('');
   });
 
   it('keeps a pending command and vote drafts across a day-only revision refresh', () => {
@@ -258,6 +352,27 @@ describe('ExamResultComponent', () => {
     expect(component.retentionHoldReason).toBe('Manuelle Notiz');
     expect(component.componentPoints.get('documentation')).toBe('74');
     expect(component.state()).toBe('ready');
+  });
+
+  it('models the previous result explicitly while a same-context refresh is pending or fails', () => {
+    const pending = new Subject<ExamResult>();
+    vi.mocked(port.get).mockReturnValueOnce(of(resultFixture())).mockReturnValueOnce(pending);
+    fixture.detectChanges();
+    fixture.detectChanges();
+    const component = fixture.componentInstance as unknown as {
+      state: () => string;
+      result: () => ExamResult | null;
+    };
+    const previous = component.result();
+
+    fixture.componentRef.setInput('dayRevision', 5);
+    fixture.detectChanges();
+    expect(component.state()).toBe('loading');
+    expect(component.result()).toBe(previous);
+
+    pending.error(new ApplicationError('unavailable', 'Reload fehlgeschlagen.'));
+    expect(component.state()).toBe('error');
+    expect(component.result()).toBe(previous);
   });
 
   it('hides mutation and export controls without the matching capability', () => {
@@ -956,10 +1071,7 @@ function resultFixture(overrides: Partial<ExamResult> = {}): ExamResult {
       communicate: true,
       manageRetention: true,
     },
-    exportsLinks: {
-      machine: '/api/exam-results/41/export.json',
-      human: '/api/exam-results/41/export.txt',
-    },
+    exportAvailability: { machine: true, human: true },
     ...overrides,
   };
 }

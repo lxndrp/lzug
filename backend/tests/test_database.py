@@ -64,6 +64,7 @@ def _rewind_plan_reference_json(raw: str) -> str:
 
 def rewind_exam_venue_migration(connection: sqlite3.Connection) -> None:
     """Restore the pre-025 schema for tests of earlier upgrade paths."""
+    rewind_calendar_feed_lifecycle_migration(connection)
     if not connection.execute(
         "SELECT 1 FROM schema_migration WHERE name = ?",
         ("025_model_exam_venues.sql",),
@@ -74,7 +75,8 @@ def rewind_exam_venue_migration(connection: sqlite3.Connection) -> None:
         "DELETE FROM schema_migration_checksum "
         "WHERE name IN ("
         "'025_model_exam_venues.sql', '027_expand_exam_venue_audit.sql', "
-        "'028_add_exam_venue_change_notifications.sql'"
+        "'028_add_exam_venue_change_notifications.sql', "
+        "'029_add_absence_consequence_sources.sql'"
         ");"
         if connection.execute(
             "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
@@ -198,6 +200,12 @@ def rewind_exam_venue_migration(connection: sqlite3.Connection) -> None:
         DROP TRIGGER IF EXISTS exam_room_keep_active_venue_on_delete;
         DROP TRIGGER IF EXISTS exam_venue_contact_room_same_venue_insert;
         DROP TRIGGER IF EXISTS exam_venue_contact_room_same_venue_update;
+        DROP TRIGGER IF EXISTS absence_consequence_source_no_update;
+        DROP TRIGGER IF EXISTS absence_consequence_source_no_delete;
+        DROP TABLE IF EXISTS calendar_assignment_execution_origin;
+        DROP TABLE IF EXISTS absence_consequence_source;
+        DROP TABLE IF EXISTS absence_consequence_cutover;
+        ALTER TABLE exam_day_assignment DROP COLUMN revision;
         DROP TRIGGER IF EXISTS exam_venue_audit_immutable_update;
         DROP TRIGGER IF EXISTS exam_venue_audit_immutable_delete;
         DROP TRIGGER IF EXISTS exam_venue_migration_report_immutable_update;
@@ -214,7 +222,8 @@ def rewind_exam_venue_migration(connection: sqlite3.Connection) -> None:
         WHERE name IN (
           '025_model_exam_venues.sql',
           '027_expand_exam_venue_audit.sql',
-          '028_add_exam_venue_change_notifications.sql'
+          '028_add_exam_venue_change_notifications.sql',
+          '029_add_absence_consequence_sources.sql'
         );
         COMMIT;
         PRAGMA foreign_keys = ON;
@@ -223,9 +232,18 @@ def rewind_exam_venue_migration(connection: sqlite3.Connection) -> None:
 
 def rewind_notification_migration(connection: sqlite3.Connection) -> None:
     """Restore the pre-013 schema used by migration-order test fixtures."""
+    rewind_calendar_feed_lifecycle_migration(connection)
     connection.executescript("""
         DELETE FROM schema_migration
-        WHERE name = '028_add_exam_venue_change_notifications.sql';
+        WHERE name IN (
+          '028_add_exam_venue_change_notifications.sql',
+          '029_add_absence_consequence_sources.sql'
+        );
+        DROP TRIGGER IF EXISTS absence_consequence_source_no_update;
+        DROP TRIGGER IF EXISTS absence_consequence_source_no_delete;
+        DROP TABLE IF EXISTS calendar_assignment_execution_origin;
+        DROP TABLE IF EXISTS absence_consequence_source;
+        DROP TABLE IF EXISTS absence_consequence_cutover;
         DROP INDEX IF EXISTS absence_report_assignment_active;
         DROP INDEX IF EXISTS absence_report_day_status;
         DROP INDEX IF EXISTS absence_audit_report_created;
@@ -258,6 +276,7 @@ def rewind_notification_migration(connection: sqlite3.Connection) -> None:
 
 def rewind_calendar_migration(connection: sqlite3.Connection) -> None:
     """Restore the pre-014 calendar table used by migration-order fixtures."""
+    rewind_calendar_feed_lifecycle_migration(connection)
     connection.executescript("""
         DROP TABLE calendar_feed;
         DROP TABLE calendar_event;
@@ -279,6 +298,7 @@ def rewind_calendar_migration(connection: sqlite3.Connection) -> None:
 
 def rewind_delivery_claim_migration(connection: sqlite3.Connection) -> None:
     """Restore the pre-016 delivery table while preserving its queued rows."""
+    rewind_calendar_feed_lifecycle_migration(connection)
     connection.executescript("""
         DROP INDEX notification_delivery_due;
         ALTER TABLE notification_delivery RENAME TO notification_delivery_claimed;
@@ -463,6 +483,23 @@ def rewind_plan_consequence_migration(connection: sqlite3.Connection) -> None:
     connection.execute(
         "DELETE FROM schema_migration WHERE name = ?",
         ("022_add_plan_consequences.sql",),
+    )
+
+
+def rewind_calendar_feed_lifecycle_migration(connection: sqlite3.Connection) -> None:
+    """Remove migration 030 when a fixture rewinds to an earlier schema."""
+    connection.execute("DROP TABLE IF EXISTS calendar_feed_lifecycle")
+    if connection.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+        ("schema_migration_checksum",),
+    ).fetchone():
+        connection.execute(
+            "DELETE FROM schema_migration_checksum WHERE name = ?",
+            ("030_calendar_feed_lifecycle.sql",),
+        )
+    connection.execute(
+        "DELETE FROM schema_migration WHERE name = ?",
+        ("030_calendar_feed_lifecycle.sql",),
     )
 
 
@@ -884,7 +921,7 @@ class DatabaseTests(unittest.TestCase):
             initialize(db_path)
             after = migration_status(db_path)
             self.assertEqual("ready", after["state"])
-            self.assertEqual("028_add_exam_venue_change_notifications.sql", after["current"])
+            self.assertEqual("030_calendar_feed_lifecycle.sql", after["current"])
             self.assertTrue(list(db_path.parent.joinpath("backups").glob("*.sqlite")))
 
             history_before = after["history"]
@@ -917,7 +954,7 @@ class DatabaseTests(unittest.TestCase):
             )
             self.assertEqual(("confirmed_plan_revision",), revision_table)
             self.assertEqual(
-                "028_add_exam_venue_change_notifications.sql",
+                "030_calendar_feed_lifecycle.sql",
                 migration_status(db_path)["current"],
             )
 
@@ -1021,8 +1058,10 @@ class DatabaseTests(unittest.TestCase):
                     "026_add_backup_recipient.sql",
                     "027_expand_exam_venue_audit.sql",
                     "028_add_exam_venue_change_notifications.sql",
+                    "029_add_absence_consequence_sources.sql",
+                    "030_calendar_feed_lifecycle.sql",
                 ],
-                [entry["name"] for entry in status["history"][-20:]],
+                [entry["name"] for entry in status["history"][-22:]],
             )
 
     def test_committee_bootstrap_migration_classifies_legacy_committees_without_changing_ids(
@@ -1186,7 +1225,7 @@ class DatabaseTests(unittest.TestCase):
             self.assertTrue({"claim_token", "claimed_at", "claim_expires_at"}.issubset(columns))
             self.assertEqual(("temporarily_failed", 2, None, None, None), delivery)
             self.assertEqual(
-                "028_add_exam_venue_change_notifications.sql",
+                "030_calendar_feed_lifecycle.sql",
                 migration_status(db_path)["current"],
             )
 

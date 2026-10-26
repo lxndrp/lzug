@@ -113,7 +113,9 @@ def request_context(request: Request) -> RequestContext:
         calendar_lifecycle_work_factory=request.app.state.calendar_lifecycle_work_factory,
         assessment_lifecycle=request.app.state.assessment_lifecycle,
         assessment_round_queries=request.app.state.assessment_round_queries,
-        exam_lifecycle_unit_of_work_factory=(request.app.state.exam_lifecycle_unit_of_work_factory),
+        exam_lifecycle_unit_of_work_factory_provider=(
+            request.app.state.exam_lifecycle_unit_of_work_factory_provider
+        ),
         absence_unit_of_work_factory=request.app.state.absence_unit_of_work_factory,
         candidate_day_service_factory=request.app.state.candidate_day_service_factory,
         planning_resource_unit_of_work_factory=(

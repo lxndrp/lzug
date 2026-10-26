@@ -6,40 +6,41 @@ import { Observable, Subject, of, throwError } from 'rxjs';
 
 import { AuthService } from '../auth/auth.service';
 import { SessionScopeService } from '../auth/session-scope.service';
-import { RuntimeExperienceService } from '../runtime/runtime-experience.service';
-import { ConfirmedPlansWorkflowService } from './confirmed-plans-workflow.service';
+import { DEMO_SCENARIOS_PORT } from '../demo-scenarios/demo-scenarios.port';
+import { CONFIRMED_PLANS_PORT } from './confirmed-plans.port';
 import type { ConfirmedPlansBoard } from './confirmed-plans.models';
+import type { EditableConfirmedPlan } from './confirmed-plans.models';
 import { ConfirmedPlansComponent } from './confirmed-plans.component';
 
 describe('ConfirmedPlansComponent', () => {
   let fixture: ComponentFixture<ConfirmedPlansComponent>;
   let authState: ReturnType<typeof signal<'checking' | 'authenticated' | 'anonymous'>>;
   let workflow: {
-    getConfirmedPlans: ReturnType<typeof vi.fn>;
-    getEditorReferences: ReturnType<typeof vi.fn>;
-    getEditableConfirmedPlan: ReturnType<typeof vi.fn>;
-    saveEditableConfirmedPlan: ReturnType<typeof vi.fn>;
-    getConfirmedPlanRevisions: ReturnType<typeof vi.fn>;
+    list: ReturnType<typeof vi.fn>;
+    loadEditorReferences: ReturnType<typeof vi.fn>;
+    getEditable: ReturnType<typeof vi.fn>;
+    saveEditable: ReturnType<typeof vi.fn>;
+    listRevisions: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(async () => {
     authState = signal<'checking' | 'authenticated' | 'anonymous'>('authenticated');
     workflow = {
-      getConfirmedPlans: vi.fn(() => of(plans())),
-      getEditorReferences: vi.fn(() => of(editorBoard(1))),
-      getEditableConfirmedPlan: vi.fn((roundId: number) => of({ roundId, revision: 1, days: [] })),
-      saveEditableConfirmedPlan: vi.fn(),
-      getConfirmedPlanRevisions: vi.fn(() => of([])),
+      list: vi.fn(() => of(plans())),
+      loadEditorReferences: vi.fn(() => of(editorBoard(1))),
+      getEditable: vi.fn(() => of({} as EditableConfirmedPlan)),
+      saveEditable: vi.fn(() => of({} as EditableConfirmedPlan)),
+      listRevisions: vi.fn(() => of([])),
     };
     await TestBed.configureTestingModule({
       imports: [ConfirmedPlansComponent],
       providers: [
         provideRouter([]),
-        { provide: ConfirmedPlansWorkflowService, useValue: workflow },
+        { provide: CONFIRMED_PLANS_PORT, useValue: workflow },
         { provide: AuthService, useValue: { state: authState, session: signal(null) } },
         {
-          provide: RuntimeExperienceService,
-          useValue: { getDemoScenarios: vi.fn(() => of({ prepared_plan_change: null })) },
+          provide: DEMO_SCENARIOS_PORT,
+          useValue: { getOverview: vi.fn(() => of({ preparedPlanChange: null })) },
         },
         provideTaiga({ scrollbars: 'native' }),
       ],
@@ -91,9 +92,7 @@ describe('ConfirmedPlansComponent', () => {
         location: day.location ? { ...day.location, name: 'Prüfungszentrum umbenannt' } : null,
       })),
     }));
-    workflow.getConfirmedPlans
-      .mockReturnValueOnce(of(plans()))
-      .mockReturnValueOnce(of(updatedPlans));
+    workflow.list.mockReturnValueOnce(of(plans())).mockReturnValueOnce(of(updatedPlans));
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('Prüfungszentrum Plan');
 
@@ -101,7 +100,7 @@ describe('ConfirmedPlansComponent', () => {
     fixture = TestBed.createComponent(ConfirmedPlansComponent);
     fixture.detectChanges();
 
-    expect(workflow.getConfirmedPlans).toHaveBeenCalledTimes(2);
+    expect(workflow.list).toHaveBeenCalledTimes(2);
     expect((fixture.nativeElement as HTMLElement).textContent).toContain(
       'Prüfungszentrum umbenannt',
     );
@@ -156,7 +155,7 @@ describe('ConfirmedPlansComponent', () => {
     fixture.componentRef.setInput('canEdit', true);
     fixture.detectChanges();
 
-    expect(workflow.getEditorReferences).not.toHaveBeenCalled();
+    expect(workflow.loadEditorReferences).not.toHaveBeenCalled();
 
     sessionScope.establish({
       account_id: 7,
@@ -169,19 +168,19 @@ describe('ConfirmedPlansComponent', () => {
     authState.set('authenticated');
     TestBed.flushEffects();
 
-    expect(workflow.getEditorReferences).toHaveBeenCalledTimes(1);
-    expect(workflow.getEditorReferences).toHaveBeenCalledWith(1);
+    expect(workflow.loadEditorReferences).toHaveBeenCalledTimes(1);
+    expect(workflow.loadEditorReferences).toHaveBeenCalledWith(1);
   });
 
   it('loads editor references for the route round', () => {
-    workflow.getEditorReferences.mockReturnValue(of(editorBoard(2)));
+    workflow.loadEditorReferences.mockReturnValue(of(editorBoard(2)));
     fixture.componentRef.setInput('roundId', 2);
     fixture.componentRef.setInput('editRoundId', 2);
     fixture.componentRef.setInput('canEdit', true);
     fixture.detectChanges();
 
-    expect(workflow.getEditorReferences).toHaveBeenCalledOnce();
-    expect(workflow.getEditorReferences).toHaveBeenCalledWith(2);
+    expect(workflow.loadEditorReferences).toHaveBeenCalledOnce();
+    expect(workflow.loadEditorReferences).toHaveBeenCalledWith(2);
     expect(
       (fixture.componentInstance as unknown as { board: () => ConfirmedPlansBoard | null }).board(),
     ).toEqual(editorBoard(2));
@@ -190,7 +189,7 @@ describe('ConfirmedPlansComponent', () => {
   it('discards editor references from an earlier round after route navigation', () => {
     const previous = new Subject<ConfirmedPlansBoard>();
     const current = new Subject<ConfirmedPlansBoard>();
-    workflow.getEditorReferences
+    workflow.loadEditorReferences
       .mockReturnValueOnce(previous as Observable<ConfirmedPlansBoard>)
       .mockReturnValueOnce(current as Observable<ConfirmedPlansBoard>);
     fixture.componentRef.setInput('editRoundId', 1);
@@ -203,8 +202,8 @@ describe('ConfirmedPlansComponent', () => {
     previous.next(editorBoard(1));
     current.next(editorBoard(2));
 
-    expect(workflow.getEditorReferences).toHaveBeenNthCalledWith(1, 1);
-    expect(workflow.getEditorReferences).toHaveBeenNthCalledWith(2, 2);
+    expect(workflow.loadEditorReferences).toHaveBeenNthCalledWith(1, 1);
+    expect(workflow.loadEditorReferences).toHaveBeenNthCalledWith(2, 2);
     expect(
       (fixture.componentInstance as unknown as { board: () => ConfirmedPlansBoard | null }).board(),
     ).toEqual(editorBoard(2));
@@ -222,7 +221,7 @@ describe('ConfirmedPlansComponent', () => {
     sessionScope.establish(session);
     const previousSession = new Subject<ConfirmedPlansBoard>();
     const currentSession = new Subject<ConfirmedPlansBoard>();
-    workflow.getEditorReferences
+    workflow.loadEditorReferences
       .mockReturnValueOnce(of(editorBoard(1)))
       .mockReturnValueOnce(previousSession as Observable<ConfirmedPlansBoard>)
       .mockReturnValueOnce(currentSession as Observable<ConfirmedPlansBoard>);
@@ -261,7 +260,7 @@ describe('ConfirmedPlansComponent', () => {
     fixture = TestBed.createComponent(ConfirmedPlansComponent);
     const previousSession = new Subject<ReturnType<typeof plans>>();
     const currentSession = new Subject<ReturnType<typeof plans>>();
-    workflow.getConfirmedPlans
+    workflow.list
       .mockReturnValueOnce(previousSession as Observable<ReturnType<typeof plans>>)
       .mockReturnValueOnce(currentSession as Observable<ReturnType<typeof plans>>);
     fixture.detectChanges();
@@ -271,7 +270,7 @@ describe('ConfirmedPlansComponent', () => {
     expect(
       (fixture.componentInstance as unknown as { plans: () => ReturnType<typeof plans> }).plans(),
     ).toEqual([]);
-    expect(workflow.getConfirmedPlans).toHaveBeenCalledTimes(2);
+    expect(workflow.list).toHaveBeenCalledTimes(2);
 
     currentSession.next(plans());
     expect(
@@ -280,7 +279,7 @@ describe('ConfirmedPlansComponent', () => {
   });
 
   it('shows and retries an editor-reference error', () => {
-    workflow.getEditorReferences
+    workflow.loadEditorReferences
       .mockReturnValueOnce(throwError(() => new Error('unavailable')))
       .mockReturnValueOnce(of(editorBoard(1)));
     fixture.componentRef.setInput('editRoundId', 1);
@@ -293,14 +292,14 @@ describe('ConfirmedPlansComponent', () => {
     click(fixture.nativeElement as HTMLElement, 'Erneut versuchen');
     fixture.detectChanges();
 
-    expect(workflow.getEditorReferences).toHaveBeenCalledTimes(2);
+    expect(workflow.loadEditorReferences).toHaveBeenCalledTimes(2);
     expect(
       (fixture.componentInstance as unknown as { board: () => ConfirmedPlansBoard | null }).board(),
     ).toEqual(editorBoard(1));
   });
 
   it('renders empty and retryable error states', () => {
-    workflow.getConfirmedPlans
+    workflow.list
       .mockReturnValueOnce(of([]))
       .mockReturnValueOnce(throwError(() => new Error('unavailable')))
       .mockReturnValueOnce(of([]));
@@ -313,7 +312,7 @@ describe('ConfirmedPlansComponent', () => {
     fixture.detectChanges();
     click(fixture.nativeElement as HTMLElement, 'Erneut versuchen');
     fixture.detectChanges();
-    expect(workflow.getConfirmedPlans).toHaveBeenCalledTimes(3);
+    expect(workflow.list).toHaveBeenCalledTimes(3);
   });
 
   it('keeps modified day-link clicks as native navigation', () => {

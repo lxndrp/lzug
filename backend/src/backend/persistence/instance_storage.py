@@ -472,6 +472,7 @@ class SQLiteFileInstanceStorage:
             with closing(self._connection(database)) as connection:
                 excluded = {
                     "artifact_operation",
+                    "absence_consequence_cutover",
                     "exam_venue_migration_report",
                     "instance_metadata",
                     "schema_migration",

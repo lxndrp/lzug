@@ -13,6 +13,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from backend.errors import TransactionConflictError, TransactionUnavailableError
+from backend.identity_scope import IdentityScopeCoordinator
 from backend.persistence.database import DEFAULT_DB_PATH, session_scope
 from backend.persistence.models import (
     AuthToken,
@@ -270,8 +271,14 @@ class SQLiteCommitteeAdminUnitOfWork:
 class SQLiteCommitteeAdminUnitOfWorkFactory:
     """Open short-lived SQLite snapshots and immediate write transactions."""
 
-    def __init__(self, db_path: Path = DEFAULT_DB_PATH) -> None:
+    def __init__(
+        self,
+        db_path: Path = DEFAULT_DB_PATH,
+        *,
+        scope_coordinator: IdentityScopeCoordinator | None = None,
+    ) -> None:
         self.db_path = Path(db_path)
+        self.scope_coordinator = scope_coordinator or IdentityScopeCoordinator()
 
     @contextmanager
     def snapshot(self) -> Iterator[SQLiteCommitteeAdminUnitOfWork]:
@@ -280,10 +287,11 @@ class SQLiteCommitteeAdminUnitOfWorkFactory:
 
     @contextmanager
     def unit_of_work(self) -> Iterator[SQLiteCommitteeAdminUnitOfWork]:
-        try:
-            with session_scope(self.db_path) as session:
-                yield SQLiteCommitteeAdminUnitOfWork(session)
-        except IntegrityError as error:
-            raise TransactionConflictError from error
-        except OperationalError as error:
-            raise TransactionUnavailableError from error
+        with self.scope_coordinator.guard():
+            try:
+                with session_scope(self.db_path) as session:
+                    yield SQLiteCommitteeAdminUnitOfWork(session)
+            except IntegrityError as error:
+                raise TransactionConflictError from error
+            except OperationalError as error:
+                raise TransactionUnavailableError from error
