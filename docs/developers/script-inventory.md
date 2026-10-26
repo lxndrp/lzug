@@ -38,6 +38,7 @@ allein nicht als Vereinfachungsnachweis.
 | `docs/media/check.py` | Dokumentation/Publikation; `task docs:media:check` | Prüft die von Playwright erzeugten PNG-Dateien und die dazugehörigen Fixture-/Viewport-Metadaten mit dem Standardwerkzeug `file`. Behalten als kleiner Medienvertrag; ein eigener PNG-Parser ist entfernt. |
 | `docs/publication/` und `backend.fastapi_assembly` | Dokumentation/Publikation; `docs:publication*` und der Publication-Workflow | Eingechecktes Hugo-Projekt mit Blowfish-Modulpin; `docs/Taskfile.yml` bestimmt Ausgabe und Git-Metadaten einmal je Aufbau und führt Hugo, FastAPI-OpenAPI-Export, TypeDoc und Publikationsmetadaten aus. Browser-, Accessibility- und Linkprüfungen konsumieren dieselbe Artefaktausgabe und verlangen deren Metadatenmarker. Wiki-Inhalte bleiben im GitHub Wiki; die generische Linkprüfung bleibt beim Standardwerkzeug. |
 | `scripts/run-pester.ps1` | OCI, Compose, Betreiber-CLI und Kompatibilität; Pester-Tasks | Installiert die gepinnte Pester-Version, erlaubt gezielte Dateiauswahl und erzeugt den standardisierten NUnit-Report. |
+| `scripts/pester-bootstrap.ps1` | Pester; `scripts/run-pester.ps1` | Wiederholt einen fehlgeschlagenen Download der gepinnten Pester-Version begrenzt und bricht danach mit dem ursprünglichen Fehler ab. |
 
 ## Entfernte Einstiege
 

@@ -3,7 +3,7 @@
 [CmdletBinding()]
 param(
     [string]$OutputDirectory = 'build/quality/pester',
-    [ValidateSet('Container.Tests.ps1', 'Operator.Tests.ps1', 'Compatibility.Tests.ps1', 'UbuntuQuality.Tests.ps1')]
+    [ValidateSet('Bootstrap.Tests.ps1', 'Container.Tests.ps1', 'Operator.Tests.ps1', 'Compatibility.Tests.ps1', 'UbuntuQuality.Tests.ps1')]
     [string]$TestFile
 )
 
@@ -17,7 +17,8 @@ $pesterVersion = (Import-PowerShellDataFile $requirements).Pester
 New-Item -ItemType Directory -Force -Path $moduleRoot, $results | Out-Null
 $moduleManifest = Join-Path $moduleRoot "Pester/$pesterVersion/Pester.psd1"
 if (-not (Test-Path -LiteralPath $moduleManifest)) {
-    Save-PSResource -Name Pester -Version $pesterVersion -Repository PSGallery -Path $moduleRoot -TrustRepository -Quiet
+    . (Join-Path $PSScriptRoot 'pester-bootstrap.ps1')
+    Save-PinnedPesterModule -Version $pesterVersion -Path $moduleRoot
 }
 if (-not (Test-Path -LiteralPath $moduleManifest)) { throw "Pinned Pester module $pesterVersion could not be installed." }
 Import-Module $moduleManifest -Force
