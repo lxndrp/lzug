@@ -83,15 +83,20 @@ Außerhalb eines verwalteten Worktrees räumt der Task seine flüchtigen Ressour
 nach dem Lauf auf.
 Der Pilot belegt Linux-ARM64 auf Apple Silicon und ist kein Ersatz für CI auf
 Linux-AMD64 oder deren finale Abnahme.
-GitHub Actions führt dieselben Task-Einstiege auf `ubuntu-24.04` direkt in
-domänenspezifischen Jobs aus; die Quality-Pipeline baut und überträgt das
-Produktimage nur für die Container- und abhängigen Prüfungen.
-Das lokale Runnerimage wird nicht in Actions wiederverwendet: Es würde als
-zusätzliche, über 4 GB große Buildabhängigkeit keinen weiteren Task- oder
-Prüfvertrag liefern und benötigt für Compose- und Runtime-Tests weiterhin den
+GitHub Actions führt dieselben Task-Verträge in domänenspezifischen Jobs auf
+`ubuntu-24.04` aus; der PR-Workflow nutzt dafür teils engere `:pr`-Einstiege.
+Die Quality-Pipeline baut und überträgt das Produktimage nur für die Container-
+und abhängigen Prüfungen.
+Das lokale Runnerimage wird derzeit nicht in Actions wiederverwendet.
+Ob es künftig auch in Actions genutzt werden sollte, ist noch offen.
+Die Entscheidung hängt vom erfolgreichen vollständigen `task quality` im
+lokalen Runner und einem gemessenen ARM64-/AMD64-Vergleich zu Laufzeit,
+Ressourcenverbrauch und Wartungsaufwand ab.
+Für Compose- und Runtime-Tests benötigt der lokale Runner weiterhin den
 Docker-Socket des Hosts.
-Lokaler Linux-Lauf und Actions-Runner bleiben damit getrennte Ausführungsformen
-derselben Taskverträge; CI auf dem exakten PR-Stand bleibt die finale Abnahme.
+Bis dahin bleiben lokaler Linux-Lauf und Actions-Runner getrennte
+Ausführungsformen derselben Taskverträge; CI auf dem exakten PR-Stand bleibt
+die finale Abnahme.
 Das User-Namespace-Profil stammt aus der zur Playwright-Version passenden
 [offiziellen Docker-Anleitung](https://playwright.dev/docs/docker).
 Der Runner übernimmt Docker CLI, Buildx und Compose aus dem zur lokalen CLI-Version
