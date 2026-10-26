@@ -55,6 +55,9 @@ zusätzlich in Ubuntu 24.04 ausgeführt werden:
 mise exec -- task quality:ubuntu
 ```
 
+Der Root-Task bleibt der öffentliche Einstieg; der nahe am Runner abgelegte
+PowerShell-Adapter verwaltet Docker-Ressourcen und ruft die bestehende Task-
+Quality im Container auf.
 Der Pilot verwendet native Linux-Architektur, dieselbe projektweite Task-Quality
 und die Playwright-Version aus `frontend/package-lock.json`.
 Der Worktree wird im Runner unter demselben absoluten Pfad eingebunden, damit
