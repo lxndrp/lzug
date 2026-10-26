@@ -53,7 +53,7 @@ directory = "htmlcov"
 output = "coverage.xml"
 
 [build-system]
-requires = ["setuptools~=84.0.0"]
+requires = ["setuptools>=84.1,<84.3"]
 build-backend = "setuptools.build_meta"
 
 [dependency-groups]
