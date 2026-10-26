@@ -518,6 +518,7 @@ Command im Ursprungsworkflow noch abgeschlossen wird.
 `frontend/scripts/validate-architecture-boundaries.mjs` prüft statische
 TypeScript-Imports, dynamische `import()`-Aufrufe und Reexports an den
 tatsächlich geltenden Grenzen.
+Jeder dynamische Import muss einen statisch auflösbaren Modulpfad verwenden.
 Die Prüfung löst relative, verschachtelte und Barrel-Imports auf und verbietet
 generierte sowie handgeschriebene Transportmodelle außerhalb der
 Transportgrenze.
@@ -525,10 +526,11 @@ Komponenten, Feature-Facades, Workflows und Projektionen dürfen keine API-Clien
 importieren; Portverträge bleiben unabhängig von ihrem Verzeichnispfad frei von
 Transportimplementierungen.
 Konkrete HTTP-Adapter dürfen nur am Composition Root gebunden werden.
+Nur `src/app/app.config.ts` ist der Composition Root.
 Angular HTTP bleibt außerhalb der Transportgrenzen und des Composition Roots
 verboten.
-Direkte `fetch()`-Aufrufe bleiben außerhalb der Transportgrenze ebenfalls
-verboten.
+Direkte `fetch()`-Aufrufe bleiben außerhalb der Transportgrenze und des
+Composition Roots ebenfalls verboten.
 Der Composition Root muss importierte Porttokens und Adapter in seiner
 Providerkonfiguration verwenden.
 Die Prüfung schreibt weder eine bestimmte Facade-/Application-Kette noch

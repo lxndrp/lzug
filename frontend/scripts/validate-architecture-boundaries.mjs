@@ -19,7 +19,9 @@ export function inspectArchitecture(files, resolveModule) {
     const portContract = file.endsWith('.port.ts');
     const references = moduleReferences(source, file);
     const visited = new Set([file]);
-    const queue = references.map(({ specifier }) => resolve(file, specifier));
+    const queue = references
+      .filter(({ specifier }) => typeof specifier === 'string')
+      .map(({ specifier }) => resolve(file, specifier));
     if (
       references.some(({ specifier }) => specifier === '@angular/common/http') &&
       ((!transportBoundary && !compositionRoot) || portContract)
@@ -28,6 +30,9 @@ export function inspectArchitecture(files, resolveModule) {
     }
     if (!transportBoundary && !compositionRoot && usesFetch(source, file)) {
       violations.push({ file, message: 'calls fetch outside a transport boundary' });
+    }
+    if (references.some(({ kind }) => kind === 'non-static-dynamic-import')) {
+      violations.push({ file, message: 'uses a dynamic import with a non-static module path' });
     }
 
     while (queue.length > 0) {
@@ -176,11 +181,14 @@ export function moduleReferences(source, fileName = 'fixture.ts') {
     } else if (
       ts.isCallExpression(node) &&
       node.expression.kind === ts.SyntaxKind.ImportKeyword &&
-      node.arguments.length >= 1 &&
-      (ts.isStringLiteral(node.arguments[0]) ||
-        ts.isNoSubstitutionTemplateLiteral(node.arguments[0]))
+      node.arguments.length >= 1
     ) {
-      references.push({ specifier: node.arguments[0].text, kind: 'dynamic-import' });
+      const specifier = staticModuleSpecifier(node.arguments[0]);
+      references.push(
+        typeof specifier === 'string'
+          ? { specifier, kind: 'dynamic-import' }
+          : { kind: 'non-static-dynamic-import' },
+      );
     } else if (
       ts.isImportTypeNode(node) &&
       ts.isLiteralTypeNode(node.argument) &&
@@ -190,6 +198,24 @@ export function moduleReferences(source, fileName = 'fixture.ts') {
     }
   });
   return references;
+}
+
+function staticModuleSpecifier(expression) {
+  if (ts.isStringLiteral(expression) || ts.isNoSubstitutionTemplateLiteral(expression)) {
+    return expression.text;
+  }
+  if (ts.isParenthesizedExpression(expression)) {
+    return staticModuleSpecifier(expression.expression);
+  }
+  if (
+    ts.isBinaryExpression(expression) &&
+    expression.operatorToken.kind === ts.SyntaxKind.PlusToken
+  ) {
+    const left = staticModuleSpecifier(expression.left);
+    const right = staticModuleSpecifier(expression.right);
+    return typeof left === 'string' && typeof right === 'string' ? left + right : undefined;
+  }
+  return undefined;
 }
 
 function usesFetch(source, file) {
@@ -233,7 +259,7 @@ function isTestFixture(file) {
 }
 
 function isCompositionRoot(file) {
-  return path.basename(file) === 'app.config.ts';
+  return normalizedPath(file).endsWith('/src/app/app.config.ts');
 }
 
 function isTransportBoundary(file) {

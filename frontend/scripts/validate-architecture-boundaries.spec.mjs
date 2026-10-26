@@ -216,6 +216,37 @@ test('rejects dynamic imports written as template literals without substitutions
   );
 });
 
+test('rejects computed and non-static dynamic import paths', () => {
+  const { sources, resolve } = fixture({
+    'planning/planning.component.ts': [
+      "void import('../api/' + 'planning-api.service');",
+      'void import(`../api/${serviceName}`);',
+    ].join('\n'),
+    'api/planning-api.service.ts': 'export class PlanningApiService {}',
+  });
+
+  const messages = inspectArchitecture(sources, resolve)
+    .map((item) => item.message)
+    .join('\n');
+  assert.match(messages, /imports API client/);
+  assert.match(messages, /non-static module path/);
+});
+
+test('does not treat nested app.config.ts files as the composition root', () => {
+  const { sources, resolve } = fixture({
+    'planning/app.config.ts': [
+      "import { HttpClient } from '@angular/common/http';",
+      "void fetch('/api/planning');",
+    ].join('\n'),
+  });
+
+  const messages = inspectArchitecture(sources, resolve)
+    .map((item) => item.message)
+    .join('\n');
+  assert.match(messages, /imports Angular HTTP/);
+  assert.match(messages, /calls fetch outside a transport boundary/);
+});
+
 test('rejects a concrete adapter re-exported through a feature barrel', () => {
   const { sources, resolve } = fixture({
     'planning/planning.component.ts': "import { HttpPlanningAdapter } from './contracts';",
