@@ -266,7 +266,7 @@
   color: var(--lzug-color-text-on-brand);
 }
 
-.app-refresh-button {
+.app-refresh-button[tuiButton] {
   min-block-size: 2.5rem;
   gap: 0.45rem;
   padding: 0.55rem 0.9rem;
@@ -282,7 +282,7 @@
   color: var(--app-color-primary-active);
 }
 
-.app-refresh-button:disabled {
+.app-refresh-button[tuiButton]:disabled {
   cursor: wait;
   color: var(--app-color-text-muted);
   opacity: 1;

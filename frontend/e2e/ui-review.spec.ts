@@ -251,9 +251,11 @@ test.describe('@ui-review cross-browser UI review', () => {
     await page.goto('/dashboard');
     await page.route('**/api/round-summary*', (route) => route.fulfill({ status: 500 }));
     await page.getByRole('button', { name: 'Aktualisieren' }).click();
-    const error = page.getByRole('alert').filter({ hasText: 'Synchronisierung nicht möglich' });
+    const error = page
+      .getByRole('alert')
+      .filter({ hasText: 'Übersicht konnte nicht geladen werden' });
     await expect(error).toBeVisible();
-    await expect(error).toContainText(/versuchen Sie es erneut/i);
+    await expect(error.getByRole('button', { name: 'Erneut versuchen' })).toBeVisible();
 
     await page.unroute('**/api/round-summary*');
     const demoPage = await page.context().newPage();
