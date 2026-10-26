@@ -139,6 +139,15 @@ Release und Self-Hosting.
 Diese Betriebsreferenz ist unabhängig von den lokalen Build- und
 Prüfplattformen und erweitert sich nicht automatisch mit ihnen.
 
+Die historische Aussage in ADR-0014, dass weitere Runtimes nicht zum
+unterstützten oder geprüften Umfang gehören, bleibt für die ausgelieferte
+Betriebsreferenz, zentrale CI und Release gültig.
+Hinsichtlich lokaler Entwicklungs- und Prüfplattformen wird sie durch diese
+ADR gezielt abgelöst:
+Die folgenden Plattformziele dürfen nach realer Qualifikation lokal
+genutzt werden, ohne den Produktivsupport oder die Self-Hosting-Referenz zu
+ändern.
+
 Für lokale Entwicklung ist die Zielreihenfolge plattformbezogen:
 
 | Ausführungskontext | Bevorzugte lokale Runtime | Fallback |
@@ -157,9 +166,23 @@ Ein Linux-Prozess in WSL wird nicht allein wegen einer erreichbaren
 `wslc.exe` als Windows-Host behandelt; Windows- und WSL-Pfade, Dateirechte und
 Benutzerzuordnung sind getrennte Ausführungskontexte.
 
-Die Runtimeauswahl erfolgt nur einmal für einen Tasklauf.
-Ein expliziter Override wählt genau die angegebene Runtime; ist sie nicht
-installiert oder nicht verfügbar, wird mit Diagnose abgebrochen.
+`CONTAINER_ENGINE` steuert die Runtimeauswahl und akzeptiert `auto`, `podman`,
+`apple`, `wslc` oder `docker`; ohne gesetzten Wert gilt `auto`.
+Die Werte `podman`, `apple`, `wslc` und `docker` wählen genau die Runtime aus
+der folgenden Zuordnung:
+
+| Wert | Ausgewählte Runtime |
+| --- | --- |
+| `auto` | Plattformpräferenz aus der obigen Ausführungskontext-Tabelle |
+| `podman` | Podman |
+| `apple` | Apple `container` |
+| `wslc` | Microsoft `wslc` |
+| `docker` | Docker |
+
+Ein unbekannter Wert bricht vor einer Ressourcenänderung mit Diagnose ab.
+Die Auswahl erfolgt nur einmal pro Tasklauf.
+Ist eine explizit gewählte Runtime nicht installiert oder nicht verfügbar,
+wird mit Diagnose abgebrochen.
 In `auto` darf Docker nur verwendet werden, wenn die bevorzugte Runtime des
 Ausführungskontexts nicht installiert ist.
 Eine installierte, aber nicht erreichbare Runtime, ein Buildfehler oder ein
@@ -198,6 +221,16 @@ Container, Images, Volumes und Netzwerke erhalten zusätzlich genau das
 Worktree-Label `lzug-codex-<scope>` ohne separates Label-Value-Schema.
 Der Scope kommt aus `LZUG_DEVELOPMENT_RESOURCE_SCOPE`; Task konsumiert ihn,
 ohne Codex als Voraussetzung zu machen.
+Ein Scope enthält mindestens ein kleingeschriebenes ASCII-Zeichen oder eine
+Ziffer; weitere Zeichen dürfen kleingeschriebene ASCII-Buchstaben, Ziffern
+oder einzelne Bindestriche zwischen nichtleeren Teilen sein.
+Ressourcen, die einen Tasklauf überleben oder durch einen späteren Cleanup
+entfernt werden, dürfen nur mit einem gesetzten und validierten Scope angelegt
+werden; fehlt er oder ist er ungültig, bricht die Anlage beziehungsweise das
+Cleanup vor Änderungen ab.
+Temporäre Test- und Cache-Volumes dürfen das Worktree-Label tragen.
+Persistente Anwendungsdatenvolumes bleiben unlabeled und werden beim
+Worktree-Cleanup ausdrücklich nicht entfernt.
 Jede Runtime-Qualifikation muss belegen, dass dieses Label für die erstellten
 Ressourcentypen gesetzt, abgefragt und für gezieltes Cleanup verwendet werden
 kann.

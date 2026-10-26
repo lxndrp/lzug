@@ -19,11 +19,19 @@ class ContainerRuntimeSupportTests(unittest.TestCase):
         self.assertIn("rootless Podman", decision)
         self.assertIn("Microsoft `wslc`", decision)
         self.assertIn("vorliegen", decision)
+        self.assertIn("`CONTAINER_ENGINE` steuert die Runtimeauswahl", decision)
+        for value in ("auto", "podman", "apple", "wslc", "docker"):
+            self.assertIn(f"| `{value}` |", decision)
+        self.assertIn("| `apple` | Apple `container` |", decision)
+        self.assertIn("| `wslc` | Microsoft `wslc` |", decision)
         self.assertIn("Eine installierte, aber nicht erreichbare Runtime", decision)
         self.assertIn("Image-Archiv", decision)
         self.assertIn("lzug-codex-<scope>", decision)
+        self.assertIn("bricht die Anlage beziehungsweise das", decision)
+        self.assertIn("Persistente Anwendungsdatenvolumes bleiben unlabeled", decision)
         self.assertIn("kein globales `prune`", decision)
         self.assertIn("Docker Compose", decision)
+        self.assertIn("ADR-0014", decision)
 
 
 if __name__ == "__main__":
