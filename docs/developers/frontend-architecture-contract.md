@@ -527,6 +527,8 @@ Transportimplementierungen.
 Konkrete HTTP-Adapter dürfen nur am Composition Root gebunden werden.
 Angular HTTP bleibt außerhalb der Transportgrenzen und des Composition Roots
 verboten.
+Direkte `fetch()`-Aufrufe bleiben außerhalb der Transportgrenze ebenfalls
+verboten.
 Der Composition Root muss importierte Porttokens und Adapter in seiner
 Providerkonfiguration verwenden.
 Die Prüfung schreibt weder eine bestimmte Facade-/Application-Kette noch
@@ -534,8 +536,9 @@ konkrete Dateinamen, Importsammlungen oder eine Orts-/Dashboard-Kopplung vor.
 
 Positive und negative Importbeispiele liegen in
 `frontend/scripts/validate-architecture-boundaries.spec.mjs`.
-Sie prüfen auch verschachtelte Reexports und dynamische Imports, die verbotene
-Abhängigkeiten vermitteln.
+Sie prüfen auch verschachtelte Reexports, Import-Type-Ausdrücke und dynamische
+Imports, die verbotene Abhängigkeiten vermitteln, sowie direkte `fetch()`-Aufrufe
+außerhalb der Transportgrenze.
 `npm run architecture:check` führt diese Fixtures und danach die Prüfung des
 aktuellen Frontendbaums aus.
 

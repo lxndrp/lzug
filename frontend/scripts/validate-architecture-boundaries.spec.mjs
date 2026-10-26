@@ -97,10 +97,38 @@ test('rejects API clients in port contracts even when the port is under the API 
   );
 });
 
+test('rejects Angular HTTP in port contracts even when the port is under the API directory', () => {
+  const { sources, resolve } = fixture({
+    'api/planning.port.ts': "import { HttpClient } from '@angular/common/http';",
+  });
+
+  assert.match(
+    inspectArchitecture(sources, resolve)
+      .map((item) => item.message)
+      .join('\n'),
+    /imports Angular HTTP/,
+  );
+});
+
 test('rejects handwritten API transport models from feature components', () => {
   const { sources, resolve } = fixture({
     'planning/planning.component.ts':
       "import type { PlanningBoard } from '../api/planning.models';",
+    'api/planning.models.ts': 'export interface PlanningBoard { id: number }',
+  });
+
+  assert.match(
+    inspectArchitecture(sources, resolve)
+      .map((item) => item.message)
+      .join('\n'),
+    /imports transport model/,
+  );
+});
+
+test('rejects transport types referenced through import type expressions', () => {
+  const { sources, resolve } = fixture({
+    'planning/planning.component.ts':
+      "type PlanningBoard = import('../api/planning.models').PlanningBoard;",
     'api/planning.models.ts': 'export interface PlanningBoard { id: number }',
   });
 
@@ -158,6 +186,19 @@ test('rejects dynamically imported adapters and API clients outside transport bo
     .join('\n');
   assert.match(messages, /imports concrete HTTP adapter/);
   assert.match(messages, /imports API client/);
+});
+
+test('rejects direct fetch calls outside transport boundaries', () => {
+  const { sources, resolve } = fixture({
+    'planning/planning.component.ts': "void fetch('/api/planning');",
+  });
+
+  assert.match(
+    inspectArchitecture(sources, resolve)
+      .map((item) => item.message)
+      .join('\n'),
+    /calls fetch outside a transport boundary/,
+  );
 });
 
 test('rejects dynamic imports written as template literals without substitutions', () => {

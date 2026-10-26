@@ -22,10 +22,12 @@ export function inspectArchitecture(files, resolveModule) {
     const queue = references.map(({ specifier }) => resolve(file, specifier));
     if (
       references.some(({ specifier }) => specifier === '@angular/common/http') &&
-      !transportBoundary &&
-      !compositionRoot
+      ((!transportBoundary && !compositionRoot) || portContract)
     ) {
       violations.push({ file, message: 'imports Angular HTTP outside a transport boundary' });
+    }
+    if (!transportBoundary && !compositionRoot && usesFetch(source, file)) {
+      violations.push({ file, message: 'calls fetch outside a transport boundary' });
     }
 
     while (queue.length > 0) {
@@ -179,9 +181,30 @@ export function moduleReferences(source, fileName = 'fixture.ts') {
         ts.isNoSubstitutionTemplateLiteral(node.arguments[0]))
     ) {
       references.push({ specifier: node.arguments[0].text, kind: 'dynamic-import' });
+    } else if (
+      ts.isImportTypeNode(node) &&
+      ts.isLiteralTypeNode(node.argument) &&
+      ts.isStringLiteral(node.argument.literal)
+    ) {
+      references.push({ specifier: node.argument.literal.text, kind: 'import-type' });
     }
   });
   return references;
+}
+
+function usesFetch(source, file) {
+  const ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
+  let found = false;
+  walk(ast, (node) => {
+    if (!ts.isCallExpression(node)) return;
+    if (
+      (ts.isIdentifier(node.expression) && node.expression.text === 'fetch') ||
+      (ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === 'fetch')
+    ) {
+      found = true;
+    }
+  });
+  return found;
 }
 
 function propertyValue(node, name) {
