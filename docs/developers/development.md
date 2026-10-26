@@ -85,12 +85,12 @@ Task begrenzt die parallelen Teilaufgaben auf vier, um den lokalen
 Containerressourcenbedarf zu begrenzen; der vorhandene Quality-Task bleibt die
 einzige Prüfdefinition.
 In einem verwalteten Codex-Worktree tragen Runnerimage, Quality-Images,
-Pester-Fixtures, Netzwerke und Volumes das Label `lzug-codex-<Worktree-ID>` und
-einen passenden Namenspräfix; das Environment-Cleanup entfernt nur diese
-zugeordneten Ressourcen. Buildx bietet keine eigenen Labels für Builder; der
-Cleanup entfernt daher ausschließlich den exakt namensgebundenen Builder
-`lzug-codex-<Worktree-ID>-ubuntu-quality-buildx`. Seine getrennten
-Instanzdaten liegen unter `.codex/ubuntu-quality/buildx`.
+Pester-Fixtures, Demo-Smoke-Container, Netzwerke und Volumes das Label
+`lzug-codex-<Worktree-ID>` und einen passenden Namenspräfix; das
+Environment-Cleanup entfernt nur diese zugeordneten Ressourcen. Buildx bietet
+keine eigenen Labels für Builder. Der Cleanup entfernt daher ausschließlich
+den exakt benannten Builder `lzug-codex-<Worktree-ID>-ubuntu-quality-buildx`.
+Seine getrennten Instanzdaten liegen unter `.codex/ubuntu-quality/buildx`.
 Außerhalb eines verwalteten Worktrees räumt der Task seine flüchtigen Ressourcen
 nach dem Lauf auf. Fehler beim Cleanup schlagen einen ansonsten erfolgreichen
 Runnerlauf fehl; bei einem bereits fehlgeschlagenen Quality-Lauf bleibt dessen
