@@ -208,7 +208,7 @@ function Invoke-LzugCli {
     param($Fixture, [string[]]$Arguments, [int]$ExpectedExit = 0, [string]$InputText)
     # The delivered binary sees the server PID, but cannot mount backend data.
     $containerName = "$($Fixture.Name)-cli-$([guid]::NewGuid().ToString('N'))"
-    $native = @('-i', '--network', 'none', '--read-only', '--user', '10002:10001', '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges:true', '--mount', "type=volume,source=$($Fixture.Work),target=/work,volume-nocopy", '--workdir', '/work')
+    $native = @('--rm', '-i', '--network', 'none', '--read-only', '--user', '10002:10001', '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges:true', '--mount', "type=volume,source=$($Fixture.Work),target=/work,volume-nocopy", '--workdir', '/work')
     if ($Fixture.Container) {
         $native += @('--pid', "container:$($Fixture.Container)", '--mount', "type=volume,source=$($Fixture.Socket),target=/run/lzug-admin,readonly,volume-nocopy")
     }
