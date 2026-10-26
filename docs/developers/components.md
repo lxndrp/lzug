@@ -1273,10 +1273,12 @@ Gemäß [ADR-0043](decisions/0043-lokale-oci-runtimes-und-plattformqualifikation
 sind für lokale Builds und Laufzeitprüfungen Apple `container` auf Apple
 Silicon, rootless Podman auf Linux und `wslc` auf einem Windows-Host die
 bevorzugten Kandidaten; Docker ist der Fallback, wenn die jeweilige Runtime
-fehlt.
-Eine installierte, aber noch nicht qualifizierte Runtime führt in der
-automatischen Auswahl zum Diagnoseabbruch; Docker muss dann explizit gewählt
-werden.
+fehlt und Docker für dieselbe Host-/Runtimeversion qualifiziert ist.
+Die Qualifikationspflicht gilt auch für Docker als lokalen Fallback; die
+Linux-Referenz für CI, Release und Self-Hosting qualifiziert keine anderen
+Hosttypen. Eine installierte, aber noch nicht qualifizierte bevorzugte Runtime
+führt in der automatischen Auswahl zum Diagnoseabbruch; Docker kann dann nur
+explizit gewählt werden, wenn es für den konkreten Host qualifiziert ist.
 Die drei Alternativen bleiben bis zum erfolgreichen realen Plattformnachweis
 unqualifiziert und begründen keinen Produktivsupport.
 Die OCI-Liefergrenze und Docker-Referenz für zentrale CI, Release und

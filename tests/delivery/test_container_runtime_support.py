@@ -12,7 +12,8 @@ class ContainerRuntimeSupportTests(unittest.TestCase):
 
         normalized = " ".join(decision.split())
         self.assertIn(
-            "Für zentrale CI, Release und Self-Hosting bleibt Docker Engine auf Linux die qualifizierte Referenz.",
+            "Für zentrale CI, Release und Self-Hosting bleibt Docker Engine auf Linux "
+            "die qualifizierte Referenz.",
             normalized,
         )
         self.assertIn("Apple `container`", normalized)
@@ -20,11 +21,26 @@ class ContainerRuntimeSupportTests(unittest.TestCase):
         self.assertIn("Microsoft `wslc`", normalized)
         self.assertIn("Nachweise werden getrennt in #939, #940 und #941 geführt.", normalized)
         self.assertIn(
-            "Eine Runtime gilt nur für die versionierte Kombination aus Host-Betriebssystem und -Version, Architektur, Runtime und unterstützter Runtime-Version als qualifiziert.",
+            "Eine Runtime gilt nur für die versionierte Kombination aus "
+            "Host-Betriebssystem und -Version, Architektur, Runtime und "
+            "unterstützter Runtime-Version als qualifiziert.",
             normalized,
         )
         self.assertIn(
             "freigegebene Versionsbereiche sind ausdrücklich zu dokumentieren.", normalized
+        )
+        self.assertIn(
+            "Das gilt auch für Docker, wenn es lokal als Fallback eingesetzt wird.", normalized
+        )
+        self.assertIn(
+            "Docker auf Linux als zentrale CI-, Release- oder Self-Hosting-Referenz "
+            "qualifiziert Docker nicht automatisch als lokalen Fallback auf anderen Hosttypen.",
+            normalized,
+        )
+        self.assertIn(
+            "#942 muss die konkret angebotenen Host-/Runtime-Kombinationen einschließlich "
+            "Docker-Fallback enumerieren und ihre passenden Nachweise zuordnen.",
+            normalized,
         )
         self.assertIn(
             "`CONTAINER_ENGINE` akzeptiert `auto`, `podman`, `apple`, `wslc` oder `docker`.",
@@ -46,48 +62,71 @@ class ContainerRuntimeSupportTests(unittest.TestCase):
         ):
             self.assertIn(row, normalized)
         self.assertIn(
-            "In `auto` darf Docker nur gewählt werden, wenn die bevorzugte Runtime fehlt.",
+            "In `auto` darf Docker nur gewählt werden, wenn die bevorzugte Runtime fehlt "
+            "und Docker für dieselbe erkannte Host-/Runtimekombination qualifiziert ist.",
             normalized,
         )
         self.assertIn(
-            "Eine explizit gewählte Runtime, die nicht installiert, nicht erreichbar oder für die erkannte Host-/Runtimeversion nicht qualifiziert ist, führt zum Abbruch.",
+            "Fehlt diese Qualifikation, bricht `auto` mit einer Diagnose ab.",
             normalized,
         )
         self.assertIn(
-            "Ist sie installiert, aber nicht qualifiziert, bricht `auto` mit einer Diagnose ab; ein Wechsel erfordert dann eine explizite Wahl `CONTAINER_ENGINE=docker`.",
+            "eine explizite Wahl `CONTAINER_ENGINE=docker`, für die Docker trotzdem "
+            "qualifiziert sein muss.",
             normalized,
         )
         self.assertIn(
-            "Ein unerreichbarer Dienst, Buildfehler oder Containerstartfehler führt nicht zum Runtimewechsel.",
+            "Eine explizit gewählte Runtime, die nicht installiert, nicht erreichbar oder "
+            "für die erkannte Host-/Runtimeversion nicht qualifiziert ist, führt zum Abbruch.",
+            normalized,
+        )
+        self.assertIn(
+            "Ist die bevorzugte Runtime installiert, aber nicht qualifiziert, bricht `auto` "
+            "ebenfalls ab; ein Wechsel erfordert dann eine explizite Wahl "
+            "`CONTAINER_ENGINE=docker`, für die Docker trotzdem qualifiziert sein muss.",
+            normalized,
+        )
+        self.assertIn(
+            "Ein unerreichbarer Dienst, Buildfehler oder Containerstartfehler führt nicht "
+            "zum Runtimewechsel.",
             normalized,
         )
         self.assertIn("Der Runtimevertrag erstellt den Buildkandidaten einmal.", normalized)
         self.assertIn(
-            "Ein impliziter Zugriff auf einen enginespezifischen Imagespeicher oder ein zweiter Build ist kein Übergabevertrag.",
+            "Ein impliziter Zugriff auf einen enginespezifischen Imagespeicher oder ein "
+            "zweiter Build ist kein Übergabevertrag.",
             normalized,
         )
         self.assertIn("als Archiv exportiert", normalized)
         for row in (
-            "| `lzug-app` | Aus dem Archiv des gebauten Images | Gemeinsamer App-Runtimevertrag mit genau diesem Image |",
-            "| `lzug-demo-app` | Aus dem Archiv des gebauten Images | Demo-Runtimevertrag mit genau diesem Image und dem zugehörigen Seed |",
-            "| `lzug-demo-seed` | Aus dem Archiv des gebauten Images | SQLite-Datei und Manifest aus genau diesem Image extrahieren und Identität, Produktrevision, Runtimevertrag sowie Schemafingerabdruck prüfen; Seed nicht als eigenständigen Server starten |",
+            "| `lzug-app` | Aus dem Archiv des gebauten Images | Gemeinsamer App-Runtimevertrag "
+            "mit genau diesem Image |",
+            "| `lzug-demo-app` | Aus dem Archiv des gebauten Images | Demo-Runtimevertrag mit "
+            "genau diesem Image und dem zugehörigen Seed |",
+            "| `lzug-demo-seed` | Aus dem Archiv des gebauten Images | SQLite-Datei und Manifest "
+            "aus genau diesem Image extrahieren und Identität, Produktrevision, "
+            "Runtimevertrag sowie Schemafingerabdruck prüfen; Seed nicht als "
+            "eigenständigen Server starten |",
         ):
             self.assertIn(row, normalized)
         self.assertIn("Seed nicht als eigenständigen Server starten", normalized)
         self.assertIn("Daten-Roundtrip und Persistenz bei Restart/Stop-Start", normalized)
         self.assertIn("lzug-codex-<scope>", normalized)
         self.assertIn(
-            "Temporäre Ressourcen eines Worktree-Tests verwenden Namen der Form `lzug-codex-<scope>-<rolle>`.",
+            "Temporäre Ressourcen eines Worktree-Tests verwenden Namen der Form "
+            "`lzug-codex-<scope>-<rolle>`.",
             normalized,
         )
         self.assertIn(
-            "Container, Images, Volumes und Netzwerke erhalten zusätzlich genau das Worktree-Label `lzug-codex-<scope>`.",
+            "Container, Images, Volumes und Netzwerke erhalten zusätzlich genau das "
+            "Worktree-Label `lzug-codex-<scope>`.",
             normalized,
         )
         self.assertIn("bricht Anlage beziehungsweise Cleanup vor Änderungen ab", normalized)
         self.assertIn("Persistente Anwendungsdatenvolumes bleiben unlabeled", normalized)
         self.assertIn(
-            "Cleanup entfernt ausschließlich Ressourcen mit dem exakten Label und dem erwarteten Namenspräfix.",
+            "Cleanup entfernt ausschließlich Ressourcen mit dem exakten Label und dem "
+            "erwarteten Namenspräfix.",
             normalized,
         )
         self.assertIn(
@@ -95,7 +134,9 @@ class ContainerRuntimeSupportTests(unittest.TestCase):
             normalized,
         )
         self.assertIn(
-            "Docker Compose, seine Konfigurationsprüfung und Docker-basierte Veröffentlichungs- sowie CI-Schritte bleiben Docker-spezifische Referenzprüfungen und ersetzen keinen plattformneutralen Runtime-Nachweis.",
+            "Docker Compose, seine Konfigurationsprüfung und Docker-basierte "
+            "Veröffentlichungs- sowie CI-Schritte bleiben Docker-spezifische "
+            "Referenzprüfungen und ersetzen keinen plattformneutralen Runtime-Nachweis.",
             normalized,
         )
         self.assertIn(

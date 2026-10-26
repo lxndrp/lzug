@@ -50,11 +50,16 @@ wird anhand ihres Linux-Prozesskontexts ausgewählt; eine erreichbare
 
 Eine Runtime gilt nur für die versionierte Kombination aus Host-Betriebssystem
 und -Version, Architektur, Runtime und unterstützter Runtime-Version als
-qualifiziert. Die Einträge werden mit der Task-Auswahl im Repository gepflegt
-und müssen auf den realen Hostnachweisen aus #939, #940 oder #941 beruhen.
-Erkannte Versionen oder Plattformen werden nicht auf ungeprüfte Versionen
-oder Hosts übertragen; freigegebene Versionsbereiche sind ausdrücklich zu
-dokumentieren.
+qualifiziert. Das gilt auch für Docker, wenn es lokal als Fallback eingesetzt
+wird. Docker auf Linux als zentrale CI-, Release- oder Self-Hosting-Referenz
+qualifiziert Docker nicht automatisch als lokalen Fallback auf anderen
+Hosttypen. #813 enthält reale Docker-Vertragsnachweise; #942 muss die konkret
+angebotenen Host-/Runtime-Kombinationen einschließlich Docker-Fallback
+enumerieren und ihre passenden Nachweise zuordnen. Die Einträge werden mit der
+Task-Auswahl im Repository gepflegt und müssen auf realen Hostnachweisen
+beruhen. Erkannte Versionen oder Plattformen werden nicht auf ungeprüfte
+Versionen oder Hosts übertragen; freigegebene Versionsbereiche sind
+ausdrücklich zu dokumentieren.
 
 `CONTAINER_ENGINE` akzeptiert `auto`, `podman`, `apple`, `wslc` oder `docker`.
 Ohne gesetzten Wert gilt `auto`:
@@ -71,10 +76,13 @@ Ein unbekannter Wert bricht vor Ressourcenänderungen mit einer Diagnose ab.
 Die Auswahl erfolgt einmal je Tasklauf. Eine explizit gewählte Runtime, die
 nicht installiert, nicht erreichbar oder für die erkannte Host-/Runtimeversion
 nicht qualifiziert ist, führt zum Abbruch. In `auto` darf Docker nur gewählt
-werden, wenn die bevorzugte Runtime fehlt. Ist sie installiert, aber nicht
-qualifiziert, bricht `auto` mit einer Diagnose ab; ein Wechsel
-erfordert dann eine explizite Wahl `CONTAINER_ENGINE=docker`. Ein unerreichbarer
-Dienst, Buildfehler oder Containerstartfehler führt nicht zum Runtimewechsel.
+werden, wenn die bevorzugte Runtime fehlt und Docker für dieselbe erkannte
+Host-/Runtimekombination qualifiziert ist. Fehlt diese Qualifikation, bricht
+`auto` mit einer Diagnose ab. Ist die bevorzugte Runtime installiert, aber
+nicht qualifiziert, bricht `auto` ebenfalls ab; ein Wechsel erfordert dann
+eine explizite Wahl `CONTAINER_ENGINE=docker`, für die Docker trotzdem
+qualifiziert sein muss. Ein unerreichbarer Dienst, Buildfehler oder
+Containerstartfehler führt nicht zum Runtimewechsel.
 
 ### Buildartefakte und Prüfvertrag
 
