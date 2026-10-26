@@ -109,7 +109,9 @@ class QualityWorkflowContractTests(unittest.TestCase):
 
     def test_product_python_images_use_trixie_and_apply_runtime_security_updates(self) -> None:
         dockerfile = Path("packaging/product/Dockerfile").read_text(encoding="utf-8")
-        python_images = [line for line in dockerfile.splitlines() if line.startswith("FROM python:")]
+        python_images = [
+            line for line in dockerfile.splitlines() if line.startswith("FROM python:")
+        ]
         self.assertEqual(len(python_images), 4)
         self.assertTrue(all("-slim-trixie" in line for line in python_images))
         self.assertIn("apt-get update \\", dockerfile)
