@@ -18,6 +18,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
+function parseJsonBody(value: unknown): unknown {
+  if (typeof value !== 'string') return value;
+  try {
+    return JSON.parse(value) as unknown;
+  } catch {
+    return value;
+  }
+}
+
 function kindForStatus(status: number): ApplicationErrorKind {
   if (status === 400 || status === 413 || status === 415 || status === 422) {
     return 'invalid-request';
@@ -60,8 +69,9 @@ export function toApplicationError(error: unknown): ApplicationError {
     );
   }
 
-  const detail = detailFrom(error.error);
-  const nestedError = (error.error as ErrorEnvelope | null)?.error;
+  const body = parseJsonBody(error.error);
+  const detail = detailFrom(body);
+  const nestedError = (body as ErrorEnvelope | null)?.error;
   const message =
     (typeof detail?.message === 'string' && detail.message) ||
     (typeof nestedError === 'string' && nestedError) ||

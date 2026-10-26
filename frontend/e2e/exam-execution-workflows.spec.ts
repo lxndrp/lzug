@@ -421,6 +421,14 @@ test.describe('exam execution workflows', () => {
     await page.route(/\/api\/exam-results\/41(?:\/.*)?$/, async (route) => {
       const request = route.request();
       const path = new URL(request.url()).pathname;
+      if (path === '/api/exam-results/41/export.json') {
+        await route.fulfill({
+          contentType: 'application/json',
+          headers: { 'Content-Disposition': 'attachment; filename="result-41.json"' },
+          body: JSON.stringify({ result_id: 41 }),
+        });
+        return;
+      }
       const body = request.postDataJSON() as Record<string, unknown> | null;
       if (request.method() !== 'GET' && Number(body?.['version']) !== result.version) {
         await route.fulfill({
@@ -573,5 +581,10 @@ test.describe('exam execution workflows', () => {
     expect(correctionVoteAccessibility.violations).toEqual([]);
     await editor.getByText('Feststellungs-, Korrektur-, Mitteilungs- und Exporthistorie').click();
     await expect(editor.getByText(/Korrektur 61 · open/)).toBeVisible();
+
+    const downloadPromise = page.waitForEvent('download');
+    await editor.getByRole('button', { name: 'Maschinenlesbarer Ergebnisexport' }).click();
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toBe('result-41.json');
   });
 });

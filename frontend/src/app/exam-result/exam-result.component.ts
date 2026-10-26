@@ -24,6 +24,7 @@ import type {
 } from './exam-result.models';
 import { collectCommitteeVote } from './exam-result.voting';
 import { ApplicationError } from '../application/application-error';
+import { downloadFile } from '../application/file-download';
 import { loadStateValue, type LoadState } from '../application/load-state';
 import { AuthService } from '../auth/auth.service';
 import { SessionScopeService } from '../auth/session-scope.service';
@@ -66,6 +67,7 @@ export class ExamResultComponent implements OnChanges {
   protected readonly state = computed(() => this.loadState().status);
   protected readonly result = computed(() => loadStateValue(this.loadState()));
   protected readonly busy = signal(false);
+  protected readonly exportBusy = signal(false);
   protected readonly message = signal<string | null>(null);
   protected readonly error = signal<string | null>(null);
   protected readonly drafts = new Map<string, CriterionDraft>();
@@ -95,6 +97,7 @@ export class ExamResultComponent implements OnChanges {
   protected retentionHoldReason = '';
   protected retentionReleaseReason = '';
   private requestSequence = 0;
+  private exportSequence = 0;
   private contextSequence = 0;
   private loadedContextSequence: number | null = null;
 
@@ -102,8 +105,10 @@ export class ExamResultComponent implements OnChanges {
     this.sessionScope.changes$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((change) => {
       this.contextSequence += 1;
       this.requestSequence += 1;
+      this.exportSequence += 1;
       this.loadState.set({ status: 'loading', previous: null });
       this.busy.set(false);
+      this.exportBusy.set(false);
       this.clearContextDrafts();
       if (change.established) this.load();
     });
@@ -113,8 +118,10 @@ export class ExamResultComponent implements OnChanges {
     const identityChanged = changes['roundId'] || changes['dayId'] || changes['slotId'];
     if (identityChanged) {
       this.contextSequence += 1;
+      this.exportSequence += 1;
       this.loadState.set({ status: 'loading', previous: null });
       this.busy.set(false);
+      this.exportBusy.set(false);
       this.componentVotes.clear();
       this.componentVoters.clear();
       this.examResultVotes.clear();
@@ -267,6 +274,55 @@ export class ExamResultComponent implements OnChanges {
       ),
       'Einzelbewertungen kontrolliert offengelegt.',
     );
+  }
+
+  protected downloadExport(format: 'machine-readable' | 'human-readable'): void {
+    const result = this.result();
+    if (
+      !result ||
+      this.exportBusy() ||
+      this.dayRefreshing ||
+      !this.auth.hasCapability('exam-result:export')
+    ) {
+      return;
+    }
+    const exportSequence = ++this.exportSequence;
+    const contextSequence = this.contextSequence;
+    const sessionGeneration = this.sessionScope.generation();
+    const roundId = this.roundId;
+    const dayId = this.dayId;
+    const slotId = this.slotId;
+    const resultId = result.id;
+    this.exportBusy.set(true);
+    this.error.set(null);
+    this.sessionScope
+      .forCurrentSession(this.facade.export(resultId, format))
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (file) => {
+          if (
+            exportSequence !== this.exportSequence ||
+            !this.isActionCurrent(contextSequence, sessionGeneration, roundId, dayId, slotId) ||
+            this.result()?.id !== resultId
+          ) {
+            return;
+          }
+          downloadFile(file);
+        },
+        error: (error: ApplicationError) => {
+          if (
+            exportSequence !== this.exportSequence ||
+            !this.isActionCurrent(contextSequence, sessionGeneration, roundId, dayId, slotId)
+          ) {
+            return;
+          }
+          this.error.set(error.message || 'Der Ergebnisexport konnte nicht geladen werden.');
+          this.exportBusy.set(false);
+        },
+        complete: () => {
+          if (exportSequence === this.exportSequence) this.exportBusy.set(false);
+        },
+      });
   }
 
   protected determineComponent(componentKey: string): void {
