@@ -17,7 +17,7 @@ Describe 'v0.6.0 restore and explicit forward migration' {
         Initialize-LzugFixture $fixture -Legacy
         Invoke-LzugNative docker @('pull', '--platform', 'linux/amd64', $legacy) | Out-Null
         # Keep the legacy identity in the CLI-only volume; return only the public key.
-        $public = (Invoke-LzugNative docker @('run', '--rm', '--platform', 'linux/amd64', '--user', '10002:10001', '--mount', "type=volume,source=$($fixture.Work),target=/work,volume-nocopy", '--entrypoint', 'python', $legacy, '-c', @'
+        $generateKeyScript = @'
 import os
 from pathlib import Path
 from backend.backup_restore import generate_recipient_keypair
@@ -25,9 +25,19 @@ public, private = generate_recipient_keypair()
 os.umask(0o077)
 Path('/work/legacy.key').write_text(private)
 print(public)
-'@)).Trim()
+'@
+        $public = (Invoke-LzugDockerRun -Fixture $fixture -Arguments @(
+            '--rm', '--platform', 'linux/amd64', '--user', '10002:10001',
+            '--mount', "type=volume,source=$($fixture.Work),target=/work,volume-nocopy",
+            '--entrypoint', 'python', $legacy, '-c', $generateKeyScript
+        )).Trim()
         Add-Content "$($fixture.Directory)/compose.env" "LZUG_BACKUP_RECIPIENT_PUBLIC_KEY=$public"
-        Invoke-LzugNative docker @('run', '--detach', '--platform', 'linux/amd64', '--name', $legacyContainer, '--read-only', '--tmpfs', '/tmp', '--env', "LZUG_BACKUP_RECIPIENT_PUBLIC_KEY=$public", '--mount', "type=volume,source=$($fixture.Data),target=/data", $legacy, '--host', '0.0.0.0', '--port', '8000', '--init') | Out-Null
+        Invoke-LzugDockerRun -Fixture $fixture -Name $legacyContainer -Arguments @(
+            '--detach', '--platform', 'linux/amd64', '--read-only', '--tmpfs', '/tmp',
+            '--env', "LZUG_BACKUP_RECIPIENT_PUBLIC_KEY=$public",
+            '--mount', "type=volume,source=$($fixture.Data),target=/data",
+            $legacy, '--host', '0.0.0.0', '--port', '8000', '--init'
+        ) | Out-Null
         $deadline = [DateTime]::UtcNow.AddSeconds(90)
         do {
             & docker exec $legacyContainer python -m backend.healthcheck *> $null
@@ -47,7 +57,11 @@ print(public)
         $created = Invoke-LzugNative docker @('exec', '-i', $legacyContainer, 'python', '-m', 'backend.admin', '--protocol', '1') -InputText $request | ConvertFrom-Json
         $created.ok | Should -BeTrue
         $artifact = $created.result.artifact
-        $private = (Invoke-LzugNative docker @('run', '--rm', '--network', 'none', '--user', '10002:10001', '--mount', "type=volume,source=$($fixture.Work),target=/work,volume-nocopy,readonly", '--entrypoint', 'cat', $fixture.Image, '/work/legacy.key')).Trim()
+        $private = (Invoke-LzugDockerRun -Fixture $fixture -Arguments @(
+            '--rm', '--network', 'none', '--user', '10002:10001',
+            '--mount', "type=volume,source=$($fixture.Work),target=/work,volume-nocopy,readonly",
+            '--entrypoint', 'cat', $fixture.Image, '/work/legacy.key'
+        )).Trim()
         foreach ($command in @('artifact-verify', 'backup-restore')) {
             $request = @{version=1; command=$command; arguments=@{artifact=$artifact; recipient_private_key=$private}}
             if ($command -eq 'backup-restore') { $request.arguments.replace = $true }
@@ -62,7 +76,7 @@ print(public)
         [System.IO.File]::SetUnixFileMode("$($fixture.Directory)/legacy.lzug", [System.IO.UnixFileMode]420)
         Invoke-LzugNative docker @('rm', '--force', $legacyContainer) | Out-Null
         # Convert only the test identity encoding; the migration itself uses the shipped CLI.
-        Invoke-LzugNative docker @('run', '--rm', '--network', 'none', '--user', '10002:10001', '--mount', "type=volume,source=$($fixture.Work),target=/work,volume-nocopy", '--entrypoint', 'python', $fixture.Image, '-c', @'
+        $convertLegacyKeyScript = @'
 import base64, os
 from pathlib import Path
 from backend.operations.backup_recipients import _bech32
@@ -70,7 +84,12 @@ encoded = Path('/work/legacy.key').read_text().split(':', 1)[1]
 raw = base64.urlsafe_b64decode(encoded + '=' * (-len(encoded) % 4))
 os.umask(0o077)
 Path('/work/key.age').write_text(_bech32('age-secret-key-', raw).upper() + '\n')
-'@) | Out-Null
+'@
+        Invoke-LzugDockerRun -Fixture $fixture -Arguments @(
+            '--rm', '--network', 'none', '--user', '10002:10001',
+            '--mount', "type=volume,source=$($fixture.Work),target=/work,volume-nocopy",
+            '--entrypoint', 'python', $fixture.Image, '-c', $convertLegacyKeyScript
+        ) | Out-Null
         Start-LzugFixture $fixture -State 'migration_required'
     }
     AfterAll {
@@ -90,7 +109,11 @@ Path('/work/key.age').write_text(_bech32('age-secret-key-', raw).upper() + '\n')
         $rejected.error.class | Should -Be 'invalid_invocation'
         (Invoke-LzugCli $fixture @('upgrade', 'status')).result.plan_id | Should -Be $plan.result.plan_id
         # The legacy artifact must not be silently accepted as a current age artifact.
-        $inspection = Invoke-LzugNative docker @('run', '--rm', '--network', 'none', '--read-only', '--mount', "type=bind,source=$($fixture.Directory)/legacy.lzug,target=/legacy.lzug,readonly", '--entrypoint', 'lzug-admin', $fixture.Image, '--json', 'artifact', 'inspect', '--artifact', '/legacy.lzug') -ExpectedExit 40 | ConvertFrom-Json
+        $inspection = Invoke-LzugDockerRun -Fixture $fixture -ExpectedExit 40 -Arguments @(
+            '--rm', '--network', 'none', '--read-only',
+            '--mount', "type=bind,source=$($fixture.Directory)/legacy.lzug,target=/legacy.lzug,readonly",
+            '--entrypoint', 'lzug-admin', $fixture.Image, '--json', 'artifact', 'inspect', '--artifact', '/legacy.lzug'
+        ) | ConvertFrom-Json
         $inspection.error.class | Should -Be 'artifact_legacy_v1'
     }
 

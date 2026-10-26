@@ -84,10 +84,11 @@ vertrauenswürdigem Quellcode verwenden.
 Task begrenzt die parallelen Teilaufgaben auf vier, um den lokalen
 Containerressourcenbedarf zu begrenzen; der vorhandene Quality-Task bleibt die
 einzige Prüfdefinition.
-In einem verwalteten Codex-Worktree tragen Runnerimage, Quality-Images und
-Volumes das Label `lzug-codex-<Worktree-ID>` und werden vom Environment-Cleanup
-bereinigt. Buildx bietet keine eigenen Labels für Builder; der Cleanup entfernt
-daher ausschließlich den exakt namensgebundenen Builder
+In einem verwalteten Codex-Worktree tragen Runnerimage, Quality-Images,
+Pester-Fixtures, Netzwerke und Volumes das Label `lzug-codex-<Worktree-ID>` und
+einen passenden Namenspräfix; das Environment-Cleanup entfernt nur diese
+zugeordneten Ressourcen. Buildx bietet keine eigenen Labels für Builder; der
+Cleanup entfernt daher ausschließlich den exakt namensgebundenen Builder
 `lzug-codex-<Worktree-ID>-ubuntu-quality-buildx`. Seine getrennten
 Instanzdaten liegen unter `.codex/ubuntu-quality/buildx`.
 Außerhalb eines verwalteten Worktrees räumt der Task seine flüchtigen Ressourcen

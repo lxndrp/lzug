@@ -243,7 +243,7 @@ try {
     if ($buildxConfigGroupId -notmatch '^\d+$') {
         throw "Cannot parse host group ID '$buildxConfigGroupId' for the worktree Buildx config."
     }
-    Get-NativeOutput -Command chmod -Arguments @('-R', 'g+rwX', (Join-Path $buildxConfigPath 'buildx')) | Out-Null
+    Get-NativeOutput -Command chmod -Arguments @('-R', 'g+rwX', $buildxConfigPath) | Out-Null
 
     foreach ($cacheName in $cacheNames) {
         $volumeName = "$resourcePrefix-$cacheName"
@@ -332,7 +332,21 @@ finally {
             foreach ($containerRow in ($containerRows -split '\r?\n')) {
                 $containerDetails = $containerRow.Trim() -split '\s+', 2
                 if ($containerDetails.Count -eq 2 -and $containerDetails[1] -ceq $containerName) {
-                    Invoke-Docker -Arguments @('container', 'rm', '--force', $containerDetails[0]) -Quiet
+                    $labelJson = Get-NativeOutput -Command docker -Arguments @(
+                        'container', 'inspect', '--format', '{{json .Config.Labels}}', $containerDetails[0]
+                    )
+                    $containerLabels = if ($labelJson -eq 'null') {
+                        @{}
+                    } else {
+                        ConvertFrom-Json -InputObject $labelJson -AsHashtable
+                    }
+                    if (Test-LzugRunnerContainerOwnership `
+                            -ContainerName $containerDetails[1] `
+                            -ContainerPrefix "$resourcePrefix-run" `
+                            -ResourceLabel $resourceLabel `
+                            -Labels $containerLabels) {
+                        Invoke-Docker -Arguments @('container', 'rm', '--force', $containerDetails[0]) -Quiet
+                    }
                 }
             }
         }
