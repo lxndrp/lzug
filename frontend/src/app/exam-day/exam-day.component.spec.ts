@@ -602,6 +602,39 @@ describe('ExamDayComponent', () => {
     expect(element.textContent).toContain('Wiederöffnung läuft');
   });
 
+  it('does not create reopening commands for an invalid scope token', () => {
+    const closed = dayView();
+    closed.day.closureStatus = 'closed';
+    closed.day.closure.status = 'closed';
+    closed.day.closure.permissions = { close: false, reopen: true, export: true };
+    vi.mocked(examDay.getConfirmedPlanDay).mockReturnValueOnce(of(closed));
+    authorizeClosure('exam-day-closure:preview-reopening', 'exam-day-closure:reopen');
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance as unknown as {
+      reopeningForm: {
+        controls: {
+          token: { setValue(value: string): void };
+          occasion: { setValue(value: string): void };
+          source: { setValue(value: string): void };
+          reason: { setValue(value: string): void };
+        };
+      };
+      previewReopening(): void;
+      reopenDay(): void;
+    };
+    component.reopeningForm.controls.token.setValue('unknown:41');
+    component.reopeningForm.controls.occasion.setValue('Nachträglicher Widerspruch');
+    component.reopeningForm.controls.source.setValue('IHK-Schreiben');
+    component.reopeningForm.controls.reason.setValue('Protokollangabe korrigieren');
+
+    component.previewReopening();
+    component.reopenDay();
+
+    expect(examDay.previewExamDayReopening).not.toHaveBeenCalled();
+    expect(examDay.reopenExamDay).not.toHaveBeenCalled();
+  });
+
   it('ignores a response for a previous day after the route changes', () => {
     const first = new Subject<ConfirmedPlanDayView>();
     vi.mocked(examDay.getConfirmedPlanDay)

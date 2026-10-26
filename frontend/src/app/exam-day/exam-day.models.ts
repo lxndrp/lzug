@@ -1,27 +1,65 @@
 /** Transport-neutral data used by the examination-day feature. */
-export type AttendanceStatus = 'open' | 'present' | 'late' | 'absent';
+export const attendanceStatuses = ['open', 'present', 'late', 'absent'] as const;
+
+export type AttendanceStatus = (typeof attendanceStatuses)[number];
+
+export function isAttendanceStatus(value: unknown): value is AttendanceStatus {
+  return typeof value === 'string' && attendanceStatuses.some((status) => status === value);
+}
 
 export type Attendance = { status: AttendanceStatus | string; arrivedAt: string | null };
 
 export type ExecutionStatus =
   'open' | 'running' | 'completed' | 'cancelled' | 'needs_follow_up' | string;
 
-export type ExecutionStatusSummary = Record<
-  'open' | 'running' | 'completed' | 'cancelled' | 'needs_follow_up',
-  number
->;
+export type ExecutionStatusSummary = Record<(typeof executionStatusSummaryStates)[number], number>;
+
+export const executionStatusSummaryStates = [
+  'open',
+  'running',
+  'completed',
+  'cancelled',
+  'needs_follow_up',
+] as const;
+
+export function isExecutionStatusSummaryState(
+  value: string,
+): value is keyof ExecutionStatusSummary {
+  return executionStatusSummaryStates.some((status) => status === value);
+}
 
 export type ExamDayClosureStatus =
   'open' | 'closed' | 'closed_exception' | 'reopening' | 'historical';
 
-export type ExamDayReopeningScopeKind =
-  | 'slot_status'
-  | 'candidate_attendance'
-  | 'member_attendance'
-  | 'staffing'
-  | 'absence'
-  | 'exam_protocol'
-  | 'exam_result';
+export const examDayReopeningScopeKinds = [
+  'slot_status',
+  'candidate_attendance',
+  'member_attendance',
+  'staffing',
+  'absence',
+  'exam_protocol',
+  'exam_result',
+] as const;
+
+export type ExamDayReopeningScopeKind = (typeof examDayReopeningScopeKinds)[number];
+
+export function isExamDayReopeningScopeKind(value: unknown): value is ExamDayReopeningScopeKind {
+  return (
+    typeof value === 'string' && examDayReopeningScopeKinds.some((scopeKind) => scopeKind === value)
+  );
+}
+
+export function reopeningScopeFromToken(value: unknown): ExamDayReopeningScope | null {
+  if (typeof value !== 'string') return null;
+  const separator = value.indexOf(':');
+  if (separator < 1 || separator !== value.lastIndexOf(':')) return null;
+  const kind = value.slice(0, separator);
+  const rawId = value.slice(separator + 1);
+  if (!isExamDayReopeningScopeKind(kind) || !/^\d+$/.test(rawId)) return null;
+  const entityId = Number(rawId);
+  if (!Number.isSafeInteger(entityId) || entityId < 1) return null;
+  return { kind, entityId };
+}
 
 export type ExamDayReopeningScope = { kind: ExamDayReopeningScopeKind; entityId: number };
 

@@ -4,6 +4,7 @@ import { provideRouter } from '@angular/router';
 import { Observable, Subject, of, throwError } from 'rxjs';
 
 import type { EditablePlanningProposal, PlanningSnapshot } from './planning.models';
+import { ApplicationError } from '../application/application-error';
 import { RoundContextService } from '../api/round-context.service';
 import { AuthService } from '../auth/auth.service';
 import { SessionScopeService } from '../auth/session-scope.service';
@@ -227,6 +228,31 @@ describe('PlanningWorkflowService', () => {
     response.complete();
     expect(workflow.proposal()?.revision).toBe(18);
     expect(workflow.proposalSaveAcknowledgement()).toBe(1);
+  });
+
+  it('uses only well-formed validation violations from an untrusted error payload', () => {
+    const valid = {
+      code: 'missing_member',
+      message: 'Mitglied fehlt',
+      day_id: 2,
+      slot_id: null,
+      member_id: 7,
+    };
+    const { workflow } = createHarness({
+      savePlanningProposal: vi.fn(() =>
+        throwError(
+          () =>
+            new ApplicationError('invalid-request', 'Invalid proposal', 'validation_failed', {
+              violations: [valid, { ...valid, message: false }, null],
+            }),
+        ),
+      ),
+    });
+    const view = Symbol('planning-view');
+    workflow.activateView(view, 1);
+    workflow.savePlanningProposal({ round_id: 1, revision: 2, exam_days: [] }, 1, view);
+
+    expect(workflow.editorViolations()).toEqual([valid]);
   });
 
   it('acknowledges an explicit proposal reload only after its response succeeds', () => {
