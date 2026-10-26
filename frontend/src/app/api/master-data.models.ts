@@ -1,5 +1,20 @@
 import type { ApiLink } from './common.models';
-import type { ExamHalfYear, ExamRound, RoundCandidateTerminalStatus } from './planning.models';
+import type { RoundCandidateTerminalStatus } from './planning.models';
+
+/** Narrow round reference retained in the master-data feature projection. */
+export type ExamRound = {
+  id: number;
+  exam_half_year_id: number;
+  name: string;
+  committee_id: number;
+};
+
+export type ExamHalfYear = {
+  id: number;
+  season: 'summer' | 'winter';
+  year: number;
+  status: 'draft' | 'active' | 'archived' | string;
+};
 
 export type Committee = {
   id: number;

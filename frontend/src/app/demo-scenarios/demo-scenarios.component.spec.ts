@@ -5,14 +5,14 @@ import { of } from 'rxjs';
 import { vi } from 'vitest';
 
 import { AuthService } from '../auth/auth.service';
-import { DemoScenariosApplication } from './application/demo-scenarios.application';
+import { DEMO_SCENARIOS_PORT } from './demo-scenarios.port';
 import { DemoRole, DemoScenarioOverview } from './demo-scenarios.models';
 import { DemoScenariosComponent } from './demo-scenarios.component';
 
 describe('DemoScenariosComponent', () => {
   let fixture: ComponentFixture<DemoScenariosComponent>;
   let currentOverview: DemoScenarioOverview;
-  let application: {
+  let scenarios: {
     getOverview: ReturnType<typeof vi.fn>;
     reset: ReturnType<typeof vi.fn>;
   };
@@ -24,7 +24,7 @@ describe('DemoScenariosComponent', () => {
 
   beforeEach(async () => {
     currentOverview = overview();
-    application = {
+    scenarios = {
       getOverview: vi.fn(() => of(currentOverview)),
       reset: vi.fn(() => of(undefined)),
     };
@@ -38,7 +38,7 @@ describe('DemoScenariosComponent', () => {
       providers: [
         provideRouter([]),
         provideTaiga({ scrollbars: 'native' }),
-        { provide: DemoScenariosApplication, useValue: application },
+        { provide: DEMO_SCENARIOS_PORT, useValue: scenarios },
         { provide: AuthService, useValue: auth },
       ],
     }).compileComponents();
@@ -65,7 +65,7 @@ describe('DemoScenariosComponent', () => {
     );
     expect(element.querySelectorAll('progress')).toHaveLength(2);
     expect(element.querySelector('a[href="/confirmed-plans/1/days/1"]')).not.toBeNull();
-    expect(application.getOverview).toHaveBeenCalledOnce();
+    expect(scenarios.getOverview).toHaveBeenCalledOnce();
   });
 
   it('switches roles without resetting the workspace and reloads its derived state', () => {
@@ -75,8 +75,8 @@ describe('DemoScenariosComponent', () => {
     fixture.detectChanges();
 
     expect(auth.startDemoSession).toHaveBeenCalledWith('chair');
-    expect(application.reset).not.toHaveBeenCalled();
-    expect(application.getOverview).toHaveBeenCalledTimes(2);
+    expect(scenarios.reset).not.toHaveBeenCalled();
+    expect(scenarios.getOverview).toHaveBeenCalledTimes(2);
     expect((fixture.nativeElement as HTMLElement).textContent).toContain(
       'Vorsitz · Theseus von Athen',
     );
@@ -86,14 +86,14 @@ describe('DemoScenariosComponent', () => {
     load(overview('chair'));
     vi.spyOn(window, 'confirm').mockReturnValue(false);
     button('Szenario neu starten').click();
-    expect(application.reset).not.toHaveBeenCalled();
+    expect(scenarios.reset).not.toHaveBeenCalled();
 
     vi.mocked(window.confirm).mockReturnValue(true);
     button('Szenario neu starten').click();
     fixture.detectChanges();
 
-    expect(application.reset).toHaveBeenCalledOnce();
-    expect(application.getOverview).toHaveBeenCalledTimes(2);
+    expect(scenarios.reset).toHaveBeenCalledOnce();
+    expect(scenarios.getOverview).toHaveBeenCalledTimes(2);
     expect((fixture.nativeElement as HTMLElement).textContent).toContain(
       'Vorsitz · Theseus von Athen',
     );

@@ -167,8 +167,8 @@ const routeDefinitions: Routes = [
   {
     path: 'exam-half-years',
     loadComponent: () =>
-      import('./routes/exam-half-years-route.component').then(
-        (module) => module.ExamHalfYearsRouteComponent,
+      import('./exam-half-years/exam-half-years.component').then(
+        (module) => module.ExamHalfYearsComponent,
       ),
     data: routeData('exam-half-years', 'Prüfungshalbjahre', 'Prüfungskontext', false),
   },

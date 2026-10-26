@@ -2,6 +2,11 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 
+import type {
+  ExamRoomResponse,
+  ExamVenueContactResponse,
+  ExamVenueResponse,
+} from './generated/types.gen';
 import { masterDataFixture } from '../testing/fixtures';
 import { HttpLocationsAdapter } from './http-locations.adapter';
 import { toLocationSnapshot } from './http-locations.mapper';
@@ -280,9 +285,28 @@ function apiVenue() {
     committee_id: 7,
     name: 'Prüfungszentrum West',
     postal_code: '20095',
-    rooms: venue.rooms.map((room) => ({ ...room, room_number: '101' })),
+    coordinate_source: venue.coordinate_source ?? null,
+    coordinate_status: venue.coordinate_status ?? 'missing',
+    latitude: venue.latitude ?? null,
+    longitude: venue.longitude ?? null,
+    map_provider: venue.map_provider ?? { mode: 'off' },
+    created_at: '2026-10-25T10:00:00Z',
+    updated_at: '2026-10-25T10:00:00Z',
+    rooms: venue.rooms.map((room) => ({
+      ...room,
+      room_number: '101',
+      created_at: '2026-10-25T10:00:00Z',
+      updated_at: '2026-10-25T10:00:00Z',
+      _links: {},
+    })),
+    contacts: venue.contacts.map((contact) => ({
+      ...contact,
+      created_at: '2026-10-25T10:00:00Z',
+      updated_at: '2026-10-25T10:00:00Z',
+      _links: {},
+    })),
     _links: { self: { href: '/api/exam-venues/8' } },
-  };
+  } satisfies ExamVenueResponse;
 }
 
 function apiRoom() {
@@ -298,8 +322,10 @@ function apiRoom() {
     capacity: 12,
     is_active: 1,
     revision: 6,
+    created_at: '2026-10-25T10:00:00Z',
+    updated_at: '2026-10-25T10:00:00Z',
     _links: { self: { href: '/api/exam-rooms/4' } },
-  };
+  } satisfies ExamRoomResponse;
 }
 
 function apiContact() {
@@ -314,6 +340,8 @@ function apiContact() {
     is_active: 1,
     revision: 5,
     room_ids: [],
+    created_at: '2026-10-25T10:00:00Z',
+    updated_at: '2026-10-25T10:00:00Z',
     _links: { self: { href: '/api/exam-venue-contacts/2' } },
-  };
+  } satisfies ExamVenueContactResponse;
 }

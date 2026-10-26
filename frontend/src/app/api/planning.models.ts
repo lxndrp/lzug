@@ -18,39 +18,6 @@ export type RoundSummary = {
   _links?: Record<string, ApiLink>;
 };
 
-export type ExamRound = {
-  id: number;
-  exam_half_year_id: number;
-  name: string;
-  committee_id: number;
-  status: RoundStatus;
-  revision?: number;
-  lifecycle_status?: ExamRoundLifecycleStatus;
-  legacy_status?: string | null;
-  availability_deadline: string | null;
-  availability_reminder_at: string | null;
-  created_at?: string;
-  updated_at?: string;
-  notification_warning?: string;
-  _links?: Record<string, ApiLink>;
-};
-
-export type ExamHalfYear = {
-  id: number;
-  season: 'summer' | 'winter';
-  year: number;
-  status: 'draft' | 'active' | 'archived' | string;
-  legacy_status?: string | null;
-  created_at?: string;
-  updated_at?: string;
-};
-
-export type ExamRoundCreate = Pick<ExamRound, 'committee_id' | 'name'> &
-  (
-    | { exam_half_year_id: number; season?: never; year?: never }
-    | { exam_half_year_id?: never; season: ExamHalfYear['season']; year: number }
-  );
-
 export type ExamRoundLifecycleStatus = 'open' | 'closed' | 'cancelled' | 'reopening' | 'historical';
 
 export type ExamRoundLifecycleFinding = {
@@ -126,13 +93,6 @@ export type ExamRoundLifecycle = {
 
 export type RoundCandidateTerminalStatus =
   'open' | 'result_communicated' | 'transferred' | 'postponed' | 'ihk_terminated';
-
-export type ExamRoundUpdate = Pick<
-  ExamRound,
-  'name' | 'availability_deadline' | 'availability_reminder_at'
->;
-
-export type AvailabilityRequest = ExamRoundUpdate;
 
 /**
  * Current server-side planning state.

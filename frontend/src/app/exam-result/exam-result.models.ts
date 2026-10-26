@@ -1,4 +1,6 @@
 /** Assessment and result data used by the feature, independent of its API representation. */
+export type ExamResultDayRevisionUpdate = Record<string, number>;
+
 export type AssessmentCriterion = {
   key: string;
   label: string;
@@ -31,8 +33,8 @@ export type ExamResult = {
     id: number;
     firstName: string;
     lastName: string;
-    ihkExamNumber: string;
-    specialization: string;
+    ihkExamNumber: string | null;
+    specialization: string | null;
   };
   modelVersion: {
     id: number;
@@ -167,8 +169,10 @@ export type ExamResult = {
     communicate: boolean;
     manageRetention: boolean;
   };
-  exportsLinks: { machine: string | null; human: string | null };
+  exportAvailability: { machine: boolean; human: boolean };
 };
+
+export type ExamResultExportFormat = 'machine-readable' | 'human-readable';
 
 export type SaveIndividualAssessment = {
   resultId: number;

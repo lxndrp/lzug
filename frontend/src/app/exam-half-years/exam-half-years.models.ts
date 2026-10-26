@@ -20,6 +20,11 @@ export type CandidateAssignment = {
   candidateId: number;
   endedAt: string | null;
 };
+export type ExamHalfYearsReferences = {
+  committees: CommitteeOption[];
+  candidates: CandidateOption[];
+  candidateAssignments: CandidateAssignment[];
+};
 
 export type CreateExamRound = {
   committeeId: number;

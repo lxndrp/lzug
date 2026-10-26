@@ -1,16 +1,17 @@
 import { DestroyRef, Injectable, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
-import { Observable } from 'rxjs';
+import { EMPTY, Observable, filter } from 'rxjs';
 
 import { ApplicationError } from '../application/application-error';
 import { AuthService } from '../auth/auth.service';
 import { SessionScopeService } from '../auth/session-scope.service';
-import { PersonalFacade } from '../personal/personal.facade';
+import { PERSONAL_ABSENCE_PORT } from '../personal/personal.port';
 import { EXAM_DAY_PORT } from './exam-day.port';
 import type {
   CloseExamDayCommand,
   ConfirmedPlanDayView,
+  ExamDayExportFormat,
   ExamDayClosure,
   ExamDayReopeningImpact,
   ExamDayReopeningScope,
@@ -31,7 +32,7 @@ type ExamDayContext = {
 @Injectable()
 export class ExamDayFacade {
   private readonly port = inject(EXAM_DAY_PORT);
-  private readonly personal = inject(PersonalFacade);
+  private readonly personal = inject(PERSONAL_ABSENCE_PORT);
   private readonly auth = inject(AuthService);
   private readonly sessionScope = inject(SessionScopeService);
   private readonly router = inject(Router);
@@ -197,6 +198,16 @@ export class ExamDayFacade {
   saveCandidateAttendance(command: SaveAttendanceCommand): void {
     if (command.dayId !== this.dayId) return;
     this.saveAction(`candidate-${command.entityId}`, this.port.saveCandidateAttendance(command));
+  }
+
+  exportClosure(dayId: number, format: ExamDayExportFormat) {
+    const context = this.captureContext();
+    if (!context || context.dayId !== dayId || !this.view()?.day.closure.permissions.export) {
+      return EMPTY;
+    }
+    return this.sessionScope
+      .forCurrentSession(this.port.exportClosure(dayId, format))
+      .pipe(filter(() => this.isActionContextCurrent(context)));
   }
 
   saveMemberAttendance(command: SaveAttendanceCommand): void {
@@ -416,6 +427,10 @@ export class ExamDayFacade {
   }
 
   showValidationError(message: string): void {
+    this.showActionError(message);
+  }
+
+  showActionError(message: string): void {
     this.actionMessage.set(null);
     this.actionError.set(message);
   }

@@ -10,12 +10,12 @@ Akzeptiert.
 
 ## Kontext
 
-Das Angular-Frontend besitzt bereits eigenständige Routen, Ports und Adapter,
-hält aber noch fachlich unabhängige Daten im globalen
+Das Angular-Frontend besitzt eigenständige Routen, Ports und Adapter.
+Historisch hielt es fachlich unabhängige Daten im globalen
 `ApplicationWorkspaceService` und Ablaufzustand in anwendungsweit
 bereitgestellten Workflows.
-Damit können Ladefehler, Rundenauswahl und Lebensdauern unabhängige Ansichten
-aneinander koppeln.
+Diese Kopplungen wurden mit #1097 entfernt, damit Ladefehler, Rundenauswahl
+und Lebensdauern unabhängige Ansichten nicht aneinander koppeln.
 Die Zielgrenzen müssen deshalb neben den vorhandenen technischen Schichten
 auch Datenbesitz, Schreibrechte, Invalidierung und Übergänge festlegen.
 

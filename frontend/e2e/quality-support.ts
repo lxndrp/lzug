@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import type { ExamResult } from '../src/app/api/api.models';
+import type { ExamResultResponse } from '../src/app/api/generated/types.gen';
 import { syntheticFixtures } from '../src/app/testing/fixtures';
 import { expect } from './fixtures';
 
@@ -355,11 +355,16 @@ export function examProtocolView() {
   };
 }
 
-export function examResultView(): ExamResult {
+export function examResultView() {
   return {
     id: 41,
     round_candidate_id: 1,
+    day_revisions: {},
     version: 1,
+    created_at: '2026-11-16T08:00:00+01:00',
+    updated_at: '2026-11-16T08:00:00+01:00',
+    binding: {},
+    calculations: [],
     state: 'incomplete',
     correction_open: false,
     legacy_status: null,
@@ -468,7 +473,7 @@ export function examResultView(): ExamResult {
       machine_export: { href: '/api/exam-results/41/export.json' },
       human_export: { href: '/api/exam-results/41/export.txt' },
     },
-  };
+  } satisfies ExamResultResponse;
 }
 
 export async function expectReadableContrast(

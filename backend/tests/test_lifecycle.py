@@ -31,7 +31,7 @@ from backend.runtime import RuntimeConflictError, RuntimeCoordinator
 from backend.tests.test_backup_recipients import RECIPIENT
 from backend.version import BuildMetadata
 
-LAST = "028_add_exam_venue_change_notifications.sql"
+LAST = "030_calendar_feed_lifecycle.sql"
 
 
 class LifecycleTests(unittest.TestCase):
@@ -48,6 +48,7 @@ class LifecycleTests(unittest.TestCase):
             RECIPIENT, self.fingerprint
         )
         with closing(sqlite3.connect(self.paths.database)) as db, db:
+            db.execute("DROP TABLE calendar_feed_lifecycle")
             db.execute("DELETE FROM schema_migration_checksum WHERE name = ?", (LAST,))
             db.execute("DELETE FROM schema_migration WHERE name = ?", (LAST,))
         self.runtime = RuntimeCoordinator(

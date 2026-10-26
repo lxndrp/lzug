@@ -2,6 +2,11 @@
   <div class="app-panel-body">
     <div>
       <h2 id="notification-settings-title">Zustellung</h2>
+      @if (channelsLoading()) {
+        <p role="status">Benachrichtigungseinstellungen werden geladen.</p>
+      } @else if (channelError()) {
+        <p role="alert">{{ channelError() }}</p>
+      }
       <p>
         Alle Hinweise bleiben hier verfügbar. Browser-Benachrichtigungen sind optional und enthalten
         nur einen sicheren Hinweis auf lzug.
@@ -18,7 +23,7 @@
         >
           {{ pushBusy() ? 'Wird aktiviert …' : 'Browser-Benachrichtigungen aktivieren' }}
         </button>
-      } @else {
+      } @else if (!channelError() && !channelsLoading()) {
         <p class="app-muted">Web Push ist in dieser Instanz oder diesem Browser nicht verfügbar.</p>
       }
     } @else {
@@ -37,10 +42,12 @@
       Nutzen Sie Ihre bestätigten eigenen Einsätze in einem externen Kalender. Der Kalender ist eine
       persönliche Arbeitshilfe; Benachrichtigungen und lzug bleiben maßgeblich.
     </p>
-    @if (loading()) {
+    @if (calendarLoading()) {
       <p role="status">Kalendereinstellungen werden geladen.</p>
     } @else {
-      @if (calendar()?.active) {
+      @if (calendarError()) {
+        <p role="alert">{{ calendarError() }}</p>
+      } @else if (calendar()?.active) {
         <p role="status">Der persönliche Feed ist aktiv (Zeitzone {{ calendar()?.timeZone }}).</p>
         @if (canManageCalendarFeed()) {
           <div class="calendar-actions">
@@ -98,7 +105,11 @@
         Nach Widerruf oder Neuerzeugung werden weitere Abrufe verhindert. Bereits extern
         gespeicherte Termine können dadurch nicht zuverlässig entfernt werden.
       </p>
-      @if (calendarEvents().length === 0) {
+      @if (calendarEventsLoading()) {
+        <p role="status">Kalendereinträge werden geladen.</p>
+      } @else if (calendarEventsError()) {
+        <p role="alert">{{ calendarEventsError() }}</p>
+      } @else if (calendarEvents().length === 0) {
         <p>Noch keine eigenen bestätigten Termine im aktuellen Prüfungshalbjahr.</p>
       } @else {
         <ul class="calendar-event-list">
@@ -132,8 +143,12 @@
 <section class="app-panel" aria-labelledby="notifications-title">
   <div class="app-panel-body">
     <h2 id="notifications-title">Meine Benachrichtigungen</h2>
-    @if (loading()) {
+    @if (notificationError()) {
+      <p role="alert">{{ notificationError() }}</p>
+    }
+    @if (notificationsLoading()) {
       <p role="status">Benachrichtigungen werden geladen.</p>
+    } @else if (notificationError()) {
     } @else if (notifications().length === 0) {
       <p>Für Sie liegen noch keine Benachrichtigungen vor.</p>
     } @else {
@@ -160,10 +175,16 @@
   </div>
 </section>
 
-@if (problems().length > 0) {
+@if (problemsLoading() || problemError() || problems().length > 0) {
   <section class="app-panel" aria-labelledby="notification-problems-title">
     <div class="app-panel-body">
       <h2 id="notification-problems-title">Zustellstatus im Ausschuss</h2>
+      @if (problemError()) {
+        <p role="alert">{{ problemError() }}</p>
+      }
+      @if (problemsLoading()) {
+        <p role="status">Zustellstatus wird geladen.</p>
+      }
       <p>
         Die Übersicht zeigt erzeugte Zustellungen und Probleme ausschließlich als technische
         Metadaten. Inhalte anderer Mitglieder bleiben geschützt.

@@ -8,7 +8,7 @@ import { ApplicationError } from '../application/application-error';
 import { AuthService } from '../auth/auth.service';
 import type { AuthSession } from '../auth/auth.models';
 import { SessionScopeService } from '../auth/session-scope.service';
-import { PersonalFacade } from '../personal/personal.facade';
+import { PERSONAL_ABSENCE_PORT, type PersonalAbsencePort } from '../personal/personal.port';
 import { EXAM_DAY_PORT, type ExamDayPort } from './exam-day.port';
 import { ExamDayFacade } from './exam-day.facade';
 import type {
@@ -28,7 +28,10 @@ describe('ExamDayFacade', () => {
         provideRouter([]),
         ExamDayFacade,
         { provide: EXAM_DAY_PORT, useValue: port },
-        { provide: PersonalFacade, useValue: { createAbsenceReport: vi.fn(() => of({})) } },
+        {
+          provide: PERSONAL_ABSENCE_PORT,
+          useValue: { createAbsenceReport: vi.fn(() => of({})) } as unknown as PersonalAbsencePort,
+        },
         {
           provide: AuthService,
           useValue: { session: signal(null), hasCapability: () => true },
@@ -152,6 +155,36 @@ describe('ExamDayFacade', () => {
     expect(facade.view()?.day.id).toBe(7);
     expect(facade.actionMessage()).toBeNull();
     expect(facade.savingKeys()).toEqual(new Set());
+  });
+
+  it('discards a pending closure export when the authenticated session changes', () => {
+    const pendingExport = new Subject<{
+      content: string;
+      mediaType: string;
+      fileName: string;
+    }>();
+    vi.mocked(port.exportClosure).mockReturnValueOnce(pendingExport.asObservable());
+    facade.bindContext(1, 7);
+    const current = facade.view()!;
+    facade.view.set({
+      ...current,
+      day: {
+        ...current.day,
+        closure: { permissions: { close: false, reopen: false, export: true } },
+      },
+    } as ConfirmedPlanDayView);
+    const received: unknown[] = [];
+
+    facade.exportClosure(7, 'machine-readable').subscribe((file) => received.push(file));
+    TestBed.inject(SessionScopeService).establish(session(1));
+    pendingExport.next({
+      content: '{"day":7}',
+      mediaType: 'application/json',
+      fileName: 'day.json',
+    });
+
+    expect(port.exportClosure).toHaveBeenCalledWith(7, 'machine-readable');
+    expect(received).toEqual([]);
   });
 
   it('clears an embedded-write acknowledgement when the authenticated session changes', () => {
@@ -279,6 +312,9 @@ describe('ExamDayFacade', () => {
 function createPort(): ExamDayPort {
   return {
     getConfirmedPlanDay: vi.fn((dayId: number) => of(dayView(dayId, dayId === 7 ? 1 : 2))),
+    exportClosure: vi.fn(() =>
+      of({ content: 'abschluss', mediaType: 'text/plain', fileName: 'abschluss.txt' }),
+    ),
     saveCandidateAttendance: vi.fn(() => of(dayView(7, 1))),
     saveMemberAttendance: vi.fn(() => of(dayView(7, 1))),
     startExamSlot: vi.fn(() => of(dayView(7, 1))),
@@ -308,7 +344,7 @@ function closure(): ExamDayClosure {
     history: [],
     tasks: [],
     permissions: { close: true, reopen: false, export: false },
-    exportLinks: { machine: '', human: '' },
+    exportAvailability: { machine: false, human: false },
   };
 }
 

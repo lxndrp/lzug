@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from backend.application import AuthenticationRequiredError, ForbiddenRequestError
+from backend.application.absence_consequences import AbsenceConsequenceApplication
 from backend.application.calendar_ports import CalendarApplicationPort
 from backend.application.consequence_ports import ApplicationConsequenceStoreFactory
 from backend.application.exam_lifecycle import ExamLifecycleApplication
@@ -103,7 +104,7 @@ class RequestContext:
     calendar_lifecycle_work_factory: CalendarLifecycleWorkFactory
     assessment_lifecycle: AssessmentLifecycleWorkFactory
     assessment_round_queries: AssessmentLifecycleWorkFactory
-    exam_lifecycle_unit_of_work_factory: ExamLifecycleUnitOfWorkFactory
+    exam_lifecycle_unit_of_work_factory_provider: Callable[[Path], ExamLifecycleUnitOfWorkFactory]
     absence_unit_of_work_factory: Callable[[Path], AbsenceUnitOfWorkFactory]
     round_mutation_lock_checker_factory: Callable[[Path], Callable]
     candidate_day_service_factory: Callable[[Path], CandidateDayService]
@@ -283,11 +284,7 @@ class RequestContext:
 
     @property
     def absence_service(self) -> AbsenceService:
-        return AbsenceService(
-            self.absence_unit_of_work_factory(self.db_path),
-            notification_service=self.notification_service,
-            calendar_service=self.calendar_service,
-        )
+        return AbsenceService(self.absence_unit_of_work_factory(self.db_path))
 
     @property
     def exam_protocol_service(self) -> ExamProtocolService:
@@ -318,9 +315,17 @@ class RequestContext:
     @property
     def exam_lifecycle_application(self) -> ExamLifecycleApplication:
         return ExamLifecycleApplication(
-            self.exam_lifecycle_unit_of_work_factory,
+            self.exam_lifecycle_unit_of_work_factory_provider(self.db_path),
             lambda: self.exam_day_closure_service,
             lambda: self.exam_round_lifecycle_service,
+            AbsenceConsequenceApplication(
+                unit_of_work_factory=self.exam_lifecycle_unit_of_work_factory_provider(
+                    self.db_path
+                ),
+                consequence_store=self.consequence_store_factory(self.db_path),
+                notification_service=self.notification_service,
+                calendar_service=self.calendar_service,
+            ),
         )
 
     @property

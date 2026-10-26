@@ -38,6 +38,103 @@ test.describe('lzug theme and accessibility matrix', () => {
     );
   });
 
+  test('keeps exception closure fields keyboard-accessible and submits validated details @a11y', async ({
+    page,
+  }) => {
+    const plan = confirmedPlan(
+      1,
+      'Prüfungsausschuss Abschluss',
+      'Prüfling',
+      'Abschluss',
+      'regular',
+    );
+    const day = plan.days[0];
+    day.closure.permissions.close = true;
+    day.closure.evaluation.exception_close_ready = true;
+    await page.route('**/api/session', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          authenticated: true,
+          account_id: 1,
+          person_id: 1,
+          committee_member_id: 1,
+          is_operator: false,
+          capabilities: ['exam-day-closure:read', 'exam-day-closure:close'],
+        }),
+      }),
+    );
+    await page.route('**/api/confirmed-plan-days/1', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          plan: {
+            id: plan.id,
+            name: plan.name,
+            committee: plan.committee,
+            exam_half_year: plan.exam_half_year,
+          },
+          day,
+          _links: {},
+        }),
+      }),
+    );
+    let submittedBody: Record<string, unknown> | undefined;
+    await page.route('**/api/confirmed-plan-days/1/closure', async (route) => {
+      submittedBody = route.request().postDataJSON() as Record<string, unknown>;
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ...day.closure,
+          revision: 2,
+          status: 'closed',
+          permissions: { close: false, reopen: false, export: true },
+        }),
+      });
+    });
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/confirmed-plans/1/days/1');
+    await expect(page.getByRole('heading', { name: 'Prüfungstag' })).toBeVisible();
+    const closure = page.getByRole('group', { name: 'Abschlussentscheidung' });
+    const closureType = closure.getByLabel('Abschlussart');
+    await closureType.focus();
+    await closureType.selectOption('exception');
+
+    const reason = closure.getByLabel('Ausnahmegrund');
+    const attempts = closure.getByLabel('Bisherige Klärungsversuche');
+    await expect(reason).toBeVisible();
+    await reason.focus();
+    await expect(reason).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(attempts).toBeFocused();
+    expect(
+      (await new AxeBuilder({ page }).include('.app-exam-day-closure-form').analyze()).violations,
+    ).toEqual([]);
+
+    await closure
+      .getByRole('button', { name: 'Voraussetzungen bestätigen und abschließen' })
+      .click();
+    await expect(page.getByRole('alert')).toContainText(
+      'Grund und bisherige Klärungsversuche sind erforderlich.',
+    );
+    expect(submittedBody).toBeUndefined();
+
+    await reason.fill('  Systemausfall  ');
+    await attempts.fill('  Support kontaktiert  ');
+    await closure
+      .getByRole('button', { name: 'Voraussetzungen bestätigen und abschließen' })
+      .click();
+    await expect(page.getByRole('status')).toContainText('Prüfungstag formal abgeschlossen.');
+    expect(submittedBody).toEqual({
+      revision: 1,
+      closure_type: 'exception',
+      confirmed: true,
+      reason: 'Systemausfall',
+      clarification_attempts: 'Support kontaktiert',
+    });
+  });
+
   test('keeps the closed mobile navigation out of the accessibility tree @a11y', async ({
     page,
   }) => {

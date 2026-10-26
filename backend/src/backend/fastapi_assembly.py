@@ -13,6 +13,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from sqlalchemy.exc import SQLAlchemyError
 
+from .application.absence_consequences import AbsenceConsequenceApplication
 from .application.admin import AdminApplication, AdminServices
 from .application.calendar_ports import CalendarApplicationPort
 from .application.consequence_ports import ApplicationConsequenceStoreFactory
@@ -167,6 +168,14 @@ def create_admin_application(
                 consequence_store=compose_application_consequence_store(db_path),
             )
         ),
+        absence_consequence_factory=lambda db_path, notification_service: (
+            AbsenceConsequenceApplication(
+                unit_of_work_factory=compose_exam_lifecycle_unit_of_work_factory(db_path),
+                consequence_store=compose_application_consequence_store(db_path),
+                notification_service=notification_service,
+                calendar_service=compose_calendar_service(db_path, settings=require_settings()),
+            )
+        ),
         artifact_factory=lambda persistence: (
             artifacts
             or ArtifactService(
@@ -275,6 +284,9 @@ def create_app(
     )
     app.state.exam_lifecycle_unit_of_work_factory = compose_exam_lifecycle_unit_of_work_factory(
         resolved.db_path
+    )
+    app.state.exam_lifecycle_unit_of_work_factory_provider = (
+        compose_exam_lifecycle_unit_of_work_factory
     )
     app.state.absence_unit_of_work_factory = compose_absence_unit_of_work_factory
     app.state.round_mutation_lock_checker_factory = compose_round_mutation_lock_checker

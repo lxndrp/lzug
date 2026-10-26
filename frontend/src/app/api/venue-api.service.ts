@@ -1,22 +1,21 @@
 import type {
-  ExamRoom,
-  ExamVenue,
-  ExamVenueContact,
-  VenueChangeImpact,
-} from './master-data.models';
-import type {
+  ExamRoomResponse,
   ExamRoomCreateRequest,
   ExamRoomUpdateRequest,
+  ExamVenueContactResponse,
   ExamVenueContactCreateRequest,
   ExamVenueContactUpdateRequest,
   ExamVenueCreateRequest,
   ExamVenueDuplicateCheckRequest,
+  ExamVenueResponse,
+  ExamVenueGeocodeResponse,
   ExamVenueGeocodeRequest,
   ExamVenuePromotionDecisionRequest,
   ExamVenuePromotionRequest,
   ExamVenueUpdateRequest,
   RevisionDeleteRequest,
 } from './generated/types.gen';
+import type { ExamVenue, VenueChangeImpact } from './master-data.models';
 import { Injectable, inject } from '@angular/core';
 
 import { ApiClient } from './api-client.service';
@@ -27,11 +26,11 @@ import { ApiClient } from './api-client.service';
 export class VenueApiService {
   private readonly client = inject(ApiClient);
   listExamVenues() {
-    return this.client.collection<ExamVenue>('/api/exam-venues');
+    return this.client.collection<ExamVenueResponse>('/api/exam-venues');
   }
 
   createExamVenue(payload: ExamVenueCreateRequest) {
-    return this.client.post<ExamVenue>('/api/exam-venues', payload);
+    return this.client.post<ExamVenueResponse>('/api/exam-venues', payload);
   }
 
   checkExamVenueDuplicates(payload: ExamVenueDuplicateCheckRequest, excludedId?: number) {
@@ -49,14 +48,12 @@ export class VenueApiService {
   }
 
   updateExamVenue(id: number, payload: ExamVenueUpdateRequest) {
-    return this.client.patch<ExamVenue>(`/api/exam-venues/${id}`, payload);
+    return this.client.patch<ExamVenueResponse>(`/api/exam-venues/${id}`, payload);
   }
 
   geocodeExamVenue(id: number, expectedRevision: number) {
-    return this.client.post<{ latitude: number; longitude: number; source: string }>(
-      `/api/exam-venues/${id}/geocode`,
-      { expected_revision: expectedRevision } satisfies ExamVenueGeocodeRequest,
-    );
+    const request = { expected_revision: expectedRevision } satisfies ExamVenueGeocodeRequest;
+    return this.client.post<ExamVenueGeocodeResponse>(`/api/exam-venues/${id}/geocode`, request);
   }
 
   deleteExamVenue(id: number, expectedRevision: number) {
@@ -66,11 +63,11 @@ export class VenueApiService {
   }
 
   createExamRoom(venueId: number, payload: ExamRoomCreateRequest) {
-    return this.client.post<ExamRoom>(`/api/exam-venues/${venueId}/rooms`, payload);
+    return this.client.post<ExamRoomResponse>(`/api/exam-venues/${venueId}/rooms`, payload);
   }
 
   updateExamRoom(id: number, payload: ExamRoomUpdateRequest) {
-    return this.client.patch<ExamRoom>(`/api/exam-rooms/${id}`, payload);
+    return this.client.patch<ExamRoomResponse>(`/api/exam-rooms/${id}`, payload);
   }
 
   retryExamVenueConsequences(auditId: number) {
@@ -90,11 +87,14 @@ export class VenueApiService {
   }
 
   createExamVenueContact(venueId: number, payload: ExamVenueContactCreateRequest) {
-    return this.client.post<ExamVenueContact>(`/api/exam-venues/${venueId}/contacts`, payload);
+    return this.client.post<ExamVenueContactResponse>(
+      `/api/exam-venues/${venueId}/contacts`,
+      payload,
+    );
   }
 
   updateExamVenueContact(id: number, payload: ExamVenueContactUpdateRequest) {
-    return this.client.patch<ExamVenueContact>(`/api/exam-venue-contacts/${id}`, payload);
+    return this.client.patch<ExamVenueContactResponse>(`/api/exam-venue-contacts/${id}`, payload);
   }
 
   deleteExamVenueContact(id: number, expectedRevision: number) {

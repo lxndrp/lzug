@@ -1,4 +1,15 @@
-import { Component, Input, OnChanges, SimpleChanges, inject, output, signal } from '@angular/core';
+import {
+  Component,
+  DestroyRef,
+  Input,
+  OnChanges,
+  SimpleChanges,
+  computed,
+  inject,
+  output,
+  signal,
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { TuiButton } from '@taiga-ui/core';
 import { TuiBadge } from '@taiga-ui/kit';
@@ -8,10 +19,13 @@ import type {
   AssessmentComponent,
   AssessmentCriterion,
   ExamResult,
+  ExamResultDayRevisionUpdate,
   VoteChoice,
 } from './exam-result.models';
 import { collectCommitteeVote } from './exam-result.voting';
 import { ApplicationError } from '../application/application-error';
+import { downloadFile } from '../application/file-download';
+import { loadStateValue, type LoadState } from '../application/load-state';
 import { AuthService } from '../auth/auth.service';
 import { SessionScopeService } from '../auth/session-scope.service';
 import { ExamResultFacade } from './exam-result.facade';
@@ -26,6 +40,7 @@ export type CriterionDraft = {
 
 @Component({
   selector: 'app-exam-result',
+  providers: [ExamResultFacade],
   imports: [FormsModule, TuiBadge, TuiButton],
   templateUrl: './exam-result.component.html',
   styleUrl: './exam-result.component.css',
@@ -34,6 +49,7 @@ export class ExamResultComponent implements OnChanges {
   private readonly facade = inject(ExamResultFacade);
   private readonly auth = inject(AuthService);
   private readonly sessionScope = inject(SessionScopeService);
+  private readonly destroyRef = inject(DestroyRef);
 
   @Input({ required: true }) roundId!: number;
   @Input({ required: true }) dayId!: number;
@@ -41,12 +57,17 @@ export class ExamResultComponent implements OnChanges {
   @Input() dayRefreshing = false;
   @Input({ required: true }) slotId!: number;
   @Input() ownMemberId: number | null = null;
-  readonly dayRevisionsChanged = output<Record<string, number>>();
+  readonly dayRevisionsChanged = output<ExamResultDayRevisionUpdate>();
   readonly actionErrorOccurred = output<string>();
 
-  protected readonly state = signal<ResultViewState>('loading');
-  protected readonly result = signal<ExamResult | null>(null);
+  private readonly loadState = signal<LoadState<ExamResult>>({
+    status: 'loading',
+    previous: null,
+  });
+  protected readonly state = computed(() => this.loadState().status);
+  protected readonly result = computed(() => loadStateValue(this.loadState()));
   protected readonly busy = signal(false);
+  protected readonly exportBusy = signal(false);
   protected readonly message = signal<string | null>(null);
   protected readonly error = signal<string | null>(null);
   protected readonly drafts = new Map<string, CriterionDraft>();
@@ -76,21 +97,70 @@ export class ExamResultComponent implements OnChanges {
   protected retentionHoldReason = '';
   protected retentionReleaseReason = '';
   private requestSequence = 0;
+  private exportSequence = 0;
   private contextSequence = 0;
   private loadedContextSequence: number | null = null;
+
+  constructor() {
+    this.sessionScope.changes$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((change) => {
+      this.contextSequence += 1;
+      this.requestSequence += 1;
+      this.exportSequence += 1;
+      this.loadState.set({ status: 'loading', previous: null });
+      this.busy.set(false);
+      this.exportBusy.set(false);
+      this.clearContextDrafts();
+      if (change.established) this.load();
+    });
+  }
 
   ngOnChanges(changes: SimpleChanges): void {
     const identityChanged = changes['roundId'] || changes['dayId'] || changes['slotId'];
     if (identityChanged) {
       this.contextSequence += 1;
-      this.result.set(null);
+      this.exportSequence += 1;
+      this.loadState.set({ status: 'loading', previous: null });
       this.busy.set(false);
+      this.exportBusy.set(false);
       this.componentVotes.clear();
       this.componentVoters.clear();
       this.examResultVotes.clear();
       this.examResultVoters.clear();
+      this.loadedContextSequence = null;
+      this.clearContextDrafts();
     }
     if (identityChanged || changes['dayRevision']) this.load(!identityChanged);
+  }
+
+  private clearContextDrafts(): void {
+    this.drafts.clear();
+    this.componentPoints.clear();
+    this.componentReasons.clear();
+    this.componentVotes.clear();
+    this.componentVoters.clear();
+    this.examResultVotes.clear();
+    this.examResultVoters.clear();
+    this.externalAreaKey = '';
+    this.externalPoints = '';
+    this.externalGrade = '';
+    this.externalStatus = 'verbindlich festgestellt';
+    this.externalAuthority = '';
+    this.externalSource = '';
+    this.externalCorrectionReason = '';
+    this.dissentMemberId = null;
+    this.dissentStatement = '';
+    this.correctionReason = '';
+    this.reopeningReference = '';
+    this.communicationMethod = 'persönlich';
+    this.communicationAt = '';
+    this.externalDocumentReference = '';
+    this.retentionPeriodStart = '';
+    this.retentionUntil = '';
+    this.retentionLegalHold = false;
+    this.retentionHoldReason = '';
+    this.retentionReleaseReason = '';
+    this.message.set(null);
+    this.error.set(null);
   }
 
   protected load(preserveDrafts = false, preserveFeedback = preserveDrafts): void {
@@ -101,7 +171,7 @@ export class ExamResultComponent implements OnChanges {
     const roundId = this.roundId;
     const dayId = this.dayId;
     const slotId = this.slotId;
-    this.state.set('loading');
+    this.loadState.set({ status: 'loading', previous: this.result() });
     if (!preserveFeedback) {
       this.message.set(null);
       this.error.set(null);
@@ -113,13 +183,16 @@ export class ExamResultComponent implements OnChanges {
         }
         this.accept(result, keepDrafts);
         this.loadedContextSequence = contextSequence;
-        this.state.set('ready');
       },
       error: (error: ApplicationError) => {
         if (!this.isCurrent(sequence, contextSequence, sessionGeneration, roundId, dayId, slotId)) {
           return;
         }
-        this.state.set(error.kind === 'not-found' ? 'not-found' : 'error');
+        this.loadState.set(
+          error.kind === 'not-found'
+            ? { status: 'not-found', previous: this.result() }
+            : { status: 'error', previous: this.result() },
+        );
       },
     });
   }
@@ -201,6 +274,55 @@ export class ExamResultComponent implements OnChanges {
       ),
       'Einzelbewertungen kontrolliert offengelegt.',
     );
+  }
+
+  protected downloadExport(format: 'machine-readable' | 'human-readable'): void {
+    const result = this.result();
+    if (
+      !result ||
+      this.exportBusy() ||
+      this.dayRefreshing ||
+      !this.auth.hasCapability('exam-result:export')
+    ) {
+      return;
+    }
+    const exportSequence = ++this.exportSequence;
+    const contextSequence = this.contextSequence;
+    const sessionGeneration = this.sessionScope.generation();
+    const roundId = this.roundId;
+    const dayId = this.dayId;
+    const slotId = this.slotId;
+    const resultId = result.id;
+    this.exportBusy.set(true);
+    this.error.set(null);
+    this.sessionScope
+      .forCurrentSession(this.facade.export(resultId, format))
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (file) => {
+          if (
+            exportSequence !== this.exportSequence ||
+            !this.isActionCurrent(contextSequence, sessionGeneration, roundId, dayId, slotId) ||
+            this.result()?.id !== resultId
+          ) {
+            return;
+          }
+          downloadFile(file);
+        },
+        error: (error: ApplicationError) => {
+          if (
+            exportSequence !== this.exportSequence ||
+            !this.isActionCurrent(contextSequence, sessionGeneration, roundId, dayId, slotId)
+          ) {
+            return;
+          }
+          this.error.set(error.message || 'Der Ergebnisexport konnte nicht geladen werden.');
+          this.exportBusy.set(false);
+        },
+        complete: () => {
+          if (exportSequence === this.exportSequence) this.exportBusy.set(false);
+        },
+      });
   }
 
   protected determineComponent(componentKey: string): void {
@@ -598,7 +720,7 @@ export class ExamResultComponent implements OnChanges {
 
   private accept(result: ExamResult, preserveDrafts = false): void {
     const previous = this.result();
-    this.result.set(result);
+    this.loadState.set({ status: 'ready', data: result });
     for (const component of result.modelVersion.rules.components) {
       const current = this.currentCommittee(result, component.key);
       const previousCurrent = previous ? this.currentCommittee(previous, component.key) : undefined;

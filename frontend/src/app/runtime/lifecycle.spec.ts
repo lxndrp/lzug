@@ -9,12 +9,10 @@ import { TuiConfirmService } from '@taiga-ui/kit';
 import { of } from 'rxjs';
 import { App } from '../app';
 import { lifecycleInterceptor } from '../api/http-interceptors';
-import { HttpWorkspaceAdapter } from '../api/http-workspace.adapter';
 import { AuthService } from '../auth/auth.service';
 import { LifecycleService, lifecycleStates } from './lifecycle.service';
 import { LIFECYCLE_AVAILABILITY_PORT } from './lifecycle.port';
 import { LifecycleNoticeComponent } from './lifecycle-notice.component';
-import { WORKSPACE_PORT } from '../shell/workspace.port';
 import { DashboardProjectionService } from '../dashboard/dashboard-projection.service';
 import { ApplicationShellContextService } from '../shell/application-shell-context.service';
 import { MasterDataWorkflowService } from '../master-data/master-data-workflow.service';
@@ -32,7 +30,6 @@ describe('public lifecycle', () => {
         provideRouter([]),
         provideHttpClient(withInterceptors([lifecycleInterceptor])),
         provideHttpClientTesting(),
-        { provide: WORKSPACE_PORT, useClass: HttpWorkspaceAdapter },
         { provide: PLANNING_PORT, useValue: {} },
         {
           provide: MasterDataWorkflowService,

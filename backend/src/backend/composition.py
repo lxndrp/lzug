@@ -5,10 +5,12 @@ from __future__ import annotations
 from collections.abc import Callable, Collection
 from datetime import timedelta
 from pathlib import Path
+from threading import Lock
 
 from backend.application.exam_venue_api import ExamVenueApi
 from backend.application.venue_consequences import VenueConsequenceService
 from backend.assessment.service import ExamResultService
+from backend.calendar.feed_lifecycle import CalendarFeedCoordinator
 from backend.calendar.service import CalendarService
 from backend.documents.commands import DocumentUseCases
 from backend.execution.exam_protocols import ExamProtocolService
@@ -19,6 +21,7 @@ from backend.identity.authorization import AuthorizationService
 from backend.identity.committee_admin import CommitteeAdminService
 from backend.identity.local_auth import LocalAuthService
 from backend.identity.people import IdentityService
+from backend.identity_scope import IdentityScopeCoordinator
 from backend.integrations.document_storage import FilesystemDocumentStorage
 from backend.integrations.holiday_provider import PythonHolidaysProvider
 from backend.integrations.map_provider import MapProviderConfig, NominatimGeocoder
@@ -68,6 +71,17 @@ from backend.planning.venue_consequences import PlanningVenueConsequencePlanner
 from backend.planning_ports import Geocoder, VenueChange, VenueChangeFollowUp
 from backend.settings import RuntimeSettings
 
+_calendar_feed_coordinators: dict[str, CalendarFeedCoordinator] = {}
+_calendar_feed_coordinators_lock = Lock()
+_identity_scope_coordinators: dict[str, IdentityScopeCoordinator] = {}
+_identity_scope_coordinators_lock = Lock()
+
+
+def _identity_scope_coordinator(db_path: Path) -> IdentityScopeCoordinator:
+    database_id = str(Path(db_path).expanduser().resolve())
+    with _identity_scope_coordinators_lock:
+        return _identity_scope_coordinators.setdefault(database_id, IdentityScopeCoordinator())
+
 
 def calendar_service(
     db_path: Path = DEFAULT_DB_PATH,
@@ -77,12 +91,18 @@ def calendar_service(
 ) -> CalendarService:
     """Wire Calendar's consumer-owned ports to the SQLite persistence adapter."""
     persistence = SQLiteCalendarPersistence(db_path)
+    database_id = str(Path(db_path).expanduser().resolve())
+    with _calendar_feed_coordinators_lock:
+        coordinator = _calendar_feed_coordinators.setdefault(database_id, CalendarFeedCoordinator())
     return CalendarService(
         persistence,
         persistence,
         persistence,
         settings=settings,
         time_zone=time_zone,
+        feed_coordinator=coordinator,
+        identity_scope_coordinator=_identity_scope_coordinator(db_path),
+        database_id=database_id,
     )
 
 
@@ -423,7 +443,9 @@ def local_auth_service(
 def identity_service(db_path: Path) -> IdentityService:
     """Wire Identity's write/read ports to their SQLite adapters."""
     return IdentityService(
-        SQLiteIdentityUnitOfWorkFactory(db_path),
+        SQLiteIdentityUnitOfWorkFactory(
+            db_path, scope_coordinator=_identity_scope_coordinator(db_path)
+        ),
         SQLiteIdentityQueryFactory(db_path),
     )
 
@@ -435,7 +457,11 @@ def authorization_service(db_path: Path) -> AuthorizationService:
 
 def committee_admin_service(db_path: Path) -> CommitteeAdminService:
     """Wire Identity committee commands to their transactional SQLite adapter."""
-    return CommitteeAdminService(SQLiteCommitteeAdminUnitOfWorkFactory(db_path))
+    return CommitteeAdminService(
+        SQLiteCommitteeAdminUnitOfWorkFactory(
+            db_path, scope_coordinator=_identity_scope_coordinator(db_path)
+        )
+    )
 
 
 DEFAULT_MAP_PROVIDER_CONFIG = MapProviderConfig()
