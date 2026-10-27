@@ -2,8 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from backend.http_resources import REST_RESOURCES
-from backend.persistence.models import Resource
+from backend.http_resources import REST_RESOURCES, HttpResource
 from backend.version import application_version, build_revision
 
 RELATED_RESOURCE_FIELDS = {
@@ -75,7 +74,7 @@ def health(status: str, signal: str = "health") -> dict[str, Any]:
 
 def collection(
     resource_name: str,
-    resource: Resource,
+    resource: HttpResource,
     rows: list[dict[str, Any]],
     query_string: str = "",
     allow_create: bool = True,
@@ -101,7 +100,7 @@ def collection(
 
 def resource_item(
     resource_name: str,
-    resource: Resource,
+    resource: HttpResource,
     row: dict[str, Any],
     allow_item_mutation: bool = True,
 ) -> dict[str, Any]:
@@ -271,7 +270,7 @@ def _legacy_proposal_room_references(proposal: dict[str, Any]) -> dict[str, Any]
 
 def item_links(
     resource_name: str,
-    resource: Resource,
+    resource: HttpResource,
     row: dict[str, Any],
     allow_item_mutation: bool = True,
 ) -> dict[str, Any]:

@@ -53,7 +53,7 @@ from backend.http_planning_payloads import (
 from backend.http_planning_payloads import (
     planning_proposal_from_payload as planning_proposal_from_payload,
 )
-from backend.http_resources import REST_RESOURCES
+from backend.http_resources import REST_RESOURCES, HttpResource
 from backend.identity.auth import AuthContext, AuthenticationRepository, SessionCredentials
 from backend.identity.authorization import AuthorizationScope, AuthorizationService
 from backend.identity.committee_admin import CommitteeAdminService
@@ -61,7 +61,6 @@ from backend.identity.local_auth import LocalAuthService
 from backend.identity.people import IdentityService
 from backend.notifications.service import NotificationService
 from backend.observability import emit_event
-from backend.persistence.models import Resource
 from backend.planning import PlanningService
 from backend.planning.candidate_days import CandidateDayService
 from backend.planning.resources import (
@@ -132,6 +131,17 @@ class RequestContext:
     )
     response_result: ApplicationResult | None = None
     response_headers: list[tuple[str, str]] = field(default_factory=list)
+    _request_cleanups: list[Callable[[], None]] = field(default_factory=list)
+
+    def add_request_cleanup(self, cleanup: Callable[[], None]) -> None:
+        """Retain a resource until FastAPI finishes this request context."""
+        self._request_cleanups.append(cleanup)
+
+    def close(self) -> None:
+        """Release request-scoped runtime resources in reverse acquisition order."""
+        cleanups, self._request_cleanups = self._request_cleanups, []
+        for cleanup in reversed(cleanups):
+            cleanup()
 
     @property
     def assessment_actor(self) -> AssessmentActorSnapshot:
@@ -159,35 +169,29 @@ class RequestContext:
         return self.resource_access_query_factory(self.db_path)
 
     def visible_resource_records(
-        self, resource: Resource, filters: dict[str, Any] | None = None
+        self, resource: ResourceKind, filters: dict[str, Any] | None = None
     ) -> list[dict[str, Any]]:
         with self.resource_access_queries.snapshot() as queries:
             return [
                 dict(row)
-                for row in queries.list_visible(
-                    ResourceKind(resource.table), self.authorization_scope, filters or {}
-                )
+                for row in queries.list_visible(resource, self.authorization_scope, filters or {})
             ]
 
     def visible_resource_record(
-        self, resource: Resource, resource_id: int
+        self, resource: ResourceKind, resource_id: int
     ) -> dict[str, Any] | None:
         with self.resource_access_queries.snapshot() as queries:
-            row = queries.get_visible(
-                ResourceKind(resource.table), resource_id, self.authorization_scope
-            )
+            row = queries.get_visible(resource, resource_id, self.authorization_scope)
             return dict(row) if row is not None else None
 
     def resource_ownership(
         self,
-        resource: Resource,
+        resource: ResourceKind,
         resource_id: int | None = None,
         payload: dict[str, Any] | None = None,
     ):
         with self.resource_access_queries.snapshot() as queries:
-            return queries.ownership(
-                ResourceKind(resource.table), resource_id, reference_changes(payload or {})
-            )
+            return queries.ownership(resource, resource_id, reference_changes(payload or {}))
 
     @property
     def planning_service(self) -> PlanningService:
@@ -236,17 +240,17 @@ class RequestContext:
         )
 
     def visible_planning_records(
-        self, resource: Resource, filters: dict[str, object]
+        self, resource: ResourceKind, filters: dict[str, object]
     ) -> list[dict[str, object]]:
         records = self.planning_resource_service.list_visible_records(
-            resource.table, cast("dict[str, PlanningValue]", filters)
+            resource.value, cast("dict[str, PlanningValue]", filters)
         )
         return [record.as_payload() for record in records]
 
     def visible_planning_record(
-        self, resource: Resource, resource_id: int
+        self, resource: ResourceKind, resource_id: int
     ) -> dict[str, object] | None:
-        record = self.planning_resource_service.get_visible_record(resource.table, resource_id)
+        record = self.planning_resource_service.get_visible_record(resource.value, resource_id)
         return record.as_payload() if record is not None else None
 
     @property
@@ -511,7 +515,7 @@ class RequestContext:
         self, resource_name: str, entity_id: int | None, payload: dict[str, Any], action: str
     ) -> dict[str, Any]:
         del action
-        resource = ResourceKind(REST_RESOURCES[resource_name].table)
+        resource = REST_RESOURCES[resource_name].kind
         return ResourceAuthorizer(self.resource_access_queries, self.authorization_scope).authorize(
             resource, entity_id, payload
         )
@@ -570,7 +574,7 @@ class RequestContext:
     def add_header(self, name: str, value: str) -> None:
         self.response_headers.append((name, value))
 
-    def resource_filters(self, resource: Resource, query: Any) -> dict[str, Any]:
+    def resource_filters(self, resource: HttpResource, query: Any) -> dict[str, Any]:
         aliases = {"round_id": "exam_round_id"}
         fields = set(resource.readable_fields)
         filters: dict[str, Any] = {}

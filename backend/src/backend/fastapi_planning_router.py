@@ -10,13 +10,13 @@ from fastapi import APIRouter, FastAPI, Request
 from fastapi.responses import Response
 
 from backend import http_hateoas as hateoas
+from backend.application.resource_access import ResourceKind
 from backend.http_resources import REST_RESOURCES
 from backend.http_transport import (
     RequestContext,
     confirmed_plan_change_from_payload,
     planning_proposal_from_payload,
 )
-from backend.persistence.models import EXAM_ROUND
 from backend.planning.candidate_days import GenerateCandidateDays
 from backend.planning.proposals import (
     ConfirmedPlanRevision,
@@ -58,16 +58,16 @@ MIGRATED_PLANNING_RESOURCES = (
     "exam-day-assignments",
 )
 PLANNING_DOMAIN_RESOURCES = ("planning-settings", "member-availabilities")
-PLANNING_RESOURCE_TABLES = frozenset(
+PLANNING_RESOURCE_KINDS = frozenset(
     {
-        "candidate_exam_day",
-        "exam_half_year",
-        "exam_round",
-        "round_candidate",
-        "candidate",
-        "candidate_committee_assignment",
-        "planning_settings",
-        "member_availability",
+        ResourceKind.CANDIDATE_EXAM_DAY,
+        ResourceKind.EXAM_HALF_YEAR,
+        ResourceKind.EXAM_ROUND,
+        ResourceKind.ROUND_CANDIDATE,
+        ResourceKind.CANDIDATE,
+        ResourceKind.CANDIDATE_COMMITTEE_ASSIGNMENT,
+        ResourceKind.PLANNING_SETTINGS,
+        ResourceKind.MEMBER_AVAILABILITY,
     }
 )
 
@@ -260,7 +260,7 @@ def _register_confirmed_plan_routes(
         id: int,
         payload: ConfirmedPlanChangeRequest,
     ):
-        committee_id = context.resource_ownership(EXAM_ROUND, id).committee_id
+        committee_id = context.resource_ownership(ResourceKind.EXAM_ROUND, id).committee_id
         actor_member_id = context.authorization_scope.member_for_committee(committee_id)
         if actor_member_id is None:
             raise ForbiddenRequestError("Forbidden.")
@@ -405,9 +405,9 @@ def _planning_collection(
     def get_collection(request: Request, context: ReadContext):
         filters = context.resource_filters(resource, request.query_params)
         rows = (
-            context.visible_planning_records(resource, filters)
-            if resource.table in PLANNING_RESOURCE_TABLES
-            else context.visible_resource_records(resource, filters)
+            context.visible_planning_records(resource.kind, filters)
+            if resource.kind in PLANNING_RESOURCE_KINDS
+            else context.visible_resource_records(resource.kind, filters)
         )
         return finish(
             context,
@@ -431,9 +431,9 @@ def _planning_item(resource_name: str, finish: Finish, not_found: NotFound, *, m
 
     def get_item(context: ReadContext, id: int):
         row = (
-            context.visible_planning_record(resource, id)
-            if resource.table in PLANNING_RESOURCE_TABLES
-            else context.visible_resource_record(resource, id)
+            context.visible_planning_record(resource.kind, id)
+            if resource.kind in PLANNING_RESOURCE_KINDS
+            else context.visible_resource_record(resource.kind, id)
         )
         return (
             not_found()

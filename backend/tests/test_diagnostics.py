@@ -6,13 +6,16 @@ import os
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
+from backend.composition import OperationsProviderConfigurationDiagnostics
 from backend.identity.admin_service import OperatorAuthService
 from backend.operations.diagnostics import (
     EXIT_DIAGNOSTIC_ERROR,
     EXIT_DIAGNOSTIC_WARNING,
+    _map_provider_configuration,
     _notification_configuration,
+    run_diagnostics,
 )
 from backend.persistence.auth import SQLiteOperatorAuthUnitOfWorkFactory
 from backend.tests.helpers import TempDatabase, run_admin
@@ -28,19 +31,61 @@ class OperatorDiagnosticsTests(unittest.TestCase):
 
     def test_invalid_vapid_key_is_reported_without_exposing_key_material(self) -> None:
         secret_marker = "PRIVATE-VAPID-KEY-MUST-NOT-LEAK"
-        with patch.dict(
-            os.environ,
-            {
-                "LZUG_WEB_PUSH_VAPID_PRIVATE_KEY": secret_marker,
-                "LZUG_WEB_PUSH_SUBJECT": "mailto:operator@example.invalid",
-            },
-            clear=True,
-        ):
-            result = _notification_configuration({})
+        environment = {
+            "LZUG_WEB_PUSH_VAPID_PRIVATE_KEY": secret_marker,
+            "LZUG_WEB_PUSH_SUBJECT": "mailto:operator@example.invalid",
+        }
+        result = _notification_configuration(
+            environment,
+            OperationsProviderConfigurationDiagnostics(),
+        )
 
         self.assertEqual("error", result["status"])
         self.assertEqual("configuration_invalid", result["code"])
         self.assertEqual("Notification provider configuration is invalid", result["message"])
+        self.assertNotIn(secret_marker, str(result))
+
+    def test_configuration_diagnostics_use_injected_safe_provider_results(self) -> None:
+        provider_diagnostics = Mock()
+        provider_diagnostics.map_provider_mode.return_value = "osm"
+        with patch.dict(
+            os.environ,
+            {
+                "LZUG_MAP_PROVIDER": "osm",
+                "LZUG_NOMINATIM_USER_AGENT": "lzug-test",
+            },
+            clear=True,
+        ):
+            result, exit_code = run_diagnostics(
+                "config",
+                storage=Mock(),
+                maintenance=Mock(),
+                provider_diagnostics=provider_diagnostics,
+            )
+
+        self.assertEqual(0, exit_code)
+        self.assertEqual("ok", result["status"])
+        provider_diagnostics.notification_channels.assert_called_once()
+        provider_diagnostics.map_provider_mode.assert_called_once()
+        map_check = next(
+            check for check in result["checks"] if check["id"] == "map_provider_configuration"
+        )
+        self.assertEqual({"mode": "osm"}, map_check["details"])
+        self.assertNotIn("lzug-test", str(result))
+
+    def test_map_provider_adapter_materializes_only_the_public_mode(self) -> None:
+        secret_marker = "GOOGLE-MAPS-PRIVATE-CONFIGURATION-MARKER"
+        result = _map_provider_configuration(
+            {
+                "LZUG_MAP_PROVIDER": "google",
+                "LZUG_NOMINATIM_USER_AGENT": "lzug-test",
+                "LZUG_GOOGLE_MAPS_API_KEY": secret_marker,
+            },
+            OperationsProviderConfigurationDiagnostics(),
+        )
+
+        self.assertEqual("ok", result["status"])
+        self.assertEqual({"mode": "google"}, result["details"])
         self.assertNotIn(secret_marker, str(result))
 
     def _environment(self, db_path: Path) -> dict[str, str]:
