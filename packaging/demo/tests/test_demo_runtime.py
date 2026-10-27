@@ -67,7 +67,10 @@ from demo.runtime.policy import (
 )
 from demo.runtime.seed import initialize_workdir
 from demo.runtime.validation import DemoRuntimeError
-from demo.runtime.workspaces import DemoWorkspaceManager
+from demo.runtime.workspaces import (
+    DemoWorkspaceGenerationConflictError,
+    DemoWorkspaceManager,
+)
 
 
 class MutableClock:
@@ -489,7 +492,7 @@ class DemoRuntimeTests(unittest.TestCase):
 
             def reset_workspace() -> None:
                 try:
-                    manager.reset(db_path, workspace, old_path)
+                    manager.reset(db_path, workspace, old_path, token=token)
                 except BaseException as error:  # Propagate worker failures to the test thread.
                     reset_errors.append(error)
 
@@ -578,18 +581,18 @@ class DemoRuntimeTests(unittest.TestCase):
             role_switch_path, release_role_switch = manager.acquire_request(db_path, token)
             first_reset_path, release_first_reset = manager.acquire_request(db_path, token)
 
-            manager.reset(db_path, workspace, first_reset_path)
-            selected_path, release_selected_generation = manager.retain_current_generation(
+            manager.reset(db_path, workspace, first_reset_path, token=token)
+            with manager.retain_current_generation(
                 workspace,
                 request_path=role_switch_path,
                 token=token,
-            )
-            self.assertEqual(workspace.path, selected_path)
-            self.assertNotEqual(role_switch_path, selected_path)
+            ) as (selected_path, release_selected_generation):
+                self.assertEqual(workspace.path, selected_path)
+                self.assertNotEqual(role_switch_path, selected_path)
 
             second_reset_path, release_second_reset = manager.acquire_request(db_path, token)
             self.assertEqual(selected_path, second_reset_path)
-            manager.reset(db_path, workspace, second_reset_path)
+            manager.reset(db_path, workspace, second_reset_path, token=token)
             release_second_reset()
 
             self.assertTrue(
@@ -604,6 +607,71 @@ class DemoRuntimeTests(unittest.TestCase):
             self.assertFalse(selected_path.exists())
             manager.discard(token)
             self.assertFalse(workspace.path.exists())
+
+    def test_role_switch_binding_is_atomic_with_a_parallel_reset(self) -> None:
+        with TempDatabase(seed_sql=public_demo_seed_sql()) as db_path:
+            manager = DemoWorkspaceManager(
+                self.root / "role-switch-reset-serialization",
+                ttl=timedelta(minutes=60),
+                clock=self.clock,
+                on_discard=discard_database_coordinators,
+            )
+            previous_token = "role-switch-before-reset-session"
+            replacement_token = "role-switch-after-reset-session"
+            workspace = manager.create(db_path)
+            manager.bind(workspace, previous_token)
+            request_path, release_request = manager.acquire_request(db_path, previous_token)
+            reset_started = threading.Event()
+            reset_finished = threading.Event()
+            reset_errors: list[BaseException] = []
+
+            def reset_workspace() -> None:
+                reset_started.set()
+                try:
+                    manager.reset(db_path, workspace, request_path, token=previous_token)
+                except BaseException as error:  # Propagate worker failures to the test thread.
+                    reset_errors.append(error)
+                finally:
+                    reset_finished.set()
+
+            reset_thread = threading.Thread(target=reset_workspace)
+            try:
+                with manager.retain_current_generation(
+                    workspace,
+                    request_path=request_path,
+                    token=previous_token,
+                ) as (selected_path, release_selected_generation):
+                    self.assertTrue(workspace.reset_lock.locked())
+                    manager.bind(workspace, replacement_token, previous_token=previous_token)
+                    reset_thread.start()
+                    self.assertTrue(reset_started.wait(timeout=5))
+                    self.assertFalse(
+                        reset_finished.wait(timeout=0.05),
+                        "Reset must wait until the role-switch session is bound",
+                    )
+            finally:
+                if reset_thread.ident is not None:
+                    reset_thread.join(timeout=5)
+            self.assertFalse(reset_thread.is_alive(), "Reset thread did not finish")
+            self.assertEqual(1, len(reset_errors))
+            self.assertIsInstance(reset_errors[0], DemoWorkspaceGenerationConflictError)
+            self.assertEqual(selected_path, workspace.path)
+            self.assertIs(workspace, manager.resolve(db_path, replacement_token))
+            release_selected_generation()
+            release_request()
+            manager.discard(replacement_token)
+            self.assertFalse(workspace.path.exists())
+
+    def test_startup_removes_interrupted_reset_copy(self) -> None:
+        workspace_root = self.root / "interrupted-reset-copy"
+        workspace_root.mkdir()
+        database_path = workspace_root / "workspace-interrupted.sqlite"
+        temporary_path = database_path.with_suffix(".sqlite.reset-token.tmp")
+        temporary_path.write_text("partial copy", encoding="utf-8")
+
+        DemoWorkspaceManager(workspace_root, clock=self.clock)
+
+        self.assertFalse(temporary_path.exists())
 
     def test_stale_parallel_reset_cannot_replace_active_reset_generation(self) -> None:
         self.policy = self._policy(suffix="parallel-reset-generations")
@@ -640,6 +708,8 @@ class DemoRuntimeTests(unittest.TestCase):
                     request_base_path: Path,
                     request_workspace,
                     request_db_path: Path,
+                    *,
+                    token: str,
                 ) -> None:
                     nonlocal reset_call_count
                     with reset_call_lock:
@@ -649,9 +719,13 @@ class DemoRuntimeTests(unittest.TestCase):
                         stale_reset_ready.set()
                         if not resume_stale_reset.wait(timeout=10):
                             raise TimeoutError("Test did not release the stale reset")
-                        original_reset(request_base_path, request_workspace, request_db_path)
+                        original_reset(
+                            request_base_path, request_workspace, request_db_path, token=token
+                        )
                         return
-                    original_reset(request_base_path, request_workspace, request_db_path)
+                    original_reset(
+                        request_base_path, request_workspace, request_db_path, token=token
+                    )
                     active_reset_swapped.set()
                     if not resume_active_reset.wait(timeout=10):
                         raise TimeoutError("Test did not release the active reset")

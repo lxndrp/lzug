@@ -5,8 +5,8 @@ from __future__ import annotations
 import hashlib
 import os
 import sqlite3
-from collections.abc import Callable
-from contextlib import closing
+from collections.abc import Callable, Iterator
+from contextlib import closing, contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -146,14 +146,15 @@ class DemoWorkspaceManager:
             self._retain_path(workspace, request_path)
             return lambda: self._release_request(workspace, request_path)
 
+    @contextmanager
     def retain_current_generation(
         self,
         workspace: DemoWorkspace,
         *,
         request_path: Path,
         token: str,
-    ) -> tuple[Path, Callable[[], None]]:
-        """Lease the current generation while a request switches its database path."""
+    ) -> Iterator[tuple[Path, Callable[[], None]]]:
+        """Lease and stabilize the current generation while switching a session."""
         with workspace.reset_lock:
             with self._lock:
                 if (
@@ -167,7 +168,7 @@ class DemoWorkspaceManager:
                     )
                 current_path = workspace.path
                 self._retain_path(workspace, current_path)
-        return current_path, lambda: self._release_request(workspace, current_path)
+            yield current_path, lambda: self._release_request(workspace, current_path)
 
     def bind(
         self,
@@ -194,6 +195,8 @@ class DemoWorkspaceManager:
         base_db_path: Path,
         workspace: DemoWorkspace,
         request_path: Path,
+        *,
+        token: str,
     ) -> None:
         """Swap in a fresh generation while existing requests finish on the old path."""
         with workspace.reset_lock:
@@ -201,6 +204,7 @@ class DemoWorkspaceManager:
                 if (
                     request_path != workspace.path
                     or workspace.active_paths.get(request_path, 0) == 0
+                    or self._by_token.get(self._digest(token)) is not workspace
                 ):
                     raise DemoWorkspaceGenerationConflictError(
                         "Demo workspace generation changed before reset"
@@ -220,7 +224,7 @@ class DemoWorkspaceManager:
                 old_path = workspace.path
 
             new_path = self.root / f"workspace-{uuid4().hex}.sqlite"
-            temporary = new_path.with_suffix(f".{uuid4().hex}.tmp")
+            temporary = new_path.with_suffix(f"{new_path.suffix}.{uuid4().hex}.tmp")
             swapped = False
             try:
                 # Copy outside the manager lock so unrelated requests can keep
@@ -239,6 +243,7 @@ class DemoWorkspaceManager:
                     if (
                         request_path != workspace.path
                         or workspace.active_paths.get(request_path, 0) == 0
+                        or self._by_token.get(self._digest(token)) is not workspace
                     ):
                         raise DemoWorkspaceGenerationConflictError(
                             "Demo workspace generation changed while reset was prepared"

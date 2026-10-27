@@ -352,11 +352,31 @@ class DemoRuntimePolicy:
         else:
             handler.require_authenticated(require_actor=False, require_csrf=True)
             try:
-                workspace_path, release_generation = self.workspaces.retain_current_generation(
+                with self.workspaces.retain_current_generation(
                     workspace,
                     request_path=handler.db_path,
                     token=previous_token,
-                )
+                ) as (workspace_path, release_generation):
+                    handler.add_request_cleanup(release_generation)
+                    handler.authentication_repository.revoke_session(
+                        previous_token, reason="role-switch"
+                    )
+                    handler.db_path = workspace_path
+                    remaining = self.workspaces.remaining(workspace)
+                    try:
+                        credentials = handler.authentication_repository.create_session(
+                            role["account_id"], now=self.clock(), ttl=remaining
+                        )
+                    except AuthenticationError:
+                        self.workspaces.discard(previous_token)
+                        handler.respond(
+                            {"error": "Demo role is unavailable."},
+                            HTTPStatus.SERVICE_UNAVAILABLE,
+                        )
+                        return
+                    self.workspaces.bind(
+                        workspace, credentials.token, previous_token=previous_token
+                    )
             except DemoWorkspaceGenerationConflictError:
                 handler.respond(
                     {
@@ -367,22 +387,20 @@ class DemoRuntimePolicy:
                     HTTPStatus.CONFLICT,
                 )
                 return
-            handler.add_request_cleanup(release_generation)
-            handler.authentication_repository.revoke_session(previous_token, reason="role-switch")
-        handler.db_path = workspace_path
-        remaining = self.workspaces.remaining(workspace)
-        try:
-            credentials = handler.authentication_repository.create_session(
-                role["account_id"], now=self.clock(), ttl=remaining
-            )
-        except AuthenticationError:
-            if workspace_created:
+        if workspace_created:
+            handler.db_path = workspace_path
+            remaining = self.workspaces.remaining(workspace)
+            try:
+                credentials = handler.authentication_repository.create_session(
+                    role["account_id"], now=self.clock(), ttl=remaining
+                )
+            except AuthenticationError:
                 self.workspaces.discard_workspace(workspace)
-            else:
-                self.workspaces.discard(previous_token)
-            handler.respond({"error": "Demo role is unavailable."}, HTTPStatus.SERVICE_UNAVAILABLE)
-            return
-        self.workspaces.bind(workspace, credentials.token, previous_token=previous_token)
+                handler.respond(
+                    {"error": "Demo role is unavailable."}, HTTPStatus.SERVICE_UNAVAILABLE
+                )
+                return
+            self.workspaces.bind(workspace, credentials.token, previous_token=previous_token)
         handler.issue_session_cookies(
             credentials,
             max_age=max(1, int(remaining.total_seconds())),
@@ -403,7 +421,9 @@ class DemoRuntimePolicy:
         previous_token = handler.session_token
         workspace = self._workspace(handler)
         try:
-            self.workspaces.reset(self._base_path(), workspace, handler.db_path)
+            self.workspaces.reset(
+                self._base_path(), workspace, handler.db_path, token=previous_token
+            )
         except DemoWorkspaceGenerationConflictError:
             handler.respond(
                 {"error": "Die Demo-Sitzung wurde parallel zurückgesetzt. Bitte erneut anmelden."},
