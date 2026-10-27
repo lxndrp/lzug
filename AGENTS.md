@@ -142,6 +142,42 @@ Unvollständige Läufe verschieben den geprüften Ausgangsstand nicht; inkrement
 Keine automatischen Reparaturen, Priorisierungen oder Planänderungen aus einem Review ableiten.
 Benachrichtigungen auf neue relevante Befunde, Fehler und erforderliche Entscheidungen beschränken.
 
+### Wöchentlicher Codebasis-Review
+
+- Der bestehende lokale Codex-Lauf bleibt der Einstiegspunkt; keine zweite Zeitplanung,
+  zusätzlichen Runner, API-Secrets oder laufenden API-Kosten voraussetzen.
+  Für GitHub den bereits verfügbaren Zugang verwenden.
+- Vor dem Review den vollständigen Ziel-SHA von `master` aktualisieren und verifizieren.
+  Den Produktzielstand getrennt vom Prozessstand dokumentieren;
+  `AGENTS.md` und die relevanten Entwicklerunterlagen vorab lesen.
+- Am Review-Anker den Kommentarverlauf vollständig paginieren und den jüngsten
+  abgeschlossenen Voll- oder inkrementellen Review als Checkpoint bestimmen.
+  Ausgangs-SHA, Reviewmodus, dokumentierte Abdeckung und Vorfahrbeziehung zum Ziel
+  müssen zum Auftrag passen. Fehlt ein geeigneter Checkpoint, ist ein vollständiger,
+  risikobasierter Review durchzuführen. Milestone-Gates richten sich zusätzlich nach
+  den Regeln oben.
+- Einen unveränderten Zielstand mit Ausgangs- und Ziel-SHA sowie null Commits und
+  null geänderten Pfaden am Anker dokumentieren; den Checkpoint nicht verschieben.
+  Das gilt ebenfalls für fehlgeschlagene oder unvollständige Läufe.
+  Nur abgeschlossene Voll- oder inkrementelle Reviews mit dauerhaftem Nachweis
+  aktualisieren den Checkpoint.
+- Jeden Lauf am Anker mit Datum, Modus, Checkpoint, Ausgangs- und Ziel-SHA,
+  tatsächlichem Umfang und Abdeckung, relevanten Prüfungen, Grenzen und Abschluss
+  dokumentieren. Prozessstand und Produktrevision bleiben getrennt.
+  Reviewabschluss ist kein Quality-Nachweis.
+- Neue Befunde müssen im Zielstand bestätigt und mit Fundstelle, Auslöser,
+  Auswirkung und repositoryrelativen betroffenen Pfaden belegt sein.
+  Vor der Anlage offene und geschlossene Issues sowie die Ankerkommentare auf
+  Duplikate prüfen. Nur nach erfolgreicher Suche neue Issues anlegen und am Anker
+  verlinken; schlägt Suche oder Pagination fehl, keine neuen Befund-Issues anlegen.
+  Bestehende passende `type:*`- und `review:*`-Labels verwenden.
+- Quality- und CI-Ergebnisse separat mit Lauf und SHA dokumentieren.
+  Fehlgeschlagene oder nicht ausgeführte Checks weder als bestanden noch als
+  abgeschlossene Quality-Abnahme darstellen.
+- Der Review selbst repariert nichts, priorisiert oder plant nichts ein und erstellt
+  keine PRs. Keine Merges, Dispatches, Required-Check-Aktivierungen oder externen
+  Aktivierungen auslösen.
+
 ## 4. Umsetzung, Modelle und Prüfung
 
 - `Complexity` wird live gelesen und steuert angemessene Prüfung, nicht automatisch Modell oder Reasoning.
