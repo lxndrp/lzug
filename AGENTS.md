@@ -139,7 +139,8 @@ Für spätere Umsetzungen desselben Milestones genügt der vorhandene vollständ
 - Der lokale Wochenreview folgt dem dokumentierten Verfahren für feste Revisionen und hält Umfang und Abschluss im Review-Anker fest.
 Unvollständige Läufe verschieben den geprüften Ausgangsstand nicht; inkrementelle Nachweise ersetzen das vollständige Milestone-Gate nicht.
 - Review-Befunde anhand von Evidenz bestätigen, gegen vorhandene Issues abgleichen und nur sachlich passende `review:*`-Labels verwenden.
-Keine automatischen Reparaturen, Priorisierungen oder Planänderungen aus einem Review ableiten.
+Jeder neu bestätigte Befund wird danach ohne zusätzliches Opt-in-Label der unten beschriebenen Reifeprüfung für die automatische Issue-Delivery zugeführt.
+Der Review selbst bleibt read-only; Priorisierungen oder Planänderungen werden nicht abgeleitet.
 Benachrichtigungen auf neue relevante Befunde, Fehler und erforderliche Entscheidungen beschränken.
 
 ### Wöchentlicher Codebasis-Review
@@ -177,6 +178,31 @@ Benachrichtigungen auf neue relevante Befunde, Fehler und erforderliche Entschei
 - Der Review selbst repariert nichts, priorisiert oder plant nichts ein und erstellt
   keine PRs. Keine Merges, Dispatches, Required-Check-Aktivierungen oder externen
   Aktivierungen auslösen.
+- Der bestehende lokale Reviewlauf prüft jeden neu bestätigten Befund nach seiner
+  Veröffentlichung automatisch auf Umsetzungsreife; ein zusätzliches
+  `review:auto-fix`-Label ist nicht erforderlich. Review und Reparatur bleiben
+  getrennte Phasen: Der Review dokumentiert Befund und Evidenz, danach folgt die
+  reguläre Issue-Reifeprüfung und gegebenenfalls Issue-Delivery. Bei später
+  geklärten Blockern werden offene, bereits dokumentierte Befunde erneut geprüft;
+  unveränderte Blocker nicht wiederholt kommentieren.
+- Vor Änderungen müssen Ziel, Scope und Akzeptanzkriterien vollständig sein,
+  offene `needs:*`-Blocker und konkurrierende Umsetzungen fehlen und die
+  Project-Complexity belegt sein. Issue, Kommentare, Labels, Milestone,
+  Abhängigkeiten, verknüpfte PRs und erreichbare Project-Felder prüfen.
+  Fehlende Angaben oder Werte nicht erraten oder ändern. Unreife Befunde bleiben
+  offen; der konkrete fehlende Planungsinhalt wird am Issue dokumentiert.
+- Reife Befunde werden mit passendem Issue-Branch in eigenem Worktree bearbeitet.
+  Änderungen bleiben auf bestätigten Befund, betroffene Pfade und
+  Akzeptanzkriterien begrenzt. Vorhandene Arbeit wiederverwenden; Wiederholungen
+  dürfen keine PRs duplizieren oder menschliche Änderungen überschreiben.
+  Bei unklarem Scope oder fehlgeschlagenen relevanten Prüfungen keinen PR
+  erstellen und den konkreten Blocker am Issue festhalten.
+- Bei klarer Lösung und erfolgreichen relevanten Prüfungen genau einen Draft-PR
+  mit eigener Zeile `Closes #<issue>` erstellen und Änderungen, Prüfungen sowie
+  offene Grenzen dokumentieren. Bestehende CI und Codex-GitHub-Review sowie der
+  reguläre menschliche PR-Review- und Merge-Prozess bleiben maßgeblich.
+  Kein Auto-Merge, keine PR-Freigabe und keine Änderung von Priority,
+  Complexity, Schätzung, Iteration oder Milestone.
 
 ## 4. Umsetzung, Modelle und Prüfung
 

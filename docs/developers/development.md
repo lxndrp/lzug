@@ -259,8 +259,14 @@ keine Anlage neuer Befund-Issues.
 Reviewabschluss und Quality-Abnahme sind getrennte Aussagen.
 Fehlgeschlagene, übersprungene oder nicht ausgeführte CI-Prüfungen werden samt
 Lauf und Revision als solche dokumentiert und verschieben keinen Checkpoint.
-Der Wochenreview ändert keine Produktdateien und führt keine Reparaturen,
-Priorisierungen, Einplanung, PR-Erstellung oder externen Aktivierungen aus.
+Der Review bleibt read-only und erstellt selbst keine PRs. Der bestehende lokale
+Wochenlauf prüft neu bestätigte Befund-Issues anschließend automatisch auf
+Umsetzungsreife, auch ohne zusätzliches `review:auto-fix`-Label. Es gelten die
+Reifeprüfung und Liefergrenzen aus `AGENTS.md`: Unreife Befunde bleiben offen;
+reife Befunde werden in eigenem Issue-Worktree bearbeitet und können bei klarer
+Lösung sowie erfolgreichen Prüfungen genau einen Draft-PR durch den regulären
+CI- und Review-Prozess erhalten. Automatische Priorisierung, Planänderungen,
+PR-Freigabe, Merge, Deployment und externe Aktivierungen bleiben ausgeschlossen.
 
 ## Aufträge und Zuständigkeiten
 
