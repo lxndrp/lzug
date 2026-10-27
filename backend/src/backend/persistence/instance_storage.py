@@ -302,11 +302,10 @@ class SQLiteFileInstanceStorage:
                 reset = {
                     "sessions": connection.execute("DELETE FROM auth_session").rowcount,
                     "invitations": connection.execute(
-                        "DELETE FROM auth_token WHERE kind = 'invitation' "
-                        "AND consumed_at IS NULL"
+                        "DELETE FROM auth_token WHERE kind = 'invitation' AND consumed_at IS NULL"
                     ).rowcount,
                     "recovery_operations": connection.execute(
-                        "DELETE FROM auth_token WHERE kind = 'recovery' " "AND consumed_at IS NULL"
+                        "DELETE FROM auth_token WHERE kind = 'recovery' AND consumed_at IS NULL"
                     ).rowcount,
                     "recovery_codes": connection.execute("DELETE FROM auth_recovery_code").rowcount,
                     "technical_claims": connection.execute(

@@ -100,7 +100,7 @@ tasks:
   format:
     internal: true
     cmds:
-      - "{{.UV}} python -m black --check ."
+      - "{{.UV}} python -m ruff format --check ."
 
   audit:
     cmds:

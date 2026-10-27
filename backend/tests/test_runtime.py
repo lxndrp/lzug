@@ -68,8 +68,10 @@ class RuntimeCoordinatorTests(unittest.TestCase):
                 maintenance = self.pool.submit(maintain)
                 try:
                     self.wait_for(
-                        lambda: self.runtime.snapshot()["job"] is not None
-                        and self.runtime.snapshot()["job"]["status"] == "waiting"
+                        lambda: (
+                            self.runtime.snapshot()["job"] is not None
+                            and self.runtime.snapshot()["job"]["status"] == "waiting"
+                        )
                     )
                     self.assertFalse(started.is_set())
                     with self.assertRaises(RuntimeConflictError), session_scope(self.database):

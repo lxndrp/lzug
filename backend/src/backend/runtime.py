@@ -208,7 +208,9 @@ class RuntimeCoordinator:
             else (
                 "inspect_upgrade"
                 if state == RuntimeState.MIGRATION_REQUIRED
-                else "inspect_recovery" if state == RuntimeState.ERROR else "wait"
+                else "inspect_recovery"
+                if state == RuntimeState.ERROR
+                else "wait"
             )
         )
         return {
