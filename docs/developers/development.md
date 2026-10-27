@@ -235,6 +235,33 @@ Fehlt diese Unabhängigkeit, wird die Lücke benannt. PRs zur Änderung dieser R
 werden bis zum Merge nach den bestehenden Regeln abgenommen; vorgeschlagene
 Lockerungen reduzieren nicht die eigene Reviewabdeckung.
 
+### Wöchentliche Codebasis-Reviews
+
+Der vorhandene lokale Codex-Lauf bleibt der Einstiegspunkt.
+Der verbindliche Ablauf und seine Veröffentlichungsgrenzen stehen in
+`AGENTS.md` unter „Wöchentlicher Codebasis-Review“.
+
+Der Review-Anker hält den jüngsten abgeschlossenen Voll- oder inkrementellen
+Review als Checkpoint fest. Ein Lauf fixiert einen vollständigen Ziel-SHA von
+`master`, prüft Änderungen und betroffene Zusammenhänge seit dem passenden
+Checkpoint und dokumentiert Produktrevision und verwendeten Prozessstand getrennt.
+Ohne geeigneten Checkpoint wird ein vollständiger risikobasierter Review erstellt.
+Ein unveränderter Stand erhält einen nachvollziehbaren Laufnachweis, verschiebt
+aber den Checkpoint nicht.
+
+Der Ankerkommentar beschreibt Modus, Ausgangs- und Ziel-SHA, tatsächliche
+Abdeckung, Grenzen, Abschluss und verknüpfte Befunde.
+Nur bestätigte neue Befunde werden nach erfolgreichem Duplikatabgleich zu Issues.
+Diese nennen Quelle, Auslöser, Auswirkung und betroffene repositoryrelative Pfade.
+Fehlgeschlagene Suche oder Pagination ist keine Duplikatfreiheit und erlaubt
+keine Anlage neuer Befund-Issues.
+
+Reviewabschluss und Quality-Abnahme sind getrennte Aussagen.
+Fehlgeschlagene, übersprungene oder nicht ausgeführte CI-Prüfungen werden samt
+Lauf und Revision als solche dokumentiert und verschieben keinen Checkpoint.
+Der Wochenreview ändert keine Produktdateien und führt keine Reparaturen,
+Priorisierungen, Einplanung, PR-Erstellung oder externen Aktivierungen aus.
+
 ## Aufträge und Zuständigkeiten
 
 Issues enthalten Ziel, Umfang und Akzeptanzkriterien.
