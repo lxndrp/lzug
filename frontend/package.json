@@ -45,6 +45,7 @@
   },
   "private": true,
   "overrides": {
+    "vite": "~8.3.5",
     "@hey-api/json-schema-ref-parser@1.4.4": {
       "js-yaml": "4.3.2"
     }
