@@ -7,7 +7,7 @@ import tempfile
 import threading
 import unittest
 from collections.abc import Callable
-from contextlib import closing
+from contextlib import closing, contextmanager
 from datetime import UTC, datetime, time, timedelta
 from http import HTTPStatus
 from pathlib import Path
@@ -641,7 +641,6 @@ class DemoRuntimeTests(unittest.TestCase):
                     request_path=request_path,
                     token=previous_token,
                 ) as (selected_path, release_selected_generation):
-                    self.assertTrue(workspace.reset_lock.locked())
                     manager.bind(workspace, replacement_token, previous_token=previous_token)
                     reset_thread.start()
                     self.assertTrue(reset_started.wait(timeout=5))
@@ -660,6 +659,65 @@ class DemoRuntimeTests(unittest.TestCase):
             release_selected_generation()
             release_request()
             manager.discard(replacement_token)
+            self.assertFalse(workspace.path.exists())
+
+    def test_reset_transition_serializes_role_switch_until_session_binding(self) -> None:
+        with TempDatabase(seed_sql=public_demo_seed_sql()) as db_path:
+            manager = DemoWorkspaceManager(
+                self.root / "reset-role-switch-serialization",
+                ttl=timedelta(minutes=60),
+                clock=self.clock,
+                on_discard=discard_database_coordinators,
+            )
+            previous_token = "reset-before-role-switch-session"
+            reset_token = "reset-after-session-binding"
+            role_switch_token = "role-switch-after-reset-session"
+            workspace = manager.create(db_path)
+            manager.bind(workspace, previous_token)
+            request_path, release_request = manager.acquire_request(db_path, previous_token)
+            role_switch_started = threading.Event()
+            role_switch_finished = threading.Event()
+            role_switch_errors: list[BaseException] = []
+
+            def role_switch() -> None:
+                role_switch_started.set()
+                try:
+                    with manager.retain_current_generation(
+                        workspace,
+                        request_path=request_path,
+                        token=previous_token,
+                    ) as (_path, release_generation):
+                        manager.bind(workspace, role_switch_token, previous_token=previous_token)
+                        release_generation()
+                except BaseException as error:  # Propagate worker failures to the test thread.
+                    role_switch_errors.append(error)
+                finally:
+                    role_switch_finished.set()
+
+            role_switch_thread = threading.Thread(target=role_switch)
+            try:
+                with manager.serialize_session_transition(workspace):
+                    manager.reset(db_path, workspace, request_path, token=previous_token)
+                    reset_path = workspace.path
+                    role_switch_thread.start()
+                    self.assertTrue(role_switch_started.wait(timeout=5))
+                    self.assertFalse(
+                        role_switch_finished.wait(timeout=0.05),
+                        "Role switch must wait until reset binds its replacement session",
+                    )
+                    manager.bind(workspace, reset_token, previous_token=previous_token)
+            finally:
+                if role_switch_thread.ident is not None:
+                    role_switch_thread.join(timeout=5)
+
+            self.assertFalse(role_switch_thread.is_alive(), "Role-switch thread did not finish")
+            self.assertEqual(1, len(role_switch_errors))
+            self.assertIsInstance(role_switch_errors[0], DemoWorkspaceGenerationConflictError)
+            self.assertEqual(reset_path, workspace.path)
+            self.assertIs(workspace, manager.resolve(db_path, reset_token))
+            self.assertIsNone(manager.resolve(db_path, role_switch_token))
+            release_request()
+            manager.discard(reset_token)
             self.assertFalse(workspace.path.exists())
 
     def test_startup_removes_interrupted_reset_copy(self) -> None:
@@ -694,41 +752,30 @@ class DemoRuntimeTests(unittest.TestCase):
                 workspace = manager.resolve(db_path, old_token)
                 self.assertIsNotNone(workspace)
                 assert workspace is not None
-                stale_reset_ready = threading.Event()
-                resume_stale_reset = threading.Event()
-                active_reset_swapped = threading.Event()
-                resume_active_reset = threading.Event()
-                reset_call_lock = threading.Lock()
-                reset_call_count = 0
+                stale_transition_ready = threading.Event()
+                resume_stale_transition = threading.Event()
                 responses: dict[str, object] = {}
                 errors: list[BaseException] = []
-                original_reset = manager.reset
+                transition_call_lock = threading.Lock()
+                transition_call_count = 0
+                original_transition = manager.serialize_session_transition
 
-                def ordered_reset(
-                    request_base_path: Path,
-                    request_workspace,
-                    request_db_path: Path,
-                    *,
-                    token: str,
-                ) -> None:
-                    nonlocal reset_call_count
-                    with reset_call_lock:
-                        reset_call_count += 1
-                        is_stale_reset = reset_call_count == 1
-                    if is_stale_reset:
-                        stale_reset_ready.set()
-                        if not resume_stale_reset.wait(timeout=10):
-                            raise TimeoutError("Test did not release the stale reset")
-                        original_reset(
-                            request_base_path, request_workspace, request_db_path, token=token
-                        )
-                        return
-                    original_reset(
-                        request_base_path, request_workspace, request_db_path, token=token
-                    )
-                    active_reset_swapped.set()
-                    if not resume_active_reset.wait(timeout=10):
-                        raise TimeoutError("Test did not release the active reset")
+                def ordered_transition(request_workspace):
+                    nonlocal transition_call_count
+                    with transition_call_lock:
+                        transition_call_count += 1
+                        is_stale_transition = transition_call_count == 1
+
+                    @contextmanager
+                    def transition():
+                        if is_stale_transition:
+                            stale_transition_ready.set()
+                            if not resume_stale_transition.wait(timeout=10):
+                                raise TimeoutError("Test did not release the stale transition")
+                        with original_transition(request_workspace):
+                            yield
+
+                    return transition()
 
                 def post_reset(client: TestClient, name: str) -> None:
                     try:
@@ -746,27 +793,31 @@ class DemoRuntimeTests(unittest.TestCase):
                     args=(active_client, "active"),
                     name="active-reset",
                 )
-                with patch.object(manager, "reset", side_effect=ordered_reset):
+                with patch.object(
+                    manager, "serialize_session_transition", side_effect=ordered_transition
+                ):
                     stale_thread.start()
                     try:
                         self.assertTrue(
-                            stale_reset_ready.wait(timeout=5),
-                            "Second reset did not resolve the original generation",
+                            stale_transition_ready.wait(timeout=5),
+                            "Stale reset did not authenticate before the active reset",
                         )
                         active_thread.start()
-                        self.assertTrue(
-                            active_reset_swapped.wait(timeout=5),
-                            "First reset did not switch to a new generation",
+                        active_thread.join(timeout=10)
+                        self.assertFalse(active_thread.is_alive(), "Active reset did not finish")
+                        active_response = responses["active"]
+                        self.assertEqual(
+                            HTTPStatus.OK, active_response.status_code, active_response.text
                         )
                         current_path = workspace.path
                         self.assertNotEqual(old_path, current_path)
                         self.assertTrue(current_path.exists())
                         self.assertTrue(
-                            old_path.exists(), "The active reset still leases its old path"
+                            old_path.exists(), "The stale reset still leases its old path"
                         )
 
-                        resume_stale_reset.set()
-                        stale_thread.join(timeout=5)
+                        resume_stale_transition.set()
+                        stale_thread.join(timeout=10)
                         self.assertFalse(stale_thread.is_alive(), "Stale reset did not finish")
                         self.assertEqual([], errors)
                         stale_response = responses["stale"]
@@ -774,19 +825,14 @@ class DemoRuntimeTests(unittest.TestCase):
                         self.assertIn("parallel zurückgesetzt", stale_response.json()["error"])
                         self.assertEqual(current_path, workspace.path)
                         self.assertTrue(current_path.exists())
-                        self.assertTrue(old_path.exists())
                     finally:
-                        resume_stale_reset.set()
-                        resume_active_reset.set()
+                        resume_stale_transition.set()
                         if stale_thread.is_alive():
-                            stale_thread.join(timeout=5)
+                            stale_thread.join(timeout=10)
                         if active_thread.is_alive():
-                            active_thread.join(timeout=5)
+                            active_thread.join(timeout=10)
 
-                self.assertFalse(active_thread.is_alive(), "Active reset did not finish")
                 self.assertEqual([], errors)
-                active_response = responses["active"]
-                self.assertEqual(HTTPStatus.OK, active_response.status_code, active_response.text)
                 new_token = active_client.cookies.get("lzug_session")
                 self.assertNotEqual(old_token, new_token)
                 session = active_client.get("/api/session")

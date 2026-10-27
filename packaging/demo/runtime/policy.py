@@ -421,21 +421,22 @@ class DemoRuntimePolicy:
         previous_token = handler.session_token
         workspace = self._workspace(handler)
         try:
-            self.workspaces.reset(
-                self._base_path(), workspace, handler.db_path, token=previous_token
-            )
+            with self.workspaces.serialize_session_transition(workspace):
+                self.workspaces.reset(
+                    self._base_path(), workspace, handler.db_path, token=previous_token
+                )
+                handler.db_path = workspace.path
+                remaining = self.workspaces.remaining(workspace)
+                credentials = handler.authentication_repository.create_session(
+                    self.demo_roles[role_name]["account_id"], now=self.clock(), ttl=remaining
+                )
+                self.workspaces.bind(workspace, credentials.token, previous_token=previous_token)
         except DemoWorkspaceGenerationConflictError:
             handler.respond(
                 {"error": "Die Demo-Sitzung wurde parallel zurückgesetzt. Bitte erneut anmelden."},
                 HTTPStatus.CONFLICT,
             )
             return
-        handler.db_path = workspace.path
-        remaining = self.workspaces.remaining(workspace)
-        credentials = handler.authentication_repository.create_session(
-            self.demo_roles[role_name]["account_id"], now=self.clock(), ttl=remaining
-        )
-        self.workspaces.bind(workspace, credentials.token, previous_token=previous_token)
         handler.issue_session_cookies(
             credentials,
             max_age=max(1, int(remaining.total_seconds())),

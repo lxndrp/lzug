@@ -10,7 +10,7 @@ from contextlib import closing, contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from threading import Lock, RLock
+from threading import RLock
 from uuid import uuid4
 
 
@@ -35,7 +35,7 @@ class DemoWorkspace:
     discard_pending: bool = False
     active_paths: dict[Path, int] = field(default_factory=dict)
     retired_paths: set[Path] = field(default_factory=set)
-    reset_lock: Lock = field(default_factory=Lock, repr=False)
+    reset_lock: RLock = field(default_factory=RLock, repr=False)
 
 
 def _utc(value: datetime) -> datetime:
@@ -145,6 +145,12 @@ class DemoWorkspaceManager:
             request_path = workspace.path
             self._retain_path(workspace, request_path)
             return lambda: self._release_request(workspace, request_path)
+
+    @contextmanager
+    def serialize_session_transition(self, workspace: DemoWorkspace) -> Iterator[None]:
+        """Serialize a reset or role switch through its session-token binding."""
+        with workspace.reset_lock:
+            yield
 
     @contextmanager
     def retain_current_generation(
