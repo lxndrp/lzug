@@ -13,6 +13,7 @@ from urllib.request import Request, urlopen
 
 API = "https://api.github.com"
 PER_PAGE = 100
+MAX_PULL_REQUEST_FILES = 3000
 ISSUE_CLOSING_REFERENCE = re.compile(
     r"\b(?:close[sd]?|fix(?:es|ed)?|resolve[sd]?)\s+#(\d+)\b", re.IGNORECASE
 )
@@ -113,16 +114,41 @@ def check(repository: str, pull_number: int, token: str) -> list[str]:
         pull_payload.get("body"), (str, type(None))
     ):
         raise GitHubApiError(f"Pull request #{pull_number} has unreadable metadata")
+    expected_file_count = pull_payload.get("changed_files")
+    if not isinstance(expected_file_count, int) or isinstance(expected_file_count, bool):
+        raise GitHubApiError(f"Pull request #{pull_number} has an unreadable changed-file count")
+    if expected_file_count < 0:
+        raise GitHubApiError(f"Pull request #{pull_number} has an invalid changed-file count")
     body = pull_payload.get("body") or ""
     closes = {int(number) for number in ISSUE_CLOSING_REFERENCE.findall(body)}
 
     changed: list[str] = []
+    received_file_count = 0
     for page in _pages(f"{api_repo}/pulls/{pull_number}/files", token):
         for file in page:
             filename = file.get("filename")
             if not isinstance(filename, str) or not filename:
                 raise GitHubApiError(f"Pull request #{pull_number} has an unreadable changed path")
             changed.append(filename)
+            received_file_count += 1
+            if file.get("status") == "renamed":
+                previous_filename = file.get("previous_filename")
+                if not isinstance(previous_filename, str) or not previous_filename:
+                    raise GitHubApiError(
+                        f"Pull request #{pull_number} has an unreadable renamed path"
+                    )
+                changed.append(previous_filename)
+
+    if received_file_count != expected_file_count:
+        raise GitHubApiError(
+            f"Pull request #{pull_number} returned {received_file_count} changed files, "
+            f"but its metadata reports {expected_file_count} changed files"
+        )
+    if expected_file_count >= MAX_PULL_REQUEST_FILES:
+        raise GitHubApiError(
+            f"Pull request #{pull_number} has at least {MAX_PULL_REQUEST_FILES} files; "
+            "GitHub's file-list API limit prevents a complete blocker check"
+        )
 
     blockers_url = f"{api_repo}/issues?{urlencode({'state': 'open', 'labels': 'review:blocking'})}"
     failures: list[str] = []

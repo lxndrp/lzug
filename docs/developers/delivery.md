@@ -19,6 +19,8 @@ oder `Betroffene Pfade:` mit repositoryrelativen Datei- oder Verzeichnispfaden
 als Markdown-Liste enthalten.
 Ein Verzeichnis umfasst seine Nachfahren.
 Fehlende oder nicht auswertbare Pfade schlagen den Check fehl.
+GitHub liefert für die PR-Dateiliste höchstens 3000 Dateien; ab dieser Grenze
+schlägt der Check geschlossen fehl, weil die Vollständigkeit nicht belegbar ist.
 
 Der stabile Check-Name lautet `Review blockers / Review blockers`.
 Ein Maintainer kann ihn in einem Repository-Ruleset als Required Status Check
