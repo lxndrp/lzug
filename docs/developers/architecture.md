@@ -158,8 +158,21 @@ Die unterstützte Referenz ist eine einzelne Self-Hosting-Instanz mit
 `lzug-app`, Docker auf Linux und persistenter `/data`-Grenze.
 Compose ist ein optionaler knapper Docker-Referenzweg für genau diesen einen
 Service.
-Die OCI-Liefergrenze bleibt portabel; weitere konkrete Laufzeiten gehören
-dadurch nicht zum unterstützten oder geprüften Umfang.
+Die lokale Entwicklungszielauswahl gemäß
+[ADR-0043](decisions/0043-lokale-oci-runtimes-und-plattformqualifikation.md)
+ist Apple `container` auf Apple Silicon,
+rootless Podman auf Linux und `wslc` auf einem Windows-Host, mit Docker als
+Fallback bei fehlendem bevorzugtem Werkzeug.
+Diese lokale Auswahl ist von der Self-Hosting-Referenz getrennt und gilt für
+eine alternative Runtime erst nach dem realen Hostnachweis als qualifiziert.
+Jede Runtime einschließlich Docker muss für den konkreten Host und die
+Runtimeversion qualifiziert sein. Die Linux-Referenz für CI, Release und
+Self-Hosting überträgt sich nicht automatisch auf lokale Docker-Fallbacks.
+Die automatische Auswahl nutzt Docker nur, wenn die bevorzugte Runtime fehlt
+und Docker für denselben Host qualifiziert ist; eine explizite Wahl von Docker
+unterliegt derselben Prüfung.
+Eine WSL-Linux-Shell wird nach ihrer Linux-Ausführung ausgewählt und nicht
+automatisch als Windows-Host behandelt.
 TLS-Terminierung, Host-Härtung, Schlüsselverwahrung, Sicherung und
 Aufbewahrung liegen in Betreiberverantwortung und sind im
 [Betreiberanleitung](https://github.com/lxndrp/lzug/wiki/Administration) beschrieben.
