@@ -84,6 +84,11 @@ Der [Delivery-Vertrag](delivery.md#pull-request-gates) beschreibt die Auswahl
 der CI-Gates; [vollständige Quality-Evidenz](delivery.md)
 wird dort an eine feste Revision und vollständige Artefakte gebunden.
 
+Tests belegen ausführbares Verhalten und technische Verträge.
+Sie dürfen manuelle Dokumentation nicht auf Formulierungs- oder Prosa-Parität
+mit Code prüfen; Reviewer beurteilen bei relevanten Änderungen, ob die
+Dokumentation angepasst werden muss.
+
 | Änderung | Lokaler Einstieg |
 | --- | --- |
 | Backend | Betroffener Test unter `backend/tests/`; fokussiert `task backend:test:<tier>` (`unit`, `component`, `http` oder `process`), danach `task quality:backend:pr` bei breiterer Änderung |
