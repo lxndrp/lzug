@@ -2,15 +2,25 @@ from __future__ import annotations
 
 import json
 import os
+import sqlite3
 import tempfile
+import threading
 import unittest
+from collections.abc import Callable
+from contextlib import closing
 from datetime import UTC, datetime, time, timedelta
 from http import HTTPStatus
 from pathlib import Path
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
+from backend.composition import (
+    calendar_service,
+    discard_database_coordinators,
+    identity_service,
+)
 from backend.persistence.database import session_scope
 from backend.persistence.models import (
     CalendarEvent,
@@ -57,6 +67,7 @@ from demo.runtime.policy import (
 )
 from demo.runtime.seed import initialize_workdir
 from demo.runtime.validation import DemoRuntimeError
+from demo.runtime.workspaces import DemoWorkspaceManager
 
 
 class MutableClock:
@@ -370,6 +381,305 @@ class DemoRuntimeTests(unittest.TestCase):
             self.assertIsNone(client.cookies.get("lzug_session"))
             self.assertEqual(0, self.policy.workspaces.active_count(db_path))
             self.assertEqual([], list(self.policy.workspaces.root.glob("workspace-*.sqlite*")))
+
+    def test_discard_releases_database_coordinators_after_request_leases_finish(self) -> None:
+        with TempDatabase(seed_sql=public_demo_seed_sql()) as db_path:
+            manager = DemoWorkspaceManager(
+                self.root / "coordinator-lifecycle",
+                ttl=timedelta(minutes=60),
+                clock=self.clock,
+                on_discard=discard_database_coordinators,
+            )
+            initial_time = self.clock()
+
+            for index, invalidation in enumerate(("expiry", "source-reset", "expiry")):
+                self.clock.value = initial_time
+                token = f"demo-session-{index}"
+                workspace = manager.create(db_path)
+                manager.bind(workspace, token)
+                first_path, release_first = manager.acquire_request(db_path, token)
+                second_path, release_second = manager.acquire_request(db_path, token)
+                self.assertEqual(workspace.path, first_path)
+                self.assertEqual(first_path, second_path)
+
+                first_calendar = calendar_service(first_path, time_zone=TIME_ZONE.key)
+                second_calendar = calendar_service(second_path, time_zone=TIME_ZONE.key)
+                first_identity = identity_service(first_path)
+                second_identity = identity_service(second_path)
+                self.assertIs(first_calendar._feed_coordinator, second_calendar._feed_coordinator)
+                self.assertIs(
+                    first_calendar._identity_scope_coordinator,
+                    second_calendar._identity_scope_coordinator,
+                )
+                self.assertIs(
+                    first_identity.unit_of_work_factory.scope_coordinator,
+                    second_identity.unit_of_work_factory.scope_coordinator,
+                )
+
+                if invalidation == "expiry":
+                    self.clock.advance(timedelta(minutes=60, seconds=1))
+                else:
+                    stat = db_path.stat()
+                    os.utime(db_path, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000))
+                rejected_path, rejected_release = manager.acquire_request(db_path, token)
+                self.assertEqual(db_path, rejected_path)
+                self.assertIsNone(manager.resolve(db_path, token))
+                self.assertIsNone(manager.resolve_for_request(db_path, db_path, token))
+                self.assertIs(
+                    workspace,
+                    manager.resolve_for_request(db_path, first_path, token),
+                )
+                self.assertTrue(workspace.path.exists())
+                self.assertIs(
+                    first_calendar._feed_coordinator,
+                    calendar_service(first_path, time_zone=TIME_ZONE.key)._feed_coordinator,
+                )
+                rejected_release()
+
+                release_first()
+                self.assertTrue(workspace.path.exists())
+                release_second()
+                self.assertFalse(workspace.path.exists())
+
+                replacement = calendar_service(first_path, time_zone=TIME_ZONE.key)
+                replacement_identity = identity_service(first_path)
+                self.assertIsNot(first_calendar._feed_coordinator, replacement._feed_coordinator)
+                self.assertIsNot(
+                    first_calendar._identity_scope_coordinator,
+                    replacement._identity_scope_coordinator,
+                )
+                self.assertIsNot(
+                    first_identity.unit_of_work_factory.scope_coordinator,
+                    replacement_identity.unit_of_work_factory.scope_coordinator,
+                )
+
+    def test_reset_swaps_generation_without_invalidating_parallel_requests(self) -> None:
+        with TempDatabase(seed_sql=public_demo_seed_sql()) as db_path:
+            manager = DemoWorkspaceManager(
+                self.root / "reset-generations",
+                ttl=timedelta(minutes=60),
+                clock=self.clock,
+                on_discard=discard_database_coordinators,
+            )
+            token = "reset-generation-session"
+            workspace = manager.create(db_path)
+            manager.bind(workspace, token)
+            old_path, release_first = manager.acquire_request(db_path, token)
+            second_path, release_second = manager.acquire_request(db_path, token)
+            self.assertEqual(old_path, second_path)
+            with closing(sqlite3.connect(old_path)) as connection, connection:
+                connection.execute("CREATE TABLE active_request_marker (value TEXT)")
+                connection.execute(
+                    "INSERT INTO active_request_marker (value) VALUES (?)", ("preserved",)
+                )
+
+            old_calendar = calendar_service(old_path, time_zone=TIME_ZONE.key)
+            clone_started = threading.Event()
+            resume_clone = threading.Event()
+            request_acquired = threading.Event()
+            request_result: list[tuple[Path, Callable[[], None]]] = []
+            reset_errors: list[BaseException] = []
+            original_clone = DemoWorkspaceManager._clone
+
+            def paused_clone(source: Path, target: Path) -> None:
+                clone_started.set()
+                if not resume_clone.wait(timeout=5):
+                    raise TimeoutError("Test did not release the reset clone")
+                original_clone(source, target)
+
+            def reset_workspace() -> None:
+                try:
+                    manager.reset(db_path, workspace, old_path)
+                except BaseException as error:  # Propagate worker failures to the test thread.
+                    reset_errors.append(error)
+
+            def acquire_during_reset() -> None:
+                request_result.append(manager.acquire_request(db_path, token))
+                request_acquired.set()
+
+            with patch.object(DemoWorkspaceManager, "_clone", side_effect=paused_clone):
+                reset_thread = threading.Thread(target=reset_workspace)
+                reset_thread.start()
+                self.assertTrue(clone_started.wait(timeout=5), "Reset did not start cloning")
+                request_thread = threading.Thread(target=acquire_during_reset)
+                request_thread.start()
+                try:
+                    self.assertTrue(
+                        request_acquired.wait(timeout=5),
+                        "Reset blocked an unrelated request while cloning the new generation",
+                    )
+                finally:
+                    resume_clone.set()
+                reset_thread.join(timeout=5)
+                request_thread.join(timeout=5)
+
+            self.assertFalse(reset_thread.is_alive(), "Reset thread did not finish")
+            self.assertFalse(request_thread.is_alive(), "Request thread did not finish")
+            self.assertEqual([], reset_errors)
+            self.assertEqual(1, len(request_result))
+            during_reset_path, release_during_reset = request_result[0]
+            self.assertEqual(old_path, during_reset_path)
+
+            new_path = workspace.path
+            self.assertNotEqual(old_path, new_path)
+            self.assertTrue(old_path.exists())
+            self.assertTrue(new_path.exists())
+            with closing(sqlite3.connect(old_path)) as connection, connection:
+                self.assertEqual(
+                    ("preserved",),
+                    connection.execute("SELECT value FROM active_request_marker").fetchone(),
+                )
+            with closing(sqlite3.connect(new_path)) as connection, connection:
+                self.assertIsNone(
+                    connection.execute(
+                        "SELECT name FROM sqlite_master WHERE name = 'active_request_marker'"
+                    ).fetchone()
+                )
+
+            current_path, release_current = manager.acquire_request(db_path, token)
+            self.assertEqual(new_path, current_path)
+            self.assertIs(
+                old_calendar._feed_coordinator,
+                calendar_service(old_path, time_zone=TIME_ZONE.key)._feed_coordinator,
+            )
+            current_calendar = calendar_service(new_path, time_zone=TIME_ZONE.key)
+
+            release_first()
+            self.assertTrue(old_path.exists())
+            release_second()
+            self.assertTrue(old_path.exists())
+            release_during_reset()
+            self.assertFalse(old_path.exists())
+            self.assertTrue(new_path.exists())
+            self.assertIsNot(
+                old_calendar._feed_coordinator,
+                calendar_service(old_path, time_zone=TIME_ZONE.key)._feed_coordinator,
+            )
+            self.assertIs(
+                current_calendar._feed_coordinator,
+                calendar_service(new_path, time_zone=TIME_ZONE.key)._feed_coordinator,
+            )
+
+            release_current()
+            manager.discard(token)
+            self.assertFalse(new_path.exists())
+
+    def test_stale_parallel_reset_cannot_replace_active_reset_generation(self) -> None:
+        self.policy = self._policy(suffix="parallel-reset-generations")
+        with (
+            TempDatabase(seed_sql=public_demo_seed_sql()) as db_path,
+            ApiServer(db_path, DemoTestHandler) as api,
+        ):
+            active_client = self._client(api)
+            with TestClient(active_client.app, base_url="http://127.0.0.1") as stale_client:
+                self._role(active_client, "chair")
+                old_token = active_client.cookies.get("lzug_session")
+                old_csrf = active_client.cookies.get("lzug_csrf")
+                stale_client.cookies.set("lzug_session", old_token)
+                stale_client.cookies.set("lzug_csrf", old_csrf)
+                old_path = self._workspace_path(db_path, active_client)
+                stale_path = self._workspace_path(db_path, stale_client)
+                self.assertEqual(old_path, stale_path)
+
+                manager = self.policy.workspaces
+                workspace = manager.resolve(db_path, old_token)
+                self.assertIsNotNone(workspace)
+                assert workspace is not None
+                stale_reset_ready = threading.Event()
+                resume_stale_reset = threading.Event()
+                active_reset_swapped = threading.Event()
+                resume_active_reset = threading.Event()
+                reset_call_lock = threading.Lock()
+                reset_call_count = 0
+                responses: dict[str, object] = {}
+                errors: list[BaseException] = []
+                original_reset = manager.reset
+
+                def ordered_reset(
+                    request_base_path: Path,
+                    request_workspace,
+                    request_db_path: Path,
+                ) -> None:
+                    nonlocal reset_call_count
+                    with reset_call_lock:
+                        reset_call_count += 1
+                        is_stale_reset = reset_call_count == 1
+                    if is_stale_reset:
+                        stale_reset_ready.set()
+                        if not resume_stale_reset.wait(timeout=10):
+                            raise TimeoutError("Test did not release the stale reset")
+                        original_reset(request_base_path, request_workspace, request_db_path)
+                        return
+                    original_reset(request_base_path, request_workspace, request_db_path)
+                    active_reset_swapped.set()
+                    if not resume_active_reset.wait(timeout=10):
+                        raise TimeoutError("Test did not release the active reset")
+
+                def post_reset(client: TestClient, name: str) -> None:
+                    try:
+                        responses[name] = self._write(client, "POST", "/api/demo/reset", {})
+                    except BaseException as error:  # Propagate worker failures to the test thread.
+                        errors.append(error)
+
+                stale_thread = threading.Thread(
+                    target=post_reset,
+                    args=(stale_client, "stale"),
+                    name="stale-reset",
+                )
+                active_thread = threading.Thread(
+                    target=post_reset,
+                    args=(active_client, "active"),
+                    name="active-reset",
+                )
+                with patch.object(manager, "reset", side_effect=ordered_reset):
+                    stale_thread.start()
+                    try:
+                        self.assertTrue(
+                            stale_reset_ready.wait(timeout=5),
+                            "Second reset did not resolve the original generation",
+                        )
+                        active_thread.start()
+                        self.assertTrue(
+                            active_reset_swapped.wait(timeout=5),
+                            "First reset did not switch to a new generation",
+                        )
+                        current_path = workspace.path
+                        self.assertNotEqual(old_path, current_path)
+                        self.assertTrue(current_path.exists())
+                        self.assertTrue(
+                            old_path.exists(), "The active reset still leases its old path"
+                        )
+
+                        resume_stale_reset.set()
+                        stale_thread.join(timeout=5)
+                        self.assertFalse(stale_thread.is_alive(), "Stale reset did not finish")
+                        self.assertEqual([], errors)
+                        stale_response = responses["stale"]
+                        self.assertEqual(HTTPStatus.CONFLICT, stale_response.status_code)
+                        self.assertIn("parallel zurückgesetzt", stale_response.json()["error"])
+                        self.assertEqual(current_path, workspace.path)
+                        self.assertTrue(current_path.exists())
+                        self.assertTrue(old_path.exists())
+                    finally:
+                        resume_stale_reset.set()
+                        resume_active_reset.set()
+                        if stale_thread.is_alive():
+                            stale_thread.join(timeout=5)
+                        if active_thread.is_alive():
+                            active_thread.join(timeout=5)
+
+                self.assertFalse(active_thread.is_alive(), "Active reset did not finish")
+                self.assertEqual([], errors)
+                active_response = responses["active"]
+                self.assertEqual(HTTPStatus.OK, active_response.status_code, active_response.text)
+                new_token = active_client.cookies.get("lzug_session")
+                self.assertNotEqual(old_token, new_token)
+                session = active_client.get("/api/session")
+                self.assertEqual(HTTPStatus.OK, session.status_code, session.text)
+                self.assertEqual("chair", session.json()["demo_role"])
+                self.assertIs(workspace, manager.resolve(db_path, new_token))
+                self.assertFalse(old_path.exists())
+                self.assertTrue(workspace.path.exists())
 
     def test_isolation_capacity_reset_logout_expiry_and_system_reset(self) -> None:
         self.policy = self._policy(capacity=2, suffix="isolation")

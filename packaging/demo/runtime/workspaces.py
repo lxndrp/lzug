@@ -10,12 +10,16 @@ from contextlib import closing
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from threading import RLock
+from threading import Lock, RLock
 from uuid import uuid4
 
 
 class DemoWorkspaceCapacityError(RuntimeError):
     """Signal that no isolated demo workspace can be allocated."""
+
+
+class DemoWorkspaceGenerationConflictError(RuntimeError):
+    """Signal that a request tries to reset a superseded workspace generation."""
 
 
 @dataclass
@@ -27,6 +31,11 @@ class DemoWorkspace:
     expires_at: datetime
     source_signature: tuple[int, int, int, int]
     token_digests: set[str] = field(default_factory=set)
+    active_requests: int = 0
+    discard_pending: bool = False
+    active_paths: dict[Path, int] = field(default_factory=dict)
+    retired_paths: set[Path] = field(default_factory=set)
+    reset_lock: Lock = field(default_factory=Lock, repr=False)
 
 
 def _utc(value: datetime) -> datetime:
@@ -43,6 +52,7 @@ class DemoWorkspaceManager:
         ttl: timedelta = timedelta(minutes=60),
         capacity: int = 32,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+        on_discard: Callable[[Path], None] = lambda _path: None,
     ) -> None:
         if ttl <= timedelta(0):
             raise ValueError("Demo workspace lifetime must be positive")
@@ -52,6 +62,7 @@ class DemoWorkspaceManager:
         self.ttl = ttl
         self.capacity = capacity
         self.clock = clock
+        self.on_discard = on_discard
         self._lock = RLock()
         self._by_token: dict[str, DemoWorkspace] = {}
         self._workspaces: dict[Path, DemoWorkspace] = {}
@@ -92,9 +103,48 @@ class DemoWorkspaceManager:
             now = _utc(self.clock())
             self._cleanup(now, base_db_path)
             workspace = self._by_token.get(self._digest(token))
-            if workspace is None or workspace.expires_at <= now:
+            return None if workspace is None or workspace.discard_pending else workspace
+
+    def resolve_for_request(
+        self,
+        base_db_path: Path,
+        request_db_path: Path,
+        token: str | None,
+    ) -> DemoWorkspace | None:
+        """Resolve a workspace already leased by this request, including pending discard."""
+        if not token:
+            return None
+        with self._lock:
+            self._cleanup(_utc(self.clock()), base_db_path)
+            workspace = self._by_token.get(self._digest(token))
+            if workspace is None or workspace.active_paths.get(request_db_path, 0) == 0:
                 return None
             return workspace
+
+    def acquire_request(
+        self, base_db_path: Path, token: str | None
+    ) -> tuple[Path, Callable[[], None]]:
+        """Lease a live workspace until the complete HTTP request has finished."""
+        if not token:
+            return base_db_path, lambda: None
+        with self._lock:
+            now = _utc(self.clock())
+            self._cleanup(now, base_db_path)
+            workspace = self._by_token.get(self._digest(token))
+            if workspace is None or workspace.discard_pending or workspace.expires_at <= now:
+                return base_db_path, lambda: None
+            request_path = workspace.path
+            self._retain_path(workspace, request_path)
+            return request_path, lambda: self._release_request(workspace, request_path)
+
+    def retain(self, workspace: DemoWorkspace) -> Callable[[], None]:
+        """Lease a newly allocated workspace for the request that created it."""
+        with self._lock:
+            if self._workspaces.get(workspace.path) is not workspace or workspace.discard_pending:
+                raise RuntimeError("Demo workspace cannot be retained after discard")
+            request_path = workspace.path
+            self._retain_path(workspace, request_path)
+            return lambda: self._release_request(workspace, request_path)
 
     def bind(
         self,
@@ -120,23 +170,76 @@ class DemoWorkspaceManager:
         self,
         base_db_path: Path,
         workspace: DemoWorkspace,
+        request_path: Path,
     ) -> None:
-        """Atomically replace domain state while preserving the absolute expiry."""
-        with self._lock:
-            now = _utc(self.clock())
-            if workspace.expires_at <= now:
-                self._discard(workspace)
-                raise RuntimeError("Demo workspace has expired")
-            if workspace.source_signature != self._signature(base_db_path):
-                self._discard(workspace)
-                raise RuntimeError("Demo workspace was invalidated by the system reset")
-            temporary = workspace.path.with_suffix(f".{uuid4().hex}.tmp")
+        """Swap in a fresh generation while existing requests finish on the old path."""
+        with workspace.reset_lock:
+            with self._lock:
+                if (
+                    request_path != workspace.path
+                    or workspace.active_paths.get(request_path, 0) == 0
+                ):
+                    raise DemoWorkspaceGenerationConflictError(
+                        "Demo workspace generation changed before reset"
+                    )
+                now = _utc(self.clock())
+                if workspace.expires_at <= now:
+                    self._discard(workspace)
+                    raise RuntimeError("Demo workspace has expired")
+                if workspace.source_signature != self._signature(base_db_path):
+                    self._discard(workspace)
+                    raise RuntimeError("Demo workspace was invalidated by the system reset")
+                if (
+                    self._workspaces.get(workspace.path) is not workspace
+                    or workspace.discard_pending
+                ):
+                    raise RuntimeError("Demo workspace is unavailable")
+                old_path = workspace.path
+
+            new_path = self.root / f"workspace-{uuid4().hex}.sqlite"
+            temporary = new_path.with_suffix(f".{uuid4().hex}.tmp")
+            swapped = False
             try:
+                # Copy outside the manager lock so unrelated requests can keep
+                # acquiring their current generation while reset prepares a new one.
                 self._clone(base_db_path, temporary)
-                self._delete_sidecars(workspace.path)
-                os.replace(temporary, workspace.path)
-                workspace.path.chmod(0o600)
-            finally:
+                os.replace(temporary, new_path)
+                new_path.chmod(0o600)
+                with self._lock:
+                    now = _utc(self.clock())
+                    if workspace.expires_at <= now:
+                        self._discard(workspace)
+                        raise RuntimeError("Demo workspace has expired")
+                    if workspace.source_signature != self._signature(base_db_path):
+                        self._discard(workspace)
+                        raise RuntimeError("Demo workspace was invalidated by the system reset")
+                    if (
+                        request_path != workspace.path
+                        or workspace.active_paths.get(request_path, 0) == 0
+                    ):
+                        raise DemoWorkspaceGenerationConflictError(
+                            "Demo workspace generation changed while reset was prepared"
+                        )
+                    if (
+                        self._workspaces.get(old_path) is not workspace
+                        or workspace.path != old_path
+                        or workspace.discard_pending
+                    ):
+                        raise RuntimeError("Demo workspace changed while it was reset")
+                    self._workspaces.pop(old_path)
+                    workspace.path = new_path
+                    self._workspaces[new_path] = workspace
+                    swapped = True
+                    if workspace.active_paths.get(old_path, 0):
+                        workspace.retired_paths.add(old_path)
+                    else:
+                        self._delete_retired_path(workspace, old_path)
+            except Exception:
+                self._delete_artifacts(temporary)
+                if not swapped:
+                    self._delete_artifacts(new_path)
+                raise
+            else:
                 self._delete_artifacts(temporary)
 
     def discard(self, token: str | None) -> None:
@@ -165,11 +268,52 @@ class DemoWorkspaceManager:
                 self._discard(workspace)
 
     def _discard(self, workspace: DemoWorkspace) -> None:
+        workspace.discard_pending = True
+        if workspace.active_requests == 0:
+            self._finish_discard(workspace)
+
+    @staticmethod
+    def _retain_path(workspace: DemoWorkspace, request_path: Path) -> None:
+        workspace.active_requests += 1
+        workspace.active_paths[request_path] = workspace.active_paths.get(request_path, 0) + 1
+
+    def _release_request(self, workspace: DemoWorkspace, request_path: Path) -> None:
+        with self._lock:
+            active_for_path = workspace.active_paths.get(request_path, 0)
+            if workspace.active_requests <= 0 or active_for_path <= 0:
+                raise RuntimeError("Demo workspace request lease was released more than once")
+            workspace.active_requests -= 1
+            if active_for_path == 1:
+                del workspace.active_paths[request_path]
+            else:
+                workspace.active_paths[request_path] = active_for_path - 1
+            if (
+                request_path in workspace.retired_paths
+                and request_path not in workspace.active_paths
+            ):
+                self._delete_retired_path(workspace, request_path)
+            if workspace.discard_pending and workspace.active_requests == 0:
+                self._finish_discard(workspace)
+
+    def _delete_retired_path(self, workspace: DemoWorkspace, path: Path) -> None:
+        if workspace.active_paths.get(path, 0):
+            return
+        workspace.retired_paths.discard(path)
+        self._delete_artifacts(path)
+        self.on_discard(path)
+
+    def _finish_discard(self, workspace: DemoWorkspace) -> None:
+        if self._workspaces.get(workspace.path) is not workspace:
+            return
         for digest in tuple(workspace.token_digests):
             self._by_token.pop(digest, None)
         workspace.token_digests.clear()
         self._workspaces.pop(workspace.path, None)
-        self._delete_artifacts(workspace.path)
+        paths = {*workspace.retired_paths, workspace.path}
+        workspace.retired_paths.clear()
+        for path in paths:
+            self._delete_artifacts(path)
+            self.on_discard(path)
 
     def _remove_orphans(self) -> None:
         """Remove inaccessible copies left behind by a previous runtime process."""
