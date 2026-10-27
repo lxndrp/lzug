@@ -114,6 +114,21 @@ def _snapshot_id(value: object) -> int:
     return value
 
 
+def _has_valid_assignment_snapshots(assignments: object) -> bool:
+    if not isinstance(assignments, list):
+        return False
+    return all(
+        isinstance(assignment, dict)
+        and all(
+            isinstance(assignment.get(key), int)
+            and not isinstance(assignment.get(key), bool)
+            and assignment[key] > 0
+            for key in ("assignment_id", "recipient_member_id", "committee_id")
+        )
+        for assignment in assignments
+    )
+
+
 def is_valid_venue_consequence_snapshot(details: object, entity_type: str) -> bool:
     if not isinstance(details, dict) or entity_type not in {"room", "venue"}:
         return False
@@ -149,19 +164,7 @@ def is_valid_venue_consequence_snapshot(details: object, entity_type: str) -> bo
         return False
     if not isinstance(details.get("meaningful_change"), bool):
         return False
-    assignments = details.get("assignments")
-    if not isinstance(assignments, list):
-        return False
-    return all(
-        isinstance(assignment, dict)
-        and all(
-            isinstance(assignment.get(key), int)
-            and not isinstance(assignment.get(key), bool)
-            and assignment[key] > 0
-            for key in ("assignment_id", "recipient_member_id", "committee_id")
-        )
-        for assignment in assignments
-    )
+    return _has_valid_assignment_snapshots(details.get("assignments"))
 
 
 class PlanningVenueConsequencePlanner:

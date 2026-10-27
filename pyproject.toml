@@ -27,7 +27,6 @@ dev = [
   "jsonschema>=4.24.0,<5.0.0",
   "pip-audit>=2.9.0,<3.0",
   "ruff>=0.16.2",
-  "black>=24.0.0",
   "mypy>=1.19,<3",
 ]
 
@@ -72,6 +71,7 @@ where = ["backend/src"]
 [tool.ruff]
 line-length = 100
 target-version = "py314"
+include = ["*.py", "*.pyi"]
 exclude = [".venv", "dist", "build", ".git", "__pycache__"]
 
 [tool.ruff.lint]
@@ -86,19 +86,6 @@ known-first-party = ["backend", "demo", "fixtures", "scripts", "tests"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 10
-
-[tool.black]
-line-length = 100
-target-version = ["py314"]
-include = '\.pyi?$'
-extend-exclude = '''
-/(
-  \.venv
-  | dist
-  | build
-  | \.git
-)/
-'''
 
 [tool.mypy]
 files = [

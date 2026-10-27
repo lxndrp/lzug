@@ -107,7 +107,7 @@ ALLOWED_PACKAGE_DEPENDENCIES = {
     "identity": frozenset(),
     "integrations": frozenset({"documents", "identity", "notifications", "persistence"}),
     "notifications": frozenset(),
-    "operations": frozenset({"documents", "identity", "integrations", "persistence"}),
+    "operations": frozenset({"documents", "identity", "persistence"}),
     "persistence": frozenset({"calendar", "documents", "execution", "identity", "notifications"}),
     "presentation": frozenset(),
     "planning": frozenset({"calendar", "notifications"}),
@@ -408,6 +408,20 @@ def _is_protocol_base(base: ast.expr, import_targets: dict[str, str]) -> bool:
 
 
 class BackendPackageBoundaryTests(unittest.TestCase):
+    def test_http_resource_adapters_do_not_import_persistence_models(self) -> None:
+        adapters = (
+            "http_resources.py",
+            "http_transport.py",
+            "http_hateoas.py",
+            "fastapi_master_data.py",
+            "fastapi_planning_router.py",
+            "fastapi_execution.py",
+        )
+        for relative in adapters:
+            imports = _imported_modules(BACKEND_ROOT / relative, BACKEND_ROOT)
+            with self.subTest(module=relative):
+                self.assertNotIn("backend.persistence.models", imports)
+
     def test_runtime_port_contract_rejects_nested_sqlalchemy_values(self) -> None:
         @dataclass
         class Result:

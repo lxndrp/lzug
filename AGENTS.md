@@ -155,6 +155,22 @@ Sandboxfehler, Berechtigungen und CI-Wartezeit sind keine Modelleskalation.
 Akzeptanzkriterien und beobachtbares Laufzeitverhalten belegen.
 Werkzeugmigration, Wortlautprüfungen, Wrapper oder verschobener Code allein erfüllen keinen Vereinfachungsauftrag.
 Bei Rückbau entfallene Eigenlogik und erhaltenes Verhalten dokumentieren.
+
+### Leiter zur Lösungsauswahl
+
+Wende bei jeder Umsetzung diese Leiter an, ohne bestätigte Anforderungen oder
+Akzeptanzkriterien zu relativieren:
+
+1. Ist das bestätigte Ziel bereits durch vorhandenes Verhalten erfüllt?
+2. Können vorhandene Projektfunktionen oder -muster den Auftrag vollständig erfüllen?
+3. Kann ein Standard- oder Plattformmittel den Auftrag vertragskonform erfüllen?
+4. Kann eine bereits vorhandene Abhängigkeit den Bedarf passend erfüllen?
+5. Andernfalls implementiere die kleinste klare Lösung, die den Auftrag vollständig erfüllt.
+
+Ergänze keine unangeforderten Funktionen, Optionen, Abstraktionen, Wrapper,
+Konfigurationen, Abhängigkeiten oder Zukunftsflexibilität.
+Kürze nicht auf Kosten von Verständlichkeit, Randfallkorrektheit, Sicherheit,
+Fehlerbehandlung oder erhaltenen Verträgen.
 - Commit-Nachrichten sind Englisch; deutsche Prosa verwendet korrekte Umlaute.
 Eigene Markdown-Prosa verwendet Semantic Line Breaks; Tabellen, Listenstruktur, Codeblöcke, Front Matter, URLs und technische Zeichenketten unverändert lassen.
 Drittmaterial, Lizenztexte und generierte Inhalte nicht rein redaktionell umbrechen.

@@ -28,7 +28,12 @@ from .scenarios import (
     scenario_overview,
 )
 from .validation import load_runtime_manifests, load_runtime_status
-from .workspaces import DemoWorkspace, DemoWorkspaceCapacityError, DemoWorkspaceManager
+from .workspaces import (
+    DemoWorkspace,
+    DemoWorkspaceCapacityError,
+    DemoWorkspaceGenerationConflictError,
+    DemoWorkspaceManager,
+)
 
 ROLE_NAMES = frozenset({"chair", "examiner", "replacement"})
 
@@ -177,6 +182,7 @@ class DemoRuntimePolicy:
         capacity: int | None = None,
         settings: RuntimeSettings | None = None,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+        on_workspace_discard: Callable[[Path], None] = lambda _path: None,
     ):
         self.app_manifest, self.seed_manifest = load_runtime_manifests(
             app_manifest_path, seed_manifest_path
@@ -196,6 +202,7 @@ class DemoRuntimePolicy:
             ttl=timedelta(minutes=60),
             capacity=configured_capacity,
             clock=clock,
+            on_discard=on_workspace_discard,
         )
         self.base_db_path: Path | None = None
 
@@ -230,7 +237,7 @@ class DemoRuntimePolicy:
             return True
         if path_parts == ["demo", "scenarios"]:
             context = handler.require_authenticated()
-            workspace = self._workspace(handler.session_token)
+            workspace = self._workspace(handler)
             role = self._role_name(context)
             handler.respond(
                 scenario_overview(
@@ -262,13 +269,19 @@ class DemoRuntimePolicy:
         workspace = self.workspaces.resolve(base_db_path, session_token)
         return workspace.path if workspace is not None else base_db_path
 
+    def acquire_database_for_request(
+        self, base_db_path: Path, session_token: str | None
+    ) -> tuple[Path, Callable[[], None]]:
+        self.base_db_path = base_db_path
+        return self.workspaces.acquire_request(base_db_path, session_token)
+
     def external_notifications_enabled(self) -> bool:
         return False
 
     def session_view(self, handler: RequestContext, context: AuthContext) -> dict:
         role_name = self._role_name(context)
         role = self.demo_roles[role_name]
-        workspace = self._workspace(handler.session_token)
+        workspace = self._workspace(handler)
         return {
             "demo_role": role_name,
             "display_name": role["display_name"],
@@ -319,7 +332,11 @@ class DemoRuntimePolicy:
             return
         base_db_path = self._base_path()
         previous_token = handler.session_token
-        workspace = self.workspaces.resolve(base_db_path, previous_token)
+        workspace = self.workspaces.resolve_for_request(
+            base_db_path,
+            handler.db_path,
+            previous_token,
+        )
         workspace_created = workspace is None
         if workspace is None:
             try:
@@ -330,23 +347,60 @@ class DemoRuntimePolicy:
                     HTTPStatus.SERVICE_UNAVAILABLE,
                 )
                 return
+            handler.add_request_cleanup(self.workspaces.retain(workspace))
+            workspace_path = workspace.path
         else:
             handler.require_authenticated(require_actor=False, require_csrf=True)
-            handler.authentication_repository.revoke_session(previous_token, reason="role-switch")
-        handler.db_path = workspace.path
-        remaining = self.workspaces.remaining(workspace)
-        try:
-            credentials = handler.authentication_repository.create_session(
-                role["account_id"], now=self.clock(), ttl=remaining
-            )
-        except AuthenticationError:
-            if workspace_created:
+            try:
+                with self.workspaces.retain_current_generation(
+                    workspace,
+                    request_path=handler.db_path,
+                    token=previous_token,
+                ) as (workspace_path, release_generation):
+                    handler.add_request_cleanup(release_generation)
+                    handler.authentication_repository.revoke_session(
+                        previous_token, reason="role-switch"
+                    )
+                    handler.db_path = workspace_path
+                    remaining = self.workspaces.remaining(workspace)
+                    try:
+                        credentials = handler.authentication_repository.create_session(
+                            role["account_id"], now=self.clock(), ttl=remaining
+                        )
+                    except AuthenticationError:
+                        self.workspaces.discard(previous_token)
+                        handler.respond(
+                            {"error": "Demo role is unavailable."},
+                            HTTPStatus.SERVICE_UNAVAILABLE,
+                        )
+                        return
+                    self.workspaces.bind(
+                        workspace, credentials.token, previous_token=previous_token
+                    )
+            except DemoWorkspaceGenerationConflictError:
+                handler.respond(
+                    {
+                        "error": (
+                            "Die Demo-Sitzung wurde parallel zurückgesetzt. Bitte erneut anmelden."
+                        )
+                    },
+                    HTTPStatus.CONFLICT,
+                )
+                return
+        if workspace_created:
+            handler.db_path = workspace_path
+            remaining = self.workspaces.remaining(workspace)
+            try:
+                credentials = handler.authentication_repository.create_session(
+                    role["account_id"], now=self.clock(), ttl=remaining
+                )
+            except AuthenticationError:
                 self.workspaces.discard_workspace(workspace)
-            else:
-                self.workspaces.discard(previous_token)
-            handler.respond({"error": "Demo role is unavailable."}, HTTPStatus.SERVICE_UNAVAILABLE)
-            return
-        self.workspaces.bind(workspace, credentials.token, previous_token=previous_token)
+                handler.respond(
+                    {"error": "Demo role is unavailable."}, HTTPStatus.SERVICE_UNAVAILABLE
+                )
+                return
+            self.workspaces.bind(workspace, credentials.token, previous_token=previous_token)
         handler.issue_session_cookies(
             credentials,
             max_age=max(1, int(remaining.total_seconds())),
@@ -365,14 +419,24 @@ class DemoRuntimePolicy:
         context = handler.require_authenticated(require_csrf=True)
         role_name = self._role_name(context)
         previous_token = handler.session_token
-        workspace = self._workspace(previous_token)
-        self.workspaces.reset(self._base_path(), workspace)
-        handler.db_path = workspace.path
-        remaining = self.workspaces.remaining(workspace)
-        credentials = handler.authentication_repository.create_session(
-            self.demo_roles[role_name]["account_id"], now=self.clock(), ttl=remaining
-        )
-        self.workspaces.bind(workspace, credentials.token, previous_token=previous_token)
+        workspace = self._workspace(handler)
+        try:
+            with self.workspaces.serialize_session_transition(workspace):
+                self.workspaces.reset(
+                    self._base_path(), workspace, handler.db_path, token=previous_token
+                )
+                handler.db_path = workspace.path
+                remaining = self.workspaces.remaining(workspace)
+                credentials = handler.authentication_repository.create_session(
+                    self.demo_roles[role_name]["account_id"], now=self.clock(), ttl=remaining
+                )
+                self.workspaces.bind(workspace, credentials.token, previous_token=previous_token)
+        except DemoWorkspaceGenerationConflictError:
+            handler.respond(
+                {"error": "Die Demo-Sitzung wurde parallel zurückgesetzt. Bitte erneut anmelden."},
+                HTTPStatus.CONFLICT,
+            )
+            return
         handler.issue_session_cookies(
             credentials,
             max_age=max(1, int(remaining.total_seconds())),
@@ -503,8 +567,12 @@ class DemoRuntimePolicy:
                 is not None
             )
 
-    def _workspace(self, token: str | None) -> DemoWorkspace:
-        workspace = self.workspaces.resolve(self._base_path(), token)
+    def _workspace(self, handler: RequestContext) -> DemoWorkspace:
+        workspace = self.workspaces.resolve_for_request(
+            self._base_path(),
+            handler.db_path,
+            handler.session_token,
+        )
         if workspace is None:
             raise ForbiddenRequestError("Demo workspace is unavailable or expired.")
         return workspace

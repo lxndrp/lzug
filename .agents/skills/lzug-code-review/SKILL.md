@@ -36,8 +36,12 @@ Lade nur die Referenzen für die betroffenen Komponenten:
 
 Verfolge für einen Befund den konkreten Aufrufer, die fehlerhafte Operation und die sichtbare Folge.
 Berücksichtige Normal-, Fehler-, Abbruch-, Wiederholungs- und Parallelitätsfälle, soweit der betroffene Vertrag sie zulässt.
-Bevorzuge native Sprach- und Frameworkmittel, wenn sie den konkreten Vertrag einfacher und verlässlich erfüllen.
-Eine eigene Abstraktion oder ein Wrapper ist erst dann ein Befund, wenn sein Nachteil oder Fehlverhalten belegbar ist.
+Bewerte Implementierungsalternativen entlang der Lösungsauswahl-Leiter in
+`AGENTS.md`: vorhandenes Projektverhalten und -muster, Standard-/Plattformmittel,
+bereits vorhandene Abhängigkeiten und erst danach neue Eigenlogik.
+Ein übersprungener Schritt oder eine zusätzliche Abstraktion ist nur dann ein
+Befund, wenn daraus ein konkreter Vertragsnachteil oder zusätzlicher
+Änderungs-/Wartungsaufwand entsteht.
 
 Prüfe fachliche Korrektheit, Autorisierung, Ressourcenlebensdauer, Datenverlust, Typgrenzen, Fehlerabbildung und angemessene Tests.
 Beurteile Performance anhand plausibler Datenmengen und konkreter Zugriffsmuster; keine pauschalen Optimierungsforderungen.
