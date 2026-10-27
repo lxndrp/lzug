@@ -348,10 +348,28 @@ class DemoRuntimePolicy:
                 )
                 return
             handler.add_request_cleanup(self.workspaces.retain(workspace))
+            workspace_path = workspace.path
         else:
             handler.require_authenticated(require_actor=False, require_csrf=True)
+            try:
+                workspace_path, release_generation = self.workspaces.retain_current_generation(
+                    workspace,
+                    request_path=handler.db_path,
+                    token=previous_token,
+                )
+            except DemoWorkspaceGenerationConflictError:
+                handler.respond(
+                    {
+                        "error": (
+                            "Die Demo-Sitzung wurde parallel zurückgesetzt. Bitte erneut anmelden."
+                        )
+                    },
+                    HTTPStatus.CONFLICT,
+                )
+                return
+            handler.add_request_cleanup(release_generation)
             handler.authentication_repository.revoke_session(previous_token, reason="role-switch")
-        handler.db_path = workspace.path
+        handler.db_path = workspace_path
         remaining = self.workspaces.remaining(workspace)
         try:
             credentials = handler.authentication_repository.create_session(

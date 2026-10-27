@@ -146,6 +146,29 @@ class DemoWorkspaceManager:
             self._retain_path(workspace, request_path)
             return lambda: self._release_request(workspace, request_path)
 
+    def retain_current_generation(
+        self,
+        workspace: DemoWorkspace,
+        *,
+        request_path: Path,
+        token: str,
+    ) -> tuple[Path, Callable[[], None]]:
+        """Lease the current generation while a request switches its database path."""
+        with workspace.reset_lock:
+            with self._lock:
+                if (
+                    self._by_token.get(self._digest(token)) is not workspace
+                    or workspace.active_paths.get(request_path, 0) == 0
+                    or self._workspaces.get(workspace.path) is not workspace
+                    or workspace.discard_pending
+                ):
+                    raise DemoWorkspaceGenerationConflictError(
+                        "Demo workspace generation changed before the request switched"
+                    )
+                current_path = workspace.path
+                self._retain_path(workspace, current_path)
+        return current_path, lambda: self._release_request(workspace, current_path)
+
     def bind(
         self,
         workspace: DemoWorkspace,

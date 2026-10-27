@@ -564,6 +564,47 @@ class DemoRuntimeTests(unittest.TestCase):
             manager.discard(token)
             self.assertFalse(new_path.exists())
 
+    def test_role_switch_generation_stays_leased_across_two_resets(self) -> None:
+        with TempDatabase(seed_sql=public_demo_seed_sql()) as db_path:
+            manager = DemoWorkspaceManager(
+                self.root / "role-switch-generations",
+                ttl=timedelta(minutes=60),
+                clock=self.clock,
+                on_discard=discard_database_coordinators,
+            )
+            token = "role-switch-generation-session"
+            workspace = manager.create(db_path)
+            manager.bind(workspace, token)
+            role_switch_path, release_role_switch = manager.acquire_request(db_path, token)
+            first_reset_path, release_first_reset = manager.acquire_request(db_path, token)
+
+            manager.reset(db_path, workspace, first_reset_path)
+            selected_path, release_selected_generation = manager.retain_current_generation(
+                workspace,
+                request_path=role_switch_path,
+                token=token,
+            )
+            self.assertEqual(workspace.path, selected_path)
+            self.assertNotEqual(role_switch_path, selected_path)
+
+            second_reset_path, release_second_reset = manager.acquire_request(db_path, token)
+            self.assertEqual(selected_path, second_reset_path)
+            manager.reset(db_path, workspace, second_reset_path)
+            release_second_reset()
+
+            self.assertTrue(
+                selected_path.exists(),
+                "A reset must not delete the generation retained by the role-switch request",
+            )
+            release_role_switch()
+            release_first_reset()
+            self.assertTrue(selected_path.exists())
+
+            release_selected_generation()
+            self.assertFalse(selected_path.exists())
+            manager.discard(token)
+            self.assertFalse(workspace.path.exists())
+
     def test_stale_parallel_reset_cannot_replace_active_reset_generation(self) -> None:
         self.policy = self._policy(suffix="parallel-reset-generations")
         with (
