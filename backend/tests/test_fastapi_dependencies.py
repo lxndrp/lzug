@@ -436,8 +436,12 @@ class FastAPIDependencyTests(unittest.TestCase):
                     "app": self.app,
                 }
             )
-            context = request_context(request)
-            results[name] = context.candidate_day_service.generate(GenerateCandidateDays(1))
+            context_dependency = request_context(request)
+            context = next(context_dependency)
+            try:
+                results[name] = context.candidate_day_service.generate(GenerateCandidateDays(1))
+            finally:
+                context_dependency.close()
 
         self.assertEqual([databases["product"], databases["demo"]], selected_paths)
         self.assertEqual("2026-W23", results["product"].calendar_week_from)

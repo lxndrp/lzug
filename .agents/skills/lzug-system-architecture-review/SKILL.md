@@ -37,7 +37,10 @@ Verwende bestätigte Last-, Verfügbarkeits-, Wiederherstellungs- und Sicherheit
 - Prüfe Versions- und Kompatibilitätsgrenzen für HTTP/OpenAPI, Adminprotokoll, CLI/Backend, Artefakte, Schema und App-/Seed-Paare.
   Analysiere Upgrade, Wiederanlauf und Restore einschließlich Daten, Dokumenten und Authentifizierungsmaterial als zusammenhängenden Vorgang.
 - Prüfe externe Abhängigkeiten und Ausfallfolgen für Fachabläufe.
-  Setze neue Infrastruktur, verteilte Transaktionen oder zusätzliche Dienste nur als begründete Option mit Betriebs- und Konsistenzkosten ins Verhältnis zum heutigen Modell.
+  Wende die Lösungsauswahl-Leiter aus `AGENTS.md` auf zusätzliche Infrastruktur,
+  verteilte Transaktionen und Dienste an.
+  Empfiehl sie nur, wenn ein belegtes Systemziel sie erfordert, und stelle ihren
+  Nutzen den Betriebs- und Konsistenzkosten des heutigen Modells gegenüber.
 
 ## Ergebnis
 
