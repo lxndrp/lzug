@@ -192,3 +192,5 @@ Supportversprechen oder Release-Gates.
 - [ADR-0014: OCI-Einzelcontainer mit SQLite und persistentem `/data`](0014-oci-einzelcontainer-und-persistentes-data.md)
 - [ADR-0017: Erstveröffentlichung ohne Kubernetes und Helm](0017-erstveroeffentlichung-ohne-kubernetes.md)
 - [ADR-0031: age-Hülle in der Betreiber-CLI](0031-age-huelle-in-der-betreiber-cli.md)
+- Lokale OCI-Runtimeauswahl und Plattformqualifikation sind durch
+  [ADR-0043](0043-lokale-oci-runtimes-und-plattformqualifikation.md) geregelt.
