@@ -253,6 +253,8 @@ Der Ankerkommentar beschreibt Modus, Ausgangs- und Ziel-SHA, tatsächliche
 Abdeckung, Grenzen, Abschluss und verknüpfte Befunde.
 Nur bestätigte neue Befunde werden nach erfolgreichem Duplikatabgleich zu Issues.
 Diese nennen Quelle, Auslöser, Auswirkung und betroffene repositoryrelative Pfade.
+Für einen maschinenlesbaren Pfadvertrag stehen sie unter `Affected paths:` oder
+`Betroffene Pfade:` als Markdown-Liste; Verzeichnispfade umfassen ihre Nachfahren.
 Fehlgeschlagene Suche oder Pagination ist keine Duplikatfreiheit und erlaubt
 keine Anlage neuer Befund-Issues.
 
