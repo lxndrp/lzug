@@ -15,7 +15,7 @@ API = "https://api.github.com"
 PER_PAGE = 100
 MAX_PULL_REQUEST_FILES = 3000
 ISSUE_CLOSING_REFERENCE = re.compile(
-    r"\b(?:close[sd]?|fix(?:es|ed)?|resolve[sd]?)\s+#(\d+)\b", re.IGNORECASE
+    r"\b(?:close[sd]?|fix(?:es|ed)?|resolve[sd]?)\s*:?[ \t]+#(\d+)\b", re.IGNORECASE
 )
 
 

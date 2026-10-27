@@ -56,7 +56,7 @@ class ReviewBlockerCheckTests(unittest.TestCase):
             if "/pulls/5/files?" in url:
                 return ([{"filename": "backend/src/module.py"}], None)
             if url.endswith("/pulls/5"):
-                return ({"body": "Closes #12", "changed_files": 1}, None)
+                return ({"body": "Closes: #12", "changed_files": 1}, None)
             if "/issues?" in url:
                 return (issues, None)
             self.fail(f"Unexpected API URL: {url}")
