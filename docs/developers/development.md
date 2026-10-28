@@ -48,6 +48,76 @@ mise exec -- task setup
 mise exec -- task doctor
 ```
 
+Auf einem macOS- oder Linux-Host mit laufendem Docker Engine und Unix-Socket
+unter `/var/run/docker.sock` kann die vollständige Task-Quality zusätzlich in
+Ubuntu 24.04 ausgeführt werden. Native Windows-PowerShell wird von diesem Pilot
+derzeit nicht unterstützt:
+
+```sh
+mise exec -- task quality:ubuntu
+```
+
+Der Root-Task bleibt der öffentliche Einstieg; der nahe am Runner abgelegte
+PowerShell-Adapter verwaltet Docker-Ressourcen und ruft die bestehende Task-
+Quality im Container auf. Läufe warten aufeinander, weil sie dieselbe lokale
+Docker Engine verwenden. Produkt- und Demo-Quality-Images tragen pro Worktree
+eigene Referenzen und können dadurch nicht gegenseitig überschrieben werden.
+Der nächste Start entfernt einen liegengebliebenen Runner-Container desselben
+Worktrees; verwaltete Worktree-Caches bleiben bis zum Environment-Cleanup erhalten.
+Der Pilot verwendet native Linux-Architektur, dieselbe projektweite Task-Quality
+und die Playwright-Version aus `frontend/package-lock.json`.
+Der Worktree wird im Runner unter demselben absoluten Pfad eingebunden, damit
+Compose- und Pester-Tests ihre Quellen über den Docker-Host erreichen.
+Die Linux-`.venv`, `node_modules` und Paket-/Build-Caches liegen in getrennten
+Docker-Volumes; macOS-Abhängigkeiten werden nicht wiederverwendet. Der
+Buildx-Builder und sein BuildKit-Cache sind ebenfalls pro Worktree isoliert.
+Verwaltete Codex-Worktrees behalten diesen Cache bis zum Environment-Cleanup;
+außerhalb davon werden Builder und Quality-Images nach dem Lauf entfernt.
+Browser laufen als `pwuser` mit aktivierter Chromium-Sandbox.
+Das gepinnte Playwright-Seccomp-Profil erlaubt dafür User-Namespaces und behält
+die übrigen Docker-Standardbeschränkungen bei; der Runner erhält 1 GiB Shared
+Memory für Chromium.
+Der Docker-Socket wird für die bestehenden Runtime-Prüfungen eingebunden; es
+gibt kein Docker-in-Docker. Der Socket gewährt Zugriff auf den Host-Docker-
+Daemon und ist keine Sicherheitsgrenze; den Runner deshalb nur mit
+vertrauenswürdigem Quellcode verwenden.
+Task begrenzt die parallelen Teilaufgaben auf vier, um den lokalen
+Containerressourcenbedarf zu begrenzen; der vorhandene Quality-Task bleibt die
+einzige Prüfdefinition.
+In einem verwalteten Codex-Worktree tragen Runnerimage, Quality-Images,
+Pester-Fixtures, Demo-Smoke-Container, Netzwerke und Volumes das Label
+`lzug-codex-<Worktree-ID>` und einen passenden Namenspräfix; das
+Environment-Cleanup entfernt nur diese zugeordneten Ressourcen. Buildx bietet
+keine eigenen Labels für Builder. Der Cleanup entfernt daher ausschließlich
+den exakt benannten Builder `lzug-codex-<Worktree-ID>-ubuntu-quality-buildx`.
+Seine getrennten Instanzdaten liegen unter `.codex/ubuntu-quality/buildx`.
+Außerhalb eines verwalteten Worktrees räumt der Task seine flüchtigen Ressourcen
+nach dem Lauf auf. Fehler beim Cleanup schlagen einen ansonsten erfolgreichen
+Runnerlauf fehl; bei einem bereits fehlgeschlagenen Quality-Lauf bleibt dessen
+Fehler primär und zusätzliche Cleanupfehler werden ausgegeben.
+Auf Apple Silicon verwendet Docker dafür Linux-ARM64; der vollständige lokale
+Quality-Lauf muss diese Plattform noch qualifizieren. Er ersetzt nicht die
+CI-Abnahme auf Linux-AMD64.
+GitHub Actions führt dieselben Task-Verträge in domänenspezifischen Jobs auf
+`ubuntu-24.04` aus; der PR-Workflow nutzt dafür teils engere `:pr`-Einstiege.
+Die Quality-Pipeline baut und überträgt das Produktimage nur für die Container-
+und abhängigen Prüfungen.
+Das lokale Runnerimage wird derzeit nicht in Actions wiederverwendet.
+Ob es künftig auch in Actions genutzt werden sollte, ist noch offen.
+Die Entscheidung hängt vom erfolgreichen vollständigen `task quality` im
+lokalen Runner und einem gemessenen ARM64-/AMD64-Vergleich zu Laufzeit,
+Ressourcenverbrauch und Wartungsaufwand ab.
+Für Compose- und Runtime-Tests benötigt der lokale Runner weiterhin den
+Docker-Socket des Hosts.
+Bis dahin bleiben lokaler Linux-Lauf und Actions-Runner getrennte
+Ausführungsformen derselben Taskverträge; CI auf dem exakten PR-Stand bleibt
+die finale Abnahme.
+Das User-Namespace-Profil stammt aus der zur Playwright-Version passenden
+[offiziellen Docker-Anleitung](https://playwright.dev/docs/docker).
+Der Runner übernimmt Docker CLI, Buildx und Compose aus dem zur lokalen CLI-Version
+passenden offiziellen Docker-CLI-Image; die Engine bleibt der laufende Host-Dienst.
+Die Compose-Pluginversion ist derzeit nicht separat im Projekt festgelegt.
+
 `task setup` synchronisiert die gelockten Python-Abhängigkeiten mit `uv` und
 installiert die Frontend-Abhängigkeiten mit `npm ci`.
 Ein wiederholter Aufruf behält die vorhandene Python-Umgebung; für einen

@@ -185,6 +185,11 @@ tasks:
       - docs
       - quality:workflows
 
+  quality:ubuntu:
+    desc: Run the full task quality suite in an isolated Ubuntu 24.04 container
+    cmds:
+      - pwsh -NoProfile -File development/ubuntu-quality/run.ps1
+
   brand:check:
     desc: Verify canonical brand sources, consumer derivatives, fonts, and icons
     cmds:

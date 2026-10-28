@@ -10,31 +10,60 @@ product_image=${3:-lzug-app:0.0.0-dev.local}
 expected_seed_revision=${4:-}
 lzug_require_docker
 
-suffix="lzug-demo-smoke-$$"
+resource_label=${LZUG_QUALITY_RESOURCE_LABEL:-}
+temporary_directory=$(mktemp -d "${TMPDIR:-/tmp}/lzug-demo-smoke.XXXXXX")
+run_id=${temporary_directory##*.}
+if [ -n "$resource_label" ]; then
+    suffix="$resource_label-demo-smoke-$run_id"
+else
+    suffix="lzug-demo-smoke-$run_id"
+fi
 volume="$suffix-data"
 container="$suffix-app"
-temporary_directory=$(mktemp -d "${TMPDIR:-/tmp}/lzug-demo-smoke.XXXXXX")
+seed_run=0
+container_id=""
+volume_created=0
 cleanup() {
-    docker rm --force "$container" >/dev/null 2>&1 || true
-    docker volume rm "$volume" >/dev/null 2>&1 || true
+    if [ -n "$container_id" ]; then
+        docker rm --force "$container_id" >/dev/null 2>&1 || true
+    fi
+    if [ "$volume_created" -eq 1 ]; then
+        docker volume rm "$volume" >/dev/null 2>&1 || true
+    fi
     rm -rf "$temporary_directory"
 }
 trap cleanup EXIT INT TERM
 
-docker volume create "$volume" >/dev/null
+if [ -n "$resource_label" ]; then
+    docker volume create --label "$resource_label" "$volume" >/dev/null
+else
+    docker volume create "$volume" >/dev/null
+fi
+volume_created=1
+
+docker_run() {
+    run_name=$1
+    shift
+    if [ -n "$resource_label" ]; then
+        docker run --name "$run_name" --label "$resource_label" "$@"
+    else
+        docker run --name "$run_name" "$@"
+    fi
+}
 
 run_seed() {
-    docker run --rm --read-only --tmpfs /tmp \
+    seed_run=$((seed_run + 1))
+    docker_run "$suffix-seed-$seed_run" --rm --read-only --tmpfs /tmp \
         --mount "type=volume,source=$volume,target=/data" \
         "$seed_image"
 }
 
 start_app() {
-    docker run --detach --name "$container" --read-only --tmpfs /tmp \
+    container_id=$(docker_run "$container" --detach --read-only --tmpfs /tmp \
         --publish 127.0.0.1::8000 \
         --env LZUG_HTTPS_ONLY=false \
         --mount "type=volume,source=$volume,target=/data" \
-        "$app_image" >/dev/null
+        "$app_image")
     port=$(docker port "$container" 8000/tcp | sed 's/.*://')
     url="http://127.0.0.1:$port"
     if ! lzug_wait_for_http_health "$url" 30; then
@@ -54,7 +83,7 @@ assert_status() {
 }
 
 echo "Verifying product/demo physical assembly separation."
-docker run --rm --entrypoint sh "$product_image" -c \
+docker_run "$suffix-product-check" --rm --entrypoint sh "$product_image" -c \
     'test ! -e /app/demo && ! grep -R -F "/api/demo" /app/backend /app/frontend >/dev/null 2>&1'
 
 echo "Initializing and starting the bound demo image pair."
@@ -150,7 +179,8 @@ assert_status "Reset isolated demo workspace" 200 "$reset_status"
 docker exec "$container" sh -c 'printf demo > /data/documents/temporary.txt'
 
 echo "Reinitializing the same volume and verifying reset semantics."
-docker rm --force "$container" >/dev/null
+docker rm --force "$container_id" >/dev/null
+container_id=""
 run_seed
 start_app
 old_session_status=$(curl --silent --output /dev/null --write-out '%{http_code}' \

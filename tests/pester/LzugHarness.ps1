@@ -50,11 +50,18 @@ function Get-LzugImage {
 
 function New-LzugFixture {
     param([string]$Directory, [string]$Image = (Get-LzugImage))
-    $name = 'lzug-pester-' + [guid]::NewGuid().ToString('N')
+    $resourceLabel = $env:LZUG_QUALITY_RESOURCE_LABEL
+    $namePrefix = if ([string]::IsNullOrWhiteSpace($resourceLabel)) { 'lzug-pester' } else { "$resourceLabel-pester" }
+    $name = "$namePrefix-$([guid]::NewGuid().ToString('N'))"
     $fixture = @{
         Name = $name; Image = $Image; Data = "$name-data"; Work = "$name-work"; Socket = "$name-socket"
-        Container = ''; Url = ''; Directory = $Directory
+        Container = ''; Url = ''; Directory = $Directory; ResourceLabel = $resourceLabel
         Compose = @('compose', '--project-name', $name, '--project-directory', '.', '--env-file', "$Directory/compose.env", '-f', 'deployment/self-hosted/compose.yaml', '-f', "$Directory/socket.yaml")
+    }
+    $labelsYaml = if ([string]::IsNullOrWhiteSpace($resourceLabel)) {
+        '    labels: {}'
+    } else {
+        "    labels:`n      '$resourceLabel': ''"
     }
     New-Item -ItemType Directory -Path "$Directory/admin" -Force | Out-Null
     @"
@@ -68,6 +75,7 @@ LZUG_ADMIN_SOCKET_DIR=$Directory/admin
     @"
 services:
   lzug:
+$labelsYaml
     volumes:
       - type: volume
         source: contract_socket
@@ -77,8 +85,56 @@ services:
 volumes:
   contract_socket:
     name: $name-socket
+$labelsYaml
+  lzug_data:
+$labelsYaml
+networks:
+  default:
+    name: $name-network
+$labelsYaml
 "@ | Set-Content "$Directory/socket.yaml"
     return $fixture
+}
+
+function Get-LzugDockerRunArguments {
+    param($Fixture, [string]$Name, [string[]]$Arguments)
+    if ([string]::IsNullOrWhiteSpace($Name)) {
+        $Name = "$($Fixture.Name)-run-$([guid]::NewGuid().ToString('N'))"
+    }
+    $native = @('run', '--name', $Name)
+    if (-not [string]::IsNullOrWhiteSpace($Fixture.ResourceLabel)) {
+        $native += @('--label', "$($Fixture.ResourceLabel)=")
+    }
+    return $native + $Arguments
+}
+
+function Get-LzugDockerVolumeCreateArguments {
+    param($Fixture, [Parameter(Mandatory)] [string]$Name)
+    $native = @('volume', 'create')
+    if (-not [string]::IsNullOrWhiteSpace($Fixture.ResourceLabel)) {
+        $native += @('--label', "$($Fixture.ResourceLabel)=")
+    }
+    return $native + $Name
+}
+
+function Invoke-LzugDockerRun {
+    param(
+        $Fixture,
+        [string]$Name,
+        [Parameter(Mandatory)] [string[]]$Arguments,
+        [int]$ExpectedExit = 0,
+        [string]$InputText
+    )
+    $nativeArguments = Get-LzugDockerRunArguments -Fixture $Fixture -Name $Name -Arguments $Arguments
+    $invokeArguments = @{
+        Command = 'docker'
+        Arguments = $nativeArguments
+        ExpectedExit = $ExpectedExit
+    }
+    if ($PSBoundParameters.ContainsKey('InputText')) {
+        $invokeArguments.InputText = $InputText
+    }
+    Invoke-LzugNative @invokeArguments
 }
 
 function Invoke-LzugCompose {
@@ -98,8 +154,10 @@ function Initialize-LzugFixture {
     Assert-LzugDocker -Image $Fixture.Image
     # Root is restricted to preparation of this disposable socket directory.
     Invoke-LzugCompose $Fixture @('run', '--rm', '--no-deps', '--user', '0:0', '--cap-add', 'CHOWN', '--cap-add', 'FOWNER', '--entrypoint', 'sh', 'lzug', '-c', 'chown 10001:10001 /run/lzug-admin && chmod 0750 /run/lzug-admin') | Out-Null
-    Invoke-LzugNative docker @('volume', 'create', $Fixture.Work) | Out-Null
-    Invoke-LzugNative docker @('run', '--rm', '--network', 'none', '--read-only', '--user', '0:0', '--cap-drop', 'ALL', '--cap-add', 'CHOWN', '--mount', "type=volume,source=$($Fixture.Work),target=/work,volume-nocopy", '--entrypoint', 'chown', $Fixture.Image, '10002:10001', '/work') | Out-Null
+    $workVolumeArguments = Get-LzugDockerVolumeCreateArguments -Fixture $Fixture -Name $Fixture.Work
+    Invoke-LzugNative docker $workVolumeArguments | Out-Null
+
+    Invoke-LzugDockerRun -Fixture $Fixture -Name "$($Fixture.Name)-volume-owner-$([guid]::NewGuid().ToString('N'))" -Arguments @('--rm', '--network', 'none', '--read-only', '--user', '0:0', '--cap-drop', 'ALL', '--cap-add', 'CHOWN', '--mount', "type=volume,source=$($Fixture.Work),target=/work,volume-nocopy", '--entrypoint', 'chown', $Fixture.Image, '10002:10001', '/work') | Out-Null
     if (-not $Legacy) {
         Invoke-LzugCompose $Fixture @('run', '--rm', '--no-deps', '--entrypoint', 'python', 'lzug', '-c', 'from backend.persistence.database import initialize; initialize()') | Out-Null
     }
@@ -149,12 +207,13 @@ function Remove-LzugFixture {
 function Invoke-LzugCli {
     param($Fixture, [string[]]$Arguments, [int]$ExpectedExit = 0, [string]$InputText)
     # The delivered binary sees the server PID, but cannot mount backend data.
-    $native = @('run', '--rm', '-i', '--network', 'none', '--read-only', '--user', '10002:10001', '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges:true', '--mount', "type=volume,source=$($Fixture.Work),target=/work,volume-nocopy", '--workdir', '/work')
+    $containerName = "$($Fixture.Name)-cli-$([guid]::NewGuid().ToString('N'))"
+    $native = @('--rm', '-i', '--network', 'none', '--read-only', '--user', '10002:10001', '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges:true', '--mount', "type=volume,source=$($Fixture.Work),target=/work,volume-nocopy", '--workdir', '/work')
     if ($Fixture.Container) {
         $native += @('--pid', "container:$($Fixture.Container)", '--mount', "type=volume,source=$($Fixture.Socket),target=/run/lzug-admin,readonly,volume-nocopy")
     }
     $native += @('--entrypoint', '/usr/local/bin/lzug-admin', $Fixture.Image, '--endpoint', 'unix:///run/lzug-admin/admin.sock', '--json') + $Arguments
-    $output = Invoke-LzugNative docker $native -ExpectedExit $ExpectedExit -InputText $InputText
+    $output = Invoke-LzugDockerRun -Fixture $Fixture -Name $containerName -Arguments $native -ExpectedExit $ExpectedExit -InputText $InputText
     $payload = $output | ConvertFrom-Json
     $payload.exit_code | Should -Be $ExpectedExit
     $payload.ok | Should -Be ($ExpectedExit -eq 0)

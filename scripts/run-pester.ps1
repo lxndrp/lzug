@@ -3,11 +3,25 @@
 [CmdletBinding()]
 param(
     [string]$OutputDirectory = 'build/quality/pester',
-    [ValidateSet('Container.Tests.ps1', 'Operator.Tests.ps1', 'Compatibility.Tests.ps1')]
+    [ValidateSet('Bootstrap.Tests.ps1', 'Container.Tests.ps1', 'Operator.Tests.ps1', 'Compatibility.Tests.ps1', 'UbuntuQuality.Tests.ps1')]
     [string]$TestFile
 )
 
 $ErrorActionPreference = 'Stop'
+$env:LZUG_IMAGE = if ($env:LZUG_IMAGE) {
+    $env:LZUG_IMAGE
+} elseif ($env:LZUG_QUALITY_APP_IMAGE) {
+    $env:LZUG_QUALITY_APP_IMAGE
+} else {
+    'lzug-app:0.0.0-dev.local'
+}
+$env:LZUG_CONTRACT_IMAGE = if ($env:LZUG_CONTRACT_IMAGE) {
+    $env:LZUG_CONTRACT_IMAGE
+} elseif ($env:LZUG_QUALITY_CONTRACT_IMAGE) {
+    $env:LZUG_QUALITY_CONTRACT_IMAGE
+} else {
+    'lzug-app:0.0.0-rc.0-contract'
+}
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $requirements = Join-Path $root 'tests/pester/requirements.psd1'
 $moduleRoot = Join-Path $root '.tools/powershell'
@@ -17,7 +31,8 @@ $pesterVersion = (Import-PowerShellDataFile $requirements).Pester
 New-Item -ItemType Directory -Force -Path $moduleRoot, $results | Out-Null
 $moduleManifest = Join-Path $moduleRoot "Pester/$pesterVersion/Pester.psd1"
 if (-not (Test-Path -LiteralPath $moduleManifest)) {
-    Save-PSResource -Name Pester -Version $pesterVersion -Repository PSGallery -Path $moduleRoot -TrustRepository -Quiet
+    . (Join-Path $PSScriptRoot 'pester-bootstrap.ps1')
+    Save-PinnedPesterModule -Version $pesterVersion -Path $moduleRoot
 }
 if (-not (Test-Path -LiteralPath $moduleManifest)) { throw "Pinned Pester module $pesterVersion could not be installed." }
 Import-Module $moduleManifest -Force
