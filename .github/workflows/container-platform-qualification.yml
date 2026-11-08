@@ -360,11 +360,22 @@ jobs:
             '.[0].Config.User == "10001:10001" and
              .[0].HostConfig.ReadonlyRootfs == true and
              .[0].HostConfig.Privileged == false and
-             .[0].HostConfig.CapDrop == ["ALL"] and
-             .[0].HostConfig.SecurityOpt == ["no-new-privileges:true"]' >/dev/null; then
+             ([.[0].HostConfig.SecurityOpt[] | select(startswith("no-new-privileges"))] | length) == 1' >/dev/null; then
             echo "Podman qualification: runtime security metadata differs from the expected container contract." >&2
             exit 1
           fi
+          podman exec "$app_container" python -c '
+          from pathlib import Path
+
+          status = {}
+          for line in Path("/proc/1/status").read_text().splitlines():
+              if ":" in line:
+                  key, value = line.split(":", 1)
+                  status[key] = value.strip()
+          for field in ("CapInh", "CapPrm", "CapEff", "CapBnd", "CapAmb"):
+              assert int(status[field], 16) == 0, f"{field} is nonzero"
+          assert status["NoNewPrivs"] == "1", "NoNewPrivs is not enabled"
+          '
 
           bootstrap_args=(committee bootstrap --idempotency-key podman-runtime-persistence \
             --name "Podman Runtime Committee" --ihk "IHK Test" --occupation "Test occupation" \
