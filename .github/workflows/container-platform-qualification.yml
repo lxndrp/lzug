@@ -51,6 +51,7 @@ jobs:
           seed_image="$LZUG_QUALITY_DEMO_SEED_IMAGE"
           demo_image="$LZUG_QUALITY_DEMO_APP_IMAGE"
           temp_dir="$(mktemp -d)"
+          seed_dir="$temp_dir/extracted-seed"
           data_volume="$prefix-product-data"
           socket_volume="$prefix-product-socket"
           work_volume="$prefix-product-work"
@@ -73,7 +74,7 @@ jobs:
               mapfile -t container_names <<< "$containers"
               for container_name in "${container_names[@]}"; do
                 case "$container_name" in
-                  "$prefix"*) ;;
+                  "$prefix"*|"$scope-demo"*) ;;
                   *) echo "Refusing to remove non-prefixed container: $container_name" >&2; status=1; continue ;;
                 esac
                 podman container rm --force "$container_name" >/dev/null || status=1
@@ -84,13 +85,21 @@ jobs:
               mapfile -t volume_names <<< "$volumes"
               for volume_name in "${volume_names[@]}"; do
                 case "$volume_name" in
-                  "$prefix"*) ;;
+                  "$prefix"*|"$scope-demo"*) ;;
                   *) echo "Refusing to remove non-prefixed volume: $volume_name" >&2; status=1; continue ;;
                 esac
                 podman volume rm --force "$volume_name" >/dev/null || status=1
               done
             fi
-            podman rmi --force "$product_image" "$contract_image" "$seed_image" "$demo_image" >/dev/null 2>&1 || true
+            for image in "$product_image" "$contract_image" "$seed_image" "$demo_image"; do
+              if podman image exists "$image"; then
+                podman rmi --force "$image" >/dev/null || status=1
+              fi
+              if podman image exists "$image"; then
+                echo "Qualification image remains after cleanup: $image" >&2
+                status=1
+              fi
+            done
             rm -rf "$temp_dir"
             echo "Labeled containers after cleanup:"
             remaining_containers="$(podman container list --all --format '{{.Names}}' --filter "label=$scope" 2>/dev/null || true)"
@@ -171,11 +180,12 @@ jobs:
             --build-arg "VCS_REF=$revision" \
             --tag "$seed_image" .
           seed_container="$prefix-seed-extract"
+          mkdir -p "$seed_dir"
           podman create --name "$seed_container" --label "$scope" "$seed_image" >/dev/null
-          podman cp "$seed_container:/opt/lzug-demo/seed/lzug.sqlite" "$temp_dir/lzug.sqlite"
-          podman cp "$seed_container:/opt/lzug-demo/seed/manifest.json" "$temp_dir/manifest.json"
+          podman cp "$seed_container:/opt/lzug-demo/seed/lzug.sqlite" "$seed_dir/lzug.sqlite"
+          podman cp "$seed_container:/opt/lzug-demo/seed/manifest.json" "$seed_dir/manifest.json"
           podman rm "$seed_container" >/dev/null
-          seed_revision="$(jq -er '.seed_revision' "$temp_dir/manifest.json")"
+          seed_revision="$(jq -er '.seed_revision' "$seed_dir/manifest.json")"
           test "$(printf '%s' "$seed_revision" | wc -c)" -eq 64
 
           timed_build demo-app-fresh podman build --label "$scope" \
@@ -185,6 +195,18 @@ jobs:
             --build-arg "VCS_REF=$revision" \
             --build-arg "SEED_REVISION=$seed_revision" \
             --tag "$demo_image" .
+
+          app_manifest_container="$prefix-demo-app-manifest-extract"
+          podman create --name "$app_manifest_container" --label "$scope" "$demo_image" >/dev/null
+          podman cp "$app_manifest_container:/app/demo-app-manifest.json" "$temp_dir/demo-app-manifest.json"
+          podman rm "$app_manifest_container" >/dev/null
+          PYTHONPATH=packaging python3 -c '
+          import sys
+          from pathlib import Path
+          from demo.runtime.validation import load_runtime_manifests
+          load_runtime_manifests(Path(sys.argv[1]), Path(sys.argv[2]))
+          print("Extracted seed matches the paired demo app runtime contract.")
+          ' "$temp_dir/demo-app-manifest.json" "$seed_dir/manifest.json"
 
           case "$(uname -m)" in
             x86_64) expected_arch=amd64 ;;
@@ -255,7 +277,7 @@ jobs:
           podman volume create --label "$scope" "$work_volume" >/dev/null
           podman run --rm --name "$prefix-product-work-init" --label "$scope" --network none --read-only --user 0:0 \
             --cap-drop ALL --cap-add CHOWN \
-            --mount "type=volume,source=$work_volume,target=/work,volume-nocopy" \
+            --volume "$work_volume:/work:nocopy" \
             --entrypoint chown "$product_image" 10002:10001 /work
 
           podman run --detach --name "$app_container" --label "$scope" --read-only --tmpfs /tmp \
@@ -320,17 +342,17 @@ jobs:
           cli_image_args=(--endpoint unix:///run/lzug-admin/admin.sock --json)
           first_result="$(podman run --rm --name "$prefix-product-cli-create" --label "$scope" -i --network none --read-only --user 10002:10001 \
             --cap-drop ALL --security-opt no-new-privileges:true \
-            --mount "type=volume,source=$work_volume,target=/work,volume-nocopy" \
+            --volume "$work_volume:/work:nocopy" \
             --workdir /work --pid "container:$app_container" \
-            --mount "type=volume,source=$socket_volume,target=/run/lzug-admin,readonly,volume-nocopy" \
+            --volume "$socket_volume:/run/lzug-admin:ro,nocopy" \
             --entrypoint /usr/local/bin/lzug-admin "$product_image" "${cli_image_args[@]}" "${bootstrap_args[@]}")"
           printf '%s' "$first_result" | jq -e '.ok == true and .result.committee_id > 0' >/dev/null
           committee_id="$(printf '%s' "$first_result" | jq -er '.result.committee_id')"
           replay_result="$(podman run --rm --name "$prefix-product-cli-replay" --label "$scope" -i --network none --read-only --user 10002:10001 \
             --cap-drop ALL --security-opt no-new-privileges:true \
-            --mount "type=volume,source=$work_volume,target=/work,volume-nocopy" \
+            --volume "$work_volume:/work:nocopy" \
             --workdir /work --pid "container:$app_container" \
-            --mount "type=volume,source=$socket_volume,target=/run/lzug-admin,readonly,volume-nocopy" \
+            --volume "$socket_volume:/run/lzug-admin:ro,nocopy" \
             --entrypoint /usr/local/bin/lzug-admin "$product_image" "${cli_image_args[@]}" "${bootstrap_args[@]}")"
           printf '%s' "$replay_result" | jq -e --argjson committee_id "$committee_id" \
             '.ok == true and .result.replayed == true and .result.committee_id == $committee_id' >/dev/null
@@ -358,9 +380,9 @@ jobs:
             '.result.committee_id == $committee_id'
           replay_after_restart="$(podman run --rm --name "$prefix-product-cli-after-restart" --label "$scope" -i --network none --read-only --user 10002:10001 \
             --cap-drop ALL --security-opt no-new-privileges:true \
-            --mount "type=volume,source=$work_volume,target=/work,volume-nocopy" \
+            --volume "$work_volume:/work:nocopy" \
             --workdir /work --pid "container:$app_container" \
-            --mount "type=volume,source=$socket_volume,target=/run/lzug-admin,readonly,volume-nocopy" \
+            --volume "$socket_volume:/run/lzug-admin:ro,nocopy" \
             --entrypoint /usr/local/bin/lzug-admin "$product_image" "${cli_image_args[@]}" "${bootstrap_args[@]}")"
           printf '%s' "$replay_after_restart" | jq -e --argjson committee_id "$committee_id" \
             '.ok == true and .result.replayed == true and .result.committee_id == $committee_id' >/dev/null
@@ -378,6 +400,16 @@ jobs:
             exec /usr/bin/docker volume create --label "$scope" "$prefix-$name"
           fi
           if [[ "${args[0]:-}" == run || "${args[0]:-}" == create ]]; then
+            if [[ "${args[0]}" == run ]]; then
+              last_index=$((${#args[@]} - 1))
+              if [[ "${args[$last_index]}" == "$LZUG_QUALITY_DEMO_SEED_IMAGE" ]]; then
+                args=("${args[@]:0:last_index}" \
+                  --mount "type=bind,source=$LZUG_QUALITY_DEMO_SEED_DIR,target=/run/lzug-seed,readonly" \
+                  --entrypoint python "$LZUG_QUALITY_DEMO_APP_IMAGE" \
+                  -m demo.runtime.seed --seed-database /run/lzug-seed/lzug.sqlite \
+                  --seed-manifest /run/lzug-seed/manifest.json --target /data)
+              fi
+            fi
             has_name=false
             for argument in "${args[@]}"; do
               if [[ "$argument" == --name ]]; then has_name=true; fi
@@ -385,13 +417,16 @@ jobs:
             if [[ "$has_name" == true ]]; then
               args=("${args[0]}" --label "$scope" "${args[@]:1}")
             else
-              args=("${args[0]}" --name "$prefix-$$" --label "$scope" "${args[@]:1}")
+              args=("${args[0]}" --name "generated-$$" --label "$scope" "${args[@]:1}")
             fi
           fi
           for index in "${!args[@]}"; do
             if [[ "${args[index]}" == --name ]]; then
               index=$((index + 1))
-              args[index]="$prefix-${args[index]}"
+              case "${args[index]}" in
+                "$prefix"-*) ;;
+                *) args[index]="$prefix-${args[index]}" ;;
+              esac
             elif [[ "${args[index]}" == --mount ]]; then
               index=$((index + 1))
               args[index]="${args[index]//source=lzug-demo-smoke-/source=$prefix-lzug-demo-smoke-}"
@@ -404,6 +439,9 @@ jobs:
           exec /usr/bin/docker "${args[@]}"
           EOF
           chmod +x "$temp_dir/bin/docker"
+          export LZUG_QUALITY_DEMO_SEED_IMAGE="$seed_image"
+          export LZUG_QUALITY_DEMO_APP_IMAGE="$demo_image"
+          export LZUG_QUALITY_DEMO_SEED_DIR="$seed_dir"
           PATH="$temp_dir/bin:$PATH" packaging/demo/container-smoke.sh \
             "$demo_image" "$seed_image" "$product_image" "$seed_revision"
 
