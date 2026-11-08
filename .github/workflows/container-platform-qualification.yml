@@ -287,7 +287,6 @@ jobs:
             echo "SBOM source verified: image=$image config=$image_config_digest archive=$archive"
           done
 
-          set -x
           echo "Creating labeled Podman resources for the product runtime contract."
           podman volume create --label "$scope" "$data_volume" >/dev/null
           podman volume create --label "$scope" "$socket_volume" >/dev/null
@@ -349,14 +348,24 @@ jobs:
               raise AssertionError("root filesystem is writable")
           '
           podman exec "$app_container" python -m backend.healthcheck
-          podman inspect "$app_container" | jq -e \
+          app_inspect="$(podman inspect "$app_container")"
+          printf '%s\n' "$app_inspect" | jq '.[0] | {
+            user: .Config.User,
+            readonly_rootfs: .HostConfig.ReadonlyRootfs,
+            privileged: .HostConfig.Privileged,
+            cap_drop: .HostConfig.CapDrop,
+            security_options: .HostConfig.SecurityOpt
+          }'
+          if ! printf '%s\n' "$app_inspect" | jq -e \
             '.[0].Config.User == "10001:10001" and
              .[0].HostConfig.ReadonlyRootfs == true and
              .[0].HostConfig.Privileged == false and
              .[0].HostConfig.CapDrop == ["ALL"] and
-             .[0].HostConfig.SecurityOpt == ["no-new-privileges:true"]' >/dev/null
+             .[0].HostConfig.SecurityOpt == ["no-new-privileges:true"]' >/dev/null; then
+            echo "Podman qualification: runtime security metadata differs from the expected container contract." >&2
+            exit 1
+          fi
 
-          set +x
           bootstrap_args=(committee bootstrap --idempotency-key podman-runtime-persistence \
             --name "Podman Runtime Committee" --ihk "IHK Test" --occupation "Test occupation" \
             --chair-first-name Test --chair-last-name Chair --chair-email runtime-chair@example.invalid \
@@ -368,7 +377,10 @@ jobs:
             --workdir /work --pid "container:$app_container" \
             --volume "$socket_volume:/run/lzug-admin:ro,nocopy" \
             --entrypoint /usr/local/bin/lzug-admin "$product_image" "${cli_image_args[@]}" "${bootstrap_args[@]}")"
-          printf '%s' "$first_result" | jq -e '.ok == true and .result.committee_id > 0' >/dev/null
+          if ! printf '%s' "$first_result" | jq -e '.ok == true and .result.committee_id > 0' >/dev/null 2>&1; then
+            echo "Podman qualification: CLI bootstrap response did not satisfy the expected contract." >&2
+            exit 1
+          fi
           committee_id="$(printf '%s' "$first_result" | jq -er '.result.committee_id')"
           replay_result="$(podman run --rm --name "$prefix-product-cli-replay" --label "$scope" -i --network none --read-only --user 10002:10001 \
             --cap-drop ALL --security-opt no-new-privileges:true \
@@ -376,8 +388,11 @@ jobs:
             --workdir /work --pid "container:$app_container" \
             --volume "$socket_volume:/run/lzug-admin:ro,nocopy" \
             --entrypoint /usr/local/bin/lzug-admin "$product_image" "${cli_image_args[@]}" "${bootstrap_args[@]}")"
-          printf '%s' "$replay_result" | jq -e --argjson committee_id "$committee_id" \
-            '.ok == true and .result.replayed == true and .result.committee_id == $committee_id' >/dev/null
+          if ! printf '%s' "$replay_result" | jq -e --argjson committee_id "$committee_id" \
+            '.ok == true and .result.replayed == true and .result.committee_id == $committee_id' >/dev/null 2>&1; then
+            echo "Podman qualification: idempotent CLI replay response did not satisfy the expected contract." >&2
+            exit 1
+          fi
 
           echo "Restarting the product runtime and checking persistent CLI state."
           podman stop "$app_container" >/dev/null
@@ -398,16 +413,22 @@ jobs:
             cat "$temp_dir/lifecycle.json" >&2 || true
             exit 1
           fi
-          printf '%s' "$replay_result" | jq -e --argjson committee_id "$committee_id" \
-            '.result.committee_id == $committee_id'
+          if ! printf '%s' "$replay_result" | jq -e --argjson committee_id "$committee_id" \
+            '.result.committee_id == $committee_id' >/dev/null 2>&1; then
+            echo "Podman qualification: committee state did not persist across the runtime restart." >&2
+            exit 1
+          fi
           replay_after_restart="$(podman run --rm --name "$prefix-product-cli-after-restart" --label "$scope" -i --network none --read-only --user 10002:10001 \
             --cap-drop ALL --security-opt no-new-privileges:true \
             --volume "$work_volume:/work:nocopy" \
             --workdir /work --pid "container:$app_container" \
             --volume "$socket_volume:/run/lzug-admin:ro,nocopy" \
             --entrypoint /usr/local/bin/lzug-admin "$product_image" "${cli_image_args[@]}" "${bootstrap_args[@]}")"
-          printf '%s' "$replay_after_restart" | jq -e --argjson committee_id "$committee_id" \
-            '.ok == true and .result.replayed == true and .result.committee_id == $committee_id' >/dev/null
+          if ! printf '%s' "$replay_after_restart" | jq -e --argjson committee_id "$committee_id" \
+            '.ok == true and .result.replayed == true and .result.committee_id == $committee_id' >/dev/null 2>&1; then
+            echo "Podman qualification: post-restart CLI replay response did not satisfy the expected contract." >&2
+            exit 1
+          fi
 
           echo "Running the existing demo smoke contract through Podman's Docker-compatible API."
           mkdir -p "$temp_dir/bin"
