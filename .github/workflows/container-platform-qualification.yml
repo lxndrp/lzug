@@ -1,0 +1,507 @@
+name: Container platform qualification
+
+on:
+  pull_request:
+    branches:
+      - master
+    paths:
+      - .github/workflows/container-platform-qualification.yml
+
+permissions:
+  contents: read
+
+jobs:
+  podman:
+    name: Podman on Ubuntu 24.04
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      LZUG_QUALITY_RESOURCE_LABEL: lzug-codex-940-podman-qualification
+      LZUG_QUALITY_RUNTIME_HOST: 127.0.0.1
+      LZUG_QUALITY_RUNTIME_BIND_ADDRESS: 127.0.0.1
+      LZUG_QUALITY_APP_IMAGE: lzug-codex-940-podman-qualification-product:local
+      LZUG_QUALITY_CONTRACT_IMAGE: lzug-codex-940-podman-qualification-contract:local
+      LZUG_QUALITY_DEMO_SEED_IMAGE: lzug-codex-940-podman-qualification-demo-seed:local
+      LZUG_QUALITY_DEMO_APP_IMAGE: lzug-codex-940-podman-qualification-demo-app:local
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
+        with:
+          install: false
+      - name: Install the locked Syft version
+        run: mise install aqua:anchore/syft@1.51.0
+      - name: Qualify rootless Podman build, SBOM, runtime, CLI, and cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(id -u)" -ne 0
+          podman --version
+          test "$(podman info --format '{{.Host.Security.Rootless}}')" = true
+          cat /etc/os-release
+          uname -m
+          nproc
+          free -h
+          docker --version
+          podman info --format 'Rootless={{.Host.Security.Rootless}} Driver={{.Store.GraphDriverName}} Arch={{.Host.Arch}}'
+
+          scope="$LZUG_QUALITY_RESOURCE_LABEL"
+          prefix="$scope-podman"
+          product_image="$LZUG_QUALITY_APP_IMAGE"
+          contract_image="$LZUG_QUALITY_CONTRACT_IMAGE"
+          seed_image="$LZUG_QUALITY_DEMO_SEED_IMAGE"
+          demo_image="$LZUG_QUALITY_DEMO_APP_IMAGE"
+          temp_dir="$(mktemp -d)"
+          seed_dir="$(mktemp -d)"
+          chmod 755 "$seed_dir"
+          data_volume="$prefix-product-data"
+          socket_volume="$prefix-product-socket"
+          work_volume="$prefix-product-work"
+          app_container="$prefix-product-app"
+          short_revision="$(git rev-parse --short=7 HEAD)"
+          revision="$(git rev-parse HEAD)"
+          product_tag="snapshot/v0.2.0-SNAPSHOT.$short_revision"
+          build_identity="$(PYTHONPATH=backend/src python3 -m backend.version --revision "$revision" --field identity)"
+          socket_path="$XDG_RUNTIME_DIR/podman/podman.sock"
+
+          cleanup() {
+            status=$?
+            trap - EXIT
+            if [ -n "${service_pid:-}" ]; then
+              kill "$service_pid" >/dev/null 2>&1 || true
+              wait "$service_pid" >/dev/null 2>&1 || true
+            fi
+            containers="$(podman container list --all --format '{{.Names}}' --filter "label=$scope" 2>/dev/null || true)"
+            if [ -n "$containers" ]; then
+              mapfile -t container_names <<< "$containers"
+              for container_name in "${container_names[@]}"; do
+                case "$container_name" in
+                  "$prefix"*|"$scope-demo"*) ;;
+                  *) echo "Refusing to remove non-prefixed container: $container_name" >&2; status=1; continue ;;
+                esac
+                podman container rm --force "$container_name" >/dev/null || status=1
+              done
+            fi
+            volumes="$(podman volume list --format '{{.Name}}' --filter "label=$scope" 2>/dev/null || true)"
+            if [ -n "$volumes" ]; then
+              mapfile -t volume_names <<< "$volumes"
+              for volume_name in "${volume_names[@]}"; do
+                case "$volume_name" in
+                  "$prefix"*|"$scope-demo"*) ;;
+                  *) echo "Refusing to remove non-prefixed volume: $volume_name" >&2; status=1; continue ;;
+                esac
+                podman volume rm --force "$volume_name" >/dev/null || status=1
+              done
+            fi
+            for image in "$product_image" "$contract_image" "$seed_image" "$demo_image"; do
+              if podman image exists "$image"; then
+                podman rmi --force "$image" >/dev/null || status=1
+              else
+                image_status=$?
+                if [ "$image_status" -ne 1 ]; then
+                  echo "Could not inspect qualification image before cleanup: $image (exit $image_status)" >&2
+                  status=1
+                fi
+              fi
+              if podman image exists "$image"; then
+                echo "Qualification image remains after cleanup: $image" >&2
+                status=1
+              else
+                image_status=$?
+                if [ "$image_status" -ne 1 ]; then
+                  echo "Could not verify qualification image cleanup: $image (exit $image_status)" >&2
+                  status=1
+                fi
+              fi
+            done
+            rm -rf "$temp_dir" "$seed_dir"
+            echo "Labeled containers after cleanup:"
+            remaining_containers="$(podman container list --all --format '{{.Names}}' --filter "label=$scope" 2>/dev/null || true)"
+            printf '%s\n' "${remaining_containers:-none}"
+            echo "Labeled volumes after cleanup:"
+            remaining_volumes="$(podman volume list --format '{{.Name}}' --filter "label=$scope" 2>/dev/null || true)"
+            printf '%s\n' "${remaining_volumes:-none}"
+            if [ -n "$remaining_containers" ] || [ -n "$remaining_volumes" ]; then
+              echo "Worktree-labeled Podman resources remain after cleanup." >&2
+              status=1
+            fi
+            podman system df
+            exit "$status"
+          }
+          trap cleanup EXIT
+
+          echo "Verifying missing-runtime, unavailable-service, and build-error diagnostics."
+          mkdir -p "$temp_dir/empty-path"
+          command -v docker >/dev/null
+          if PATH="$temp_dir/empty-path" podman --version >"$temp_dir/missing-runtime.log" 2>&1; then
+            echo "Podman unexpectedly remained available on an empty PATH." >&2
+            exit 1
+          fi
+          grep -Ei 'command not found|no such file|not found' "$temp_dir/missing-runtime.log" >/dev/null
+          cat "$temp_dir/missing-runtime.log"
+          if docker --host "unix://$temp_dir/unavailable.sock" info >"$temp_dir/unavailable-service.log" 2>&1; then
+            echo "Docker-compatible client unexpectedly connected to a missing service." >&2
+            exit 1
+          fi
+          grep -Ei 'connect|socket|daemon' "$temp_dir/unavailable-service.log" >/dev/null
+          cat "$temp_dir/unavailable-service.log"
+          cat > "$temp_dir/Containerfile.failure" <<'EOF'
+          FROM scratch
+          RUN false
+          EOF
+          if podman build --tag "$prefix-intentional-build-failure" --file "$temp_dir/Containerfile.failure" "$temp_dir" >"$temp_dir/build-failure.log" 2>&1; then
+            echo "The intentionally invalid Podman build unexpectedly succeeded." >&2
+            exit 1
+          fi
+          grep -Ei 'error|failed|non-zero|exit status' "$temp_dir/build-failure.log" >/dev/null
+          cat "$temp_dir/build-failure.log"
+
+          mkdir -p "$(dirname "$socket_path")"
+          podman system service --time=0 "unix://$socket_path" >"$temp_dir/podman-service.log" 2>&1 &
+          service_pid=$!
+          attempt=1
+          while [ "$attempt" -le 30 ]; do
+            if [ -S "$socket_path" ]; then break; fi
+            kill -0 "$service_pid"
+            sleep 1
+            attempt=$((attempt + 1))
+          done
+          test -S "$socket_path"
+          export DOCKER_HOST="unix://$socket_path"
+
+          timed_build() {
+            build_name=$1
+            shift
+            started_at=$(date +%s)
+            "$@"
+            finished_at=$(date +%s)
+            echo "$build_name duration_seconds=$((finished_at - started_at))"
+          }
+
+          timed_build product-fresh podman build --label "$scope" \
+            --file packaging/product/Dockerfile \
+            --build-arg "BUILD_IDENTITY=$build_identity" \
+            --build-arg "VCS_REF=$revision" \
+            --tag "$product_image" .
+          timed_build product-contract podman build --label "$scope" \
+            --file packaging/product/Dockerfile \
+            --build-arg BUILD_IDENTITY=0.0.0-rc.0 \
+            --build-arg RELEASE_TAG=v0.0.0-rc.0 \
+            --build-arg "VCS_REF=$revision" \
+            --tag "$contract_image" .
+
+          timed_build demo-seed-fresh podman build --label "$scope" \
+            --file packaging/demo/Dockerfile.seed \
+            --build-arg "PRODUCT_TAG=$product_tag" \
+            --build-arg "VCS_REF=$revision" \
+            --tag "$seed_image" .
+          seed_container="$prefix-seed-extract"
+          mkdir -p "$seed_dir"
+          podman create --name "$seed_container" --label "$scope" "$seed_image" >/dev/null
+          podman cp "$seed_container:/opt/lzug-demo/seed/lzug.sqlite" "$seed_dir/lzug.sqlite"
+          podman cp "$seed_container:/opt/lzug-demo/seed/manifest.json" "$seed_dir/manifest.json"
+          chmod 644 "$seed_dir/lzug.sqlite" "$seed_dir/manifest.json"
+          podman rm "$seed_container" >/dev/null
+          seed_revision="$(jq -er '.seed_revision' "$seed_dir/manifest.json")"
+          test "$(printf '%s' "$seed_revision" | wc -c)" -eq 64
+
+          timed_build demo-app-fresh podman build --label "$scope" \
+            --file packaging/demo/Dockerfile \
+            --build-arg "BUILD_IDENTITY=v0.2.0-SNAPSHOT@$short_revision" \
+            --build-arg "PRODUCT_TAG=$product_tag" \
+            --build-arg "VCS_REF=$revision" \
+            --build-arg "SEED_REVISION=$seed_revision" \
+            --tag "$demo_image" .
+
+          app_manifest_container="$prefix-demo-app-manifest-extract"
+          podman create --name "$app_manifest_container" --label "$scope" "$demo_image" >/dev/null
+          podman cp "$app_manifest_container:/app/demo-app-manifest.json" "$temp_dir/demo-app-manifest.json"
+          podman rm "$app_manifest_container" >/dev/null
+          PYTHONPATH=backend/src:packaging python3 -c '
+          import sys
+          from pathlib import Path
+          from demo.runtime.validation import load_runtime_manifests
+          load_runtime_manifests(Path(sys.argv[1]), Path(sys.argv[2]))
+          print("Extracted seed matches the paired demo app runtime contract.")
+          ' "$temp_dir/demo-app-manifest.json" "$seed_dir/manifest.json"
+
+          case "$(uname -m)" in
+            x86_64) expected_arch=amd64 ;;
+            aarch64) expected_arch=arm64 ;;
+            *) echo "Unqualified runner architecture: $(uname -m)" >&2; exit 1 ;;
+          esac
+          assert_image_metadata() {
+            image=$1
+            expected_version=$2
+            podman image inspect "$image" | jq -e \
+              --arg arch "$expected_arch" \
+              --arg revision "$revision" \
+              --arg version "$expected_version" \
+              '.[0].Architecture == $arch and
+               .[0].Config.Labels["org.opencontainers.image.revision"] == $revision and
+               .[0].Config.Labels["org.opencontainers.image.version"] == $version' >/dev/null
+            podman image inspect "$image" --format '{{.Architecture}} {{.Id}} {{.Config.Labels}}'
+          }
+          assert_image_metadata "$product_image" "$build_identity"
+          assert_image_metadata "$contract_image" 0.0.0-rc.0
+          assert_image_metadata "$seed_image" "$product_tag"
+          assert_image_metadata "$demo_image" "v0.2.0-SNAPSHOT@$short_revision"
+
+          syft_scan() {
+            mise exec --no-deps aqua:anchore/syft@1.51.0 -- \
+              syft scan --config .syft.yaml "$1" --output "cyclonedx-json@1.6=$2"
+          }
+          echo "Rebuilding product and demo images with the populated Podman cache."
+          timed_build product-cached podman build --label "$scope" \
+            --file packaging/product/Dockerfile \
+            --build-arg "BUILD_IDENTITY=$build_identity" \
+            --build-arg "VCS_REF=$revision" \
+            --tag "$product_image" .
+          timed_build demo-seed-cached podman build --label "$scope" \
+            --file packaging/demo/Dockerfile.seed \
+            --build-arg "PRODUCT_TAG=$product_tag" \
+            --build-arg "VCS_REF=$revision" \
+            --tag "$seed_image" .
+          timed_build demo-app-cached podman build --label "$scope" \
+            --file packaging/demo/Dockerfile \
+            --build-arg "BUILD_IDENTITY=v0.2.0-SNAPSHOT@$short_revision" \
+            --build-arg "PRODUCT_TAG=$product_tag" \
+            --build-arg "VCS_REF=$revision" \
+            --build-arg "SEED_REVISION=$seed_revision" \
+            --tag "$demo_image" .
+
+          # Buildah may change the image config digest on a cached rebuild even
+          # when its filesystem layers are reused. Export and scan the final tags
+          # here so SBOM evidence matches the exact images used below at runtime.
+          assert_image_metadata "$product_image" "$build_identity"
+          assert_image_metadata "$contract_image" 0.0.0-rc.0
+          assert_image_metadata "$seed_image" "$product_tag"
+          assert_image_metadata "$demo_image" "v0.2.0-SNAPSHOT@$short_revision"
+          echo "Generating SBOMs for the final images used by the runtime checks."
+          for image in "$product_image" "$seed_image" "$demo_image"; do
+            podman image inspect "$image" --format '{{.Architecture}} {{.Id}} {{.Config.Labels}}'
+            archive="$temp_dir/$(printf '%s' "$image" | tr '/:' '--').oci"
+            sbom="$temp_dir/$(printf '%s' "$image" | tr '/:' '--').cdx.json"
+            podman save --format oci-archive --output "$archive" "$image"
+            syft_scan "oci-archive:$archive" "$sbom"
+            archive_config_digest="$(python3 -c 'import json,tarfile,sys; t=tarfile.open(sys.argv[1]); index=json.load(t.extractfile("index.json")); digest=index["manifests"][0]["digest"]; algorithm,value=digest.split(":",1); manifest=json.load(t.extractfile(f"blobs/{algorithm}/{value}")); print(manifest["config"]["digest"])' "$archive")"
+            image_config_digest="sha256:$(podman image inspect "$image" --format '{{.Id}}' | sed 's/^sha256://')"
+            test "$archive_config_digest" = "$image_config_digest"
+            echo "SBOM source verified: image=$image config=$image_config_digest archive=$archive"
+          done
+
+          echo "Creating labeled Podman resources for the product runtime contract."
+          podman volume create --label "$scope" "$data_volume" >/dev/null
+          podman volume create --label "$scope" "$socket_volume" >/dev/null
+          podman volume create --label "$scope" "$work_volume" >/dev/null
+          podman run --rm --name "$prefix-product-socket-init" --label "$scope" --network none --read-only --user 0:0 \
+            --cap-drop ALL --cap-add CHOWN --cap-add FOWNER \
+            --volume "$socket_volume:/run/lzug-admin:nocopy" \
+            --entrypoint sh "$product_image" -c 'chown 10001:10001 /run/lzug-admin && chmod 0750 /run/lzug-admin'
+          podman run --rm --name "$prefix-product-work-init" --label "$scope" --network none --read-only --user 0:0 \
+            --cap-drop ALL --cap-add CHOWN \
+            --volume "$work_volume:/work:nocopy" \
+            --entrypoint chown "$product_image" 10002:10001 /work
+
+          podman run --detach --name "$app_container" --label "$scope" --read-only --tmpfs /tmp \
+            --cap-drop ALL --security-opt no-new-privileges:true \
+            --publish 127.0.0.1::8000 \
+            --mount "type=volume,source=$data_volume,target=/data" \
+            --mount "type=volume,source=$socket_volume,target=/run/lzug-admin" \
+            "$product_image" >/dev/null
+          port_binding="$(podman port "$app_container" 8000/tcp)"
+          case "$port_binding" in
+            127.0.0.1:*) ;;
+            *) echo "Unexpected non-loopback host binding: $port_binding" >&2; exit 1 ;;
+          esac
+          app_port="$(printf '%s' "$port_binding" | sed 's/.*://')"
+          app_url="http://127.0.0.1:$app_port"
+          ready=false
+          attempt=1
+          while [ "$attempt" -le 120 ]; do
+            if curl --silent --fail "$app_url/api/lifecycle" >"$temp_dir/lifecycle.json" \
+              && jq -e '.state == "ready" and .ready == true' "$temp_dir/lifecycle.json" >/dev/null; then
+              ready=true
+              break
+            fi
+            sleep 1
+            attempt=$((attempt + 1))
+          done
+          if [ "$ready" != true ]; then
+            podman logs "$app_container" >&2 || true
+            cat "$temp_dir/lifecycle.json" >&2 || true
+            exit 1
+          fi
+          podman exec "$app_container" python -c '
+          import errno, os, stat
+          from pathlib import Path
+          assert (os.geteuid(), os.getegid()) == (10001, 10001)
+          for path, kind, mode in (
+              (Path("/run/lzug-admin"), stat.S_ISDIR, 0o750),
+              (Path("/run/lzug-admin/admin.sock"), stat.S_ISSOCK, 0o660),
+          ):
+              info = path.lstat()
+              assert kind(info.st_mode)
+              assert (info.st_uid, info.st_gid, stat.S_IMODE(info.st_mode)) == (10001, 10001, mode)
+          try:
+              Path("/app/forbidden-write").write_text("must fail")
+          except OSError as error:
+              assert error.errno == errno.EROFS
+          else:
+              raise AssertionError("root filesystem is writable")
+          '
+          podman exec "$app_container" python -m backend.healthcheck
+          app_inspect="$(podman inspect "$app_container")"
+          printf '%s\n' "$app_inspect" | jq '.[0] | {
+            user: .Config.User,
+            readonly_rootfs: .HostConfig.ReadonlyRootfs,
+            privileged: .HostConfig.Privileged,
+            cap_drop: .HostConfig.CapDrop,
+            security_options: .HostConfig.SecurityOpt
+          }'
+          if ! printf '%s\n' "$app_inspect" | jq -e \
+            '.[0].Config.User == "10001:10001" and
+             .[0].HostConfig.ReadonlyRootfs == true and
+             .[0].HostConfig.Privileged == false and
+             ([.[0].HostConfig.SecurityOpt[] | select(startswith("no-new-privileges"))] | length) == 1' >/dev/null; then
+            echo "Podman qualification: runtime security metadata differs from the expected container contract." >&2
+            exit 1
+          fi
+          podman exec "$app_container" python -c '
+          from pathlib import Path
+
+          status = {}
+          for line in Path("/proc/1/status").read_text().splitlines():
+              if ":" in line:
+                  key, value = line.split(":", 1)
+                  status[key] = value.strip()
+          for field in ("CapInh", "CapPrm", "CapEff", "CapBnd", "CapAmb"):
+              assert int(status[field], 16) == 0, f"{field} is nonzero"
+          assert status["NoNewPrivs"] == "1", "NoNewPrivs is not enabled"
+          '
+
+          bootstrap_args=(committee bootstrap --idempotency-key podman-runtime-persistence \
+            --name "Podman Runtime Committee" --ihk "IHK Test" --occupation "Test occupation" \
+            --chair-first-name Test --chair-last-name Chair --chair-email runtime-chair@example.invalid \
+            --chair-member-status ordinary --chair-representing-side employee)
+          cli_image_args=(--endpoint unix:///run/lzug-admin/admin.sock --json)
+          first_result="$(podman run --rm --name "$prefix-product-cli-create" --label "$scope" -i --network none --read-only --user 10002:10001 \
+            --cap-drop ALL --security-opt no-new-privileges:true \
+            --volume "$work_volume:/work:nocopy" \
+            --workdir /work --pid "container:$app_container" \
+            --volume "$socket_volume:/run/lzug-admin:ro,nocopy" \
+            --entrypoint /usr/local/bin/lzug-admin "$product_image" "${cli_image_args[@]}" "${bootstrap_args[@]}")"
+          if ! printf '%s' "$first_result" | jq -e '.ok == true and .result.committee_id > 0' >/dev/null 2>&1; then
+            echo "Podman qualification: CLI bootstrap response did not satisfy the expected contract." >&2
+            exit 1
+          fi
+          committee_id="$(printf '%s' "$first_result" | jq -er '.result.committee_id')"
+          replay_result="$(podman run --rm --name "$prefix-product-cli-replay" --label "$scope" -i --network none --read-only --user 10002:10001 \
+            --cap-drop ALL --security-opt no-new-privileges:true \
+            --volume "$work_volume:/work:nocopy" \
+            --workdir /work --pid "container:$app_container" \
+            --volume "$socket_volume:/run/lzug-admin:ro,nocopy" \
+            --entrypoint /usr/local/bin/lzug-admin "$product_image" "${cli_image_args[@]}" "${bootstrap_args[@]}")"
+          if ! printf '%s' "$replay_result" | jq -e --argjson committee_id "$committee_id" \
+            '.ok == true and .result.replayed == true and .result.committee_id == $committee_id' >/dev/null 2>&1; then
+            echo "Podman qualification: idempotent CLI replay response did not satisfy the expected contract." >&2
+            exit 1
+          fi
+
+          echo "Restarting the product runtime and checking persistent CLI state."
+          podman stop "$app_container" >/dev/null
+          podman start "$app_container" >/dev/null
+          ready=false
+          attempt=1
+          while [ "$attempt" -le 120 ]; do
+            if curl --silent --fail "$app_url/api/lifecycle" >"$temp_dir/lifecycle.json" \
+              && jq -e '.state == "ready" and .ready == true' "$temp_dir/lifecycle.json" >/dev/null; then
+              ready=true
+              break
+            fi
+            sleep 1
+            attempt=$((attempt + 1))
+          done
+          if [ "$ready" != true ]; then
+            podman logs "$app_container" >&2 || true
+            cat "$temp_dir/lifecycle.json" >&2 || true
+            exit 1
+          fi
+          if ! printf '%s' "$replay_result" | jq -e --argjson committee_id "$committee_id" \
+            '.result.committee_id == $committee_id' >/dev/null 2>&1; then
+            echo "Podman qualification: committee state did not persist across the runtime restart." >&2
+            exit 1
+          fi
+          replay_after_restart="$(podman run --rm --name "$prefix-product-cli-after-restart" --label "$scope" -i --network none --read-only --user 10002:10001 \
+            --cap-drop ALL --security-opt no-new-privileges:true \
+            --volume "$work_volume:/work:nocopy" \
+            --workdir /work --pid "container:$app_container" \
+            --volume "$socket_volume:/run/lzug-admin:ro,nocopy" \
+            --entrypoint /usr/local/bin/lzug-admin "$product_image" "${cli_image_args[@]}" "${bootstrap_args[@]}")"
+          if ! printf '%s' "$replay_after_restart" | jq -e --argjson committee_id "$committee_id" \
+            '.ok == true and .result.replayed == true and .result.committee_id == $committee_id' >/dev/null 2>&1; then
+            echo "Podman qualification: post-restart CLI replay response did not satisfy the expected contract." >&2
+            exit 1
+          fi
+
+          echo "Running the existing demo smoke contract through Podman's Docker-compatible API."
+          mkdir -p "$temp_dir/bin"
+          cat > "$temp_dir/bin/docker" <<'EOF'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          scope=${LZUG_QUALITY_RESOURCE_LABEL:?}
+          prefix="$scope-demo"
+          args=("$@")
+          if [[ "${args[0]:-} ${args[1]:-}" == "volume create" ]]; then
+            name=${args[2]:-}
+            exec /usr/bin/docker volume create --label "$scope" "$prefix-$name"
+          fi
+          if [[ "${args[0]:-}" == run || "${args[0]:-}" == create ]]; then
+            if [[ "${args[0]}" == run ]]; then
+              last_index=$((${#args[@]} - 1))
+              if [[ "${args[$last_index]}" == "$LZUG_QUALITY_DEMO_SEED_IMAGE" ]]; then
+                args=("${args[@]:0:last_index}" \
+                  --mount "type=bind,source=$LZUG_QUALITY_DEMO_SEED_DIR,target=/run/lzug-seed,readonly" \
+                  --entrypoint python "$LZUG_QUALITY_DEMO_APP_IMAGE" \
+                  -m demo.runtime.seed --seed-database /run/lzug-seed/lzug.sqlite \
+                  --seed-manifest /run/lzug-seed/manifest.json --target /data)
+              fi
+            fi
+            has_name=false
+            for argument in "${args[@]}"; do
+              if [[ "$argument" == --name ]]; then has_name=true; fi
+            done
+            if [[ "$has_name" == true ]]; then
+              args=("${args[0]}" --label "$scope" "${args[@]:1}")
+            else
+              args=("${args[0]}" --name "generated-$$" --label "$scope" "${args[@]:1}")
+            fi
+          fi
+          for index in "${!args[@]}"; do
+            if [[ "${args[index]}" == --name ]]; then
+              index=$((index + 1))
+              case "${args[index]}" in
+                "$prefix"-*) ;;
+                *) args[index]="$prefix-${args[index]}" ;;
+              esac
+            elif [[ "${args[index]}" == --mount ]]; then
+              index=$((index + 1))
+              args[index]="${args[index]//source=lzug-demo-smoke-/source=$prefix-lzug-demo-smoke-}"
+            elif [[ "${args[index]}" == --mount\ * ]]; then
+              args[index]="${args[index]//source=lzug-demo-smoke-/source=$prefix-lzug-demo-smoke-}"
+            elif [[ "${args[index]}" == lzug-demo-smoke-* ]]; then
+              args[index]="$prefix-${args[index]}"
+            fi
+          done
+          exec /usr/bin/docker "${args[@]}"
+          EOF
+          chmod +x "$temp_dir/bin/docker"
+          export LZUG_QUALITY_DEMO_SEED_IMAGE="$seed_image"
+          export LZUG_QUALITY_DEMO_APP_IMAGE="$demo_image"
+          export LZUG_QUALITY_DEMO_SEED_DIR="$seed_dir"
+          PATH="$temp_dir/bin:$PATH" packaging/demo/container-smoke.sh \
+            "$demo_image" "$seed_image" "$product_image" "$seed_revision"
+
+          for image in "$product_image" "$contract_image" "$seed_image" "$demo_image"; do
+            podman image inspect "$image" --format '{{.Architecture}} {{.Id}} {{.Config.Labels}}'
+          done
+          podman system df
