@@ -33,8 +33,9 @@ jobs:
             throw "wsl --version failed with exit code $LASTEXITCODE`: $wslOutput"
           }
           $wslOutput | Write-Host
+          $wslText = ($wslOutput -join "`n") -replace "`0", ''
           $versionMatch = [regex]::Match(
-            ($wslOutput -join "`n"),
+            $wslText,
             '(?m)^WSL version:\s*(\d+\.\d+\.\d+(?:\.\d+)?)'
           )
           if (-not $versionMatch.Success) {
