@@ -356,6 +356,7 @@ jobs:
              .[0].HostConfig.CapDrop == ["ALL"] and
              .[0].HostConfig.SecurityOpt == ["no-new-privileges:true"]' >/dev/null
 
+          set +x
           bootstrap_args=(committee bootstrap --idempotency-key podman-runtime-persistence \
             --name "Podman Runtime Committee" --ihk "IHK Test" --occupation "Test occupation" \
             --chair-first-name Test --chair-last-name Chair --chair-email runtime-chair@example.invalid \
