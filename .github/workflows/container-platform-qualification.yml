@@ -270,6 +270,10 @@ jobs:
           # Buildah may change the image config digest on a cached rebuild even
           # when its filesystem layers are reused. Export and scan the final tags
           # here so SBOM evidence matches the exact images used below at runtime.
+          assert_image_metadata "$product_image" "$build_identity"
+          assert_image_metadata "$contract_image" 0.0.0-rc.0
+          assert_image_metadata "$seed_image" "$product_tag"
+          assert_image_metadata "$demo_image" "v0.2.0-SNAPSHOT@$short_revision"
           echo "Generating SBOMs for the final images used by the runtime checks."
           for image in "$product_image" "$seed_image" "$demo_image"; do
             podman image inspect "$image" --format '{{.Architecture}} {{.Id}} {{.Config.Labels}}'
