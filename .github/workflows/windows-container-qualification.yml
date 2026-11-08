@@ -53,6 +53,12 @@ jobs:
             throw "wslc version failed with exit code $LASTEXITCODE."
           }
           & wslc.exe --help | Write-Host
+          & wslc.exe info | Write-Host
+          & wslc.exe build --help | Write-Host
+          & wslc.exe run --help | Write-Host
+          & wslc.exe volume create --help | Write-Host
+          & wslc.exe container inspect --help | Write-Host
+          & wslc.exe image save --help | Write-Host
           & wslc.exe image --help | Write-Host
           & wslc.exe volume --help | Write-Host
 
