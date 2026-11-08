@@ -248,22 +248,7 @@ jobs:
             mise exec --no-deps aqua:anchore/syft@1.51.0 -- \
               syft scan --config .syft.yaml "$1" --output "cyclonedx-json@1.6=$2"
           }
-          for image in "$product_image" "$seed_image" "$demo_image"; do
-            podman image inspect "$image" --format '{{.Architecture}} {{.Id}} {{.Config.Labels}}'
-            archive="$temp_dir/$(printf '%s' "$image" | tr '/:' '--').oci"
-            sbom="$temp_dir/$(printf '%s' "$image" | tr '/:' '--').cdx.json"
-            podman save --format oci-archive --output "$archive" "$image"
-            syft_scan "oci-archive:$archive" "$sbom"
-            archive_config_digest="$(python3 -c 'import json,tarfile,sys; t=tarfile.open(sys.argv[1]); index=json.load(t.extractfile("index.json")); digest=index["manifests"][0]["digest"]; algorithm,value=digest.split(":",1); manifest=json.load(t.extractfile(f"blobs/{algorithm}/{value}")); print(manifest["config"]["digest"])' "$archive")"
-            image_config_digest="sha256:$(podman image inspect "$image" --format '{{.Id}}' | sed 's/^sha256://')"
-            test "$archive_config_digest" = "$image_config_digest"
-            echo "SBOM source verified: image=$image config=$image_config_digest archive=$archive"
-          done
-
           echo "Rebuilding product and demo images with the populated Podman cache."
-          product_id_before="$(podman image inspect "$product_image" --format '{{.Id}}')"
-          seed_id_before="$(podman image inspect "$seed_image" --format '{{.Id}}')"
-          demo_id_before="$(podman image inspect "$demo_image" --format '{{.Id}}')"
           timed_build product-cached podman build --label "$scope" \
             --file packaging/product/Dockerfile \
             --build-arg "BUILD_IDENTITY=$build_identity" \
@@ -281,9 +266,22 @@ jobs:
             --build-arg "VCS_REF=$revision" \
             --build-arg "SEED_REVISION=$seed_revision" \
             --tag "$demo_image" .
-          test "$product_id_before" = "$(podman image inspect "$product_image" --format '{{.Id}}')"
-          test "$seed_id_before" = "$(podman image inspect "$seed_image" --format '{{.Id}}')"
-          test "$demo_id_before" = "$(podman image inspect "$demo_image" --format '{{.Id}}')"
+
+          # Buildah may change the image config digest on a cached rebuild even
+          # when its filesystem layers are reused. Export and scan the final tags
+          # here so SBOM evidence matches the exact images used below at runtime.
+          echo "Generating SBOMs for the final images used by the runtime checks."
+          for image in "$product_image" "$seed_image" "$demo_image"; do
+            podman image inspect "$image" --format '{{.Architecture}} {{.Id}} {{.Config.Labels}}'
+            archive="$temp_dir/$(printf '%s' "$image" | tr '/:' '--').oci"
+            sbom="$temp_dir/$(printf '%s' "$image" | tr '/:' '--').cdx.json"
+            podman save --format oci-archive --output "$archive" "$image"
+            syft_scan "oci-archive:$archive" "$sbom"
+            archive_config_digest="$(python3 -c 'import json,tarfile,sys; t=tarfile.open(sys.argv[1]); index=json.load(t.extractfile("index.json")); digest=index["manifests"][0]["digest"]; algorithm,value=digest.split(":",1); manifest=json.load(t.extractfile(f"blobs/{algorithm}/{value}")); print(manifest["config"]["digest"])' "$archive")"
+            image_config_digest="sha256:$(podman image inspect "$image" --format '{{.Id}}' | sed 's/^sha256://')"
+            test "$archive_config_digest" = "$image_config_digest"
+            echo "SBOM source verified: image=$image config=$image_config_digest archive=$archive"
+          done
 
           echo "Creating labeled Podman resources for the product runtime contract."
           podman volume create --label "$scope" "$data_volume" >/dev/null
