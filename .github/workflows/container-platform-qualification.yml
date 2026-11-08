@@ -68,21 +68,35 @@ jobs:
               kill "$service_pid" >/dev/null 2>&1 || true
               wait "$service_pid" >/dev/null 2>&1 || true
             fi
-            containers="$(podman container list --all --quiet --filter "label=$scope" 2>/dev/null || true)"
+            containers="$(podman container list --all --format '{{.Names}}' --filter "label=$scope" 2>/dev/null || true)"
             if [ -n "$containers" ]; then
-              podman container rm --force $containers >/dev/null || status=1
+              mapfile -t container_names <<< "$containers"
+              for container_name in "${container_names[@]}"; do
+                case "$container_name" in
+                  "$prefix"*) ;;
+                  *) echo "Refusing to remove non-prefixed container: $container_name" >&2; status=1; continue ;;
+                esac
+                podman container rm --force "$container_name" >/dev/null || status=1
+              done
             fi
-            volumes="$(podman volume list --quiet --filter "label=$scope" 2>/dev/null || true)"
+            volumes="$(podman volume list --format '{{.Name}}' --filter "label=$scope" 2>/dev/null || true)"
             if [ -n "$volumes" ]; then
-              podman volume rm --force $volumes >/dev/null || status=1
+              mapfile -t volume_names <<< "$volumes"
+              for volume_name in "${volume_names[@]}"; do
+                case "$volume_name" in
+                  "$prefix"*) ;;
+                  *) echo "Refusing to remove non-prefixed volume: $volume_name" >&2; status=1; continue ;;
+                esac
+                podman volume rm --force "$volume_name" >/dev/null || status=1
+              done
             fi
             podman rmi --force "$product_image" "$contract_image" "$seed_image" "$demo_image" >/dev/null 2>&1 || true
             rm -rf "$temp_dir"
             echo "Labeled containers after cleanup:"
-            remaining_containers="$(podman container list --all --quiet --filter "label=$scope" 2>/dev/null || true)"
+            remaining_containers="$(podman container list --all --format '{{.Names}}' --filter "label=$scope" 2>/dev/null || true)"
             printf '%s\n' "${remaining_containers:-none}"
             echo "Labeled volumes after cleanup:"
-            remaining_volumes="$(podman volume list --quiet --filter "label=$scope" 2>/dev/null || true)"
+            remaining_volumes="$(podman volume list --format '{{.Name}}' --filter "label=$scope" 2>/dev/null || true)"
             printf '%s\n' "${remaining_volumes:-none}"
             if [ -n "$remaining_containers" ] || [ -n "$remaining_volumes" ]; then
               echo "Worktree-labeled Podman resources remain after cleanup." >&2
@@ -120,10 +134,12 @@ jobs:
           mkdir -p "$(dirname "$socket_path")"
           podman system service --time=0 "unix://$socket_path" >"$temp_dir/podman-service.log" 2>&1 &
           service_pid=$!
-          for attempt in $(seq 1 30); do
-            test -S "$socket_path" && break
+          attempt=1
+          while [ "$attempt" -le 30 ]; do
+            if [ -S "$socket_path" ]; then break; fi
             kill -0 "$service_pid"
             sleep 1
+            attempt=$((attempt + 1))
           done
           test -S "$socket_path"
           export DOCKER_HOST="unix://$socket_path"
@@ -170,6 +186,28 @@ jobs:
             --build-arg "SEED_REVISION=$seed_revision" \
             --tag "$demo_image" .
 
+          case "$(uname -m)" in
+            x86_64) expected_arch=amd64 ;;
+            aarch64) expected_arch=arm64 ;;
+            *) echo "Unqualified runner architecture: $(uname -m)" >&2; exit 1 ;;
+          esac
+          assert_image_metadata() {
+            image=$1
+            expected_version=$2
+            podman image inspect "$image" | jq -e \
+              --arg arch "$expected_arch" \
+              --arg revision "$revision" \
+              --arg version "$expected_version" \
+              '.[0].Architecture == $arch and
+               .[0].Config.Labels["org.opencontainers.image.revision"] == $revision and
+               .[0].Config.Labels["org.opencontainers.image.version"] == $version' >/dev/null
+            podman image inspect "$image" --format '{{.Architecture}} {{.Id}} {{.Config.Labels}}'
+          }
+          assert_image_metadata "$product_image" "$build_identity"
+          assert_image_metadata "$contract_image" 0.0.0-rc.0
+          assert_image_metadata "$seed_image" "$product_tag"
+          assert_image_metadata "$demo_image" "v0.2.0-SNAPSHOT@$short_revision"
+
           syft_scan() {
             mise exec --no-deps aqua:anchore/syft@1.51.0 -- \
               syft scan --config .syft.yaml "$1" --output "cyclonedx-json@1.6=$2"
@@ -181,7 +219,7 @@ jobs:
             podman save --format oci-archive --output "$archive" "$image"
             syft_scan "oci-archive:$archive" "$sbom"
             archive_config_digest="$(python3 -c 'import json,tarfile,sys; t=tarfile.open(sys.argv[1]); index=json.load(t.extractfile("index.json")); digest=index["manifests"][0]["digest"]; algorithm,value=digest.split(":",1); manifest=json.load(t.extractfile(f"blobs/{algorithm}/{value}")); print(manifest["config"]["digest"])' "$archive")"
-            image_config_digest="$(podman image inspect "$image" --format '{{.Id}}')"
+            image_config_digest="sha256:$(podman image inspect "$image" --format '{{.Id}}' | sed 's/^sha256://')"
             test "$archive_config_digest" = "$image_config_digest"
             echo "SBOM source verified: image=$image config=$image_config_digest archive=$archive"
           done
@@ -215,26 +253,34 @@ jobs:
           podman volume create --label "$scope" "$data_volume" >/dev/null
           podman volume create --label "$scope" "$socket_volume" >/dev/null
           podman volume create --label "$scope" "$work_volume" >/dev/null
-          podman run --rm --label "$scope" --network none --read-only --user 0:0 \
+          podman run --rm --name "$prefix-product-work-init" --label "$scope" --network none --read-only --user 0:0 \
             --cap-drop ALL --cap-add CHOWN \
             --mount "type=volume,source=$work_volume,target=/work,volume-nocopy" \
             --entrypoint chown "$product_image" 10002:10001 /work
 
           podman run --detach --name "$app_container" --label "$scope" --read-only --tmpfs /tmp \
+            --cap-drop ALL --security-opt no-new-privileges:true \
             --publish 127.0.0.1::8000 \
             --mount "type=volume,source=$data_volume,target=/data" \
             --mount "type=volume,source=$socket_volume,target=/run/lzug-admin" \
             "$product_image" >/dev/null
-          app_port="$(podman port "$app_container" 8000/tcp | sed 's/.*://')"
+          port_binding="$(podman port "$app_container" 8000/tcp)"
+          case "$port_binding" in
+            127.0.0.1:*) ;;
+            *) echo "Unexpected non-loopback host binding: $port_binding" >&2; exit 1 ;;
+          esac
+          app_port="$(printf '%s' "$port_binding" | sed 's/.*://')"
           app_url="http://127.0.0.1:$app_port"
           ready=false
-          for attempt in $(seq 1 120); do
+          attempt=1
+          while [ "$attempt" -le 120 ]; do
             if curl --silent --fail "$app_url/api/lifecycle" >"$temp_dir/lifecycle.json" \
               && jq -e '.state == "ready" and .ready == true' "$temp_dir/lifecycle.json" >/dev/null; then
               ready=true
               break
             fi
             sleep 1
+            attempt=$((attempt + 1))
           done
           if [ "$ready" != true ]; then
             podman logs "$app_container" >&2 || true
@@ -260,13 +306,19 @@ jobs:
               raise AssertionError("root filesystem is writable")
           '
           podman exec "$app_container" python -m backend.healthcheck
+          podman inspect "$app_container" | jq -e \
+            '.[0].Config.User == "10001:10001" and
+             .[0].HostConfig.ReadonlyRootfs == true and
+             .[0].HostConfig.Privileged == false and
+             .[0].HostConfig.CapDrop == ["ALL"] and
+             .[0].HostConfig.SecurityOpt == ["no-new-privileges:true"]' >/dev/null
 
           bootstrap_args=(committee bootstrap --idempotency-key podman-runtime-persistence \
             --name "Podman Runtime Committee" --ihk "IHK Test" --occupation "Test occupation" \
             --chair-first-name Test --chair-last-name Chair --chair-email runtime-chair@example.invalid \
             --chair-member-status ordinary --chair-representing-side employee)
           cli_image_args=(--endpoint unix:///run/lzug-admin/admin.sock --json)
-          first_result="$(podman run --rm --label "$scope" -i --network none --read-only --user 10002:10001 \
+          first_result="$(podman run --rm --name "$prefix-product-cli-create" --label "$scope" -i --network none --read-only --user 10002:10001 \
             --cap-drop ALL --security-opt no-new-privileges:true \
             --mount "type=volume,source=$work_volume,target=/work,volume-nocopy" \
             --workdir /work --pid "container:$app_container" \
@@ -274,7 +326,7 @@ jobs:
             --entrypoint /usr/local/bin/lzug-admin "$product_image" "${cli_image_args[@]}" "${bootstrap_args[@]}")"
           printf '%s' "$first_result" | jq -e '.ok == true and .result.committee_id > 0' >/dev/null
           committee_id="$(printf '%s' "$first_result" | jq -er '.result.committee_id')"
-          replay_result="$(podman run --rm --label "$scope" -i --network none --read-only --user 10002:10001 \
+          replay_result="$(podman run --rm --name "$prefix-product-cli-replay" --label "$scope" -i --network none --read-only --user 10002:10001 \
             --cap-drop ALL --security-opt no-new-privileges:true \
             --mount "type=volume,source=$work_volume,target=/work,volume-nocopy" \
             --workdir /work --pid "container:$app_container" \
@@ -287,12 +339,15 @@ jobs:
           podman stop "$app_container" >/dev/null
           podman start "$app_container" >/dev/null
           ready=false
-          for attempt in $(seq 1 120); do
+          attempt=1
+          while [ "$attempt" -le 120 ]; do
             if curl --silent --fail "$app_url/api/lifecycle" >"$temp_dir/lifecycle.json" \
               && jq -e '.state == "ready" and .ready == true' "$temp_dir/lifecycle.json" >/dev/null; then
+              ready=true
               break
             fi
             sleep 1
+            attempt=$((attempt + 1))
           done
           if [ "$ready" != true ]; then
             podman logs "$app_container" >&2 || true
@@ -301,7 +356,7 @@ jobs:
           fi
           printf '%s' "$replay_result" | jq -e --argjson committee_id "$committee_id" \
             '.result.committee_id == $committee_id'
-          replay_after_restart="$(podman run --rm --label "$scope" -i --network none --read-only --user 10002:10001 \
+          replay_after_restart="$(podman run --rm --name "$prefix-product-cli-after-restart" --label "$scope" -i --network none --read-only --user 10002:10001 \
             --cap-drop ALL --security-opt no-new-privileges:true \
             --mount "type=volume,source=$work_volume,target=/work,volume-nocopy" \
             --workdir /work --pid "container:$app_container" \
@@ -323,12 +378,23 @@ jobs:
             exec /usr/bin/docker volume create --label "$scope" "$prefix-$name"
           fi
           if [[ "${args[0]:-}" == run || "${args[0]:-}" == create ]]; then
-            args=("${args[0]}" --label "$scope" "${args[@]:1}")
+            has_name=false
+            for argument in "${args[@]}"; do
+              if [[ "$argument" == --name ]]; then has_name=true; fi
+            done
+            if [[ "$has_name" == true ]]; then
+              args=("${args[0]}" --label "$scope" "${args[@]:1}")
+            else
+              args=("${args[0]}" --name "$prefix-$$" --label "$scope" "${args[@]:1}")
+            fi
           fi
           for index in "${!args[@]}"; do
             if [[ "${args[index]}" == --name ]]; then
               index=$((index + 1))
               args[index]="$prefix-${args[index]}"
+            elif [[ "${args[index]}" == --mount ]]; then
+              index=$((index + 1))
+              args[index]="${args[index]//source=lzug-demo-smoke-/source=$prefix-lzug-demo-smoke-}"
             elif [[ "${args[index]}" == --mount\ * ]]; then
               args[index]="${args[index]//source=lzug-demo-smoke-/source=$prefix-lzug-demo-smoke-}"
             elif [[ "${args[index]}" == lzug-demo-smoke-* ]]; then
