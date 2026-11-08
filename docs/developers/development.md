@@ -68,6 +68,10 @@ Der Pilot verwendet native Linux-Architektur, dieselbe projektweite Task-Quality
 und die Playwright-Version aus `frontend/package-lock.json`.
 Der Worktree wird im Runner unter demselben absoluten Pfad eingebunden, damit
 Compose- und Pester-Tests ihre Quellen über den Docker-Host erreichen.
+Auf einem nativen Linux-Host bindet der Runner Testports an die Gateway-Adresse
+des Docker-Bridge-Netzes, damit der Prüfcontainer den Dienst erreicht, ohne den
+Port an alle Host-Schnittstellen zu veröffentlichen. Docker Desktop verwendet
+Loopback-Bindings und `host.docker.internal`.
 Die Linux-`.venv`, `node_modules` und Paket-/Build-Caches liegen in getrennten
 Docker-Volumes; macOS-Abhängigkeiten werden nicht wiederverwendet. Der
 Buildx-Builder und sein BuildKit-Cache sind ebenfalls pro Worktree isoliert.

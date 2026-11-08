@@ -55,7 +55,9 @@ Describe 'Ubuntu quality runner resource contracts' {
 
     It 'scopes Pester fixture names, containers, networks, and volumes to the worktree label' {
         $previousResourceLabel = $env:LZUG_QUALITY_RESOURCE_LABEL
+        $previousRuntimeBindAddress = $env:LZUG_QUALITY_RUNTIME_BIND_ADDRESS
         $env:LZUG_QUALITY_RESOURCE_LABEL = 'lzug-codex-a8d8'
+        $env:LZUG_QUALITY_RUNTIME_BIND_ADDRESS = '172.17.0.1'
         try {
             $fixture = New-LzugFixture (Join-Path $TestDrive 'fixture')
             $fixture.Name | Should -Match '^lzug-codex-a8d8-pester-[0-9a-f]{32}$'
@@ -65,6 +67,8 @@ Describe 'Ubuntu quality runner resource contracts' {
             $composeOverride | Should -Match "(?s)contract_socket:\s+name:\s+lzug-codex-a8d8-pester-[0-9a-f]{32}-socket\s+labels:\s+'lzug-codex-a8d8': ''"
             $composeOverride | Should -Match "(?s)lzug_data:\s+labels:\s+'lzug-codex-a8d8': ''"
             $composeOverride | Should -Match "(?s)networks:\s+default:\s+name:\s+lzug-codex-a8d8-pester-[0-9a-f]{32}-network\s+labels:\s+'lzug-codex-a8d8': ''"
+            $composeEnvironment = Get-Content -Raw (Join-Path $TestDrive 'fixture/compose.env')
+            $composeEnvironment | Should -Match 'LZUG_BIND_ADDRESS=172\.17\.0\.1'
 
             $containerName = "$($fixture.Name)-legacy"
             $runArguments = Get-LzugDockerRunArguments -Fixture $fixture -Name $containerName -Arguments @('--detach', '--platform', 'linux/amd64', 'image:tag')
@@ -77,14 +81,21 @@ Describe 'Ubuntu quality runner resource contracts' {
             } else {
                 $env:LZUG_QUALITY_RESOURCE_LABEL = $previousResourceLabel
             }
+            if ($null -eq $previousRuntimeBindAddress) {
+                Remove-Item Env:LZUG_QUALITY_RUNTIME_BIND_ADDRESS -ErrorAction SilentlyContinue
+            } else {
+                $env:LZUG_QUALITY_RUNTIME_BIND_ADDRESS = $previousRuntimeBindAddress
+            }
         }
     }
 
     It 'uses the configured published-runtime host and defaults to loopback' {
         $previousRuntimeHost = $env:LZUG_QUALITY_RUNTIME_HOST
+        $previousRuntimeBindAddress = $env:LZUG_QUALITY_RUNTIME_BIND_ADDRESS
         try {
             $fixture = @{ Compose = @('compose'); Url = '' }
             $env:LZUG_QUALITY_RUNTIME_HOST = 'host.docker.internal'
+            $env:LZUG_QUALITY_RUNTIME_BIND_ADDRESS = '127.0.0.1'
             Mock Invoke-LzugCompose { '127.0.0.1:55010' }
 
             Update-LzugUrl $fixture
@@ -92,13 +103,23 @@ Describe 'Ubuntu quality runner resource contracts' {
             $fixture.Url | Should -Be 'http://host.docker.internal:55010'
 
             Remove-Item Env:LZUG_QUALITY_RUNTIME_HOST -ErrorAction SilentlyContinue
+            Remove-Item Env:LZUG_QUALITY_RUNTIME_BIND_ADDRESS -ErrorAction SilentlyContinue
             Update-LzugUrl $fixture
             $fixture.Url | Should -Be 'http://127.0.0.1:55010'
+
+            $env:LZUG_QUALITY_RUNTIME_HOST = '172.17.0.1'
+            Update-LzugUrl $fixture
+            $fixture.Url | Should -Be 'http://172.17.0.1:55010'
         } finally {
             if ($null -eq $previousRuntimeHost) {
                 Remove-Item Env:LZUG_QUALITY_RUNTIME_HOST -ErrorAction SilentlyContinue
             } else {
                 $env:LZUG_QUALITY_RUNTIME_HOST = $previousRuntimeHost
+            }
+            if ($null -eq $previousRuntimeBindAddress) {
+                Remove-Item Env:LZUG_QUALITY_RUNTIME_BIND_ADDRESS -ErrorAction SilentlyContinue
+            } else {
+                $env:LZUG_QUALITY_RUNTIME_BIND_ADDRESS = $previousRuntimeBindAddress
             }
         }
     }

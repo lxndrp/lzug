@@ -278,6 +278,19 @@ try {
         '--entrypoint', 'docker', $image, 'info'
     ) -Quiet
 
+    $runtimeHost = 'host.docker.internal'
+    $runtimeBindAddress = '127.0.0.1'
+    if ($IsLinux) {
+        $runtimeBindAddress = Get-NativeOutput -Command docker -Arguments @(
+            'network', 'inspect', 'bridge', '--format', '{{(index .IPAM.Config 0).Gateway}}'
+        )
+        $parsedAddress = $null
+        if (-not [System.Net.IPAddress]::TryParse($runtimeBindAddress, [ref]$parsedAddress)) {
+            throw "Docker returned an invalid bridge gateway address: $runtimeBindAddress"
+        }
+        $runtimeHost = $runtimeBindAddress
+    }
+
     $runArguments = @(
         'run', '--rm', '--name', $containerName,
         '--init', '--shm-size=1g', '--user', '1001:1001',
@@ -315,7 +328,8 @@ try {
         '--env', "LZUG_QUALITY_DEMO_APP_IMAGE=$($qualityImages.DemoApp)",
         '--env', "LZUG_QUALITY_DEMO_SEED_IMAGE=$($qualityImages.DemoSeed)",
         '--env', "LZUG_QUALITY_RESOURCE_LABEL=$resourceLabel",
-        '--env', 'LZUG_QUALITY_RUNTIME_HOST=host.docker.internal',
+        '--env', "LZUG_QUALITY_RUNTIME_HOST=$runtimeHost",
+        '--env', "LZUG_QUALITY_RUNTIME_BIND_ADDRESS=$runtimeBindAddress",
         '--env', "LZUG_PESTER_TMPDIR=$testTempDirectory",
         '--env', 'TMPDIR=/tmp',
         $image,

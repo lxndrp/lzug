@@ -12,6 +12,7 @@ lzug_require_docker
 
 resource_label=${LZUG_QUALITY_RESOURCE_LABEL:-}
 runtime_host=${LZUG_QUALITY_RUNTIME_HOST:-127.0.0.1}
+runtime_bind_address=${LZUG_QUALITY_RUNTIME_BIND_ADDRESS:-127.0.0.1}
 temporary_directory=$(mktemp -d "${TMPDIR:-/tmp}/lzug-demo-smoke.XXXXXX")
 run_id=${temporary_directory##*.}
 if [ -n "$resource_label" ]; then
@@ -23,25 +24,43 @@ volume="$suffix-data"
 container="$suffix-app"
 seed_run=0
 container_id=""
+container_attempted=0
 volume_created=0
 cleanup() {
-    if [ -n "$container_id" ]; then
-        docker rm --force "$container_id" >/dev/null 2>&1 || true
+    status=$?
+    trap - EXIT INT TERM
+    cleanup_status=0
+    if [ "$container_attempted" -eq 1 ]; then
+        if ! docker rm --force "$container" >/dev/null 2>&1; then
+            echo "Could not remove demo smoke container '$container'." >&2
+            cleanup_status=1
+        fi
     fi
     if [ "$volume_created" -eq 1 ]; then
-        docker volume rm "$volume" >/dev/null 2>&1 || true
+        if ! docker volume rm "$volume" >/dev/null 2>&1; then
+            echo "Could not remove demo smoke volume '$volume'." >&2
+            cleanup_status=1
+        fi
     fi
-    rm -rf "$temporary_directory"
+    if ! rm -rf "$temporary_directory"; then
+        echo "Could not remove demo smoke temporary directory '$temporary_directory'." >&2
+        cleanup_status=1
+    fi
+    if [ "$status" -eq 0 ]; then
+        status=$cleanup_status
+    fi
+    exit "$status"
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
+volume_created=1
 if [ -n "$resource_label" ]; then
     docker volume create --label "$resource_label" "$volume" >/dev/null
 else
     docker volume create "$volume" >/dev/null
 fi
-volume_created=1
-
 docker_run() {
     run_name=$1
     shift
@@ -60,8 +79,9 @@ run_seed() {
 }
 
 start_app() {
+    container_attempted=1
     container_id=$(docker_run "$container" --detach --read-only --tmpfs /tmp \
-        --publish 127.0.0.1::8000 \
+        --publish "$runtime_bind_address::8000" \
         --env LZUG_HTTPS_ONLY=false \
         --mount "type=volume,source=$volume,target=/data" \
         "$app_image")

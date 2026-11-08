@@ -67,6 +67,7 @@ function New-LzugFixture {
     @"
 LZUG_IMAGE=$($fixture.Image)
 LZUG_DATA_VOLUME=$($fixture.Data)
+LZUG_BIND_ADDRESS=$(if ([string]::IsNullOrWhiteSpace($env:LZUG_QUALITY_RUNTIME_BIND_ADDRESS)) { '127.0.0.1' } else { $env:LZUG_QUALITY_RUNTIME_BIND_ADDRESS })
 LZUG_HOST_PORT=0
 LZUG_ADMIN_SOCKET_DIR=$Directory/admin
 "@ | Set-Content "$Directory/compose.env"
