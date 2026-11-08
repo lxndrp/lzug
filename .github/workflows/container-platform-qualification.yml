@@ -287,6 +287,7 @@ jobs:
             echo "SBOM source verified: image=$image config=$image_config_digest archive=$archive"
           done
 
+          set -x
           echo "Creating labeled Podman resources for the product runtime contract."
           podman volume create --label "$scope" "$data_volume" >/dev/null
           podman volume create --label "$scope" "$socket_volume" >/dev/null
