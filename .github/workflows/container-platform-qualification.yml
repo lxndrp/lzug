@@ -291,6 +291,10 @@ jobs:
           podman volume create --label "$scope" "$data_volume" >/dev/null
           podman volume create --label "$scope" "$socket_volume" >/dev/null
           podman volume create --label "$scope" "$work_volume" >/dev/null
+          podman run --rm --name "$prefix-product-socket-init" --label "$scope" --network none --read-only --user 0:0 \
+            --cap-drop ALL --cap-add CHOWN --cap-add FOWNER \
+            --volume "$socket_volume:/run/lzug-admin:nocopy" \
+            --entrypoint sh "$product_image" -c 'chown 10001:10001 /run/lzug-admin && chmod 0750 /run/lzug-admin'
           podman run --rm --name "$prefix-product-work-init" --label "$scope" --network none --read-only --user 0:0 \
             --cap-drop ALL --cap-add CHOWN \
             --volume "$work_volume:/work:nocopy" \
