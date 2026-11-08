@@ -136,12 +136,14 @@ jobs:
             echo "Podman unexpectedly remained available on an empty PATH." >&2
             exit 1
           fi
-          test -s "$temp_dir/missing-runtime.log"
+          grep -Ei 'command not found|no such file|not found' "$temp_dir/missing-runtime.log" >/dev/null
+          cat "$temp_dir/missing-runtime.log"
           if docker --host "unix://$temp_dir/unavailable.sock" info >"$temp_dir/unavailable-service.log" 2>&1; then
             echo "Docker-compatible client unexpectedly connected to a missing service." >&2
             exit 1
           fi
           grep -Ei 'connect|socket|daemon' "$temp_dir/unavailable-service.log" >/dev/null
+          cat "$temp_dir/unavailable-service.log"
           cat > "$temp_dir/Containerfile.failure" <<'EOF'
           FROM scratch
           RUN false
