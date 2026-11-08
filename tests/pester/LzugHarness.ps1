@@ -187,7 +187,12 @@ function Start-LzugFixture {
 function Update-LzugUrl {
     param($Fixture)
     $binding = (Invoke-LzugCompose $Fixture @('port', 'lzug', '8000')).Trim()
-    $Fixture.Url = 'http://127.0.0.1:' + ($binding -split ':')[-1]
+    $runtimeHost = if ([string]::IsNullOrWhiteSpace($env:LZUG_QUALITY_RUNTIME_HOST)) {
+        '127.0.0.1'
+    } else {
+        $env:LZUG_QUALITY_RUNTIME_HOST
+    }
+    $Fixture.Url = 'http://' + $runtimeHost + ':' + ($binding -split ':')[-1]
 }
 
 function Remove-LzugFixture {

@@ -80,6 +80,47 @@ Describe 'Ubuntu quality runner resource contracts' {
         }
     }
 
+    It 'uses the configured published-runtime host and defaults to loopback' {
+        $previousRuntimeHost = $env:LZUG_QUALITY_RUNTIME_HOST
+        try {
+            $fixture = @{ Compose = @('compose'); Url = '' }
+            $env:LZUG_QUALITY_RUNTIME_HOST = 'host.docker.internal'
+            Mock Invoke-LzugCompose { '127.0.0.1:55010' }
+
+            Update-LzugUrl $fixture
+
+            $fixture.Url | Should -Be 'http://host.docker.internal:55010'
+
+            Remove-Item Env:LZUG_QUALITY_RUNTIME_HOST -ErrorAction SilentlyContinue
+            Update-LzugUrl $fixture
+            $fixture.Url | Should -Be 'http://127.0.0.1:55010'
+        } finally {
+            if ($null -eq $previousRuntimeHost) {
+                Remove-Item Env:LZUG_QUALITY_RUNTIME_HOST -ErrorAction SilentlyContinue
+            } else {
+                $env:LZUG_QUALITY_RUNTIME_HOST = $previousRuntimeHost
+            }
+        }
+    }
+
+    It 'uses a short shared temporary path for nested Docker bind-mount tests' {
+        if ($IsLinux -and -not [string]::IsNullOrWhiteSpace($env:LZUG_QUALITY_RUNTIME_HOST)) {
+            $temporaryRoot = [IO.Path]::GetFullPath($env:LZUG_PESTER_TMPDIR).TrimEnd(
+                [IO.Path]::DirectorySeparatorChar
+            )
+            $testTemporaryPath = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd(
+                [IO.Path]::DirectorySeparatorChar
+            )
+            $testTemporaryPath | Should -Be $temporaryRoot
+            $temporaryRoot.Length | Should -BeLessThan 64
+            $testDriveRoot = [IO.Path]::GetFullPath($TestDrive)
+            $testDriveRoot.StartsWith(
+                $temporaryRoot + [IO.Path]::DirectorySeparatorChar,
+                [StringComparison]::Ordinal
+            ) | Should -BeTrue
+        }
+    }
+
     It 'matches only the exact generated Buildx builder name' {
         Test-LzugBuilderOwnership `
             'lzug-codex-a8d8-ubuntu-quality-buildx' `

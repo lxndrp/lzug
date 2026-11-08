@@ -46,6 +46,8 @@ $containerName = $null
 $image = $null
 $builderName = $null
 $buildxConfigPath = $null
+$testTempDirectory = $null
+$testTempDirectoryCreated = $false
 $mutex = $null
 $mutexAcquired = $false
 $createdVolumes = [System.Collections.Generic.List[string]]::new()
@@ -63,6 +65,10 @@ $builderCleanupSucceeded = $true
 
 try {
     $worktreeRoot = Get-NativeOutput -Command git -Arguments @('rev-parse', '--show-toplevel')
+    $temporaryRoot = if ($IsMacOS) { '/private/tmp' } else { [IO.Path]::GetTempPath() }
+    $testTempDirectory = Join-Path $temporaryRoot "lzug-q-$([guid]::NewGuid().ToString('N'))"
+    New-Item -ItemType Directory -Force -Path $testTempDirectory | Out-Null
+    $testTempDirectoryCreated = $true
     $mutexIdentity = if ($persistentResources) { $resourceScope } else { $worktreeRoot }
     $mutexHash = [Convert]::ToHexString(
         [Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($mutexIdentity))
@@ -286,6 +292,7 @@ try {
     $runArguments += @(
         '--mount', "type=bind,source=$worktreeRoot,target=$worktreeRoot",
         '--mount', "type=bind,source=$gitCommonDirectory,target=$gitCommonDirectory,readonly",
+        '--mount', "type=bind,source=$testTempDirectory,target=$testTempDirectory",
         '--mount', 'type=bind,source=/var/run/docker.sock,target=/var/run/docker.sock',
         '--mount', "type=volume,source=$resourcePrefix-mise-data,target=/home/pwuser/.local/share/mise,volume-nocopy",
         '--mount', "type=volume,source=$resourcePrefix-mise-cache,target=/home/pwuser/.cache/mise,volume-nocopy",
@@ -308,6 +315,9 @@ try {
         '--env', "LZUG_QUALITY_DEMO_APP_IMAGE=$($qualityImages.DemoApp)",
         '--env', "LZUG_QUALITY_DEMO_SEED_IMAGE=$($qualityImages.DemoSeed)",
         '--env', "LZUG_QUALITY_RESOURCE_LABEL=$resourceLabel",
+        '--env', 'LZUG_QUALITY_RUNTIME_HOST=host.docker.internal',
+        '--env', "LZUG_PESTER_TMPDIR=$testTempDirectory",
+        '--env', 'TMPDIR=/tmp',
         $image,
         '/bin/sh', '-eu', '-c', @'
 git config --global --add safe.directory "$PWD"
@@ -315,7 +325,7 @@ mise install
 mise exec -- task setup
 mise exec -- task doctor
 mise exec -- task doctor:playwright
-mise exec -- task --concurrency=4 quality
+mise exec -- task --concurrency=1 quality
 '@
     )
     Invoke-Docker -Arguments $runArguments
@@ -433,6 +443,16 @@ finally {
         }
         catch {
             $cleanupErrors.Add("runner lock disposal failed: $($_.Exception.Message)") | Out-Null
+        }
+    }
+
+    if ($testTempDirectoryCreated -and $testTempDirectory -and
+        (Test-Path -LiteralPath $testTempDirectory -PathType Container)) {
+        try {
+            Remove-Item -LiteralPath $testTempDirectory -Recurse -Force
+        }
+        catch {
+            $cleanupErrors.Add("test temporary directory cleanup failed: $($_.Exception.Message)") | Out-Null
         }
     }
 

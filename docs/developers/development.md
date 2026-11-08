@@ -81,9 +81,10 @@ Der Docker-Socket wird für die bestehenden Runtime-Prüfungen eingebunden; es
 gibt kein Docker-in-Docker. Der Socket gewährt Zugriff auf den Host-Docker-
 Daemon und ist keine Sicherheitsgrenze; den Runner deshalb nur mit
 vertrauenswürdigem Quellcode verwenden.
-Task begrenzt die parallelen Teilaufgaben auf vier, um den lokalen
-Containerressourcenbedarf zu begrenzen; der vorhandene Quality-Task bleibt die
-einzige Prüfdefinition.
+Der Ubuntu-Runner ruft `task --concurrency=1 quality` auf. Die Docker-VM stellt
+vier vCPUs und rund 3,8 GiB RAM bereit; der serielle Taskgraph begrenzt den
+Spitzenbedarf, ohne eine zweite Quality-Definition einzuführen. Außerhalb des
+Runners bleibt die normale Task-Parallelität erhalten.
 In einem verwalteten Codex-Worktree tragen Runnerimage, Quality-Images,
 Pester-Fixtures, Demo-Smoke-Container, Netzwerke und Volumes das Label
 `lzug-codex-<Worktree-ID>` und einen passenden Namenspräfix; das
@@ -95,23 +96,27 @@ Außerhalb eines verwalteten Worktrees räumt der Task seine flüchtigen Ressour
 nach dem Lauf auf. Fehler beim Cleanup schlagen einen ansonsten erfolgreichen
 Runnerlauf fehl; bei einem bereits fehlgeschlagenen Quality-Lauf bleibt dessen
 Fehler primär und zusätzliche Cleanupfehler werden ausgegeben.
-Auf Apple Silicon verwendet Docker dafür Linux-ARM64; der vollständige lokale
-Quality-Lauf muss diese Plattform noch qualifizieren. Er ersetzt nicht die
-CI-Abnahme auf Linux-AMD64.
+Auf Apple Silicon verwendet Docker dafür Linux-ARM64. Der vollständige lokale
+Quality-Lauf ist für den Mac-Host in [#1005](https://github.com/lxndrp/lzug/issues/1005)
+qualifiziert; er ersetzt nicht die CI-Abnahme auf Linux-AMD64.
 GitHub Actions führt dieselben Task-Verträge in domänenspezifischen Jobs auf
 `ubuntu-24.04` aus; der PR-Workflow nutzt dafür teils engere `:pr`-Einstiege.
 Die Quality-Pipeline baut und überträgt das Produktimage nur für die Container-
 und abhängigen Prüfungen.
-Das lokale Runnerimage wird derzeit nicht in Actions wiederverwendet.
-Ob es künftig auch in Actions genutzt werden sollte, ist noch offen.
-Die Entscheidung hängt vom erfolgreichen vollständigen `task quality` im
-lokalen Runner und einem gemessenen ARM64-/AMD64-Vergleich zu Laufzeit,
-Ressourcenverbrauch und Wartungsaufwand ab.
+Das lokale Runnerimage wird nicht in Actions wiederverwendet. Actions führt
+dieselben Task-Verträge bereits in domänenspezifischen Ubuntu-Jobs mit eigenen
+Caches und Artefakten aus; der lokale Runner benötigt zusätzlich den
+Docker-Socket für Compose- und Runtime-Tests. Ein gemeinsames Prüfimage würde
+diese Jobgrenzen und die macOS-/Windows-Matrix nicht ersetzen und bislang
+keinen belegten Wartungsvorteil bieten.
+Die Qualifikation in #1005 dokumentiert zwei vollständige lokale ARM64-Läufe
+und den vorhandenen Linux-AMD64-Quality-Lauf; Laufzeiten sind wegen serieller
+lokaler Ausführung, unterschiedlicher Caches und Jobaufteilung kein direkter
+Benchmarkvergleich.
 Für Compose- und Runtime-Tests benötigt der lokale Runner weiterhin den
 Docker-Socket des Hosts.
-Bis dahin bleiben lokaler Linux-Lauf und Actions-Runner getrennte
-Ausführungsformen derselben Taskverträge; CI auf dem exakten PR-Stand bleibt
-die finale Abnahme.
+Lokaler Linux-Lauf und Actions-Runner bleiben getrennte Ausführungsformen
+derselben Taskverträge; CI auf dem exakten PR-Stand bleibt die finale Abnahme.
 Das User-Namespace-Profil stammt aus der zur Playwright-Version passenden
 [offiziellen Docker-Anleitung](https://playwright.dev/docs/docker).
 Der Runner übernimmt Docker CLI, Buildx und Compose aus dem zur lokalen CLI-Version

@@ -52,6 +52,8 @@ class DemoDeliveryContractTests(unittest.TestCase):
             taskfile,
         )
         self.assertIn('suffix="$resource_label-demo-smoke-$run_id"', smoke)
+        self.assertIn("runtime_host=${LZUG_QUALITY_RUNTIME_HOST:-127.0.0.1}", smoke)
+        self.assertIn('url="http://$runtime_host:$port"', smoke)
         self.assertIn('docker volume create --label "$resource_label" "$volume"', smoke)
         self.assertIn('docker run --name "$run_name" --label "$resource_label" "$@"', smoke)
         self.assertEqual(smoke.count("docker run "), 2)

@@ -11,6 +11,7 @@ expected_seed_revision=${4:-}
 lzug_require_docker
 
 resource_label=${LZUG_QUALITY_RESOURCE_LABEL:-}
+runtime_host=${LZUG_QUALITY_RUNTIME_HOST:-127.0.0.1}
 temporary_directory=$(mktemp -d "${TMPDIR:-/tmp}/lzug-demo-smoke.XXXXXX")
 run_id=${temporary_directory##*.}
 if [ -n "$resource_label" ]; then
@@ -65,7 +66,7 @@ start_app() {
         --mount "type=volume,source=$volume,target=/data" \
         "$app_image")
     port=$(docker port "$container" 8000/tcp | sed 's/.*://')
-    url="http://127.0.0.1:$port"
+    url="http://$runtime_host:$port"
     if ! lzug_wait_for_http_health "$url" 30; then
         docker logs "$container" >&2 || true
         return 1

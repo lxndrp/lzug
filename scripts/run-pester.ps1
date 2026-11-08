@@ -35,6 +35,12 @@ if (-not (Test-Path -LiteralPath $moduleManifest)) {
     Save-PinnedPesterModule -Version $pesterVersion -Path $moduleRoot
 }
 if (-not (Test-Path -LiteralPath $moduleManifest)) { throw "Pinned Pester module $pesterVersion could not be installed." }
+if (-not [string]::IsNullOrWhiteSpace($env:LZUG_PESTER_TMPDIR)) {
+    if (-not (Test-Path -LiteralPath $env:LZUG_PESTER_TMPDIR -PathType Container)) {
+        throw "Pester temporary directory does not exist: $env:LZUG_PESTER_TMPDIR"
+    }
+    $env:TMPDIR = $env:LZUG_PESTER_TMPDIR
+}
 Import-Module $moduleManifest -Force
 
 $configuration = New-PesterConfiguration
