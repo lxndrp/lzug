@@ -1,0 +1,67 @@
+name: Windows container qualification
+
+on:
+  pull_request:
+    branches:
+      - master
+    paths:
+      - .github/workflows/windows-container-qualification.yml
+
+permissions:
+  contents: read
+
+jobs:
+  wslc:
+    name: WSL container runtime on Windows Server 2025
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Qualify WSL container availability
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $windowsVersion = [Environment]::OSVersion.Version
+          $processor = $env:PROCESSOR_ARCHITECTURE
+          $cpuCount = [Environment]::ProcessorCount
+          $memoryBytes = (Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory
+          Write-Host "Windows=$windowsVersion Architecture=$processor CPUs=$cpuCount MemoryBytes=$memoryBytes"
+
+          $wslOutput = & wsl.exe --version 2>&1
+          if ($LASTEXITCODE -ne 0) {
+            throw "wsl --version failed with exit code $LASTEXITCODE`: $wslOutput"
+          }
+          $wslOutput | Write-Host
+          $versionMatch = [regex]::Match(
+            ($wslOutput -join "`n"),
+            '(?m)^WSL version:\s*(\d+\.\d+\.\d+(?:\.\d+)?)'
+          )
+          if (-not $versionMatch.Success) {
+            throw 'Could not identify the installed WSL version.'
+          }
+          $wslVersion = [Version]($versionMatch.Groups[1].Value)
+          if ($wslVersion -lt [Version]'2.9.3') {
+            throw "WSL $wslVersion is older than the wslc minimum 2.9.3."
+          }
+
+          $wslc = Get-Command wslc.exe -ErrorAction Stop
+          Write-Host "wslc=$($wslc.Source)"
+          & wslc.exe version
+          if ($LASTEXITCODE -ne 0) {
+            throw "wslc version failed with exit code $LASTEXITCODE."
+          }
+          & wslc.exe --help | Write-Host
+          & wslc.exe image --help | Write-Host
+          & wslc.exe volume --help | Write-Host
+
+          $startedAt = Get-Date
+          & wslc.exe run --rm hello-world
+          if ($LASTEXITCODE -ne 0) {
+            throw "wslc hello-world failed with exit code $LASTEXITCODE."
+          }
+          Write-Host "hello-world duration=$([math]::Round(((Get-Date) - $startedAt).TotalSeconds, 2))s"
+          & wslc.exe image list --all
+          if ($LASTEXITCODE -ne 0) {
+            throw "wslc image list failed with exit code $LASTEXITCODE."
+          }
