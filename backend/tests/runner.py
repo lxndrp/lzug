@@ -189,7 +189,9 @@ def _write_timings(
                                 else (
                                     "error"
                                     if test["test"] in errors
-                                    else "skipped" if test["test"] in skipped else "passed"
+                                    else "skipped"
+                                    if test["test"] in skipped
+                                    else "passed"
                                 )
                             ),
                         }

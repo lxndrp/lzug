@@ -35,6 +35,9 @@ Prüfe den tatsächlichen Stand statt Ordnernamen als Beweis sauberer Modularit�
 - Unterscheide öffentliche Modul-APIs, Python-Protocols, TypeScript-/Go-Interfaces, Transport-DTOs und Speicherformate.
   Ports gehören zum Bedarf ihres Verbrauchers; konkrete Adapter werden an einer nachvollziehbaren Composition Root verdrahtet.
   Ein Interface ist nur dann hilfreich, wenn es eine relevante Abhängigkeit oder einen überprüfbaren Vertrag ausdrückt.
+  Wende die Lösungsauswahl-Leiter aus `AGENTS.md` auf zusätzliche Modul- und
+  Schichtengrenzen an; bloßes Aufteilen nach Zeilenlänge oder ein abstraktes
+  Zukunftsargument genügt nicht.
 - Prüfe fachbezogene Datenhaltungsverträge und Transaktionsgrenzen gemeinsam.
   Ein Repository-Wrapper entkoppelt nicht, wenn SQLAlchemy-Sessions, ORM-Modelle oder SQL-Ausdrücke weiter zum Fachvertrag gehören.
   Erhalte atomare fachübergreifende Vorgänge und Konfliktprüfung; entscheide anhand des Anwendungsfalls zwischen atomarer Portoperation und Unit of Work.

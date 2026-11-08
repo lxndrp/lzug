@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Collection
+from collections.abc import Callable, Collection, Mapping
 from datetime import timedelta
 from pathlib import Path
 from threading import Lock
@@ -25,8 +25,12 @@ from backend.identity_scope import IdentityScopeCoordinator
 from backend.integrations.document_storage import FilesystemDocumentStorage
 from backend.integrations.holiday_provider import PythonHolidaysProvider
 from backend.integrations.map_provider import MapProviderConfig, NominatimGeocoder
-from backend.integrations.notification_delivery import NotificationDeliveryGateway
+from backend.integrations.notification_delivery import (
+    NotificationDeliveryGateway,
+    NotificationProviderConfigurationError,
+)
 from backend.notifications.service import NotificationService
+from backend.operations.diagnostics import ProviderConfigurationDiagnosticError
 from backend.persistence.absence_uow import SQLiteAbsenceUnitOfWorkFactory
 from backend.persistence.application_consequence_store import SQLiteApplicationConsequenceStore
 from backend.persistence.assessment import SQLiteAssessmentUnitOfWorkFactory
@@ -77,10 +81,40 @@ _identity_scope_coordinators: dict[str, IdentityScopeCoordinator] = {}
 _identity_scope_coordinators_lock = Lock()
 
 
+class OperationsProviderConfigurationDiagnostics:
+    """Adapt concrete provider configuration to Operations' safe diagnostic port."""
+
+    def notification_channels(self, environment: Mapping[str, str]) -> None:
+        try:
+            NotificationDeliveryGateway.from_environment(environment).channels()
+        except NotificationProviderConfigurationError as error:
+            raise ProviderConfigurationDiagnosticError(
+                "Notification provider configuration is invalid"
+            ) from error
+        except ValueError as error:
+            raise ProviderConfigurationDiagnosticError(str(error)) from error
+
+    def map_provider_mode(self, environment: Mapping[str, str]) -> str:
+        try:
+            provider = MapProviderConfig.from_environment(dict(environment))
+        except ValueError as error:
+            raise ProviderConfigurationDiagnosticError(str(error)) from error
+        return provider.mode
+
+
 def _identity_scope_coordinator(db_path: Path) -> IdentityScopeCoordinator:
     database_id = str(Path(db_path).expanduser().resolve())
     with _identity_scope_coordinators_lock:
         return _identity_scope_coordinators.setdefault(database_id, IdentityScopeCoordinator())
+
+
+def discard_database_coordinators(db_path: Path) -> None:
+    """Release process-wide coordination state after a database is retired."""
+    database_id = str(Path(db_path).expanduser().resolve())
+    with _calendar_feed_coordinators_lock:
+        _calendar_feed_coordinators.pop(database_id, None)
+    with _identity_scope_coordinators_lock:
+        _identity_scope_coordinators.pop(database_id, None)
 
 
 def calendar_service(

@@ -226,21 +226,16 @@ class AbsenceService:
                 response=answer,
                 responded_at=_stamp(current),
             )
-            status = report.status
-            if answer == "available" and report.status == "fallback_requested":
-                status = "fallback_confirmed"
-            elif answer == "unavailable" and report.status == "fallback_requested":
-                if expired:
-                    status = "fallback_expired"
-                    unit_of_work.insert_audit(
-                        report_id=report.id,
-                        actor_member_id=response.committee_member_id,
-                        event_type="fallback_expired",
-                        from_status=old_status,
-                        to_status=status,
-                        created_at=_stamp(current),
-                    )
-                status = self._open_further_search(unit_of_work, report, day, status, current)
+            status = self._response_report_status(
+                unit_of_work,
+                report,
+                day,
+                response.committee_member_id,
+                answer,
+                expired,
+                old_status,
+                current,
+            )
             updated_report = unit_of_work.update_report(
                 report.id, status=status, current=_stamp(current), increment_version=True
             )
@@ -293,6 +288,34 @@ class AbsenceService:
                 )
             result = self.required_view(unit_of_work, report.id)
         return result
+
+    def _response_report_status(
+        self,
+        unit_of_work: AbsenceUnitOfWork,
+        report: AbsenceReportSnapshot,
+        day: AbsenceDaySnapshot,
+        member_id: int,
+        answer: str,
+        expired: bool,
+        previous_status: str,
+        current: datetime,
+    ) -> str:
+        status = report.status
+        if report.status != "fallback_requested":
+            return status
+        if answer == "available":
+            return "fallback_confirmed"
+        if expired:
+            status = "fallback_expired"
+            unit_of_work.insert_audit(
+                report_id=report.id,
+                actor_member_id=member_id,
+                event_type="fallback_expired",
+                from_status=previous_status,
+                to_status=status,
+                created_at=_stamp(current),
+            )
+        return self._open_further_search(unit_of_work, report, day, status, current)
 
     def available_replacement(
         self,

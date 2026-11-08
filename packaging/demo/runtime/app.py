@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 
+from backend.composition import discard_database_coordinators
 from backend.observability import emit_event
 from backend.server import main as product_main
 from backend.settings import RuntimeSettings
@@ -22,6 +23,7 @@ def main() -> None:
             app_manifest_path,
             data_dir / "demo-seed-manifest.json",
             settings=settings,
+            on_workspace_discard=discard_database_coordinators,
         )
     except DemoRuntimeError as error:
         raise SystemExit(f"Demo artifact validation failed: {error}") from error

@@ -9,10 +9,14 @@ from fastapi import APIRouter, FastAPI, Request
 
 from backend import http_hateoas as hateoas
 from backend.application import ForbiddenRequestError
+from backend.application.resource_access import ResourceKind
 from backend.composition import exam_venue_api
-from backend.http_resources import PLAN_AGGREGATE_RESOURCES, REST_RESOURCES
+from backend.http_resources import (
+    CANDIDATE_COMMITTEE_ASSIGNMENT_RESOURCE,
+    PLAN_AGGREGATE_RESOURCES,
+    REST_RESOURCES,
+)
 from backend.http_transport import RequestContext
-from backend.persistence.models import CANDIDATE_COMMITTEE_ASSIGNMENT, COMMITTEE
 
 from .api_contracts import (
     CandidateCollectionResponse,
@@ -155,27 +159,27 @@ def _resource_collection_route(resolved: FastAPIConfig, resource_name: str, reso
             rows = context.identity_service.members(
                 context.resource_filters(resource, params), context.authorization_scope
             )
-        elif resource.table in {
-            "exam_half_year",
-            "exam_round",
-            "round_candidate",
-            "candidate",
-            "candidate_committee_assignment",
-            "planning_settings",
-            "member_availability",
+        elif resource.kind in {
+            ResourceKind.EXAM_HALF_YEAR,
+            ResourceKind.EXAM_ROUND,
+            ResourceKind.ROUND_CANDIDATE,
+            ResourceKind.CANDIDATE,
+            ResourceKind.CANDIDATE_COMMITTEE_ASSIGNMENT,
+            ResourceKind.PLANNING_SETTINGS,
+            ResourceKind.MEMBER_AVAILABILITY,
         }:
             rows = context.visible_planning_records(
-                resource, context.resource_filters(resource, params)
+                resource.kind, context.resource_filters(resource, params)
             )
-        elif resource.table in {
-            "committee",
-            "person",
-            "exam_day",
-            "exam_slot",
-            "exam_day_assignment",
+        elif resource.kind in {
+            ResourceKind.COMMITTEE,
+            ResourceKind.PERSON,
+            ResourceKind.EXAM_DAY,
+            ResourceKind.EXAM_SLOT,
+            ResourceKind.EXAM_DAY_ASSIGNMENT,
         }:
             rows = context.visible_resource_records(
-                resource, context.resource_filters(resource, params)
+                resource.kind, context.resource_filters(resource, params)
             )
         else:
             raise RuntimeError(f"No master-data read use case for {resource_name}")
@@ -188,9 +192,10 @@ def _resource_collection_route(resolved: FastAPIConfig, resource_name: str, reso
                     rows,
                     request.url.query,
                     allow_create=(
-                        resource not in PLAN_AGGREGATE_RESOURCES and resource != COMMITTEE
+                        resource.kind not in PLAN_AGGREGATE_RESOURCES
+                        and resource.kind != ResourceKind.COMMITTEE
                     ),
-                    allow_item_mutation=resource not in PLAN_AGGREGATE_RESOURCES,
+                    allow_item_mutation=resource.kind not in PLAN_AGGREGATE_RESOURCES,
                 )
             ),
         )
@@ -202,24 +207,24 @@ def _resource_item_route(resolved: FastAPIConfig, resource_name: str, resource):
     def get_item(context: ReadContext, id: int):
         if resource_name in {"members", "memberships"}:
             row = context.identity_service.member(id, context.authorization_scope)
-        elif resource.table in {
-            "exam_half_year",
-            "exam_round",
-            "round_candidate",
-            "candidate",
-            "candidate_committee_assignment",
-            "planning_settings",
-            "member_availability",
+        elif resource.kind in {
+            ResourceKind.EXAM_HALF_YEAR,
+            ResourceKind.EXAM_ROUND,
+            ResourceKind.ROUND_CANDIDATE,
+            ResourceKind.CANDIDATE,
+            ResourceKind.CANDIDATE_COMMITTEE_ASSIGNMENT,
+            ResourceKind.PLANNING_SETTINGS,
+            ResourceKind.MEMBER_AVAILABILITY,
         }:
-            row = context.visible_planning_record(resource, id)
-        elif resource.table in {
-            "committee",
-            "person",
-            "exam_day",
-            "exam_slot",
-            "exam_day_assignment",
+            row = context.visible_planning_record(resource.kind, id)
+        elif resource.kind in {
+            ResourceKind.COMMITTEE,
+            ResourceKind.PERSON,
+            ResourceKind.EXAM_DAY,
+            ResourceKind.EXAM_SLOT,
+            ResourceKind.EXAM_DAY_ASSIGNMENT,
         }:
-            row = context.visible_resource_record(resource, id)
+            row = context.visible_resource_record(resource.kind, id)
         else:
             raise RuntimeError(f"No master-data read use case for {resource_name}")
         return (
@@ -232,7 +237,7 @@ def _resource_item_route(resolved: FastAPIConfig, resource_name: str, resource):
                         resource_name,
                         resource,
                         row,
-                        allow_item_mutation=resource not in PLAN_AGGREGATE_RESOURCES,
+                        allow_item_mutation=resource.kind not in PLAN_AGGREGATE_RESOURCES,
                     )
                 ),
             )
@@ -278,7 +283,7 @@ def _resource_create_route(resolved: FastAPIConfig, resource_name: str, resource
                 )
             except PermissionError as error:
                 raise ForbiddenRequestError("Forbidden.") from error
-        elif resource.table == "person":
+        elif resource.kind == ResourceKind.PERSON:
             try:
                 row = context.identity_service.create_person(
                     payload,
@@ -362,7 +367,8 @@ def _resource_update_route(resolved: FastAPIConfig, resource_name: str, resource
         elif resource_name == "exam-rounds":
             row = context.planning_resource_service.update_round(identifier, payload)
         elif (
-            resource_name in {"committees", "members", "memberships"} or resource.table == "person"
+            resource_name in {"committees", "members", "memberships"}
+            or resource.kind == ResourceKind.PERSON
         ):
             row = _identity_resource_update(context, resource_name, resource, identifier, payload)
         else:
@@ -402,7 +408,8 @@ def _resource_delete_route(resolved: FastAPIConfig, resource_name: str, resource
                 context.authorization_scope, id
             )
         elif (
-            resource_name in {"committees", "members", "memberships"} or resource.table == "person"
+            resource_name in {"committees", "members", "memberships"}
+            or resource.kind == ResourceKind.PERSON
         ):
             deleted = _identity_resource_delete(context, resource_name, resource, id)
         else:
@@ -1050,7 +1057,7 @@ def _register_assignment_routes(app, resolved, application, read_security, write
     def assignment_collection(request: Request, context: ReadContext):
         value = request.query_params.get("candidate_id")
         rows = context.visible_planning_records(
-            CANDIDATE_COMMITTEE_ASSIGNMENT,
+            CANDIDATE_COMMITTEE_ASSIGNMENT_RESOURCE.kind,
             {"candidate_id": int(value)} if value is not None else {},
         )
         return _finish(
@@ -1058,7 +1065,7 @@ def _register_assignment_routes(app, resolved, application, read_security, write
             context.respond(
                 hateoas.collection(
                     "candidate-committee-assignments",
-                    CANDIDATE_COMMITTEE_ASSIGNMENT,
+                    CANDIDATE_COMMITTEE_ASSIGNMENT_RESOURCE,
                     rows,
                     request.url.query,
                     allow_create=False,
@@ -1073,7 +1080,7 @@ def _register_assignment_routes(app, resolved, application, read_security, write
         openapi_extra=read_security,
     )
     def assignment_item(context: ReadContext, id: int):
-        row = context.visible_planning_record(CANDIDATE_COMMITTEE_ASSIGNMENT, id)
+        row = context.visible_planning_record(CANDIDATE_COMMITTEE_ASSIGNMENT_RESOURCE.kind, id)
         return (
             _not_found()
             if row is None
@@ -1082,7 +1089,7 @@ def _register_assignment_routes(app, resolved, application, read_security, write
                 context.respond(
                     hateoas.resource_item(
                         "candidate-committee-assignments",
-                        CANDIDATE_COMMITTEE_ASSIGNMENT,
+                        CANDIDATE_COMMITTEE_ASSIGNMENT_RESOURCE,
                         row,
                         allow_item_mutation=False,
                     )

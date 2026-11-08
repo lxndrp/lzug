@@ -22,7 +22,10 @@ from .application.plan_consequences import PlanConsequenceService
 from .application.planning_calendar_reads import PlanningCalendarReadService
 from .application.resource_access import ResourceAccessQueryFactory
 from .assessment.service import ExamResultService
-from .composition import SQLiteAssessmentLifecycleAdapter
+from .composition import (
+    OperationsProviderConfigurationDiagnostics,
+    SQLiteAssessmentLifecycleAdapter,
+)
 from .composition import (
     absence_unit_of_work_factory as compose_absence_unit_of_work_factory,
 )
@@ -134,6 +137,7 @@ def create_admin_application(
     )
     instance_storage = SQLiteFileInstanceStorage()
     instance_maintenance = SQLiteInstanceMaintenance()
+    provider_diagnostics = OperationsProviderConfigurationDiagnostics()
 
     def require_settings() -> RuntimeSettings:
         return active_settings or RuntimeSettings.from_environment()
@@ -150,6 +154,7 @@ def create_admin_application(
             client,
             storage=instance_storage,
             maintenance=instance_maintenance,
+            provider_diagnostics=provider_diagnostics,
         ),
         readiness_probe=ready,
         operator_auth_factory=lambda db_path: service or compose_operator_auth_service(db_path),
@@ -214,6 +219,47 @@ def create_admin_application(
         ),
     )
     return AdminApplication(resolved_paths, services, runtime=runtime)
+
+
+def _local_authentication_service_factory(
+    application_services: ApplicationServices,
+    authentication_factory: Callable[[Path], object],
+):
+    if application_services.local_authentication_factory is not None:
+        return application_services.local_authentication_factory
+
+    def create_local_authentication(db_path, **kwargs):
+        authentication = authentication_factory(db_path)
+        if not isinstance(authentication, SQLiteAuthenticationRepository):
+            raise ValueError(
+                "A custom authentication repository must provide a matching "
+                "local-authentication factory"
+            )
+        return compose_local_auth_service(db_path, **kwargs)
+
+    return create_local_authentication
+
+
+def _planning_calendar_read_factory(app: FastAPI):
+    def create(db_path: Path) -> PlanningCalendarReadService:
+        def closure_view(session, day_id: int, scope):
+            unit_of_work = app.state.exam_lifecycle_unit_of_work_factory.in_session(session)
+            round_id = unit_of_work.execution.exam_day_round_id(day_id)
+            if round_id is None:
+                return None
+            facts = ExamLifecycleApplication._day_closure_facts(unit_of_work, day_id, round_id)
+            return day_closure_view(
+                scope, facts, unit_of_work.execution.day_closure_read_snapshot(day_id)
+            )
+
+        return PlanningCalendarReadService(
+            SQLitePlanningCalendarReadUnitOfWorkFactory(
+                db_path,
+                closure_view=closure_view,
+            )
+        )
+
+    return create
 
 
 def create_app(
@@ -316,19 +362,9 @@ def create_app(
     app.state.committee_admin_service_factory = (
         committee_admin_service_factory or compose_committee_admin_service
     )
-    local_authentication_factory = application_services.local_authentication_factory
-    if local_authentication_factory is None:
-
-        def local_authentication_factory(db_path, **kwargs):
-            authentication = active_authentication_factory(db_path)
-            if not isinstance(authentication, SQLiteAuthenticationRepository):
-                raise ValueError(
-                    "A custom authentication repository must provide a matching "
-                    "local-authentication factory"
-                )
-            return compose_local_auth_service(db_path, **kwargs)
-
-    app.state.local_auth_service_factory = local_authentication_factory
+    app.state.local_auth_service_factory = _local_authentication_service_factory(
+        application_services, active_authentication_factory
+    )
     app.state.calendar_service_factory = calendar_service_factory or partial(
         compose_calendar_service,
         settings=resolved.runtime_settings,
@@ -342,25 +378,7 @@ def create_app(
         settings=resolved.runtime_settings,
     )
 
-    def planning_calendar_read_service_factory(db_path: Path) -> PlanningCalendarReadService:
-        def closure_view(session, day_id: int, scope):
-            unit_of_work = app.state.exam_lifecycle_unit_of_work_factory.in_session(session)
-            round_id = unit_of_work.execution.exam_day_round_id(day_id)
-            if round_id is None:
-                return None
-            facts = ExamLifecycleApplication._day_closure_facts(unit_of_work, day_id, round_id)
-            return day_closure_view(
-                scope, facts, unit_of_work.execution.day_closure_read_snapshot(day_id)
-            )
-
-        return PlanningCalendarReadService(
-            SQLitePlanningCalendarReadUnitOfWorkFactory(
-                db_path,
-                closure_view=closure_view,
-            )
-        )
-
-    app.state.planning_calendar_read_service_factory = planning_calendar_read_service_factory
+    app.state.planning_calendar_read_service_factory = _planning_calendar_read_factory(app)
     app.state.auth_rate_limiter = resolved.auth_rate_limiter or RequestRateLimiter(
         resolved.auth_rate_limit, resolved.auth_rate_window
     )

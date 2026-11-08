@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import timedelta
 from functools import lru_cache
@@ -674,111 +674,83 @@ def _register_transaction_errors(app):
         )
 
 
+def _coded_request_error_handler(
+    code: str, status: HTTPStatus
+) -> Callable[[Request, Exception], Response]:
+    def handle(_request: Request, error: Exception) -> Response:
+        return _json_response(
+            ApplicationResult({"error": {"code": code, "message": str(error)}}, status)
+        )
+
+    return handle
+
+
+def _fixed_request_error_handler(
+    code: str, message: str, status: HTTPStatus
+) -> Callable[[Request, Exception], Response]:
+    def handle(_request: Request, _error: Exception) -> Response:
+        return _json_response(
+            ApplicationResult({"error": {"code": code, "message": message}}, status)
+        )
+
+    return handle
+
+
+def _database_request_error(_request: Request, error: SQLAlchemyError) -> Response:
+    return _json_response(database_error_result(error))
+
+
+def _invalid_request_error(_request: Request, error: ValueError) -> Response:
+    return _json_response(
+        ApplicationResult({"error": str(error) or "Invalid request"}, HTTPStatus.BAD_REQUEST)
+    )
+
+
+def _request_validation_error(request: Request, error: RequestValidationError) -> Response:
+    return _json_response(_request_validation_result(request, error))
+
+
 def _register_request_errors(app, resolved, application, read_security, write_security):
-    @app.exception_handler(RoundCandidateInUseError)
-    def round_candidate_in_use(_request: Request, error: RoundCandidateInUseError):
-        return _json_response(
-            ApplicationResult(
-                {"error": {"code": "round_candidate_in_use", "message": str(error)}},
-                HTTPStatus.CONFLICT,
-            )
+    coded_errors = (
+        (RoundCandidateInUseError, "round_candidate_in_use", HTTPStatus.CONFLICT),
+        (ExamVenueConflictError, "exam_venue_conflict", HTTPStatus.CONFLICT),
+        (
+            ExamVenueConfirmationRequiredError,
+            "exam_venue_confirmation_required",
+            HTTPStatus.CONFLICT,
+        ),
+        (ExamVenueInUseError, "exam_venue_in_use", HTTPStatus.CONFLICT),
+        (MapProviderDisabledError, "map_provider_disabled", HTTPStatus.CONFLICT),
+        (
+            MapProviderUnavailableError,
+            "map_provider_unavailable",
+            HTTPStatus.SERVICE_UNAVAILABLE,
+        ),
+    )
+    for error_type, code, status in coded_errors:
+        app.add_exception_handler(error_type, _coded_request_error_handler(code, status))
+
+    fixed_errors = (
+        (
+            NotificationProviderConfigurationError,
+            "notification_provider_configuration_invalid",
+            "Notification provider configuration is invalid",
+        ),
+        (
+            FeedRevocationPendingError,
+            "calendar_feed_revocation_pending",
+            "Calendar feed revocation is pending; retry the request.",
+        ),
+    )
+    for error_type, code, message in fixed_errors:
+        app.add_exception_handler(
+            error_type,
+            _fixed_request_error_handler(code, message, HTTPStatus.SERVICE_UNAVAILABLE),
         )
 
-    @app.exception_handler(ExamVenueConflictError)
-    def exam_venue_conflict(_request: Request, error: ExamVenueConflictError):
-        return _json_response(
-            ApplicationResult(
-                {"error": {"code": "exam_venue_conflict", "message": str(error)}},
-                HTTPStatus.CONFLICT,
-            )
-        )
-
-    @app.exception_handler(ExamVenueConfirmationRequiredError)
-    def exam_venue_confirmation_required(
-        _request: Request, error: ExamVenueConfirmationRequiredError
-    ):
-        return _json_response(
-            ApplicationResult(
-                {
-                    "error": {
-                        "code": "exam_venue_confirmation_required",
-                        "message": str(error),
-                    }
-                },
-                HTTPStatus.CONFLICT,
-            )
-        )
-
-    @app.exception_handler(ExamVenueInUseError)
-    def exam_venue_in_use(_request: Request, error: ExamVenueInUseError):
-        return _json_response(
-            ApplicationResult(
-                {"error": {"code": "exam_venue_in_use", "message": str(error)}},
-                HTTPStatus.CONFLICT,
-            )
-        )
-
-    @app.exception_handler(MapProviderDisabledError)
-    def map_provider_disabled(_request: Request, error: MapProviderDisabledError):
-        return _json_response(
-            ApplicationResult(
-                {"error": {"code": "map_provider_disabled", "message": str(error)}},
-                HTTPStatus.CONFLICT,
-            )
-        )
-
-    @app.exception_handler(MapProviderUnavailableError)
-    def map_provider_unavailable(_request: Request, error: MapProviderUnavailableError):
-        return _json_response(
-            ApplicationResult(
-                {"error": {"code": "map_provider_unavailable", "message": str(error)}},
-                HTTPStatus.SERVICE_UNAVAILABLE,
-            )
-        )
-
-    @app.exception_handler(NotificationProviderConfigurationError)
-    def notification_provider_configuration_invalid(
-        _request: Request, _error: NotificationProviderConfigurationError
-    ):
-        return _json_response(
-            ApplicationResult(
-                {
-                    "error": {
-                        "code": "notification_provider_configuration_invalid",
-                        "message": "Notification provider configuration is invalid",
-                    }
-                },
-                HTTPStatus.SERVICE_UNAVAILABLE,
-            )
-        )
-
-    @app.exception_handler(FeedRevocationPendingError)
-    def calendar_feed_revocation_pending(_request: Request, _error: FeedRevocationPendingError):
-        return _json_response(
-            ApplicationResult(
-                {
-                    "error": {
-                        "code": "calendar_feed_revocation_pending",
-                        "message": "Calendar feed revocation is pending; retry the request.",
-                    }
-                },
-                HTTPStatus.SERVICE_UNAVAILABLE,
-            )
-        )
-
-    @app.exception_handler(SQLAlchemyError)
-    def database_error(_request: Request, error: SQLAlchemyError):
-        return _json_response(database_error_result(error))
-
-    @app.exception_handler(ValueError)
-    def invalid_request(_request: Request, error: ValueError):
-        return _json_response(
-            ApplicationResult({"error": str(error) or "Invalid request"}, HTTPStatus.BAD_REQUEST)
-        )
-
-    @app.exception_handler(RequestValidationError)
-    def request_validation(request: Request, error: RequestValidationError):
-        return _json_response(_request_validation_result(request, error))
+    app.add_exception_handler(SQLAlchemyError, _database_request_error)
+    app.add_exception_handler(ValueError, _invalid_request_error)
+    app.add_exception_handler(RequestValidationError, _request_validation_error)
 
 
 def _register_transport_and_errors(app, resolved, application, read_security, write_security):

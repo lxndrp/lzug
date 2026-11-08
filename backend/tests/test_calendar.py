@@ -483,9 +483,11 @@ class CalendarServiceTests(unittest.TestCase):
             scope = self._scope(db_path)
             activation = service.activate(scope)
             with connect(db_path) as connection:
-                connection.execute(text("""CREATE TRIGGER fail_feed_revocation
+                connection.execute(
+                    text("""CREATE TRIGGER fail_feed_revocation
                     BEFORE UPDATE ON calendar_feed_lifecycle
-                    BEGIN SELECT RAISE(ABORT, 'injected revocation failure'); END"""))
+                    BEGIN SELECT RAISE(ABORT, 'injected revocation failure'); END""")
+                )
             with self.assertRaises(FeedRevocationPendingError):
                 service.revoke(scope)
             self.assertTrue(

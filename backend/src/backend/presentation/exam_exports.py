@@ -240,7 +240,7 @@ def render_round_lifecycle_export(
     )
     lines.extend(["", "Ergebnisse und Mitteilungen:"])
     lines.extend(
-        f"- Ergebnis {item['id']}: {item['state']}, " f"Mitteilungen {len(item['communications'])}"
+        f"- Ergebnis {item['id']}: {item['state']}, Mitteilungen {len(item['communications'])}"
         for item in snapshot["results"]
     )
     lines.extend(["", "Abschluss-, Absage- und Wiederöffnungshistorie:"])

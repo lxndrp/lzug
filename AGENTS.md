@@ -139,8 +139,70 @@ Für spätere Umsetzungen desselben Milestones genügt der vorhandene vollständ
 - Der lokale Wochenreview folgt dem dokumentierten Verfahren für feste Revisionen und hält Umfang und Abschluss im Review-Anker fest.
 Unvollständige Läufe verschieben den geprüften Ausgangsstand nicht; inkrementelle Nachweise ersetzen das vollständige Milestone-Gate nicht.
 - Review-Befunde anhand von Evidenz bestätigen, gegen vorhandene Issues abgleichen und nur sachlich passende `review:*`-Labels verwenden.
-Keine automatischen Reparaturen, Priorisierungen oder Planänderungen aus einem Review ableiten.
+Jeder neu bestätigte Befund wird danach ohne zusätzliches Opt-in-Label der unten beschriebenen Reifeprüfung für die automatische Issue-Delivery zugeführt.
+Der Review selbst bleibt read-only; Priorisierungen oder Planänderungen werden nicht abgeleitet.
 Benachrichtigungen auf neue relevante Befunde, Fehler und erforderliche Entscheidungen beschränken.
+
+### Wöchentlicher Codebasis-Review
+
+- Der bestehende lokale Codex-Lauf bleibt der Einstiegspunkt; keine zweite Zeitplanung,
+  zusätzlichen Runner, API-Secrets oder laufenden API-Kosten voraussetzen.
+  Für GitHub den bereits verfügbaren Zugang verwenden.
+- Vor dem Review den vollständigen Ziel-SHA von `master` aktualisieren und verifizieren.
+  Den Produktzielstand getrennt vom Prozessstand dokumentieren;
+  `AGENTS.md` und die relevanten Entwicklerunterlagen vorab lesen.
+- Am Review-Anker den Kommentarverlauf vollständig paginieren und den jüngsten
+  abgeschlossenen Voll- oder inkrementellen Review als Checkpoint bestimmen.
+  Ausgangs-SHA, Reviewmodus, dokumentierte Abdeckung und Vorfahrbeziehung zum Ziel
+  müssen zum Auftrag passen. Fehlt ein geeigneter Checkpoint, ist ein vollständiger,
+  risikobasierter Review durchzuführen. Milestone-Gates richten sich zusätzlich nach
+  den Regeln oben.
+- Einen unveränderten Zielstand mit Ausgangs- und Ziel-SHA sowie null Commits und
+  null geänderten Pfaden am Anker dokumentieren; den Checkpoint nicht verschieben.
+  Das gilt ebenfalls für fehlgeschlagene oder unvollständige Läufe.
+  Nur abgeschlossene Voll- oder inkrementelle Reviews mit dauerhaftem Nachweis
+  aktualisieren den Checkpoint.
+- Jeden Lauf am Anker mit Datum, Modus, Checkpoint, Ausgangs- und Ziel-SHA,
+  tatsächlichem Umfang und Abdeckung, relevanten Prüfungen, Grenzen und Abschluss
+  dokumentieren. Prozessstand und Produktrevision bleiben getrennt.
+  Reviewabschluss ist kein Quality-Nachweis.
+- Neue Befunde müssen im Zielstand bestätigt und mit Fundstelle, Auslöser,
+  Auswirkung und repositoryrelativen betroffenen Pfaden belegt sein.
+  Vor der Anlage offene und geschlossene Issues sowie die Ankerkommentare auf
+  Duplikate prüfen. Nur nach erfolgreicher Suche neue Issues anlegen und am Anker
+  verlinken; schlägt Suche oder Pagination fehl, keine neuen Befund-Issues anlegen.
+  Bestehende passende `type:*`- und `review:*`-Labels verwenden.
+- Quality- und CI-Ergebnisse separat mit Lauf und SHA dokumentieren.
+  Fehlgeschlagene oder nicht ausgeführte Checks weder als bestanden noch als
+  abgeschlossene Quality-Abnahme darstellen.
+- Der Review selbst repariert nichts, priorisiert oder plant nichts ein und erstellt
+  keine PRs. Keine Merges, Dispatches, Required-Check-Aktivierungen oder externen
+  Aktivierungen auslösen.
+- Der bestehende lokale Reviewlauf prüft jeden neu bestätigten Befund nach seiner
+  Veröffentlichung automatisch auf Umsetzungsreife; ein zusätzliches
+  `review:auto-fix`-Label ist nicht erforderlich. Review und Reparatur bleiben
+  getrennte Phasen: Der Review dokumentiert Befund und Evidenz, danach folgt die
+  reguläre Issue-Reifeprüfung und gegebenenfalls Issue-Delivery. Bei später
+  geklärten Blockern werden offene, bereits dokumentierte Befunde erneut geprüft;
+  unveränderte Blocker nicht wiederholt kommentieren.
+- Vor Änderungen müssen Ziel, Scope und Akzeptanzkriterien vollständig sein,
+  offene `needs:*`-Blocker und konkurrierende Umsetzungen fehlen und die
+  Project-Complexity belegt sein. Issue, Kommentare, Labels, Milestone,
+  Abhängigkeiten, verknüpfte PRs und erreichbare Project-Felder prüfen.
+  Fehlende Angaben oder Werte nicht erraten oder ändern. Unreife Befunde bleiben
+  offen; der konkrete fehlende Planungsinhalt wird am Issue dokumentiert.
+- Reife Befunde werden mit passendem Issue-Branch in eigenem Worktree bearbeitet.
+  Änderungen bleiben auf bestätigten Befund, betroffene Pfade und
+  Akzeptanzkriterien begrenzt. Vorhandene Arbeit wiederverwenden; Wiederholungen
+  dürfen keine PRs duplizieren oder menschliche Änderungen überschreiben.
+  Bei unklarem Scope oder fehlgeschlagenen relevanten Prüfungen keinen PR
+  erstellen und den konkreten Blocker am Issue festhalten.
+- Bei klarer Lösung und erfolgreichen relevanten Prüfungen genau einen Draft-PR
+  mit eigener Zeile `Closes #<issue>` erstellen und Änderungen, Prüfungen sowie
+  offene Grenzen dokumentieren. Bestehende CI und Codex-GitHub-Review sowie der
+  reguläre menschliche PR-Review- und Merge-Prozess bleiben maßgeblich.
+  Kein Auto-Merge, keine PR-Freigabe und keine Änderung von Priority,
+  Complexity, Schätzung, Iteration oder Milestone.
 
 ## 4. Umsetzung, Modelle und Prüfung
 
@@ -155,6 +217,22 @@ Sandboxfehler, Berechtigungen und CI-Wartezeit sind keine Modelleskalation.
 Akzeptanzkriterien und beobachtbares Laufzeitverhalten belegen.
 Werkzeugmigration, Wortlautprüfungen, Wrapper oder verschobener Code allein erfüllen keinen Vereinfachungsauftrag.
 Bei Rückbau entfallene Eigenlogik und erhaltenes Verhalten dokumentieren.
+
+### Leiter zur Lösungsauswahl
+
+Wende bei jeder Umsetzung diese Leiter an, ohne bestätigte Anforderungen oder
+Akzeptanzkriterien zu relativieren:
+
+1. Ist das bestätigte Ziel bereits durch vorhandenes Verhalten erfüllt?
+2. Können vorhandene Projektfunktionen oder -muster den Auftrag vollständig erfüllen?
+3. Kann ein Standard- oder Plattformmittel den Auftrag vertragskonform erfüllen?
+4. Kann eine bereits vorhandene Abhängigkeit den Bedarf passend erfüllen?
+5. Andernfalls implementiere die kleinste klare Lösung, die den Auftrag vollständig erfüllt.
+
+Ergänze keine unangeforderten Funktionen, Optionen, Abstraktionen, Wrapper,
+Konfigurationen, Abhängigkeiten oder Zukunftsflexibilität.
+Kürze nicht auf Kosten von Verständlichkeit, Randfallkorrektheit, Sicherheit,
+Fehlerbehandlung oder erhaltenen Verträgen.
 - Commit-Nachrichten sind Englisch; deutsche Prosa verwendet korrekte Umlaute.
 Eigene Markdown-Prosa verwendet Semantic Line Breaks; Tabellen, Listenstruktur, Codeblöcke, Front Matter, URLs und technische Zeichenketten unverändert lassen.
 Drittmaterial, Lizenztexte und generierte Inhalte nicht rein redaktionell umbrechen.

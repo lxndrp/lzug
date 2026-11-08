@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import smtplib
+from collections.abc import Mapping
 from email.message import EmailMessage
 from urllib.parse import urlsplit
 
@@ -37,11 +38,24 @@ class NotificationDeliveryGateway:
     def __init__(self, settings: RuntimeSettings | None = None) -> None:
         self._settings_override = settings
 
+    @classmethod
+    def from_environment(
+        cls, environment: Mapping[str, str] | None = None
+    ) -> NotificationDeliveryGateway:
+        """Build a gateway from an explicit environment using safe config errors."""
+        return cls(cls._settings_from_environment(environment))
+
     def _runtime_settings(self) -> RuntimeSettings:
         if self._settings_override is not None:
             return self._settings_override
+        return self._settings_from_environment()
+
+    @staticmethod
+    def _settings_from_environment(
+        environment: Mapping[str, str] | None = None,
+    ) -> RuntimeSettings:
         try:
-            return RuntimeSettings.from_environment()
+            return RuntimeSettings.from_environment(environment)
         except ValueError as error:
             detail = str(error)
             if "VAPID" in detail or "Web Push" in detail:

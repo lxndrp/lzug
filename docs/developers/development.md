@@ -154,6 +154,11 @@ Der [Delivery-Vertrag](delivery.md#pull-request-gates) beschreibt die Auswahl
 der CI-Gates; [vollständige Quality-Evidenz](delivery.md)
 wird dort an eine feste Revision und vollständige Artefakte gebunden.
 
+Tests belegen ausführbares Verhalten und technische Verträge.
+Sie dürfen manuelle Dokumentation nicht auf Formulierungs- oder Prosa-Parität
+mit Code prüfen; Reviewer beurteilen bei relevanten Änderungen, ob die
+Dokumentation angepasst werden muss.
+
 | Änderung | Lokaler Einstieg |
 | --- | --- |
 | Backend | Betroffener Test unter `backend/tests/`; fokussiert `task backend:test:<tier>` (`unit`, `component`, `http` oder `process`), danach `task quality:backend:pr` bei breiterer Änderung |
@@ -299,6 +304,41 @@ verfügbare unabhängige lokale Reviews werden durch read-only Subagents ausgef�
 Fehlt diese Unabhängigkeit, wird die Lücke benannt. PRs zur Änderung dieser Regeln
 werden bis zum Merge nach den bestehenden Regeln abgenommen; vorgeschlagene
 Lockerungen reduzieren nicht die eigene Reviewabdeckung.
+
+### Wöchentliche Codebasis-Reviews
+
+Der vorhandene lokale Codex-Lauf bleibt der Einstiegspunkt.
+Der verbindliche Ablauf und seine Veröffentlichungsgrenzen stehen in
+`AGENTS.md` unter „Wöchentlicher Codebasis-Review“.
+
+Der Review-Anker hält den jüngsten abgeschlossenen Voll- oder inkrementellen
+Review als Checkpoint fest. Ein Lauf fixiert einen vollständigen Ziel-SHA von
+`master`, prüft Änderungen und betroffene Zusammenhänge seit dem passenden
+Checkpoint und dokumentiert Produktrevision und verwendeten Prozessstand getrennt.
+Ohne geeigneten Checkpoint wird ein vollständiger risikobasierter Review erstellt.
+Ein unveränderter Stand erhält einen nachvollziehbaren Laufnachweis, verschiebt
+aber den Checkpoint nicht.
+
+Der Ankerkommentar beschreibt Modus, Ausgangs- und Ziel-SHA, tatsächliche
+Abdeckung, Grenzen, Abschluss und verknüpfte Befunde.
+Nur bestätigte neue Befunde werden nach erfolgreichem Duplikatabgleich zu Issues.
+Diese nennen Quelle, Auslöser, Auswirkung und betroffene repositoryrelative Pfade.
+Für einen maschinenlesbaren Pfadvertrag stehen sie unter `Affected paths:` oder
+`Betroffene Pfade:` als Markdown-Liste; Verzeichnispfade umfassen ihre Nachfahren.
+Fehlgeschlagene Suche oder Pagination ist keine Duplikatfreiheit und erlaubt
+keine Anlage neuer Befund-Issues.
+
+Reviewabschluss und Quality-Abnahme sind getrennte Aussagen.
+Fehlgeschlagene, übersprungene oder nicht ausgeführte CI-Prüfungen werden samt
+Lauf und Revision als solche dokumentiert und verschieben keinen Checkpoint.
+Der Review bleibt read-only und erstellt selbst keine PRs. Der bestehende lokale
+Wochenlauf prüft neu bestätigte Befund-Issues anschließend automatisch auf
+Umsetzungsreife, auch ohne zusätzliches `review:auto-fix`-Label. Es gelten die
+Reifeprüfung und Liefergrenzen aus `AGENTS.md`: Unreife Befunde bleiben offen;
+reife Befunde werden in eigenem Issue-Worktree bearbeitet und können bei klarer
+Lösung sowie erfolgreichen Prüfungen genau einen Draft-PR durch den regulären
+CI- und Review-Prozess erhalten. Automatische Priorisierung, Planänderungen,
+PR-Freigabe, Merge, Deployment und externe Aktivierungen bleiben ausgeschlossen.
 
 ## Aufträge und Zuständigkeiten
 

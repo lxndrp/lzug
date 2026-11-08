@@ -5,16 +5,11 @@ from __future__ import annotations
 import subprocess
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 from urllib.parse import urlsplit
 
 from backend.documents.commands import document_upload_policy
 from backend.healthcheck import public_health_ready
-from backend.integrations.map_provider import MapProviderConfig
-from backend.integrations.notification_delivery import (
-    NotificationDeliveryGateway,
-    NotificationProviderConfigurationError,
-)
 from backend.operations.instance_storage import InstanceMaintenance, InstanceStorage
 from backend.persistence.database import (
     DEFAULT_MIN_FREE_BYTES,
@@ -30,6 +25,20 @@ EXIT_DIAGNOSTIC_ERROR = 31
 
 _STATUS_RANK = {"ok": 0, "warning": 1, "error": 2}
 _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
+
+
+class ProviderConfigurationDiagnosticError(ValueError):
+    """A safe, materialized configuration error supplied by a provider adapter."""
+
+
+class ProviderConfigurationDiagnostics(Protocol):
+    """Operations-owned reads needed to validate external provider configuration."""
+
+    def notification_channels(self, environment: Mapping[str, str]) -> None:
+        """Validate channels without returning provider objects or secret material."""
+
+    def map_provider_mode(self, environment: Mapping[str, str]) -> str:
+        """Return only the configured, non-secret map provider mode."""
 
 
 def _check(
@@ -234,7 +243,10 @@ def _document_configuration(environment: Mapping[str, str]) -> dict[str, Any]:
     )
 
 
-def _notification_configuration(environment: Mapping[str, str]) -> dict[str, Any]:
+def _notification_configuration(
+    environment: Mapping[str, str],
+    provider_diagnostics: ProviderConfigurationDiagnostics,
+) -> dict[str, Any]:
     try:
         _bounded_port(environment, "LZUG_SMTP_PORT", 25)
         _boolean(environment, "LZUG_SMTP_STARTTLS", False)
@@ -252,13 +264,13 @@ def _notification_configuration(environment: Mapping[str, str]) -> dict[str, Any
             raise ValueError(
                 "LZUG_WEB_PUSH_VAPID_PRIVATE_KEY and LZUG_WEB_PUSH_SUBJECT must be set together"
             )
-        NotificationDeliveryGateway().channels()
-    except NotificationProviderConfigurationError:
+        provider_diagnostics.notification_channels(environment)
+    except ProviderConfigurationDiagnosticError as error:
         return _check(
             "notification_configuration",
             "error",
             "configuration_invalid",
-            "Notification provider configuration is invalid",
+            str(error),
         )
     except ValueError as error:
         return _check(
@@ -275,10 +287,13 @@ def _notification_configuration(environment: Mapping[str, str]) -> dict[str, Any
     )
 
 
-def _map_provider_configuration(environment: Mapping[str, str]) -> dict[str, Any]:
+def _map_provider_configuration(
+    environment: Mapping[str, str],
+    provider_diagnostics: ProviderConfigurationDiagnostics,
+) -> dict[str, Any]:
     try:
-        provider = MapProviderConfig.from_environment(dict(environment))
-    except ValueError as error:
+        mode = provider_diagnostics.map_provider_mode(environment)
+    except ProviderConfigurationDiagnosticError as error:
         return _check(
             "map_provider_configuration",
             "error",
@@ -290,11 +305,13 @@ def _map_provider_configuration(environment: Mapping[str, str]) -> dict[str, Any
         "ok",
         "configuration_valid",
         "Map provider configuration is valid",
-        details={"mode": provider.mode},
+        details={"mode": mode},
     )
 
 
-def _configuration_checks() -> tuple[list[dict[str, Any]], PersistencePaths | None]:
+def _configuration_checks(
+    provider_diagnostics: ProviderConfigurationDiagnostics,
+) -> tuple[list[dict[str, Any]], PersistencePaths | None]:
     try:
         environment = RuntimeSettings.from_environment().environment_values()
     except ValueError:
@@ -305,8 +322,8 @@ def _configuration_checks() -> tuple[list[dict[str, Any]], PersistencePaths | No
             persistence,
             _http_configuration(environment),
             _document_configuration(environment),
-            _notification_configuration(environment),
-            _map_provider_configuration(environment),
+            _notification_configuration(environment, provider_diagnostics),
+            _map_provider_configuration(environment, provider_diagnostics),
         ],
         paths,
     )
@@ -471,10 +488,11 @@ def run_diagnostics(
     *,
     storage: InstanceStorage,
     maintenance: InstanceMaintenance,
+    provider_diagnostics: ProviderConfigurationDiagnostics,
 ) -> tuple[dict[str, Any], int]:
     """Run one allowlisted diagnostic command and return payload plus exit code."""
     if command == "config":
-        checks, _paths = _configuration_checks()
+        checks, _paths = _configuration_checks(provider_diagnostics)
         return _summary(command, checks)
     if command not in {"status", "doctor"} or client is None:
         raise ValueError("Unsupported diagnostic command")
@@ -487,7 +505,7 @@ def run_diagnostics(
             _health_check(),
         ]
     else:
-        configuration, paths = _configuration_checks()
+        configuration, paths = _configuration_checks(provider_diagnostics)
         checks = [
             _runtime_check(client),
             *configuration,

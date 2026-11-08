@@ -6,6 +6,7 @@ from fastapi import APIRouter, Body
 from fastapi.responses import Response
 
 from backend import http_hateoas as hateoas
+from backend.application.resource_access import ResourceKind
 from backend.execution.protocol_ports import (
     ProtocolContentCommand,
     ProtocolCorrectionOpenCommand,
@@ -16,7 +17,6 @@ from backend.execution.protocol_ports import (
 )
 from backend.execution.slot_ports import AttendanceCommand, SlotStartCommand, SlotStatusCommand
 from backend.http_transport import RequestContext
-from backend.persistence.models import EXAM_DAY, EXAM_DAY_ASSIGNMENT, EXAM_SLOT
 from backend.presentation.exam_exports import render_protocol_export
 
 from .api_contracts import (
@@ -181,7 +181,7 @@ def _add_slot_start_route(router, *, finish, not_found, write_security):
         payload: ExamSlotStartRequest,
     ):
         context.require_day_access(day_id, manage=True)
-        committee_id = context.resource_ownership(EXAM_DAY, day_id).committee_id
+        committee_id = context.resource_ownership(ResourceKind.EXAM_DAY, day_id).committee_id
         actor_member_id = context.authorization_scope.member_for_committee(committee_id)
         if actor_member_id is None:
             raise ForbiddenRequestError("Forbidden.")
@@ -201,7 +201,7 @@ def _add_protocol_read_routes(router, *, finish, not_found, read_security):
         openapi_extra=read_security,
     )
     def slot_protocol(context: ReadContext, day_id: int, slot_id: int):
-        slot = context.visible_resource_record(EXAM_SLOT, slot_id)
+        slot = context.visible_resource_record(ResourceKind.EXAM_SLOT, slot_id)
         if slot is None or slot["exam_day_id"] != day_id:
             return not_found()
         protocol = context.exam_protocol_service.get_by_slot(context.authorization_scope, slot_id)
@@ -355,11 +355,13 @@ def _add_attendance_routes(router, *, finish, not_found, write_security):
     ):
         member_id = None
         if kind == "assignments":
-            assignment = context.visible_resource_record(EXAM_DAY_ASSIGNMENT, entity_id)
+            assignment = context.visible_resource_record(
+                ResourceKind.EXAM_DAY_ASSIGNMENT, entity_id
+            )
             member_id = assignment.get("committee_member_id") if assignment else None
         context.require_day_access(day_id, manage=kind == "slots", member_id=member_id)
         command = _attendance_command(payload)
-        committee_id = context.resource_ownership(EXAM_DAY, day_id).committee_id
+        committee_id = context.resource_ownership(ResourceKind.EXAM_DAY, day_id).committee_id
         actor_member_id = context.authorization_scope.member_for_committee(committee_id)
         if actor_member_id is None:
             raise ForbiddenRequestError("Forbidden.")
@@ -411,7 +413,7 @@ def _add_slot_status_route(router, *, finish, not_found, write_security):
     ):
         context.require_day_access(day_id, manage=True)
         command = _slot_status_command(payload)
-        committee_id = context.resource_ownership(EXAM_DAY, day_id).committee_id
+        committee_id = context.resource_ownership(ResourceKind.EXAM_DAY, day_id).committee_id
         actor_member_id = context.authorization_scope.member_for_committee(committee_id)
         if actor_member_id is None:
             raise ForbiddenRequestError("Forbidden.")
@@ -421,7 +423,7 @@ def _add_slot_status_route(router, *, finish, not_found, write_security):
             command,
             actor_member_id=actor_member_id,
         )
-        day_record = context.visible_resource_record(EXAM_DAY, day_id)
+        day_record = context.visible_resource_record(ResourceKind.EXAM_DAY, day_id)
         if day_record and day_record.get("closure_status") == "open":
             synced = context.execution_operations.sync_slot_status_calendar(
                 int(day_record["exam_round_id"])

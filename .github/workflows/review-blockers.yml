@@ -1,0 +1,41 @@
+name: Review blockers
+
+on:
+  pull_request_target:
+    branches:
+      - main
+      - master
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - edited
+      - ready_for_review
+
+permissions: {}
+
+concurrency:
+  group: review-blockers-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review-blockers:
+    name: Review blockers
+    if: github.repository == 'lxndrp/lzug'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+    steps:
+      - name: Check out trusted base-branch code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Check open review blockers
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PULL_REQUEST_NUMBER: ${{ github.event.pull_request.number }}
+        run: python scripts/review_blockers.py

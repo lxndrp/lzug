@@ -28,7 +28,12 @@ Ein grüner PR-Run beweist weder einen frischen lokalen Setup noch einen erfolgr
   Deklarative Konfiguration hat Vorrang vor wiederholter imperativer Aufruflogik.
   Komponentenbezogene Logik gehört in Sprache und Codebasis der Komponente; notwendiges Querschnittsskripting in PowerShell nahe seinem Aspekt, allgemeine Restaufgaben nach `scripts/`.
   Werte begründete vorhandene Ausnahmen anhand ihrer tatsächlichen Funktion aus.
-- Suche unnötige Wrapper, Doppelbuilds, mehrfach generierte Verträge, versteckte Reihenfolgen und voneinander abweichende lokale/CI-Einstiege.
+- Wende die Lösungsauswahl-Leiter aus `AGENTS.md` auf Task-/mise-Aufrufe,
+  Skripte, CI-Schritte und Toolkonfigurationen an.
+  Prüfe native und deklarative Funktionen vor zusätzlicher Ablauf- oder
+  Wrapper-Logik; belege bei Eigenlogik ihren konkreten Vertrag und den dadurch
+  vermiedenen Nachteil.
+  Suche nach Doppelbuilds, mehrfach generierten Verträgen, versteckten Reihenfolgen und voneinander abweichenden lokalen/CI-Einstiegen.
   Prüfe, ob ein Vereinfachungsvorschlag Eigenlogik entfernt und erhaltenes Verhalten belegt.
 - Trenne Codex-/Sandbox-/Hostprobleme von reproduzierbaren Projektfehlern.
   Persönliche Pfade, Profile und lokale Freigaben sind ohne projektweiten Nachweis keine allgemeinen Toolchain-Voraussetzungen.

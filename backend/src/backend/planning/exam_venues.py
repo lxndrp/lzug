@@ -814,127 +814,157 @@ class ExamVenueService:
 
     def plan(self, command: VenueCommand, facts: VenueCommandFacts) -> VenueMutationPlan:
         """Build a validated mutation plan from facts read inside the adapter UoW."""
-        values = dict(command.values or {})
         self._assert_current_committee_actor(command, facts)
         match command.kind:
             case VenueCommandKind.CREATE_VENUE | VenueCommandKind.UPDATE_VENUE:
-                normalized, reason = self.policy.venue_values(values, facts.current)
-                audit_values = dict(values)
-                if command.kind == VenueCommandKind.CREATE_VENUE:
-                    self.policy.assert_new_venue_is_inactive(normalized)
-                else:
-                    if facts.current is None:
-                        return VenueMutationPlan({}, audit_values=values)
-                    if self.policy.coordinate_status_after_address_change(
-                        normalized, facts.current, set(values)
-                    ):
-                        audit_values["coordinate_status"] = "needs_review"
-                    if normalized["is_active"]:
-                        self.policy.assert_venue_can_be_active(
-                            normalized, has_active_room=facts.has_active_room
-                        )
-                if facts.duplicate_candidates is not None:
-                    self.policy.assert_duplicate_confirmation(
-                        normalized,
-                        values,
-                        facts.duplicate_candidates,
-                        creating=command.kind == VenueCommandKind.CREATE_VENUE,
-                    )
-                if facts.has_future_confirmed_assignments is not None:
-                    changed_fields = (
-                        {
-                            field
-                            for field in VENUE_FIELDS
-                            if facts.current is not None
-                            and facts.current.get(field) != normalized[field]
-                        }
-                        if command.kind == VenueCommandKind.UPDATE_VENUE
-                        else set()
-                    )
-                    self.policy.assert_future_impact_confirmation(
-                        changed_fields, values, facts.has_future_confirmed_assignments
-                    )
-                return VenueMutationPlan(normalized, reason, audit_values)
+                return self._plan_venue(command, facts)
             case VenueCommandKind.CREATE_ROOM | VenueCommandKind.UPDATE_ROOM:
-                if command.kind == VenueCommandKind.UPDATE_ROOM and facts.current is None:
-                    return VenueMutationPlan({})
-                normalized, reason = self.policy.room_values(values, facts.current)
-                if (
-                    command.kind == VenueCommandKind.UPDATE_ROOM
-                    and facts.room_active
-                    and not normalized["is_active"]
-                ):
-                    self.policy.assert_room_can_be_deactivated(
-                        venue_active=facts.venue_active,
-                        room_active=facts.room_active,
-                        has_another_active_room=facts.has_another_active_room,
-                    )
-                if facts.has_future_confirmed_assignments is not None:
-                    changed_fields = {
-                        field
-                        for field in ROOM_FIELDS
-                        if facts.current is not None
-                        and facts.current.get(field) != normalized[field]
-                    }
-                    self.policy.assert_future_impact_confirmation(
-                        changed_fields, values, facts.has_future_confirmed_assignments
-                    )
-                return VenueMutationPlan(normalized, reason, values)
+                return self._plan_room(command, facts)
             case VenueCommandKind.DELETE_ROOM:
-                self.policy.assert_room_can_be_deactivated(
-                    venue_active=facts.venue_active,
-                    room_active=facts.room_active,
-                    has_another_active_room=facts.has_another_active_room,
-                )
-                return VenueMutationPlan({}, command.reason)
+                return self._plan_room_deletion(command, facts)
             case VenueCommandKind.CREATE_CONTACT | VenueCommandKind.UPDATE_CONTACT:
-                if command.kind == VenueCommandKind.UPDATE_CONTACT and facts.current is None:
-                    return VenueMutationPlan({})
-                normalized, room_ids, reason = self.policy.contact_values(values, facts.current)
-                if room_ids is not None:
-                    if facts.venue_id is None or facts.room_venue_ids is None:
-                        raise ExamVenueError("Contact room ownership facts are unavailable")
-                    self.policy.assert_contact_rooms_belong_to_venue(
-                        facts.venue_id, room_ids, facts.room_venue_ids
-                    )
-                return VenueMutationPlan(normalized, reason, values, room_ids)
+                return self._plan_contact(command, facts)
             case VenueCommandKind.REQUEST_PROMOTION:
-                if facts.current is None:
-                    return VenueMutationPlan({})
-                if facts.current.get("scope") != "committee":
-                    raise ExamVenueError("Only committee venues can be promoted")
-                if facts.promotion_status == "pending":
-                    raise ExamVenueConflictError("A promotion request is already pending")
-                request_reason = self.policy._optional_text(command.reason)
-                if not request_reason:
-                    raise ExamVenueError("A promotion request needs a reason")
-                return VenueMutationPlan({}, request_reason)
+                return self._plan_promotion_request(command, facts)
             case VenueCommandKind.DECIDE_PROMOTION:
-                if facts.promotion_status != "pending":
-                    raise ExamVenueConflictError("No pending promotion request exists")
-                decision = command.decision or ""
-                if decision not in {"approve", "reject"}:
-                    raise ExamVenueError("Promotion decision must be approve or reject")
-                decision_reason = self.policy._optional_text(command.reason)
-                if not decision_reason:
-                    raise ExamVenueError("A promotion decision needs a reason")
-                if facts.current is None:
-                    return VenueMutationPlan({})
-                if decision == "approve":
-                    normalized = self.policy.venue_source(
-                        facts.current, {"scope": "global", "committee_id": None}
-                    )
-                    self.policy.assert_venue_can_be_active(
-                        normalized, has_active_room=facts.has_active_room
-                    )
-                    if facts.duplicate_candidates is not None:
-                        self.policy.assert_no_global_promotion_collision(
-                            normalized, facts.duplicate_candidates
-                        )
-                    return VenueMutationPlan(normalized, decision_reason, values)
-                return VenueMutationPlan({}, decision_reason, values)
+                return self._plan_promotion_decision(command, facts)
             case _:
-                return VenueMutationPlan({}, command.reason, values)
+                return VenueMutationPlan({}, command.reason, dict(command.values or {}))
+
+    def _plan_venue(self, command: VenueCommand, facts: VenueCommandFacts) -> VenueMutationPlan:
+        values = dict(command.values or {})
+        normalized, reason = self.policy.venue_values(values, facts.current)
+        audit_values = dict(values)
+        if command.kind == VenueCommandKind.CREATE_VENUE:
+            self.policy.assert_new_venue_is_inactive(normalized)
+        else:
+            if facts.current is None:
+                return VenueMutationPlan({}, audit_values=values)
+            if self.policy.coordinate_status_after_address_change(
+                normalized, facts.current, set(values)
+            ):
+                audit_values["coordinate_status"] = "needs_review"
+            if normalized["is_active"]:
+                self.policy.assert_venue_can_be_active(
+                    normalized, has_active_room=facts.has_active_room
+                )
+        self._assert_venue_confirmations(command, values, normalized, facts)
+        return VenueMutationPlan(normalized, reason, audit_values)
+
+    def _assert_venue_confirmations(
+        self,
+        command: VenueCommand,
+        values: dict[str, object],
+        normalized: dict[str, object],
+        facts: VenueCommandFacts,
+    ) -> None:
+        creating = command.kind == VenueCommandKind.CREATE_VENUE
+        if facts.duplicate_candidates is not None:
+            self.policy.assert_duplicate_confirmation(
+                normalized,
+                values,
+                facts.duplicate_candidates,
+                creating=creating,
+            )
+        if facts.has_future_confirmed_assignments is not None:
+            changed_fields = (
+                {
+                    field
+                    for field in VENUE_FIELDS
+                    if facts.current is not None and facts.current.get(field) != normalized[field]
+                }
+                if not creating
+                else set()
+            )
+            self.policy.assert_future_impact_confirmation(
+                changed_fields, values, facts.has_future_confirmed_assignments
+            )
+
+    def _plan_room(self, command: VenueCommand, facts: VenueCommandFacts) -> VenueMutationPlan:
+        values = dict(command.values or {})
+        if command.kind == VenueCommandKind.UPDATE_ROOM and facts.current is None:
+            return VenueMutationPlan({})
+        normalized, reason = self.policy.room_values(values, facts.current)
+        if (
+            command.kind == VenueCommandKind.UPDATE_ROOM
+            and facts.room_active
+            and not normalized["is_active"]
+        ):
+            self.policy.assert_room_can_be_deactivated(
+                venue_active=facts.venue_active,
+                room_active=facts.room_active,
+                has_another_active_room=facts.has_another_active_room,
+            )
+        if facts.has_future_confirmed_assignments is not None:
+            changed_fields = {
+                field
+                for field in ROOM_FIELDS
+                if facts.current is not None and facts.current.get(field) != normalized[field]
+            }
+            self.policy.assert_future_impact_confirmation(
+                changed_fields, values, facts.has_future_confirmed_assignments
+            )
+        return VenueMutationPlan(normalized, reason, values)
+
+    def _plan_room_deletion(
+        self, command: VenueCommand, facts: VenueCommandFacts
+    ) -> VenueMutationPlan:
+        self.policy.assert_room_can_be_deactivated(
+            venue_active=facts.venue_active,
+            room_active=facts.room_active,
+            has_another_active_room=facts.has_another_active_room,
+        )
+        return VenueMutationPlan({}, command.reason)
+
+    def _plan_contact(self, command: VenueCommand, facts: VenueCommandFacts) -> VenueMutationPlan:
+        values = dict(command.values or {})
+        if command.kind == VenueCommandKind.UPDATE_CONTACT and facts.current is None:
+            return VenueMutationPlan({})
+        normalized, room_ids, reason = self.policy.contact_values(values, facts.current)
+        if room_ids is not None:
+            if facts.venue_id is None or facts.room_venue_ids is None:
+                raise ExamVenueError("Contact room ownership facts are unavailable")
+            self.policy.assert_contact_rooms_belong_to_venue(
+                facts.venue_id, room_ids, facts.room_venue_ids
+            )
+        return VenueMutationPlan(normalized, reason, values, room_ids)
+
+    def _plan_promotion_request(
+        self, command: VenueCommand, facts: VenueCommandFacts
+    ) -> VenueMutationPlan:
+        if facts.current is None:
+            return VenueMutationPlan({})
+        if facts.current.get("scope") != "committee":
+            raise ExamVenueError("Only committee venues can be promoted")
+        if facts.promotion_status == "pending":
+            raise ExamVenueConflictError("A promotion request is already pending")
+        request_reason = self.policy._optional_text(command.reason)
+        if not request_reason:
+            raise ExamVenueError("A promotion request needs a reason")
+        return VenueMutationPlan({}, request_reason)
+
+    def _plan_promotion_decision(
+        self, command: VenueCommand, facts: VenueCommandFacts
+    ) -> VenueMutationPlan:
+        if facts.promotion_status != "pending":
+            raise ExamVenueConflictError("No pending promotion request exists")
+        decision = command.decision or ""
+        if decision not in {"approve", "reject"}:
+            raise ExamVenueError("Promotion decision must be approve or reject")
+        decision_reason = self.policy._optional_text(command.reason)
+        if not decision_reason:
+            raise ExamVenueError("A promotion decision needs a reason")
+        if facts.current is None:
+            return VenueMutationPlan({})
+        if decision != "approve":
+            return VenueMutationPlan({}, decision_reason, dict(command.values or {}))
+        normalized = self.policy.venue_source(
+            facts.current, {"scope": "global", "committee_id": None}
+        )
+        self.policy.assert_venue_can_be_active(normalized, has_active_room=facts.has_active_room)
+        if facts.duplicate_candidates is not None:
+            self.policy.assert_no_global_promotion_collision(normalized, facts.duplicate_candidates)
+        return VenueMutationPlan(normalized, decision_reason, dict(command.values or {}))
 
     @staticmethod
     def _assert_current_committee_actor(command: VenueCommand, facts: VenueCommandFacts) -> None:

@@ -1,6 +1,6 @@
 """Shared HTTP dependencies; domain authorization stays in the application core."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from contextvars import ContextVar
 from dataclasses import replace
 from inspect import Parameter, Signature, signature
@@ -91,54 +91,68 @@ class BoundedBodyRoute(APIRoute):
 BufferedBody = Annotated[bytes, Depends(buffered_body)]
 
 
-def request_context(request: Request) -> RequestContext:
+def request_context(request: Request) -> Iterator[RequestContext]:
     """Create one request-scoped context, including the runtime-selected database."""
     config = request.app.state.lzug_config
     session_token = request.cookies.get(config.session_cookie_name)
-    return RequestContext(
-        request=request,
-        db_path=config.runtime_policy.database_for_request(config.db_path, session_token),
-        session_cookie_name=config.session_cookie_name,
-        csrf_cookie_name=config.csrf_cookie_name,
-        cookie_secure=config.cookie_secure,
-        session_ttl=config.session_ttl,
-        max_request_bytes=config.max_request_bytes,
-        runtime_policy=config.runtime_policy,
-        planning_service_factory=request.app.state.planning_service_factory,
-        execution_service_factory=request.app.state.execution_service_factory,
-        exam_protocol_service_factory=request.app.state.exam_protocol_service_factory,
-        exam_result_service_factory=request.app.state.exam_result_service_factory,
-        planning_lifecycle_work_factory=request.app.state.planning_lifecycle_work_factory,
-        identity_lifecycle_work_factory=request.app.state.identity_lifecycle_work_factory,
-        calendar_lifecycle_work_factory=request.app.state.calendar_lifecycle_work_factory,
-        assessment_lifecycle=request.app.state.assessment_lifecycle,
-        assessment_round_queries=request.app.state.assessment_round_queries,
-        exam_lifecycle_unit_of_work_factory_provider=(
-            request.app.state.exam_lifecycle_unit_of_work_factory_provider
-        ),
-        absence_unit_of_work_factory=request.app.state.absence_unit_of_work_factory,
-        candidate_day_service_factory=request.app.state.candidate_day_service_factory,
-        planning_resource_unit_of_work_factory=(
-            request.app.state.planning_resource_unit_of_work_factory
-        ),
-        resource_access_query_factory=request.app.state.resource_access_query_factory,
-        identity_service_factory=request.app.state.identity_service_factory,
-        authorization_service_factory=request.app.state.authorization_service_factory,
-        committee_admin_service_factory=request.app.state.committee_admin_service_factory,
-        authentication_repository_factory=request.app.state.authentication_repository_factory,
-        local_auth_service_factory=request.app.state.local_auth_service_factory,
-        calendar_service_factory=request.app.state.calendar_service_factory,
-        planning_calendar_read_service_factory=(
-            request.app.state.planning_calendar_read_service_factory
-        ),
-        consequence_store_factory=request.app.state.consequence_store_factory,
-        notification_service_factory=request.app.state.notification_service_factory,
-        round_mutation_lock_checker_factory=request.app.state.round_mutation_lock_checker_factory,
-        runtime_settings=config.runtime_settings,
-        auth_rate_limiter=request.app.state.auth_rate_limiter,
-        observability_rate_limiter=request.app.state.observability_rate_limiter,
-        observability_global_rate_limiter=request.app.state.observability_global_rate_limiter,
+    db_path, release_database = config.runtime_policy.acquire_database_for_request(
+        config.db_path, session_token
     )
+    context = None
+    try:
+        context = RequestContext(
+            request=request,
+            db_path=db_path,
+            session_cookie_name=config.session_cookie_name,
+            csrf_cookie_name=config.csrf_cookie_name,
+            cookie_secure=config.cookie_secure,
+            session_ttl=config.session_ttl,
+            max_request_bytes=config.max_request_bytes,
+            runtime_policy=config.runtime_policy,
+            planning_service_factory=request.app.state.planning_service_factory,
+            execution_service_factory=request.app.state.execution_service_factory,
+            exam_protocol_service_factory=request.app.state.exam_protocol_service_factory,
+            exam_result_service_factory=request.app.state.exam_result_service_factory,
+            planning_lifecycle_work_factory=request.app.state.planning_lifecycle_work_factory,
+            identity_lifecycle_work_factory=request.app.state.identity_lifecycle_work_factory,
+            calendar_lifecycle_work_factory=request.app.state.calendar_lifecycle_work_factory,
+            assessment_lifecycle=request.app.state.assessment_lifecycle,
+            assessment_round_queries=request.app.state.assessment_round_queries,
+            exam_lifecycle_unit_of_work_factory_provider=(
+                request.app.state.exam_lifecycle_unit_of_work_factory_provider
+            ),
+            absence_unit_of_work_factory=request.app.state.absence_unit_of_work_factory,
+            candidate_day_service_factory=request.app.state.candidate_day_service_factory,
+            planning_resource_unit_of_work_factory=(
+                request.app.state.planning_resource_unit_of_work_factory
+            ),
+            resource_access_query_factory=request.app.state.resource_access_query_factory,
+            identity_service_factory=request.app.state.identity_service_factory,
+            authorization_service_factory=request.app.state.authorization_service_factory,
+            committee_admin_service_factory=request.app.state.committee_admin_service_factory,
+            authentication_repository_factory=request.app.state.authentication_repository_factory,
+            local_auth_service_factory=request.app.state.local_auth_service_factory,
+            calendar_service_factory=request.app.state.calendar_service_factory,
+            planning_calendar_read_service_factory=(
+                request.app.state.planning_calendar_read_service_factory
+            ),
+            consequence_store_factory=request.app.state.consequence_store_factory,
+            notification_service_factory=request.app.state.notification_service_factory,
+            round_mutation_lock_checker_factory=(
+                request.app.state.round_mutation_lock_checker_factory
+            ),
+            runtime_settings=config.runtime_settings,
+            auth_rate_limiter=request.app.state.auth_rate_limiter,
+            observability_rate_limiter=request.app.state.observability_rate_limiter,
+            observability_global_rate_limiter=request.app.state.observability_global_rate_limiter,
+        )
+        context.add_request_cleanup(release_database)
+        yield context
+    finally:
+        if context is None:
+            release_database()
+        else:
+            context.close()
 
 
 Context = Annotated[RequestContext, Depends(request_context)]

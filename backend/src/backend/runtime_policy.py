@@ -7,6 +7,7 @@ placing their implementation or configuration in the product image.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
 
@@ -29,6 +30,11 @@ class RuntimePolicy(Protocol):
 
     def database_for_request(self, base_db_path: Path, session_token: str | None) -> Path:
         """Resolve the persistence boundary for one request."""
+
+    def acquire_database_for_request(
+        self, base_db_path: Path, session_token: str | None
+    ) -> tuple[Path, Callable[[], None]]:
+        """Select persistence and retain any request-scoped backing resources."""
 
     def external_notifications_enabled(self) -> bool:
         """Return whether technical notification channels may be used."""
@@ -64,6 +70,11 @@ class ProductRuntimePolicy:
     def database_for_request(self, base_db_path: Path, session_token: str | None) -> Path:
         del session_token
         return base_db_path
+
+    def acquire_database_for_request(
+        self, base_db_path: Path, session_token: str | None
+    ) -> tuple[Path, Callable[[], None]]:
+        return self.database_for_request(base_db_path, session_token), lambda: None
 
     def external_notifications_enabled(self) -> bool:
         return True

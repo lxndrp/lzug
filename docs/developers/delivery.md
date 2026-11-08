@@ -10,6 +10,35 @@ Wiederholung sicher ist.
 
 ## Pull-Request-Gates
 
+`.github/workflows/review-blockers.yml` prüft offene Codebasis-Befunde mit dem
+Label `review:blocking` gegen die geänderten Pfade des Pull Requests.
+Das Label ist eine ausdrückliche menschliche Einstufung; ein Check oder Codex
+vergibt es nicht.
+Jeder so markierte Befund muss im Issue-Text einen Abschnitt `Affected paths:`
+oder `Betroffene Pfade:` mit repositoryrelativen Datei- oder Verzeichnispfaden
+als Markdown-Liste enthalten.
+Ein Verzeichnis umfasst seine Nachfahren.
+Fehlende oder nicht auswertbare Pfade schlagen den Check fehl.
+GitHub liefert für die PR-Dateiliste höchstens 3000 Dateien; ab dieser Grenze
+schlägt der Check geschlossen fehl, weil die Vollständigkeit nicht belegbar ist.
+
+Der stabile Check-Name lautet `Review blockers / Review blockers`.
+Ein Maintainer kann ihn in einem Repository-Ruleset als Required Status Check
+mit diesem exakten Namen hinzufügen.
+Die Aktivierung ist eine gesondert freizugebende Maintainer-Aktion und wird
+nicht durch den Workflow vorgenommen.
+Der Check läuft für Fork-PRs mit ausschließlich lesenden
+`contents`, `issues` und `pull-requests`-Berechtigungen.
+Er führt nur den vertrauenswürdigen Code des Basisbranches aus und liest PR-
+Dateien sowie offene, gelabelte Issues über die GitHub-API.
+Ein Befund, den derselbe PR über `Closes #<issue>` oder eine äquivalente
+GitHub-Schließreferenz schließt, blockiert diesen PR nicht.
+Andere passende offene Blocker bleiben wirksam.
+Änderungen an Blocking-Label, Status oder betroffenem Pfad eines Issues lösen
+keinen PR-Lauf aus.
+Maintainer müssen den Check für bereits offene PRs nach solchen Änderungen
+erneut ausführen, damit er den aktualisierten Befundstand auswertet.
+
 `.github/workflows/pull-request.yml` ordnet geänderte Pfade konservativ den
 Domänen Fixtures, Dokumentation, Backend, Frontend, CLI, Container, Browser und
 Infrastruktur zu.
