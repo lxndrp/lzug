@@ -51,7 +51,8 @@ jobs:
           seed_image="$LZUG_QUALITY_DEMO_SEED_IMAGE"
           demo_image="$LZUG_QUALITY_DEMO_APP_IMAGE"
           temp_dir="$(mktemp -d)"
-          seed_dir="$temp_dir/extracted-seed"
+          seed_dir="$(mktemp -d)"
+          chmod 755 "$seed_dir"
           data_volume="$prefix-product-data"
           socket_volume="$prefix-product-socket"
           work_volume="$prefix-product-work"
@@ -94,13 +95,25 @@ jobs:
             for image in "$product_image" "$contract_image" "$seed_image" "$demo_image"; do
               if podman image exists "$image"; then
                 podman rmi --force "$image" >/dev/null || status=1
+              else
+                image_status=$?
+                if [ "$image_status" -ne 1 ]; then
+                  echo "Could not inspect qualification image before cleanup: $image (exit $image_status)" >&2
+                  status=1
+                fi
               fi
               if podman image exists "$image"; then
                 echo "Qualification image remains after cleanup: $image" >&2
                 status=1
+              else
+                image_status=$?
+                if [ "$image_status" -ne 1 ]; then
+                  echo "Could not verify qualification image cleanup: $image (exit $image_status)" >&2
+                  status=1
+                fi
               fi
             done
-            rm -rf "$temp_dir"
+            rm -rf "$temp_dir" "$seed_dir"
             echo "Labeled containers after cleanup:"
             remaining_containers="$(podman container list --all --format '{{.Names}}' --filter "label=$scope" 2>/dev/null || true)"
             printf '%s\n' "${remaining_containers:-none}"
@@ -184,6 +197,7 @@ jobs:
           podman create --name "$seed_container" --label "$scope" "$seed_image" >/dev/null
           podman cp "$seed_container:/opt/lzug-demo/seed/lzug.sqlite" "$seed_dir/lzug.sqlite"
           podman cp "$seed_container:/opt/lzug-demo/seed/manifest.json" "$seed_dir/manifest.json"
+          chmod 644 "$seed_dir/lzug.sqlite" "$seed_dir/manifest.json"
           podman rm "$seed_container" >/dev/null
           seed_revision="$(jq -er '.seed_revision' "$seed_dir/manifest.json")"
           test "$(printf '%s' "$seed_revision" | wc -c)" -eq 64
