@@ -200,7 +200,7 @@ jobs:
           podman create --name "$app_manifest_container" --label "$scope" "$demo_image" >/dev/null
           podman cp "$app_manifest_container:/app/demo-app-manifest.json" "$temp_dir/demo-app-manifest.json"
           podman rm "$app_manifest_container" >/dev/null
-          PYTHONPATH=packaging python3 -c '
+          PYTHONPATH=backend/src:packaging python3 -c '
           import sys
           from pathlib import Path
           from demo.runtime.validation import load_runtime_manifests
