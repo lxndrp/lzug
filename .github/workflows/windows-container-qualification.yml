@@ -15,6 +15,7 @@ on:
       - packaging/demo/**
       - packaging/product/Dockerfile
       - .dockerignore
+      - .gitattributes
       - LICENSE
       - pyproject.toml
       - uv.lock

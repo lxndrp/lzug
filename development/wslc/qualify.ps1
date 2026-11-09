@@ -16,6 +16,7 @@ $evidence = [ordered]@{
     processors = $null
     memoryBytes = $null
     resourceScope = $null
+    source = [ordered]@{ migrationFilesChecked = 0; migrationBlobsMatchCheckout = $false }
     buildDurationsSeconds = [ordered]@{}
     artifacts = [ordered]@{}
     runtime = [ordered]@{}
@@ -323,6 +324,24 @@ try {
     if ($revision -notmatch '^[0-9a-f]{40}$') { throw "Invalid checked-out revision: $revision" }
     $evidence.repositoryRevision = $revision
     $shortRevision = $revision.Substring(0, 7)
+    $migrationPaths = (Invoke-External -FilePath 'git.exe' -Arguments @(
+        'ls-files', 'backend/db/migrations/*.sql'
+    )).Text -split "`n" |
+        Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+        ForEach-Object { $_.Trim() }
+    foreach ($migrationPath in $migrationPaths) {
+        $blob = (Invoke-External -FilePath 'git.exe' -Arguments @(
+            'rev-parse', "HEAD:$migrationPath"
+        )).Text.Trim()
+        $workingFile = (Invoke-External -FilePath 'git.exe' -Arguments @(
+            'hash-object', $migrationPath
+        )).Text.Trim()
+        if ($blob -ne $workingFile) {
+            throw "Checked-out bytes for $migrationPath differ from the committed blob; migration checksums require exact LF content."
+        }
+    }
+    $evidence.source.migrationFilesChecked = $migrationPaths.Count
+    $evidence.source.migrationBlobsMatchCheckout = $true
     $productIdentity = (Invoke-External -FilePath 'python.exe' -Arguments @(
         'backend/src/backend/version.py', '--revision', $revision, '--field', 'identity'
     )).Text.Trim()

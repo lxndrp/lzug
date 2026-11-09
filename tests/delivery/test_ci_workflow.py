@@ -97,12 +97,14 @@ class QualityWorkflowContractTests(unittest.TestCase):
             "packaging/demo/**",
             "packaging/product/Dockerfile",
             ".dockerignore",
+            ".gitattributes",
             "pyproject.toml",
             "uv.lock",
             ".syft.yaml",
         ):
             with self.subTest(path=path):
                 self.assertIn(f"- {path}", triggers)
+        self.assertIn("backend/db/migrations/*.sql text eol=lf", workflow_text(".gitattributes"))
 
     def test_go_toolchain_patch_is_consistent_across_build_contexts(self) -> None:
         expected_version = "1.26.10"
