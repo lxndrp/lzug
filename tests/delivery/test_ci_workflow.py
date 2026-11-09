@@ -106,6 +106,13 @@ class QualityWorkflowContractTests(unittest.TestCase):
                 self.assertIn(f"- {path}", triggers)
         self.assertIn("backend/db/migrations/*.sql text eol=lf", workflow_text(".gitattributes"))
 
+    def test_wslc_qualification_suppresses_sensitive_cli_responses(self) -> None:
+        script = Path("development/wslc/qualify.ps1").read_text(encoding="utf-8")
+        self.assertIn("[switch] $SensitiveOutput", script)
+        self.assertIn("if ($text -and -not $SensitiveOutput) { Write-Host $text }", script)
+        self.assertEqual(script.count(") + $bootstrap) -SensitiveOutput"), 2)
+        self.assertNotIn("$($bootstrapText.Text)", script)
+
     def test_go_toolchain_patch_is_consistent_across_build_contexts(self) -> None:
         expected_version = "1.26.10"
         self.assertIn(

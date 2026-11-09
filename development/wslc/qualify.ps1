@@ -35,23 +35,31 @@ function Invoke-External {
     param(
         [Parameter(Mandatory)] [string] $FilePath,
         [Parameter(Mandatory)] [string[]] $Arguments,
-        [switch] $AllowFailure
+        [switch] $AllowFailure,
+        [switch] $SensitiveOutput
     )
 
     Write-Host "> $FilePath $($Arguments -join ' ')"
     $lines = @(& $FilePath @Arguments 2>&1 | ForEach-Object { "$_" })
     $exitCode = $LASTEXITCODE
     $text = $lines -join "`n"
-    if ($text) { Write-Host $text }
+    if ($text -and -not $SensitiveOutput) { Write-Host $text }
     if (-not $AllowFailure -and $exitCode -ne 0) {
+        if ($SensitiveOutput) {
+            throw "$FilePath failed with exit code $exitCode; command output was suppressed."
+        }
         throw "$FilePath failed with exit code $exitCode`: $text"
     }
     return [pscustomobject]@{ ExitCode = $exitCode; Text = $text }
 }
 
 function Invoke-Wslc {
-    param([Parameter(Mandatory)] [string[]] $Arguments, [switch] $AllowFailure)
-    Invoke-External -FilePath $script:wslcPath -Arguments $Arguments -AllowFailure:$AllowFailure
+    param(
+        [Parameter(Mandatory)] [string[]] $Arguments,
+        [switch] $AllowFailure,
+        [switch] $SensitiveOutput
+    )
+    Invoke-External -FilePath $script:wslcPath -Arguments $Arguments -AllowFailure:$AllowFailure -SensitiveOutput:$SensitiveOutput
 }
 
 function Build-WslcImage {
@@ -499,10 +507,14 @@ try {
     $bootstrapText = Invoke-Wslc -Arguments (@(
         'exec', '--user', '10001:10001', "$script:resourcePrefix-product-app", 'lzug-admin',
         '--endpoint', 'unix:///run/lzug-admin/admin.sock', '--json'
-    ) + $bootstrap)
-    $bootstrapResult = $bootstrapText.Text | ConvertFrom-Json
+    ) + $bootstrap) -SensitiveOutput
+    try {
+        $bootstrapResult = $bootstrapText.Text | ConvertFrom-Json
+    } catch {
+        throw 'The CLI bootstrap returned invalid JSON; its response was suppressed.'
+    }
     if (-not $bootstrapResult.ok -or $bootstrapResult.result.committee_id -le 0) {
-        throw "Could not write a synthetic record through the delivered CLI: $($bootstrapText.Text)"
+        throw 'Could not write a synthetic record through the delivered CLI; its response was suppressed.'
     }
     $createdCommitteeId = $bootstrapResult.result.committee_id
     Invoke-Wslc -Arguments @('container', 'stop', "$script:resourcePrefix-product-app") | Out-Null
@@ -511,8 +523,12 @@ try {
     $replayedText = Invoke-Wslc -Arguments (@(
         'exec', '--user', '10001:10001', "$script:resourcePrefix-product-app", 'lzug-admin',
         '--endpoint', 'unix:///run/lzug-admin/admin.sock', '--json'
-    ) + $bootstrap)
-    $replayed = $replayedText.Text | ConvertFrom-Json
+    ) + $bootstrap) -SensitiveOutput
+    try {
+        $replayed = $replayedText.Text | ConvertFrom-Json
+    } catch {
+        throw 'The CLI bootstrap replay returned invalid JSON; its response was suppressed.'
+    }
     if (-not $replayed.ok -or -not $replayed.result.replayed -or
         $replayed.result.committee_id -ne $createdCommitteeId) {
         throw 'The CLI bootstrap record did not persist across stop/start.'
