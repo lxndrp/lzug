@@ -85,6 +85,43 @@ class QualityWorkflowContractTests(unittest.TestCase):
                 workflow = path.read_text(encoding="utf-8")
                 self.assertNotRegex(workflow, r"runs-on:\s*\S+-latest\b")
 
+    def test_wslc_qualification_triggers_on_project_image_inputs(self) -> None:
+        workflow = workflow_text(".github/workflows/windows-container-qualification.yml")
+        triggers = trigger_block(workflow)
+        for path in (
+            "backend/**",
+            "frontend/**",
+            "operator-cli/**",
+            "brand/**",
+            "fixtures/**",
+            "packaging/demo/**",
+            "packaging/product/Dockerfile",
+            ".dockerignore",
+            ".gitattributes",
+            "pyproject.toml",
+            "uv.lock",
+            ".syft.yaml",
+        ):
+            with self.subTest(path=path):
+                self.assertIn(f"- {path}", triggers)
+        self.assertIn("backend/db/migrations/*.sql text eol=lf", workflow_text(".gitattributes"))
+
+    def test_wslc_qualification_preserves_runtime_contracts(self) -> None:
+        script = Path("development/wslc/qualify.ps1").read_text(encoding="utf-8")
+        self.assertIn("[switch] $SensitiveOutput", script)
+        self.assertIn("if ($text -and -not $SensitiveOutput) { Write-Host $text }", script)
+        self.assertIn("mode=0750", script)
+        self.assertIn("$portBindings = $productContainerInfo['Ports']", script)
+        self.assertIn("if ($null -ne $privileged -and $privileged -eq $true)", script)
+        self.assertIn("wslc omitted HostConfig.Privileged", script)
+        self.assertIn("privileged mode could not be verified.", script)
+        self.assertIn(
+            "if ($lifecycle.state -eq 'ready' -and $lifecycle.ready -eq $true) { return }",
+            script,
+        )
+        self.assertEqual(script.count(") + $bootstrap) -SensitiveOutput"), 2)
+        self.assertNotIn("$($bootstrapText.Text)", script)
+
     def test_go_toolchain_patch_is_consistent_across_build_contexts(self) -> None:
         expected_version = "1.26.10"
         self.assertIn(

@@ -1,0 +1,57 @@
+name: Windows container qualification
+
+on:
+  pull_request:
+    branches:
+      - master
+    paths:
+      - .github/workflows/windows-container-qualification.yml
+      - development/wslc/**
+      - backend/**
+      - frontend/**
+      - operator-cli/**
+      - brand/**
+      - fixtures/**
+      - packaging/demo/**
+      - packaging/product/Dockerfile
+      - .dockerignore
+      - .gitattributes
+      - LICENSE
+      - pyproject.toml
+      - uv.lock
+      - .syft.yaml
+
+permissions:
+  contents: read
+
+jobs:
+  wslc:
+    name: WSL container runtime on Windows Server 2025
+    runs-on: windows-2025
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
+        with:
+          python-version: 3.14.6
+
+      - id: syft
+        uses: anchore/sbom-action/download-syft@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          syft-version: v1.51.0
+
+      - name: Build and exercise project images through wslc
+        shell: pwsh
+        env:
+          SYFT_BINARY: ${{ steps.syft.outputs.cmd }}
+        run: ./development/wslc/qualify.ps1
+
+      - name: Retain wslc qualification artifacts
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: wslc-qualification
+          path: ${{ runner.temp }}/wslc-qualification/**
+          if-no-files-found: warn
+          retention-days: 7
