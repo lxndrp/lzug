@@ -106,11 +106,12 @@ class QualityWorkflowContractTests(unittest.TestCase):
                 self.assertIn(f"- {path}", triggers)
         self.assertIn("backend/db/migrations/*.sql text eol=lf", workflow_text(".gitattributes"))
 
-    def test_wslc_qualification_suppresses_sensitive_cli_responses(self) -> None:
+    def test_wslc_qualification_preserves_runtime_contracts(self) -> None:
         script = Path("development/wslc/qualify.ps1").read_text(encoding="utf-8")
         self.assertIn("[switch] $SensitiveOutput", script)
         self.assertIn("if ($text -and -not $SensitiveOutput) { Write-Host $text }", script)
         self.assertIn("mode=0750", script)
+        self.assertIn("$portBindings = $productContainerInfo['Ports']", script)
         self.assertIn(
             "if ($lifecycle.state -eq 'ready' -and $lifecycle.ready -eq $true) { return }",
             script,

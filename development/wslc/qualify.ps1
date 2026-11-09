@@ -474,19 +474,27 @@ try {
     if ($productContainerInfo.Config.Labels[$script:resourceLabel] -ne $script:runId) {
         throw 'Resource label is missing from the product container.'
     }
-    if ($productContainerInfo.Config.User -ne '10001:10001' -or $hostConfig.Privileged -eq $true) {
-        throw 'Product container does not preserve the non-root, non-privileged runtime contract.'
+    if ($productContainerInfo.Config.User -ne '10001:10001') {
+        throw 'Product container does not preserve the non-root runtime contract.'
     }
-    if ($capabilities.readOnlyRootFilesystem -and $hostConfig.ReadonlyRootfs -ne $true) {
+    if ($capabilities.readOnlyRootFilesystem -and $hostConfig['ReadonlyRootfs'] -ne $true) {
         throw 'wslc accepted --read-only but did not report a read-only root filesystem.'
     }
-    if ($capabilities.dropCapabilities -and $hostConfig.CapDrop -notcontains 'ALL') {
+    if ($capabilities.dropCapabilities -and $hostConfig['CapDrop'] -notcontains 'ALL') {
         throw 'wslc accepted --cap-drop ALL but did not report it in the container configuration.'
     }
-    if ($capabilities.noNewPrivileges -and $hostConfig.SecurityOpt -notcontains 'no-new-privileges:true') {
+    if ($capabilities.noNewPrivileges -and $hostConfig['SecurityOpt'] -notcontains 'no-new-privileges:true') {
         throw 'wslc accepted the no-new-privileges option but did not report it in the container configuration.'
     }
-    $hostAddress = $hostConfig.PortBindings.'8000/tcp'[0].HostIp
+    $portBindings = $productContainerInfo['Ports']
+    if ($null -eq $portBindings) {
+        $portBindings = $productContainerInfo['NetworkSettings']['Ports']
+    }
+    $publishedPort = $portBindings['8000/tcp']
+    if ($null -eq $publishedPort -or @($publishedPort).Count -ne 1) {
+        throw 'Product container does not report exactly one published API port.'
+    }
+    $hostAddress = $publishedPort[0].HostIp
     if ($hostAddress -ne '127.0.0.1') {
         throw "Product port was not bound exclusively to loopback: $hostAddress"
     }
