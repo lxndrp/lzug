@@ -85,6 +85,25 @@ class QualityWorkflowContractTests(unittest.TestCase):
                 workflow = path.read_text(encoding="utf-8")
                 self.assertNotRegex(workflow, r"runs-on:\s*\S+-latest\b")
 
+    def test_wslc_qualification_triggers_on_project_image_inputs(self) -> None:
+        workflow = workflow_text(".github/workflows/windows-container-qualification.yml")
+        triggers = trigger_block(workflow)
+        for path in (
+            "backend/**",
+            "frontend/**",
+            "operator-cli/**",
+            "brand/**",
+            "fixtures/**",
+            "packaging/demo/**",
+            "packaging/product/Dockerfile",
+            ".dockerignore",
+            "pyproject.toml",
+            "uv.lock",
+            ".syft.yaml",
+        ):
+            with self.subTest(path=path):
+                self.assertIn(f"- {path}", triggers)
+
     def test_go_toolchain_patch_is_consistent_across_build_contexts(self) -> None:
         expected_version = "1.26.10"
         self.assertIn(

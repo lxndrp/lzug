@@ -14,6 +14,7 @@ on:
       - fixtures/**
       - packaging/demo/**
       - packaging/product/Dockerfile
+      - .dockerignore
       - LICENSE
       - pyproject.toml
       - uv.lock

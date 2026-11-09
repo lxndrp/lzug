@@ -19,7 +19,7 @@ $evidence = [ordered]@{
     buildDurationsSeconds = [ordered]@{}
     artifacts = [ordered]@{}
     runtime = [ordered]@{}
-    cleanup = [ordered]@{ containers = @(); volumes = @(); images = @(); cacheRetained = $true }
+    cleanup = [ordered]@{ containers = @(); volumes = @(); images = @(); absent = @(); cacheRetained = $true }
     blockers = [System.Collections.Generic.List[string]]::new()
     failure = $null
 }
@@ -89,6 +89,66 @@ function Get-WslcVolumeInfo {
     return $parsed
 }
 
+function Get-OwnedResourceInfo {
+    param(
+        [Parameter(Mandatory)] [ValidateSet('container', 'volume', 'image')] [string] $Kind,
+        [Parameter(Mandatory)] [string] $Name
+    )
+
+    $inspectArguments = switch ($Kind) {
+        'container' { @('container', 'inspect', '--format', 'json', $Name) }
+        'volume' { @('volume', 'inspect', '--format', 'json', $Name) }
+        'image' { @('image', 'inspect', '--format', 'json', $Name) }
+    }
+    $result = Invoke-Wslc -Arguments $inspectArguments -AllowFailure
+    if ($result.ExitCode -ne 0) {
+        if ($result.Text -match '(?i)(no such|not found|does not exist|doesn.t exist)') {
+            return $null
+        }
+        throw "Could not inspect $Kind $Name before cleanup: $($result.Text)"
+    }
+
+    $parsed = $result.Text | ConvertFrom-Json -AsHashtable
+    if ($parsed -is [array]) { $parsed = $parsed[0] }
+    if ($null -eq $parsed) { throw "wslc returned no metadata for $Kind $Name during cleanup." }
+    $labels = if ($Kind -eq 'volume') { $parsed.Labels } else { $parsed.Config.Labels }
+    if ($null -eq $labels -or $labels[$script:resourceLabel] -ne $script:runId) {
+        throw "Refusing to remove $Kind $Name because its lzug CI ownership label does not match this run."
+    }
+    return $parsed
+}
+
+function Remove-OwnedResource {
+    param(
+        [Parameter(Mandatory)] [ValidateSet('container', 'volume', 'image')] [string] $Kind,
+        [Parameter(Mandatory)] [string] $Name
+    )
+
+    try {
+        $metadata = Get-OwnedResourceInfo -Kind $Kind -Name $Name
+        if ($null -eq $metadata) {
+            $evidence.cleanup.absent += "${Kind}:$Name"
+            return
+        }
+    } catch {
+        $cleanupFailures.Add("${Kind} ${Name}: $($_.Exception.Message)")
+        return
+    }
+
+    $removeArguments = switch ($Kind) {
+        'container' { @('container', 'remove', '--force', $Name) }
+        'volume' { @('volume', 'remove', '--force', $Name) }
+        'image' { @('image', 'remove', '--force', $Name) }
+    }
+    $result = Invoke-Wslc -Arguments $removeArguments -AllowFailure
+    if ($result.ExitCode -ne 0) {
+        $cleanupFailures.Add("${Kind} ${Name}: $($result.Text)")
+    } else {
+        $collection = if ($Kind -eq 'container') { 'containers' } elseif ($Kind -eq 'volume') { 'volumes' } else { 'images' }
+        $evidence.cleanup[$collection] += $Name
+    }
+}
+
 function Save-And-ScanImage {
     param([Parameter(Mandatory)] [string] $Name, [Parameter(Mandatory)] [string] $Image)
     $archive = Join-Path $outputDirectory "$Name.tar"
@@ -153,8 +213,8 @@ function Start-WslcApp {
         $arguments += @('--security-opt', 'no-new-privileges:true')
     }
     $arguments += $Image
-    Invoke-Wslc -Arguments $arguments | Out-Null
     $ownedContainers.Add($Name)
+    Invoke-Wslc -Arguments $arguments | Out-Null
 }
 
 function Test-LzugApiReady {
@@ -275,6 +335,7 @@ try {
     $productImage = "$script:resourcePrefix-product:local"
     $seedImage = "$script:resourcePrefix-demo-seed:local"
     $demoImage = "$script:resourcePrefix-demo-app:local"
+    $ownedImages.AddRange([string[]]@($productImage, $seedImage, $demoImage))
     $buildPrefix = @('--label', "$script:resourceLabel=$script:runId")
     $productBuild = $buildPrefix + @(
         '--no-cache', '--build-arg', "BUILD_IDENTITY=$productIdentity",
@@ -287,9 +348,7 @@ try {
         '--tag', $seedImage, '.'
     )
     Build-WslcImage -Name 'product-cold' -Arguments (@('build') + $productBuild)
-    $ownedImages.Add($productImage)
     Build-WslcImage -Name 'demo-seed-cold' -Arguments (@('build') + $seedBuild)
-    $ownedImages.Add($seedImage)
 
     $seedManifestOutput = Invoke-Wslc -Arguments @(
         'run', '--rm', '--entrypoint', 'python', $seedImage, '-c',
@@ -305,7 +364,6 @@ try {
         '--tag', $demoImage, '.'
     )
     Build-WslcImage -Name 'demo-app-cold' -Arguments (@('build') + $demoBuild)
-    $ownedImages.Add($demoImage)
     Build-WslcImage -Name 'product-cached' -Arguments (@('build') + $productBuild | Where-Object { $_ -ne '--no-cache' })
     Build-WslcImage -Name 'demo-seed-cached' -Arguments (@('build') + $seedBuild | Where-Object { $_ -ne '--no-cache' })
     Build-WslcImage -Name 'demo-app-cached' -Arguments (@('build') + $demoBuild | Where-Object { $_ -ne '--no-cache' })
@@ -349,9 +407,9 @@ try {
 
     $productVolume = "$script:resourcePrefix-product-data"
     $demoVolume = "$script:resourcePrefix-demo-data"
+    $ownedVolumes.AddRange([string[]]@($productVolume, $demoVolume))
     foreach ($volume in @($productVolume, $demoVolume)) {
         Invoke-Wslc -Arguments @('volume', 'create', '--label', "$script:resourceLabel=$script:runId", $volume) | Out-Null
-        $ownedVolumes.Add($volume)
         $volumeInfo = Get-WslcVolumeInfo -Volume $volume
         if ($volumeInfo.Labels[$script:resourceLabel] -ne $script:runId) {
             throw "Resource label is missing from volume $volume."
@@ -484,14 +542,17 @@ try {
     @("FROM scratch", 'NOT_A_DOCKERFILE_DIRECTIVE invalid') |
         Set-Content -LiteralPath (Join-Path $badBuildDirectory 'Dockerfile')
     $invalidImage = "$script:resourcePrefix-invalid:local"
+    $ownedImages.Add($invalidImage)
     $badBuild = Invoke-Wslc -Arguments @(
         'build', '--label', "$script:resourceLabel=$script:runId",
         '--file', (Join-Path $badBuildDirectory 'Dockerfile'),
         '--tag', $invalidImage, $badBuildDirectory
     ) -AllowFailure
     if ($badBuild.ExitCode -eq 0) {
-        $ownedImages.Add($invalidImage)
         throw 'The intentionally invalid Dockerfile unexpectedly built successfully.'
+    }
+    if ($badBuild.Text -notmatch '(?i)(unknown instruction|dockerfile.{0,30}parse|parse error.{0,30}dockerfile|invalid.{0,30}directive)') {
+        throw "The intentionally invalid Dockerfile failed for an unexpected reason: $($badBuild.Text)"
     }
     $evidence.runtime.failedBuild = [ordered]@{
         exitCode = $badBuild.ExitCode
@@ -503,19 +564,13 @@ try {
     $evidence.failure = $_.Exception.Message
 } finally {
     foreach ($container in $ownedContainers) {
-        $cleanup = Invoke-Wslc -Arguments @('container', 'remove', '--force', $container) -AllowFailure
-        if ($cleanup.ExitCode -ne 0) { $cleanupFailures.Add("container ${container}: $($cleanup.Text)") }
-        else { $evidence.cleanup.containers += $container }
+        Remove-OwnedResource -Kind 'container' -Name $container
     }
     foreach ($volume in $ownedVolumes) {
-        $cleanup = Invoke-Wslc -Arguments @('volume', 'remove', '--force', $volume) -AllowFailure
-        if ($cleanup.ExitCode -ne 0) { $cleanupFailures.Add("volume ${volume}: $($cleanup.Text)") }
-        else { $evidence.cleanup.volumes += $volume }
+        Remove-OwnedResource -Kind 'volume' -Name $volume
     }
     foreach ($image in $ownedImages) {
-        $cleanup = Invoke-Wslc -Arguments @('image', 'remove', '--force', $image) -AllowFailure
-        if ($cleanup.ExitCode -ne 0) { $cleanupFailures.Add("image ${image}: $($cleanup.Text)") }
-        else { $evidence.cleanup.images += $image }
+        Remove-OwnedResource -Kind 'image' -Name $image
     }
     if ($cleanupFailures.Count -gt 0) {
         foreach ($cleanupFailure in $cleanupFailures) { $evidence.blockers.Add("Resource cleanup failed: $cleanupFailure") }
