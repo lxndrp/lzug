@@ -38,6 +38,37 @@ class DemoDeliveryContractTests(unittest.TestCase):
         ):
             self.assertIn("snapshot/", Path(path).read_text(encoding="utf-8"))
 
+    def test_quality_smoke_resources_use_the_worktree_scope(self) -> None:
+        taskfile = Path("packaging/demo/Taskfile.yml").read_text(encoding="utf-8")
+        smoke = Path("packaging/demo/container-smoke.sh").read_text(encoding="utf-8")
+
+        self.assertIn('resource_label="${LZUG_QUALITY_RESOURCE_LABEL:-}"', taskfile)
+        self.assertIn(
+            'seed_container_name="$resource_prefix-demo-seed-extract-${temporary_directory##*/}"',
+            taskfile,
+        )
+        self.assertIn(
+            'docker create --name "$seed_container_name" --label "$resource_label" "$seed_image"',
+            taskfile,
+        )
+        self.assertIn('suffix="$resource_label-demo-smoke-$run_id"', smoke)
+        self.assertIn("runtime_host=${LZUG_QUALITY_RUNTIME_HOST:-127.0.0.1}", smoke)
+        self.assertIn("runtime_bind_address=${LZUG_QUALITY_RUNTIME_BIND_ADDRESS:-127.0.0.1}", smoke)
+        self.assertIn('url="http://$runtime_host:$port"', smoke)
+        self.assertIn('--publish "$runtime_bind_address::8000"', smoke)
+        self.assertIn('docker volume create --label "$resource_label" "$volume"', smoke)
+        self.assertIn('docker run --name "$run_name" --label "$resource_label" "$@"', smoke)
+        self.assertEqual(smoke.count("docker run "), 2)
+        self.assertIn('docker_run "$suffix-seed-$seed_run"', smoke)
+        self.assertIn('docker_run "$container" --detach', smoke)
+        self.assertIn('docker_run "$suffix-product-check" --rm', smoke)
+        self.assertIn('docker rm --force "$container"', smoke)
+        self.assertIn('if [ "$volume_created" -eq 1 ]; then', smoke)
+        self.assertIn("cleanup_status=1", smoke)
+        self.assertIn('exit "$status"', smoke)
+        self.assertNotIn('docker rm --force "$container" >/dev/null 2>&1 || true', smoke)
+        self.assertNotIn('docker volume rm "$volume" >/dev/null 2>&1 || true', smoke)
+
 
 if __name__ == "__main__":
     unittest.main()

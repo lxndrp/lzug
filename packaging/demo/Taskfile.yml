@@ -35,6 +35,11 @@ tasks:
         short_revision="$(echo "$revision" | cut -c1-7)"
         temporary_directory="$(mktemp -d)"
         seed_container=""
+        resource_label="${LZUG_QUALITY_RESOURCE_LABEL:-}"
+        resource_prefix="${resource_label:-lzug-demo-quality}"
+        product_image="${LZUG_QUALITY_APP_IMAGE:-lzug-app:0.0.0-dev.local}"
+        seed_image="${LZUG_QUALITY_DEMO_SEED_IMAGE:-lzug-demo-seed:local}"
+        app_image="${LZUG_QUALITY_DEMO_APP_IMAGE:-lzug-demo-app:local}"
         cleanup() {
           if [ -n "$seed_container" ]; then
             docker rm --force "$seed_container" >/dev/null 2>&1 || true
@@ -44,22 +49,37 @@ tasks:
         trap cleanup EXIT
         product_tag="snapshot/v0.2.0-SNAPSHOT.$short_revision"
         build_identity="v0.2.0-SNAPSHOT@$short_revision"
-        seed_image="lzug-demo-seed:local"
-        app_image="lzug-demo-app:local"
-        docker build -f packaging/demo/Dockerfile.seed \
+        build_image() {
+          image=$1
+          shift
+          if [ -n "${LZUG_QUALITY_BUILDX_BUILDER:-}" ]; then
+            set -- buildx build --builder "$LZUG_QUALITY_BUILDX_BUILDER" --load "$@"
+          else
+            set -- build "$@"
+          fi
+          if [ -n "${LZUG_QUALITY_RESOURCE_LABEL:-}" ]; then
+            set -- "$@" --label "$LZUG_QUALITY_RESOURCE_LABEL"
+          fi
+          set -- "$@" -t "$image" .
+          docker "$@"
+        }
+        build_image "$seed_image" -f packaging/demo/Dockerfile.seed \
           --build-arg "PRODUCT_TAG=$product_tag" \
-          --build-arg "VCS_REF=$revision" \
-          -t "$seed_image" .
-        seed_container=$(docker create "$seed_image")
+          --build-arg "VCS_REF=$revision"
+        seed_container_name="$resource_prefix-demo-seed-extract-${temporary_directory##*/}"
+        if [ -n "$resource_label" ]; then
+          seed_container=$(docker create --name "$seed_container_name" --label "$resource_label" "$seed_image")
+        else
+          seed_container=$(docker create --name "$seed_container_name" "$seed_image")
+        fi
         docker cp "$seed_container:/opt/lzug-demo/seed/lzug.sqlite" "$temporary_directory/lzug.sqlite"
         docker cp "$seed_container:/opt/lzug-demo/seed/manifest.json" "$temporary_directory/manifest.json"
         docker rm "$seed_container" >/dev/null
         seed_container=""
         seed_revision=$(jq -er '.seed_revision' "$temporary_directory/manifest.json")
-        docker build -f packaging/demo/Dockerfile \
+        build_image "$app_image" -f packaging/demo/Dockerfile \
           --build-arg "BUILD_IDENTITY=$build_identity" \
           --build-arg "PRODUCT_TAG=$product_tag" \
           --build-arg "VCS_REF=$revision" \
-          --build-arg "SEED_REVISION=$seed_revision" \
-          -t "$app_image" .
-        packaging/demo/container-smoke.sh "$app_image" "$seed_image" lzug-app:0.0.0-dev.local "$seed_revision"
+          --build-arg "SEED_REVISION=$seed_revision"
+        packaging/demo/container-smoke.sh "$app_image" "$seed_image" "$product_image" "$seed_revision"

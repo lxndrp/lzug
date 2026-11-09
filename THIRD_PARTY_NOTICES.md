@@ -50,6 +50,15 @@ notice and this package license entry must remain aligned.
 - License: [MPL-2.0](https://www.mozilla.org/MPL/2.0/).
 - Upstream: [resvg-js](https://github.com/thx/resvg-js).
 
+## Playwright Docker seccomp profile
+
+`development/ubuntu-quality/seccomp-profile.json` is copied from the Playwright
+v1.64.1 Docker profile. It adds the documented user-namespace syscall rules
+needed to keep Chromium sandboxing enabled in the Linux quality container.
+
+- License: [Apache-2.0](https://github.com/microsoft/playwright/blob/v1.64.1/LICENSE).
+- Upstream: [Playwright v1.64.1 seccomp profile](https://github.com/microsoft/playwright/blob/v1.64.1/utils/docker/seccomp_profile.json).
+
 ## Production JavaScript dependencies
 
 These are direct runtime dependencies from the lockfile. Their package

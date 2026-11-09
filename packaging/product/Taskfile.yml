@@ -13,16 +13,30 @@ tasks:
         docker info >/dev/null
         revision="$(git rev-parse HEAD)"
         build_identity="$(PYTHONPATH=backend/src python3 -m backend.version --revision "$revision" --field identity)"
-        docker build -f packaging/product/Dockerfile \
+        app_image="${LZUG_QUALITY_APP_IMAGE:-lzug-app:0.0.0-dev.local}"
+        contract_image="${LZUG_QUALITY_CONTRACT_IMAGE:-lzug-app:0.0.0-rc.0-contract}"
+        build_image() {
+          image=$1
+          shift
+          if [ -n "${LZUG_QUALITY_BUILDX_BUILDER:-}" ]; then
+            set -- buildx build --builder "$LZUG_QUALITY_BUILDX_BUILDER" --load "$@"
+          else
+            set -- build "$@"
+          fi
+          if [ -n "${LZUG_QUALITY_RESOURCE_LABEL:-}" ]; then
+            set -- "$@" --label "$LZUG_QUALITY_RESOURCE_LABEL"
+          fi
+          set -- "$@" -t "$image" .
+          docker "$@"
+        }
+        build_image "$app_image" -f packaging/product/Dockerfile \
           --build-arg "BUILD_IDENTITY=$build_identity" \
-          --build-arg "VCS_REF=$revision" \
-          -t lzug-app:0.0.0-dev.local .
-        docker build -f packaging/product/Dockerfile \
+          --build-arg "VCS_REF=$revision"
+        build_image "$contract_image" -f packaging/product/Dockerfile \
           --build-arg "BUILD_IDENTITY=0.0.0-rc.0" \
           --build-arg "RELEASE_TAG=v0.0.0-rc.0" \
-          --build-arg "VCS_REF=$revision" \
-          -t lzug-app:0.0.0-rc.0-contract .
+          --build-arg "VCS_REF=$revision"
         mkdir -p build/quality
         env SYFT_CACHE_DIR=/tmp/lzug-syft-cache \
-          "${SYFT_BINARY:-syft}" scan --config .syft.yaml lzug-app:0.0.0-dev.local \
+          "${SYFT_BINARY:-syft}" scan --config .syft.yaml "$app_image" \
           --output "cyclonedx-json@1.6=build/quality/lzug.image.sbom.cdx.json"

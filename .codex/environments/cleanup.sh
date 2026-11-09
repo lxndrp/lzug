@@ -15,12 +15,34 @@ case "$scope" in
 esac
 
 # Only resources with this label and the expected name may be removed.
-# Persistent volumes intentionally lack the worktree label.
+# Persistent quality caches retain this worktree label until cleanup runs.
 if ! command -v docker >/dev/null 2>&1; then
   exit 0
 fi
+unset DOCKER_CONTEXT
+DOCKER_HOST=unix:///var/run/docker.sock
+export DOCKER_HOST
 if ! docker info >/dev/null 2>&1; then
   echo "Docker is unavailable; start it and retry worktree cleanup." >&2
+  exit 1
+fi
+
+# Buildx has no custom-label option for builder instances. The runner stores its
+# isolated config under this worktree and removes only the exact generated name.
+expected_builder="lzug-codex-$scope-ubuntu-quality-buildx"
+buildx_config="$CODEX_WORKTREE_PATH/.codex/ubuntu-quality/buildx"
+if [ -d "$buildx_config" ]; then
+  builder_names=$(BUILDX_CONFIG="$buildx_config" DOCKER_HOST=unix:///var/run/docker.sock docker buildx ls --format '{{.Name}}')
+  for name in $builder_names; do
+    if [ "$name" = "$expected_builder" ]; then
+      BUILDX_CONFIG="$buildx_config" DOCKER_HOST=unix:///var/run/docker.sock docker buildx rm --force "$name"
+    fi
+  done
+  rm -rf "$buildx_config"
+fi
+
+if [ -d "$buildx_config" ]; then
+  echo "Buildx config cleanup did not remove the worktree runner config." >&2
   exit 1
 fi
 

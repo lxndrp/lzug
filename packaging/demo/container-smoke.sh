@@ -10,33 +10,83 @@ product_image=${3:-lzug-app:0.0.0-dev.local}
 expected_seed_revision=${4:-}
 lzug_require_docker
 
-suffix="lzug-demo-smoke-$$"
+resource_label=${LZUG_QUALITY_RESOURCE_LABEL:-}
+runtime_host=${LZUG_QUALITY_RUNTIME_HOST:-127.0.0.1}
+runtime_bind_address=${LZUG_QUALITY_RUNTIME_BIND_ADDRESS:-127.0.0.1}
+temporary_directory=$(mktemp -d "${TMPDIR:-/tmp}/lzug-demo-smoke.XXXXXX")
+run_id=${temporary_directory##*.}
+if [ -n "$resource_label" ]; then
+    suffix="$resource_label-demo-smoke-$run_id"
+else
+    suffix="lzug-demo-smoke-$run_id"
+fi
 volume="$suffix-data"
 container="$suffix-app"
-temporary_directory=$(mktemp -d "${TMPDIR:-/tmp}/lzug-demo-smoke.XXXXXX")
+seed_run=0
+container_id=""
+container_attempted=0
+volume_created=0
 cleanup() {
-    docker rm --force "$container" >/dev/null 2>&1 || true
-    docker volume rm "$volume" >/dev/null 2>&1 || true
-    rm -rf "$temporary_directory"
+    status=$?
+    trap - EXIT INT TERM
+    cleanup_status=0
+    if [ "$container_attempted" -eq 1 ]; then
+        if ! docker rm --force "$container" >/dev/null 2>&1; then
+            echo "Could not remove demo smoke container '$container'." >&2
+            cleanup_status=1
+        fi
+    fi
+    if [ "$volume_created" -eq 1 ]; then
+        if ! docker volume rm "$volume" >/dev/null 2>&1; then
+            echo "Could not remove demo smoke volume '$volume'." >&2
+            cleanup_status=1
+        fi
+    fi
+    if ! rm -rf "$temporary_directory"; then
+        echo "Could not remove demo smoke temporary directory '$temporary_directory'." >&2
+        cleanup_status=1
+    fi
+    if [ "$status" -eq 0 ]; then
+        status=$cleanup_status
+    fi
+    exit "$status"
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
-docker volume create "$volume" >/dev/null
+volume_created=1
+if [ -n "$resource_label" ]; then
+    docker volume create --label "$resource_label" "$volume" >/dev/null
+else
+    docker volume create "$volume" >/dev/null
+fi
+docker_run() {
+    run_name=$1
+    shift
+    if [ -n "$resource_label" ]; then
+        docker run --name "$run_name" --label "$resource_label" "$@"
+    else
+        docker run --name "$run_name" "$@"
+    fi
+}
 
 run_seed() {
-    docker run --rm --read-only --tmpfs /tmp \
+    seed_run=$((seed_run + 1))
+    docker_run "$suffix-seed-$seed_run" --rm --read-only --tmpfs /tmp \
         --mount "type=volume,source=$volume,target=/data" \
         "$seed_image"
 }
 
 start_app() {
-    docker run --detach --name "$container" --read-only --tmpfs /tmp \
-        --publish 127.0.0.1::8000 \
+    container_attempted=1
+    container_id=$(docker_run "$container" --detach --read-only --tmpfs /tmp \
+        --publish "$runtime_bind_address::8000" \
         --env LZUG_HTTPS_ONLY=false \
         --mount "type=volume,source=$volume,target=/data" \
-        "$app_image" >/dev/null
+        "$app_image")
     port=$(docker port "$container" 8000/tcp | sed 's/.*://')
-    url="http://127.0.0.1:$port"
+    url="http://$runtime_host:$port"
     if ! lzug_wait_for_http_health "$url" 30; then
         docker logs "$container" >&2 || true
         return 1
@@ -54,7 +104,7 @@ assert_status() {
 }
 
 echo "Verifying product/demo physical assembly separation."
-docker run --rm --entrypoint sh "$product_image" -c \
+docker_run "$suffix-product-check" --rm --entrypoint sh "$product_image" -c \
     'test ! -e /app/demo && ! grep -R -F "/api/demo" /app/backend /app/frontend >/dev/null 2>&1'
 
 echo "Initializing and starting the bound demo image pair."
@@ -150,7 +200,8 @@ assert_status "Reset isolated demo workspace" 200 "$reset_status"
 docker exec "$container" sh -c 'printf demo > /data/documents/temporary.txt'
 
 echo "Reinitializing the same volume and verifying reset semantics."
-docker rm --force "$container" >/dev/null
+docker rm --force "$container_id" >/dev/null
+container_id=""
 run_seed
 start_app
 old_session_status=$(curl --silent --output /dev/null --write-out '%{http_code}' \
