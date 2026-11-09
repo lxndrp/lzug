@@ -227,11 +227,20 @@ function Start-WslcApp {
 }
 
 function Test-LzugApiReady {
-    param([Parameter(Mandatory)] [string] $Url)
-    $lifecycle = Wait-ForHttp -Url "$Url/api/lifecycle"
-    if ($lifecycle.state -ne 'ready' -or $lifecycle.ready -ne $true) {
-        throw "Product lifecycle did not become ready: $($lifecycle | ConvertTo-Json -Compress)"
-    }
+    param([Parameter(Mandatory)] [string] $Url, [int] $TimeoutSeconds = 90)
+    $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+    $lifecycle = $null
+    do {
+        try {
+            $lifecycle = Invoke-RestMethod -Uri "$Url/api/lifecycle" -TimeoutSec 3
+            if ($lifecycle.state -eq 'ready' -and $lifecycle.ready -eq $true) { return }
+        } catch { }
+        Start-Sleep -Milliseconds 500
+    } while ([DateTime]::UtcNow -lt $deadline)
+
+    $lastResponse = if ($null -eq $lifecycle) { 'no lifecycle response' } else { $lifecycle | ConvertTo-Json -Compress }
+    $logResult = Invoke-Wslc -Arguments @('logs', $script:currentContainer) -AllowFailure
+    throw "Product lifecycle did not become ready within ${TimeoutSeconds}s. Last response: $lastResponse. Container logs: $($logResult.Text)"
 }
 
 try {

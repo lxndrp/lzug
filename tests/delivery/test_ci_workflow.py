@@ -111,6 +111,10 @@ class QualityWorkflowContractTests(unittest.TestCase):
         self.assertIn("[switch] $SensitiveOutput", script)
         self.assertIn("if ($text -and -not $SensitiveOutput) { Write-Host $text }", script)
         self.assertIn("mode=0750", script)
+        self.assertIn(
+            "if ($lifecycle.state -eq 'ready' -and $lifecycle.ready -eq $true) { return }",
+            script,
+        )
         self.assertEqual(script.count(") + $bootstrap) -SensitiveOutput"), 2)
         self.assertNotIn("$($bootstrapText.Text)", script)
 
