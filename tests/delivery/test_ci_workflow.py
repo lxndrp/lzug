@@ -110,6 +110,7 @@ class QualityWorkflowContractTests(unittest.TestCase):
         script = Path("development/wslc/qualify.ps1").read_text(encoding="utf-8")
         self.assertIn("[switch] $SensitiveOutput", script)
         self.assertIn("if ($text -and -not $SensitiveOutput) { Write-Host $text }", script)
+        self.assertIn("mode=0750", script)
         self.assertEqual(script.count(") + $bootstrap) -SensitiveOutput"), 2)
         self.assertNotIn("$($bootstrapText.Text)", script)
 

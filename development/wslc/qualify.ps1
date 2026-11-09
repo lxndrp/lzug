@@ -213,7 +213,7 @@ function Start-WslcApp {
         '--publish', "127.0.0.1:$HostPort`:8000",
         '--env', 'LZUG_HTTPS_ONLY=false',
         '--tmpfs', '/tmp',
-        '--tmpfs', '/run/lzug-admin:rw,nosuid,nodev,uid=10001,gid=10001,mode=0770',
+        '--tmpfs', '/run/lzug-admin:rw,nosuid,nodev,uid=10001,gid=10001,mode=0750',
         '--mount', "type=volume,source=$Volume,target=/data"
     )
     if ($ReadOnly) { $arguments += '--read-only' }
