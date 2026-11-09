@@ -112,6 +112,9 @@ class QualityWorkflowContractTests(unittest.TestCase):
         self.assertIn("if ($text -and -not $SensitiveOutput) { Write-Host $text }", script)
         self.assertIn("mode=0750", script)
         self.assertIn("$portBindings = $productContainerInfo['Ports']", script)
+        self.assertIn("if ($null -ne $privileged -and $privileged -eq $true)", script)
+        self.assertIn("wslc omitted HostConfig.Privileged", script)
+        self.assertIn("privileged mode could not be verified.", script)
         self.assertIn(
             "if ($lifecycle.state -eq 'ready' -and $lifecycle.ready -eq $true) { return }",
             script,

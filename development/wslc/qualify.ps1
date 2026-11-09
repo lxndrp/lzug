@@ -477,6 +477,17 @@ try {
     if ($productContainerInfo.Config.User -ne '10001:10001') {
         throw 'Product container does not preserve the non-root runtime contract.'
     }
+    $privileged = $hostConfig['Privileged']
+    if ($null -ne $privileged -and $privileged -eq $true) {
+        throw 'Product container unexpectedly runs in privileged mode.'
+    }
+    if ($null -eq $privileged) {
+        $evidence.runtime.privilegedMode = 'Not verifiable: wslc omitted HostConfig.Privileged.'
+        $evidence.blockers.Add('wslc container inspect does not expose HostConfig.Privileged; privileged mode could not be verified.')
+    }
+    else {
+        $evidence.runtime.privilegedMode = 'Verified not privileged.'
+    }
     if ($capabilities.readOnlyRootFilesystem -and $hostConfig['ReadonlyRootfs'] -ne $true) {
         throw 'wslc accepted --read-only but did not report a read-only root filesystem.'
     }
