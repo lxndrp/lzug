@@ -5,11 +5,13 @@
 ARG MISE_VERSION
 ARG DOCKER_CLI_VERSION
 ARG PLAYWRIGHT_VERSION
+ARG RUNNER_UID=1001
 
 FROM ghcr.io/jdx/mise:${MISE_VERSION} AS mise
 FROM docker:${DOCKER_CLI_VERSION}-cli AS docker-cli
 
 FROM mcr.microsoft.com/playwright:v${PLAYWRIGHT_VERSION}-noble AS runner
+ARG RUNNER_UID
 
 USER root
 
@@ -24,7 +26,15 @@ RUN apt-get update \
         /home/pwuser/.local/state/mise/trusted-configs \
         /home/pwuser/.local/share/mise \
         /home/pwuser/go/pkg/mod
-RUN chown -R pwuser:pwuser /home/pwuser/.local /home/pwuser/.cache /home/pwuser/go
+RUN current_uid="$(id -u pwuser)" \
+    && if [ "$current_uid" != "$RUNNER_UID" ]; then \
+        if getent passwd "$RUNNER_UID" >/dev/null; then \
+            echo "RUNNER_UID $RUNNER_UID already belongs to another image user." >&2; \
+            exit 1; \
+        fi; \
+        usermod --uid "$RUNNER_UID" pwuser; \
+    fi \
+    && chown -R "$RUNNER_UID":pwuser /home/pwuser
 
 COPY --from=mise /usr/local/bin/mise /usr/local/bin/mise
 COPY --from=docker-cli /usr/local/bin/docker /usr/local/bin/docker

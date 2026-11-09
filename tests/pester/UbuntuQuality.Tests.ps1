@@ -12,6 +12,13 @@ Describe 'Ubuntu quality runner resource contracts' {
         Test-LzugWorktreeScope '-a' | Should -BeFalse
     }
 
+    It 'uses the host UID for a writable non-root runner identity' {
+        Get-LzugRunnerUserId '1000' | Should -Be '1000'
+        Get-LzugRunnerUserId '501' | Should -Be '501'
+        { Get-LzugRunnerUserId '0' } | Should -Throw '*non-root numeric host UID*'
+        { Get-LzugRunnerUserId 'uid' } | Should -Throw '*non-root numeric host UID*'
+    }
+
     It 'accepts only a Unix endpoint resolving to the mounted local socket' {
         $socket = Join-Path $TestDrive 'docker.sock'
         $remoteSocket = Join-Path $TestDrive 'remote.sock'

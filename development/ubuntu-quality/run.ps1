@@ -175,6 +175,9 @@ try {
     }
     $miseVersion = $Matches.Version
 
+    $hostUserId = Get-NativeOutput -Command id -Arguments @('-u')
+    $runnerUserId = Get-LzugRunnerUserId -UserId $hostUserId
+
     $dockerOutput = Get-NativeOutput -Command docker -Arguments @('--version')
     if ($dockerOutput -notmatch '^Docker version (?<Version>[^,]+),') {
         throw "Cannot parse Docker CLI version from '$dockerOutput'."
@@ -185,6 +188,7 @@ try {
         (Get-Content -Raw Taskfile.yml)
         (Get-Content -Raw development/ubuntu-quality/Dockerfile)
         (Get-Content -Raw development/ubuntu-quality/seccomp-profile.json)
+        $runnerUserId
         $playwrightVersion
         $miseVersion
         $dockerCliVersion
@@ -233,6 +237,7 @@ try {
         '--pull',
         '--load',
         '--build-arg', "PLAYWRIGHT_VERSION=$playwrightVersion",
+        '--build-arg', "RUNNER_UID=$runnerUserId",
         '--build-arg', "MISE_VERSION=$miseVersion",
         '--build-arg', "DOCKER_CLI_VERSION=$dockerCliVersion"
     )
@@ -262,7 +267,7 @@ try {
             'run', '--rm', '--user', '0:0',
             '--mount', "type=volume,source=$volumeName,target=/cache",
             '--entrypoint', '/bin/chown',
-            $image, '1001:1001', '/cache'
+            $image, "${runnerUserId}:1001", '/cache'
         ) -Quiet
     }
 
@@ -273,7 +278,7 @@ try {
         $image, '-c', '%g', '/var/run/docker.sock'
     )
     Invoke-Docker -Arguments @(
-        'run', '--rm', '--user', '1001:1001', '--group-add', $socketGroupId,
+        'run', '--rm', '--user', "${runnerUserId}:1001", '--group-add', $socketGroupId,
         '--mount', 'type=bind,source=/var/run/docker.sock,target=/var/run/docker.sock',
         '--entrypoint', 'docker', $image, 'info'
     ) -Quiet
@@ -293,7 +298,7 @@ try {
 
     $runArguments = @(
         'run', '--rm', '--name', $containerName,
-        '--init', '--shm-size=1g', '--user', '1001:1001',
+        '--init', '--shm-size=1g', '--user', "${runnerUserId}:1001",
         '--group-add', $socketGroupId,
         '--group-add', $buildxConfigGroupId,
         '--security-opt', "seccomp=$worktreeRoot/development/ubuntu-quality/seccomp-profile.json"

@@ -6,6 +6,16 @@ function Test-LzugWorktreeScope {
     return $Scope -cmatch '^[a-z0-9]+(?:-[a-z0-9]+)*$'
 }
 
+function Get-LzugRunnerUserId {
+    param([Parameter(Mandatory)][string]$UserId)
+
+    if ($UserId -notmatch '^\d+$' -or [uint64]$UserId -eq 0) {
+        throw "The Ubuntu quality runner requires a non-root numeric host UID; received '$UserId'."
+    }
+
+    return $UserId
+}
+
 function Test-LzugLocalDockerEndpoint {
     param(
         [Parameter(Mandatory)][string]$Endpoint,
@@ -90,4 +100,4 @@ function Complete-LzugRunnerOutcome {
     }
 }
 
-Export-ModuleMember -Function Test-LzugWorktreeScope, Test-LzugLocalDockerEndpoint, Test-LzugRunnerContainerOwnership, Get-LzugQualityImageReferences, Test-LzugBuilderOwnership, Complete-LzugRunnerOutcome
+Export-ModuleMember -Function Test-LzugWorktreeScope, Get-LzugRunnerUserId, Test-LzugLocalDockerEndpoint, Test-LzugRunnerContainerOwnership, Get-LzugQualityImageReferences, Test-LzugBuilderOwnership, Complete-LzugRunnerOutcome
