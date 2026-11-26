@@ -273,8 +273,7 @@
           <ol>
             @for (revision of revisions(); track revision.id) {
               <li>
-                <strong>{{ revisionLabel(revision) }}</strong
-                ><span>{{ revision.reason }}</span>
+                <strong>{{ revisionLabel(revision) }}</strong><span>{{ revision.reason }}</span>
               </li>
             }
           </ol>
