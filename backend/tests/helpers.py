@@ -9,7 +9,7 @@ from collections.abc import Callable
 from contextlib import AbstractContextManager
 from copy import deepcopy
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
 from pathlib import Path
 from typing import Any, Protocol
@@ -72,6 +72,7 @@ def venue_consequence_service_for_test(db_path: Path):
         calendar_service=compose_calendar_service(db_path),
         consequence_store=application_consequence_store(db_path),
         venue_planner=PlanningVenueConsequencePlanner(SQLiteExamVenueRepository(db_path)),
+        clock=lambda: datetime(2026, 11, 1, tzinfo=UTC),
     )
 
 
