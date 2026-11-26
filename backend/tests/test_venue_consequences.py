@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import unittest
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from http import HTTPStatus
 from unittest.mock import patch
 
@@ -48,7 +48,38 @@ from backend.tests.helpers import (
 )
 
 
-class VenueConsequenceTests(unittest.TestCase):
+class FrozenVenueDate(date):
+    @classmethod
+    def today(cls):
+        return cls(2026, 11, 1)
+
+
+class FrozenVenueDateTime(datetime):
+    @classmethod
+    def now(cls, tz=None):
+        return cls(2026, 11, 1, tzinfo=tz)
+
+
+class VenueDateTestMixin:
+    @classmethod
+    def setUpClass(cls) -> None:
+        super().setUpClass()
+        cls._date_patchers = (
+            patch("backend.persistence.sqlite_exam_venues.date", FrozenVenueDate),
+            patch("backend.planning.venue_consequences.date", FrozenVenueDate),
+            patch("backend.application.venue_consequences.datetime", FrozenVenueDateTime),
+        )
+        for patcher in cls._date_patchers:
+            patcher.start()
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        for patcher in reversed(cls._date_patchers):
+            patcher.stop()
+        super().tearDownClass()
+
+
+class VenueConsequenceTests(VenueDateTestMixin, unittest.TestCase):
     @staticmethod
     def _confirmed_database():
         database = TempDatabase()
@@ -1007,7 +1038,7 @@ class VenueConsequenceTests(unittest.TestCase):
             database.__exit__(None, None, None)
 
 
-class VenueConsequenceApiTests(unittest.TestCase):
+class VenueConsequenceApiTests(VenueDateTestMixin, unittest.TestCase):
     def test_nonretryable_audit_problem_does_not_allow_manual_retry(self) -> None:
         database, db_path = VenueConsequenceTests._confirmed_database()
         try:
