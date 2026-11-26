@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
@@ -39,11 +40,16 @@ class VenueConsequenceService:
         calendar_service: CalendarApplicationPort,
         consequence_store: ApplicationConsequenceStore,
         venue_planner: VenueConsequencePlanningPort,
+        clock: Callable[[], datetime] | None = None,
     ) -> None:
         self.notifications = notification_service
         self.calendar = calendar_service
         self.consequence_store = consequence_store
         self.venue_planner = venue_planner
+        self.clock = clock or (lambda: datetime.now(UTC))
+
+    def _current(self, value: datetime | None = None) -> datetime:
+        return _now(value if value is not None else self.clock())
 
     def preview(
         self,
@@ -67,7 +73,7 @@ class VenueConsequenceService:
         )
 
     def process_audit(self, audit_id: int, *, now: datetime | None = None) -> dict[str, Any]:
-        current = _now(now)
+        current = self._current(now)
         batch_id = self._derive(audit_id, current)
         self._supersede_stale(audit_id, current)
         self._process_tasks(batch_id, current)
@@ -75,7 +81,7 @@ class VenueConsequenceService:
 
     def process_due(self, *, now: datetime | None = None) -> dict[str, int]:
         """Re-derive missing audit batches and resume due tasks after a crash."""
-        current = _now(now)
+        current = self._current(now)
         audits = tuple(
             audit
             for audit in self.venue_planner.consequence_audits()
@@ -118,8 +124,8 @@ class VenueConsequenceService:
             "problems": derivation_problems + failed_tasks,
         }
 
-    def retry_audit(self, audit_id: int) -> dict[str, Any]:
-        current = _now()
+    def retry_audit(self, audit_id: int, *, now: datetime | None = None) -> dict[str, Any]:
+        current = self._current(now)
         batch_id = self._derive(audit_id, current)
         tasks = self.consequence_store.tasks_for_batch(
             batch_id,
@@ -170,7 +176,7 @@ class VenueConsequenceService:
                 expired_claim = (
                     task.status == "pending"
                     and task.next_attempt_at is not None
-                    and task.next_attempt_at <= _timestamp()
+                    and task.next_attempt_at <= _timestamp(self._current())
                 )
                 if task.status in {"temporarily_failed", "permanently_failed"}:
                     result.append(self._problem_view(audit, task, task.error_code))
@@ -280,7 +286,7 @@ class VenueConsequenceService:
         claim_until = self._claim_task(task_id, current)
         if claim_until is None:
             return
-        today = date.today()
+        today = current.date()
         task = self.consequence_store.task(task_id)
         if task is None or not self._owns_claim(task_id, claim_until):
             return
@@ -295,7 +301,7 @@ class VenueConsequenceService:
         try:
             if not self._owns_claim(task_id, claim_until):
                 return
-            if not self._is_current(task.consequence_type, details, date.today()):
+            if not self._is_current(task.consequence_type, details, current.date()):
                 self._supersede(task, current, claim_until)
                 return
             if consequence_type == "calendar":
@@ -305,7 +311,7 @@ class VenueConsequenceService:
             else:
                 created = self.notifications.create_direct_if_current(
                     is_current=lambda: self._is_current(
-                        task.consequence_type, details, date.today()
+                        task.consequence_type, details, current.date()
                     ),
                     committee_id=int(details["committee_id"]),
                     round_id=None,
@@ -364,7 +370,7 @@ class VenueConsequenceService:
         return self.venue_planner.is_current(consequence_type, details, today=today)
 
     def _supersede_stale(self, audit_id: int, current: datetime) -> None:
-        today = date.today()
+        today = current.date()
         try:
             current_source = self.venue_planner.source_for_audit(audit_id, today=today)
         except ValueError:
@@ -407,7 +413,7 @@ class VenueConsequenceService:
                     )
 
     def _supersede_stale_all(self, batches, current: datetime) -> int:
-        today = date.today()
+        today = current.date()
         pending_statuses = frozenset({"pending", "temporarily_failed", "permanently_failed"})
         problems = 0
         for batch in batches:

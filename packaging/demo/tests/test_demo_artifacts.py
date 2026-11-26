@@ -107,6 +107,13 @@ class DemoArtifactTests(unittest.TestCase):
             self.assertEqual(first, second)
             self.assertEqual(sha256_file(first_db), sha256_file(second_db))
             self.assertEqual(first_manifest.read_bytes(), second_manifest.read_bytes())
+            self.assertEqual(
+                "2026-01-01T00:00:00+00:00",
+                self._scalar(
+                    first_db,
+                    "SELECT captured_at FROM absence_consequence_cutover WHERE id = 1",
+                ),
+            )
             self.assertEqual(first["snapshot_sha256"], sha256_file(first_db))
             self.assertEqual(RUNTIME_CONTRACT, first["runtime_contract"])
             self.assertRegex(first["seed_revision"], r"^[0-9a-f]{64}$")
