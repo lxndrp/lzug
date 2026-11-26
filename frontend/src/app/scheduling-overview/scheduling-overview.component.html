@@ -28,8 +28,9 @@
       <section class="app-panel">
         <header tuiHeader="body-m" class="app-panel-header">
           <div>
-            <strong>{{ group.label }}</strong
-            ><span class="app-muted app-block">{{ group.description }}</span>
+            <strong>{{ group.label }}</strong><span class="app-muted app-block">{{
+              group.description
+            }}</span>
           </div>
           <span tuiBadge [appearance]="badgeAppearance(group.id)">{{
             itemsFor(group.id).length
