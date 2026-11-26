@@ -28,6 +28,7 @@ TIMESTAMP_COLUMNS = {
     "actual_started_at",
     "applied_at",
     "assigned_at",
+    "captured_at",
     "consumed_at",
     "created_at",
     "expires_at",
