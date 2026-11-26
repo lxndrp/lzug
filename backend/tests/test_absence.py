@@ -830,14 +830,20 @@ class AbsenceServiceTests(unittest.TestCase):
             )
 
     def test_http_api_exposes_the_process_without_client_actor_fields(self) -> None:
-        with ApiServer(self.db_path) as api:
-            status, result = api.request(
-                "POST",
-                "/api/absence-reports",
-                {"exam_day_id": self.day_id, "exam_day_assignment_id": self.assignment_id},
-            )
-            assert_status(status, HTTPStatus.CREATED)
-            self.assertEqual(1, result["reported_by_member_id"])
-            status, collection = api.request("GET", "/api/absence-reports")
-            assert_status(status, HTTPStatus.OK)
-            self.assertEqual([result["id"]], [item["id"] for item in collection["items"]])
+        class FrozenDateTime(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return cls(2026, 11, 1, tzinfo=tz)
+
+        with patch("backend.execution.absence.datetime", FrozenDateTime):
+            with ApiServer(self.db_path) as api:
+                status, result = api.request(
+                    "POST",
+                    "/api/absence-reports",
+                    {"exam_day_id": self.day_id, "exam_day_assignment_id": self.assignment_id},
+                )
+                assert_status(status, HTTPStatus.CREATED)
+                self.assertEqual(1, result["reported_by_member_id"])
+                status, collection = api.request("GET", "/api/absence-reports")
+                assert_status(status, HTTPStatus.OK)
+                self.assertEqual([result["id"]], [item["id"] for item in collection["items"]])
