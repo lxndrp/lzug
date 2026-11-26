@@ -32,7 +32,7 @@ The production bundles contain only the required Latin, Greek, and Greek Extende
 
 ## Lucide
 
-The product's functional icons use `lucide` within the `^1.61.0` range; the
+The product's functional icons use `lucide` within the `^1.75.0` range; the
 lockfile fixes the concrete package version used by each build.
 The product mapping keeps stable semantic names in
 [`frontend/src/app/app-icons.ts`](frontend/src/app/app-icons.ts).
