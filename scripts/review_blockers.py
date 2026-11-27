@@ -81,9 +81,7 @@ def affected_paths(body: object, *, issue: int) -> list[str]:
     paths: list[str] = []
     for line in tail.splitlines():
         if line.strip() and not re.match(r"^\s*[-*+]\s+", line):
-            if paths:
-                break
-            continue
+            break
         entry = re.match(r"^\s*[-*+]\s+(.+?)\s*$", line)
         if entry:
             paths.append(_valid_repo_path(entry.group(1).strip().strip("`"), issue=issue))

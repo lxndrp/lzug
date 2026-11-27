@@ -26,6 +26,16 @@ class ReviewBlockerPathTests(unittest.TestCase):
             with self.subTest(path=path), self.assertRaises(review_blockers.GitHubApiError):
                 review_blockers.affected_paths(f"Affected paths:\n- {path}", issue=12)
 
+    def test_rejects_empty_section_before_later_list(self) -> None:
+        for heading in ("Affected paths:", "Betroffene Pfade:"):
+            with self.subTest(heading=heading):
+                with self.assertRaisesRegex(
+                    review_blockers.GitHubApiError, "does not list any affected paths"
+                ):
+                    review_blockers.affected_paths(
+                        f"{heading}\n\n## Reproduction\n- backend/src\n", issue=12
+                    )
+
     def test_path_overlap_covers_files_and_directories(self) -> None:
         self.assertTrue(review_blockers.paths_overlap("backend/src", "backend/src/module.py"))
         self.assertTrue(review_blockers.paths_overlap("backend/src/module.py", "backend/src"))
@@ -123,6 +133,32 @@ class ReviewBlockerCheckTests(unittest.TestCase):
         with patch.object(review_blockers, "_request", side_effect=fake_request):
             with self.assertRaisesRegex(
                 review_blockers.GitHubApiError, "does not declare its affected paths"
+            ):
+                review_blockers.check("lxndrp/lzug", 5, "token")
+
+    def test_empty_issue_path_section_fails_closed(self) -> None:
+        def fake_request(url: str, _token: str):
+            if "/pulls/5/files?" in url:
+                return ([{"filename": "backend/src/module.py"}], None)
+            if url.endswith("/pulls/5"):
+                return ({"body": "", "changed_files": 1}, None)
+            if "/issues?" in url:
+                return (
+                    [
+                        {
+                            "number": 12,
+                            "state": "open",
+                            "labels": [{"name": "review:blocking"}],
+                            "body": "Affected paths:\n\n## Reproduction\n- docs/guide.md",
+                        }
+                    ],
+                    None,
+                )
+            self.fail(f"Unexpected API URL: {url}")
+
+        with patch.object(review_blockers, "_request", side_effect=fake_request):
+            with self.assertRaisesRegex(
+                review_blockers.GitHubApiError, "does not list any affected paths"
             ):
                 review_blockers.check("lxndrp/lzug", 5, "token")
 
